@@ -4,7 +4,7 @@ import type {
   CatalogInput, CatalogProduct, Category, Employee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
-import { computeOrder, cashChange } from './order-calc';
+import { computeOrder } from './order-calc';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
@@ -308,7 +308,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const balance = total - o.paidTotal;
       if (pay.amount <= 0 || pay.amount > balance) throw new DataError('bad_amount', 'Jumlah melebihi sisa tagihan');
       const tendered = pay.tendered ?? pay.amount;
-      const { change } = cashChange(total, o.paidTotal, tendered);
+      const change = Math.max(tendered - pay.amount, 0);                          // sama dengan server (tendered - amount)
       const at = pay.paidAt ?? now().toISOString();
       o.payments.push({ id: pay.id, methodId: m.id, methodName: m.name, kind: m.kind, amount: pay.amount, tendered, change: m.kind === 'cash' ? change : 0, paidAt: at });
       o.total = total; o.rounding = rounding; o.paidTotal += pay.amount;

@@ -62,6 +62,21 @@ describe('lapisan data palsu', () => {
     expect(rep.productsSold[0]!.name).toBe('Kopi susu gula aren');
   });
 
+  it('bayar campuran: sebagian non-tunai lalu tunai dengan kembalian dari jumlah yang dibayar', async () => {
+    await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
+    const o = await d.saveOrder({ id: newId(), type: 'takeaway' as const, items: [{ id: newId(), productId: 'p1', name: 'Kopi susu gula aren', qty: 2, unitPrice: 20000 }] }, 'e-sari');
+    const methods = await d.listPaymentMethods();
+    const card = methods.find((m) => m.kind === 'noncash')!;
+    const part = await d.addPayment(o.id, { id: newId(), methodId: card.id, amount: 10000 });
+    expect(part.status).toBe('partially_paid');
+    expect(part.paidTotal).toBe(10000);
+    const rest = o.total - 10000;
+    const done = await d.addPayment(o.id, { id: newId(), methodId: 'm-cash', amount: rest, tendered: rest + 5000 });
+    expect(done.status).toBe('paid');
+    expect(done.payments.map((x) => x.amount)).toEqual([10000, rest]);
+    expect(done.payments[1]!.change).toBe(5000);
+  });
+
   it('pembulatan tunai kelipatan 100 mengikuti metode bayar', async () => {
     await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
     const draft = { id: newId(), type: 'takeaway' as const, items: [{ id: newId(), productId: 'p12', name: 'Kentang goreng', qty: 1, unitPrice: 15150 }] };
