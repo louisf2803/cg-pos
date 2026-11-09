@@ -83,7 +83,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); }} />;
   }
   if (showOrders) {
-    return <Orders canResume={cart.state.lines.length === 0}
+    return <Orders ctx={ctx} canResume={cart.state.lines.length === 0}
       onClose={() => setShowOrders(false)}
       onResume={async (o) => {
         const tableName = o.tableId ? (await data.listTables().catch(() => [])).find((t) => t.id === o.tableId)?.name : undefined;

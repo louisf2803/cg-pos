@@ -1,23 +1,25 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, Ban, CreditCard, Play } from 'lucide-react';
-import { formatRp, type Employee, type Order } from '@cgpos/shared';
+import { ArrowLeft, Ban, CreditCard, Play, Printer } from 'lucide-react';
+import { formatRp, type Employee, type Order, type OutletContext } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useSession } from '../lib/session';
 import { Modal } from '../ui';
+import { ReceiptDialog } from './Receipt';
 
 const REASONS = ['Salah input pesanan', 'Pelanggan batal', 'Pesanan ganda', 'Lainnya'];
 const TYPE: Record<Order['type'], string> = { takeaway: 'Bawa pulang', dine_in: 'Makan di tempat', delivery: 'Antar', service: 'Jasa' };
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
 /** Daftar pesanan yang belum lunas di outlet ini: lanjutkan, bayar, atau batalkan (void). */
-export function Orders({ canResume, onClose, onResume, onPay }: { canResume: boolean; onClose: () => void; onResume: (o: Order) => void; onPay: (o: Order) => void }) {
+export function Orders({ ctx, canResume, onClose, onResume, onPay }: { ctx: OutletContext; canResume: boolean; onClose: () => void; onResume: (o: Order) => void; onPay: (o: Order) => void }) {
   const data = useData();
   const list = useAsync(async () => {
     const [open, part] = await Promise.all([data.listOrders({ status: 'open', limit: 100 }), data.listOrders({ status: 'partially_paid', limit: 100 })]);
     return [...open, ...part].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
   }, [data]);
   const [voiding, setVoiding] = useState<Order | null>(null);
+  const [bill, setBill] = useState<Order | null>(null);
   const [notice, setNotice] = useState('');
 
   return (
@@ -54,6 +56,7 @@ export function Orders({ canResume, onClose, onResume, onPay }: { canResume: boo
                 </details>
                 <div className="flex flex-wrap gap-8">
                   {!partial && <button className="cg-btn cg-btn--secondary" disabled={!canResume} onClick={() => onResume(o)}><Play className="cg-icon cg-icon--sm" aria-hidden /> Lanjutkan</button>}
+                  <button className="cg-btn cg-btn--ghost" onClick={() => setBill(o)}><Printer className="cg-icon cg-icon--sm" aria-hidden /> Tagihan</button>
                   <button className="cg-btn cg-btn--primary" onClick={() => onPay(o)}><CreditCard className="cg-icon cg-icon--sm" aria-hidden /> Bayar</button>
                   {!partial && <button className="cg-btn cg-btn--ghost ml-auto" onClick={() => setVoiding(o)}><Ban className="cg-icon cg-icon--sm" aria-hidden /> Batalkan</button>}
                 </div>
@@ -62,6 +65,7 @@ export function Orders({ canResume, onClose, onResume, onPay }: { canResume: boo
           })}
         </ul>
       )}
+      {bill && <ReceiptDialog order={bill} ctx={ctx} kind="bill" onClose={() => setBill(null)} />}
       {voiding && <VoidDialog order={voiding} onClose={() => setVoiding(null)} onDone={(n) => { setVoiding(null); setNotice(`Pesanan ${n} dibatalkan.`); list.reload(); }} />}
     </div>
   );

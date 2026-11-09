@@ -77,6 +77,7 @@ export interface SalesSummary {
 
 export interface OutletContext {
   orgName: string; outletId: string; outletCode: string; outletName: string; timezone: string;
+  address?: string; phone?: string; receiptFooter?: string;
   deviceCode: string; settings: CalcSettings & { roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean };
   taxes: { id: string; name: string; rate: number }[];
 }

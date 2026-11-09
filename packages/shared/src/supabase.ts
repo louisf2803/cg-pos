@@ -88,7 +88,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     const device = ((must(await dq.order('created_at').limit(1)) as Row[] | null) ?? [])[0] ?? null;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let oq: any = db().from('outlets').select('id,org_id,code,name,timezone').is('deleted_at', null).eq('is_active', true);
+    let oq: any = db().from('outlets').select('id,org_id,code,name,address,phone,timezone').is('deleted_at', null).eq('is_active', true);
     if (device) oq = oq.eq('id', device.outlet_id);
     else if (opts.outletId) oq = oq.eq('id', opts.outletId);
     const outlet = ((must(await oq.order('created_at').limit(1)) as Row[] | null) ?? [])[0];
@@ -103,6 +103,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     const ctx: OutletContext = {
       orgName: (must(org) as Row).name, outletId: outlet.id, outletCode: outlet.code, outletName: outlet.name,
       timezone: outlet.timezone, deviceCode: device?.code ?? '-',
+      address: outlet.address ?? undefined, phone: outlet.phone ?? undefined, receiptFooter: s.receipt_footer ?? undefined,
       settings: {
         taxCalc: s.tax_calc, taxMode: s.tax_mode, serviceChargePct: Number(s.service_charge_pct),
         serviceChargeTaxable: !!s.service_charge_taxable, serviceChargeOrderTypes: (s.service_charge_order_types ?? []) as OrderType[],

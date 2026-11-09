@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Banknote, CheckCircle2, CreditCard, Landmark, QrCode } from 'lucide-react';
+import { ArrowLeft, Banknote, Printer, CheckCircle2, CreditCard, Landmark, QrCode } from 'lucide-react';
 import { DataError, formatRp, newId, parseRp, quickCashAmounts, roundToStep, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
+import { ReceiptDialog } from './Receipt';
 import { useAsync } from '../lib/use-async';
 
 const ICON: Record<PaymentMethod['kind'], typeof Banknote> = { cash: Banknote, noncash: CreditCard, gateway: QrCode, complimentary: Landmark, deposit: Landmark };
@@ -17,6 +18,7 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Order | null>(null);
+  const [printing, setPrinting] = useState(false);
   // satu id per upaya bayar: ketuk dua kali tidak menggandakan pembayaran (kontrak idempoten dengan server)
   const attemptId = useRef(newId());
 
@@ -69,7 +71,9 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
             <div className="cg-totals__row"><span>Total</span><span className="cg-num">{formatRp(done.total)}</span></div>
             {done.rounding !== 0 && <div className="cg-totals__row"><span>Termasuk pembulatan</span><span className="cg-num">{formatRp(done.rounding)}</span></div>}
           </div>
+          <button className="cg-btn cg-btn--secondary cg-btn--lg cg-btn--block" onClick={() => setPrinting(true)}><Printer className="cg-icon" aria-hidden /> Cetak struk</button>
           <button className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block" autoFocus onClick={onDone}>Pesanan baru</button>
+          {printing && <ReceiptDialog order={done} ctx={ctx} kind="receipt" onClose={() => setPrinting(false)} />}
         </div>
       </main>
     );

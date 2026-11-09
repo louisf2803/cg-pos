@@ -24,3 +24,23 @@ body { overscroll-behavior: none; }
 }
 .reg__pay { white-space: nowrap; }
 @media (max-width: 599px) { .reg__pay { flex: 1; } }
+
+/* ---------- struk ---------- */
+.receipt { font-family: ui-monospace, 'Courier New', monospace; font-size: 12px; line-height: 1.35; color: #000; background: #fff; padding: 8px; }
+.receipt--80 { width: 72mm; }
+.receipt--58 { width: 48mm; font-size: 11px; }
+.receipt hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+.receipt__center { text-align: center; }
+.receipt__row { display: flex; justify-content: space-between; gap: 8px; }
+.receipt__row > span:last-child { text-align: right; white-space: nowrap; }
+.receipt__item { margin-bottom: 4px; word-break: break-word; }
+.receipt__note { padding-left: 8px; font-style: italic; }
+.receipt__total { font-weight: 700; font-size: 1.1em; }
+.receipt-preview { max-height: 50vh; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #fff; display: flex; justify-content: center; }
+@media print {
+  @page { margin: 0; }
+  body * { visibility: hidden !important; }
+  .receipt-print, .receipt-print * { visibility: visible !important; }
+  .receipt-print { position: absolute; left: 0; top: 0; }
+  .receipt { padding: 2mm; }
+}

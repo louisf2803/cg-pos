@@ -162,12 +162,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const problem = outletInfoProblem(input);
       if (problem) throw new DataError('invalid', problem);
       CTX.outletName = input.name.trim(); outlet.address = input.address.trim(); outlet.phone = input.phone.trim();
+      CTX.address = outlet.address || undefined; CTX.phone = outlet.phone || undefined;
     },
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);
       if (problem) throw new DataError('invalid', problem);
       const { receiptFooter, ...rest } = input;
-      Object.assign(CTX.settings, rest); outlet.receiptFooter = receiptFooter.trim();
+      Object.assign(CTX.settings, rest); outlet.receiptFooter = receiptFooter.trim(); CTX.receiptFooter = outlet.receiptFooter || undefined;
     },
     async listFloors() { return clone([...floors].sort((a, b) => a.sort - b.sort)); },
     async saveFloor(input) {
