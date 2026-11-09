@@ -11,7 +11,7 @@ export const NAV: NavGroup[] = [
     label: 'Katalog', icon: Package, items: [
       { href: '/produk', label: 'Produk', screen: 'S33', tier: 1, built: true },
       { href: '/kategori', label: 'Kategori', screen: 'S34', tier: 1, built: true },
-      { href: '/ekstra', label: 'Produk ekstra', screen: 'S35', tier: 1 },
+      { href: '/ekstra', label: 'Produk ekstra', screen: 'S35', tier: 1, built: true },
       { href: '/paket', label: 'Paket dan layanan', screen: 'S36', tier: 2 },
       { href: '/harga-jadwal', label: 'Harga terjadwal', screen: 'S38', tier: 2 },
     ],

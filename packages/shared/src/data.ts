@@ -1,6 +1,6 @@
 import type { OutletInfo, OutletOptions } from './outlet';
 import type {
-  Category, CatalogInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Category, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -38,6 +38,11 @@ export interface DataLayer {
   saveDepartment(input: { id?: string; name: string }): Promise<Department>;
   /** Hapus departemen. Kategori di dalamnya menjadi "tanpa departemen". */
   deleteDepartment(id: string): Promise<void>;
+  /** Grup Ekstra (modifier) beserta pilihan dan produk yang memakainya. */
+  listExtraGroups(): Promise<ExtraGroup[]>;
+  saveExtraGroup(input: ExtraGroupInput): Promise<ExtraGroup>;
+  /** Hapus grup. Pesanan lama tetap menyimpan salinan nama dan harga pilihannya. */
+  deleteExtraGroup(id: string): Promise<void>;
   listProducts(q?: { categoryId?: string | null; search?: string; includeInactive?: boolean }): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
   saveProduct(input: ProductInput): Promise<Product>;

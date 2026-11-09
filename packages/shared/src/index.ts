@@ -12,3 +12,4 @@ export * from './pin';
 export * from './report';
 export * from './outlet';
 export * from './refund';
+export * from './extras';

@@ -13,6 +13,7 @@ begin
   select id into cash from payment_methods where org_id = ctx('o1') and code = 'CASH';
   -- shift milik perangkat sama sudah ada dari skenario lain? tutup dulu agar op shift.open tidak bentrok
   update shifts set status = 'closed', closed_at = now() where device_id = ctx('dev') and status = 'open';
+  t := replace(t, '@opt_shot', ctx('opt_shot')::text);
   t := replace(t, '@kopi_pu', ctx('pu_kopi')::text);
   t := replace(t, '@air_pu', ctx('pu_air')::text);
   t := replace(t, '@kopi', ctx('kopi')::text);
@@ -65,6 +66,11 @@ begin
   perform pg_temp.ok(
     (select sum(debit) = sum(credit) from journal_lines where entry_id = (select id from journal_entries where source_key = 'refund:' || (fx->'ids'->>'refund'))),
     'jurnal refund seimbang');
+
+  -- Ekstra dari payload klien: baris pesanan menyimpan salinan nama/harga pilihan, total ekstra = qty x harga
+  perform pg_temp.ok((select count(*) from order_item_extras e join order_items i on i.id = e.order_item_id where i.order_id = (fx->'ids'->>'orderC')::uuid) = 1, 'ekstra tersimpan');
+  perform pg_temp.ok((select i.extras_total = e.qty * e.price from order_item_extras e join order_items i on i.id = e.order_item_id where i.order_id = (fx->'ids'->>'orderC')::uuid) = true, 'total ekstra = qty x harga');
+  perform pg_temp.ok((select i.line_total from order_item_extras e join order_items i on i.id = e.order_item_id where i.order_id = (fx->'ids'->>'orderC')::uuid) = 50000, 'baris 2x20000 + 10000 ekstra');
 
   -- kirim ulang seluruh batch: idempoten
   v := pos.sync_push(ctx('dev'), fx->'ops');

@@ -59,7 +59,7 @@ export function Orders({ ctx, canResume, onClose, onResume, onPay }: { ctx: Outl
                 <details>
                   <summary className="cursor-pointer">{o.items.reduce((n, i) => n + i.qty, 0)} item · <span className="cg-num">{formatRp(o.total)}</span>{partial && <span className="cg-badge cg-badge--warning ml-8">Dibayar sebagian {formatRp(o.paidTotal)}</span>}</summary>
                   <ul className="grid gap-4 mt-8">
-                    {o.items.map((i) => <li key={i.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{i.name} <span className="text-text-muted">× {i.qty}</span></span><span className="cg-num">{formatRp(i.lineTotal)}</span></li>)}
+                    {o.items.map((i) => <li key={i.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{i.name} <span className="text-text-muted">× {i.qty}</span>{i.extras?.length ? <span className="block text-text-muted text-sm">{i.extras.map((e) => e.name).join(', ')}</span> : null}</span><span className="cg-num">{formatRp(i.lineTotal)}</span></li>)}
                   </ul>
                 </details>
                 <div className="flex flex-wrap gap-8">

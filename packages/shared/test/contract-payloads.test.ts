@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { computeOrder, newId, roundToStep } from '../src';
+import { computeOrder, extrasLineTotal, newId, roundToStep } from '../src';
 import { buildOrderPayload, buildRefundPayload, payloadFromStored } from '../src/supabase-map';
 import { refundAmounts } from '../src/refund';
 
@@ -50,8 +50,15 @@ describe('payload klien -> database', () => {
     expect(payloadB2.total).toBe(49700);
 
     const idC = newId();
-    const c = withFreshIds();
-    const payloadC = buildOrderPayload({ ...base, ...c, id: idC, number: 'OUT1/A/261110/103' });
+    // pesanan C membawa Ekstra: 2 kopi masing-masing + Extra shot 5000 (dibatalkan di akhir, jadi tidak mengubah kas)
+    const shot = [{ optionId: '@opt_shot', name: 'Extra shot', price: 5000 }];
+    const cItems = items.map((i, k) => ({ ...i, id: newId(), ...(k === 0 ? { extras: shot } : {}) }));
+    const calcC = computeOrder({
+      orderType: 'dine_in', orderDiscount: 2000, roundingStep: 0, settings: SETTINGS,
+      items: cItems.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, extrasTotal: extrasLineTotal(i.qty, 'extras' in i ? i.extras : undefined) })), orderTaxes: [{ taxId: null as unknown as string, name: 'PB1', rate: 10 }],
+    });
+    const payloadC = buildOrderPayload({ ...base, items: cItems, calc: calcC, id: idC, number: 'OUT1/A/261110/103' });
+    expect(payloadC.items[0].extras_total).toBe(10000);
     const op = (type: string, entityId: string, payload: unknown) => ({ op_id: newId(), type, entity_id: entityId, payload });
     // refund 1 dari 2 kopi pada pesanan A (tunai): nilai dihitung oleh kode klien, kas harapan berkurang sebesar itu
     const orderA = { id: idA, status: 'paid', total: 49665, paidTotal: 49665, items: a.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, lineTotal: a.calc.lines.find((l) => l.id === i.id)!.lineTotal })) } as never;

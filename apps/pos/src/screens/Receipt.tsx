@@ -31,7 +31,8 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: O
       {order.items.map((i) => (
         <div key={i.id} className="receipt__item">
           <div>{i.name}</div>
-          <div className="receipt__row"><span>{i.qty} × {formatRp(i.unitPrice)}</span><span>{formatRp(i.lineTotal)}</span></div>
+          <div className="receipt__row"><span>{i.qty} × {formatRp(i.unitPrice)}</span><span>{formatRp(i.qty * i.unitPrice)}</span></div>
+          {i.extras?.map((e) => <div key={e.optionId} className="receipt__row"><span>+ {e.name}{i.qty > 1 ? ` × ${i.qty}` : ''}</span><span>{e.price > 0 ? formatRp(e.price * i.qty) : ''}</span></div>)}
           {i.note && <div className="receipt__note">{i.note}</div>}
         </div>
       ))}

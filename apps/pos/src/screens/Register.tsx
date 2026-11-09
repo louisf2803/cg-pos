@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ClipboardList, Lock, Minus, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { formatRp, groupVariants, newId, type CatalogTile, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -19,6 +19,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const online = useOnline();
   const cats = useAsync(() => data.listCategories(), [data]);
   const prods = useAsync(() => data.listProducts(), [data]);
+  const extraGroups = useAsync<ExtraGroup[]>(() => data.listExtraGroups().catch(() => []), [data]);
+  const [extraFor, setExtraFor] = useState<Product | null>(null);
   const [cat, setCat] = useState<string | 'all'>('all');
   const [q, setQ] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
@@ -43,7 +45,12 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     });
   }, [prods, cat, q]);
 
-  const qtyOf = (p: Product) => cart.state.lines.find((l) => l.productId === p.id)?.qty ?? 0;
+  const qtyOf = (p: Product) => cart.state.lines.filter((l) => l.productId === p.id).reduce((n, l) => n + l.qty, 0);
+  /** Produk dengan grup Ekstra membuka pemilih dulu; selainnya langsung masuk pesanan. */
+  const choose = (p: Product) => {
+    const gs = extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, p) : [];
+    if (gs.length) setExtraFor(p); else cart.dispatch({ t: 'add', product: p });
+  };
   const qtyOfTile = (t: CatalogTile) => (t.kind === 'single' ? qtyOf(t.product) : t.options.reduce((n, o) => n + qtyOf(o.product), 0));
 
   /** Simpan pesanan ke server. Id dipertahankan di keranjang, jadi simpan ulang memperbarui pesanan yang sama. */
@@ -52,7 +59,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       id: cart.state.orderId ?? newId(), type: cart.state.type,
       tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, label: cart.state.label?.trim() || undefined,
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
-      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice })),
+      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras })),
     }, session.employee.id);
     cart.dispatch({ t: 'saved', orderId: o.id });
     return o;
@@ -136,7 +143,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             const price = isGroup ? (t.minPrice === t.maxPrice ? formatRp(t.minPrice) : `mulai ${formatRp(t.minPrice)}`) : formatRp(t.product.price);
             return (
               <button key={t.key} className="cg-tile"
-                onClick={() => (isGroup ? setPicking(t) : cart.dispatch({ t: 'add', product: t.product }))}
+                onClick={() => (isGroup ? setPicking(t) : choose(t.product))}
                 aria-haspopup={isGroup ? 'dialog' : undefined}
                 aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
                 <span className="cg-tile__media" aria-hidden><ShoppingBag className="cg-icon cg-icon--lg" /></span>
@@ -188,9 +195,9 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
               const total = cart.calc.lines.find((x) => x.id === l.id)?.lineTotal ?? 0;
               return (
                 <li key={l.id} className="cg-line" style={{ cursor: 'default' }}>
-                  <span className="cg-line__name break-words min-w-0">{l.name}</span>
+                  <span className="cg-line__name break-words min-w-0">{l.name}{l.extras?.length ? <span className="block text-text-muted text-sm font-normal">{l.extras.map((e) => e.name).join(', ')}</span> : null}</span>
                   <span className="cg-line__amount cg-num">{formatRp(total)}</span>
-                  <span className="cg-line__sub">{l.qty} × {formatRp(l.unitPrice)}</span>
+                  <span className="cg-line__sub">{l.qty} × {formatRp(l.unitPrice + extrasPerUnit(l.extras))}</span>
                   <span className="cg-stepper" style={{ gridColumn: '1 / -1', justifySelf: 'start', marginTop: 8 }}>
                     <button onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })} aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}>{l.qty === 1 ? <Trash2 className="cg-icon cg-icon--sm" aria-hidden /> : <Minus className="cg-icon cg-icon--sm" aria-hidden />}</button>
                     <output aria-label={`Jumlah ${l.name}`}>{l.qty}</output>
@@ -222,6 +229,10 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             if (o) { cart.dispatch({ t: 'load', order: o, tableName: t.name }); setPanelOpen(true); setNotice(''); }
           }} />
       )}
+      {extraFor && extraGroups.status === 'ready' && (
+        <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
+          onAdd={(extras) => { cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
+      )}
       {picking && (
         <Modal title={`Pilih ukuran: ${picking.name}`} onClose={() => setPicking(null)}>
           <ul className="grid gap-8" aria-label="Ukuran">
@@ -231,7 +242,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
               return (
                 <li key={o.product.id}>
                   <button className="cg-btn cg-btn--secondary cg-btn--lg cg-btn--block flex justify-between" data-autofocus={i === 0 ? '' : undefined}
-                    onClick={() => { cart.dispatch({ t: 'add', product: o.product }); setPicking(null); }}
+                    onClick={() => { choose(o.product); setPicking(null); }}
                     aria-label={`${o.label}, ${formatRp(o.product.price)}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
                     <span>{o.label}{n > 0 && <span className="cg-badge cg-badge--accent ml-8">{n}</span>}{out && <span className="cg-badge cg-badge--warning ml-8">Stok habis</span>}</span>
                     <span className="cg-num">{formatRp(o.product.price)}</span>
@@ -256,5 +267,58 @@ export function Totals({ calc }: { calc: ReturnType<typeof useCart>['calc'] }) {
       {calc.taxLines.map((t) => <div key={t.name} className="cg-totals__row"><span>{t.name} {t.rate}%</span><span className="cg-num">{formatRp(t.amount)}</span></div>)}
       <div className="cg-totals__row cg-totals__row--grand"><span>Total</span><span className="cg-num">{formatRp(calc.total)}</span></div>
     </div>
+  );
+}
+
+function ExtraPicker({ product, groups, onClose, onAdd }: { product: Product; groups: ExtraGroup[]; onClose: () => void; onAdd: (extras: ReturnType<typeof pickedExtras>) => void }) {
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const toggle = (g: ExtraGroup, id: string) => {
+    setError('');
+    setChosen((cur) => {
+      const on = cur.includes(id);
+      if (g.mode === 'single') return [...cur.filter((x) => !g.options.some((o) => o.id === x)), ...(on && !g.required ? [] : [id])];
+      return on ? cur.filter((x) => x !== id) : [...cur, id];
+    });
+  };
+  const extras = pickedExtras(groups, chosen);
+  function add() {
+    for (const g of groups) {
+      const p = selectionProblem(g, chosen);
+      if (p) return setError(p);
+    }
+    onAdd(extras);
+  }
+  return (
+    <Modal title={`Ekstra: ${product.name}`} onClose={onClose} labelledBy="extra-title">
+      <div className="grid gap-16">
+        {groups.map((g, gi) => {
+          const hint = g.mode === 'single' ? 'pilih satu' : g.maxSelect ? `maksimal ${g.maxSelect}` : 'boleh lebih dari satu';
+          return (
+            <fieldset key={g.id} className="grid gap-8 border-0 p-0 m-0 min-w-0">
+              <legend className="font-semibold mb-4">{g.name} <span className="text-text-muted text-sm font-normal">· {g.required ? 'wajib' : 'opsional'}, {hint}</span></legend>
+              {g.options.map((o, oi) => {
+                const on = chosen.includes(o.id);
+                return (
+                  <label key={o.id} className="flex items-center justify-between gap-12 min-h-[44px] px-12 rounded-md border border-border cursor-pointer" style={on ? { borderColor: 'var(--color-accent)' } : undefined}>
+                    <span className="flex items-center gap-8 min-w-0">
+                      <input type={g.mode === 'single' ? 'radio' : 'checkbox'} name={`g-${g.id}`} checked={on} data-autofocus={gi === 0 && oi === 0 ? '' : undefined}
+                        onChange={() => toggle(g, o.id)} onClick={() => { if (g.mode === 'single' && on) toggle(g, o.id); }} />
+                      <span className="break-words">{o.name}</span>
+                    </span>
+                    <span className="cg-num text-text-muted shrink-0">{o.price > 0 ? `+${formatRp(o.price)}` : 'Gratis'}</span>
+                  </label>
+                );
+              })}
+            </fieldset>
+          );
+        })}
+        <p role="alert" className="min-h-[24px] text-danger-strong">{error}</p>
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>Batal</button>
+          <button type="button" className="cg-btn cg-btn--primary" onClick={add}>Tambah {formatRp(product.price + extrasPerUnit(extras))}</button>
+        </div>
+      </div>
+    </Modal>
   );
 }

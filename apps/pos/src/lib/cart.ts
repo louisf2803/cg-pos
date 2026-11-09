@@ -1,11 +1,11 @@
 import { useMemo, useReducer } from 'react';
-import { computeOrder, newId, type CalcResult, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { computeOrder, extrasKey, extrasLineTotal, newId, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 
-export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number }
+export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[] }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number }
 type Action =
-  | { t: 'add'; product: Product }
+  | { t: 'add'; product: Product; extras?: ItemExtra[] }
   | { t: 'qty'; lineId: string; qty: number }
   | { t: 'type'; type: OrderType }
   | { t: 'table'; tableId?: string; tableName?: string }
@@ -19,9 +19,10 @@ const initial: CartState = { type: 'takeaway', lines: [] };
 function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {
-      const ex = s.lines.find((l) => l.productId === a.product.id);
+      // baris yang sama = produk sama dan pilihan Ekstra sama persis
+      const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras));
       if (ex) return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: l.qty + 1 } : l)) };
-      return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price }] };
+      return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, ...(a.extras?.length ? { extras: a.extras } : {}) }] };
     }
     case 'qty':
       return { ...s, lines: a.qty <= 0 ? s.lines.filter((l) => l.id !== a.lineId) : s.lines.map((l) => (l.id === a.lineId ? { ...l, qty: a.qty } : l)) };
@@ -29,7 +30,7 @@ function reduce(s: CartState, a: Action): CartState {
     case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };
     case 'load':
-      return { type: a.order.type, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice })) };
+      return { type: a.order.type, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}) })) };
     case 'saved': return { ...s, orderId: a.orderId };
     case 'clear': return initial;
   }
@@ -40,7 +41,7 @@ export function useCart(ctx: OutletContext, roundingStep = 0) {
   const calc: CalcResult = useMemo(
     () => computeOrder({
       orderType: state.type, orderTaxes: ctx.taxes, settings: ctx.settings, roundingStep,
-      items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice })),
+      items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })),
     }),
     [state, ctx, roundingStep],
   );

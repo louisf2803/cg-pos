@@ -9,7 +9,7 @@ create or replace function ctx(k text) returns uuid language sql stable as $$ se
 do $$
 declare u1 uuid := gen_random_uuid(); u2 uuid := gen_random_uuid(); ud uuid := gen_random_uuid();
         o1 uuid; o2 uuid; out1 uuid; dev uuid; emp uuid; pcs uuid; gram uuid; bean uuid; kopi uuid; air uuid;
-        fl uuid; tb uuid; pu_kopi uuid; pu_air uuid; pu_bean uuid;
+        fl uuid; tb uuid; pu_kopi uuid; pu_air uuid; pu_bean uuid; xg uuid; xo uuid;
 begin
   insert into auth.users(id,email) values (u1,'a@x'),(u2,'b@x'),(ud,'dev@x');
   o1 := pos.create_org('Kopi A', u1, 'Outlet Satu', 'OUT1');
@@ -29,6 +29,10 @@ begin
   insert into products(org_id,kind,name,base_unit_id) values (o1,'goods','Air Mineral',pcs) returning id into air;
   insert into product_units(org_id,product_id,unit_id,is_base,conversion,price) values (o1,air,pcs,true,1,5000) returning id into pu_air;
 
+  insert into extra_groups(org_id,name,select_mode,max_select) values (o1,'Tambahan','multiple',3) returning id into xg;
+  insert into extra_options(org_id,group_id,name,price,sort) values (o1,xg,'Extra shot',5000,1) returning id into xo;
+  insert into product_extra_groups(product_id,group_id,org_id) values (kopi,xg,o1);
+
   insert into floors(org_id,outlet_id,name) values (o1,out1,'Lantai 1') returning id into fl;
   insert into tables(org_id,outlet_id,floor_id,name) values (o1,out1,fl,'T1') returning id into tb;
 
@@ -38,7 +42,7 @@ begin
            (o1, pos.outlet_location(out1), air, 'opening', 10, 2000, 'open:air');
 
   insert into t_ctx values ('u1',u1),('u2',u2),('ud',ud),('o1',o1),('o2',o2),('out1',out1),('dev',dev),('emp',emp),
-    ('kopi',kopi),('air',air),('bean',bean),('pu_kopi',pu_kopi),('pu_air',pu_air),('table',tb);
+    ('kopi',kopi),('air',air),('bean',bean),('pu_kopi',pu_kopi),('pu_air',pu_air),('table',tb),('opt_shot',xo);
 end $$;
 
 -- ---------- 1. data bawaan ----------

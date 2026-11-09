@@ -66,6 +66,9 @@ export function toOrder(r: Row): Order {
     .map((i) => ({
       id: i.id, productId: i.product_id, name: i.name, qty: num(i.qty), unitPrice: num(i.unit_price),
       lineTotal: num(i.line_total), note: i.note ?? undefined,
+      ...(((i.order_item_extras ?? []) as Row[]).length
+        ? { extras: ((i.order_item_extras ?? []) as Row[]).map((e) => ({ optionId: e.option_id, name: e.name, price: num(e.price) })) }
+        : {}),
     }));
   const payments: Payment[] = ((r.payments ?? []) as Row[])
     .filter((p) => p.status === 'succeeded')
@@ -97,7 +100,7 @@ export interface NewOrderPayloadInput {
   id: string; number: string; orderType: OrderType; tableId?: string | null; label?: string | null; guestCount?: number | null;
   shiftId?: string | null; cashierId: string; openedAt: string; baseVersion?: number;
   calc: CalcResult; orderDiscount: number; authorizedBy?: string | null;
-  items: { id: string; productId: string; productUnitId: string; name: string; sku?: string | null; qty: number; unitPrice: number; note?: string | null }[];
+  items: { id: string; productId: string; productUnitId: string; name: string; sku?: string | null; qty: number; unitPrice: number; note?: string | null; extras?: { optionId: string; name: string; price: number }[] }[];
 }
 
 /** Payload op `order.upsert` dari hasil computeOrder. Angka harus lolos pemeriksaan server (subtotal = jumlah baris, dst). */
@@ -113,8 +116,9 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
     tax_total: i.calc.taxTotal, rounding: i.calc.rounding, total: i.calc.total,
     items: i.items.map((it, idx) => ({
       id: it.id, product_id: it.productId, product_unit_id: it.productUnitId, name: it.name, sku: it.sku ?? null,
-      qty: it.qty, unit_price: it.unitPrice, extras_total: 0, discount: 0, tax_amount: lineTax.get(it.id) ?? 0,
+      qty: it.qty, unit_price: it.unitPrice, extras_total: Math.round(it.qty * (it.extras ?? []).reduce((a, e) => a + e.price, 0)), discount: 0, tax_amount: lineTax.get(it.id) ?? 0,
       line_total: lineTotal.get(it.id) ?? Math.round(it.qty * it.unitPrice), note: it.note ?? null, is_free: false, sort: idx,
+      extras: (it.extras ?? []).map((e) => ({ id: newId(), option_id: e.optionId, name: e.name, price: e.price, qty: it.qty })),
     })),
     discounts: i.calc.discountTotal > 0
       ? [{ id: newId(), source: 'manual', points_used: 0, amount: i.calc.discountTotal, authorized_by: i.authorizedBy ?? null }]
@@ -141,6 +145,7 @@ export function payloadFromStored(raw: Row, rounding: number): Row {
       qty: num(it.qty), unit_price: num(it.unit_price), extras_total: num(it.extras_total), discount: num(it.discount),
       tax_amount: num(it.tax_amount), line_total: num(it.line_total), note: it.note ?? null, is_free: !!it.is_free,
       sort: num(it.sort), voided_at: it.voided_at ?? null, void_reason: it.void_reason ?? null,
+      extras: ((it.order_item_extras ?? []) as Row[]).map((e) => ({ id: e.id, option_id: e.option_id, name: e.name, price: num(e.price), qty: num(e.qty) })),
     })),
     discounts: ((raw.order_discounts ?? []) as Row[]).map((d) => ({
       id: d.id, order_item_id: d.order_item_id ?? null, source: d.source, promotion_id: d.promotion_id ?? null,

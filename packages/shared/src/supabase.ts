@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -12,6 +12,7 @@ import { roundToStep } from './money';
 import { newId } from './id';
 import { outletInfoProblem, outletOptionsProblem } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
+import { extraGroupProblem, extrasLineTotal } from './extras';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
   buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
@@ -30,12 +31,12 @@ const PRODUCT_SELECT =
   'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,product_units(id,price,sku,is_base,deleted_at)';
 const ORDER_SELECT =
   'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
-  'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at),' +
+  'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at,order_item_extras(option_id,name,price,qty)),' +
   'payments(id,method_id,amount,tendered,change_given,status,paid_at,payment_methods(name,kind))';
 /** Untuk membangun ulang payload op: semua kolom yang dibutuhkan _apply_op. */
 const ORDER_RAW_SELECT =
   'id,number,order_type,table_id,customer_id,guest_count,label,note,queue_no,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,client_created_at,' +
-  'order_items(id,product_id,product_unit_id,name,sku,qty,unit_price,extras_total,discount,tax_amount,line_total,note,is_free,sort,voided_at,void_reason),' +
+  'order_items(id,product_id,product_unit_id,name,sku,qty,unit_price,extras_total,discount,tax_amount,line_total,note,is_free,sort,voided_at,void_reason,order_item_extras(id,option_id,name,price,qty)),' +
   'order_discounts(id,order_item_id,source,promotion_id,coupon_id,points_used,amount,authorized_by),' +
   'order_tax_lines(tax_id,name,rate,base_amount,amount)';
 
@@ -335,6 +336,47 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       // nama dilepas agar bisa dipakai lagi (unik per organisasi, baris terhapus tetap ikut hitungan)
       must(await db().from('departments').update({ deleted_at: new Date().toISOString(), name: `${cur.name} (dihapus ${id.slice(0, 8)})` }).eq('id', id));
     },
+    async listExtraGroups() {
+      const rows = must(await db().from('extra_groups')
+        .select('id,name,is_required,select_mode,max_select,extra_options(id,name,price,sort,deleted_at),product_extra_groups(product_id)')
+        .is('deleted_at', null).order('name')) as Row[] | null;
+      return (rows ?? []).map((g): ExtraGroup => ({
+        id: g.id, name: g.name, required: !!g.is_required, mode: g.select_mode, maxSelect: g.max_select ?? null,
+        options: ((g.extra_options ?? []) as Row[]).filter((o) => !o.deleted_at).map((o) => ({ id: o.id, name: o.name, price: Number(o.price), sort: Number(o.sort) })).sort((a, b) => a.sort - b.sort),
+        productIds: ((g.product_extra_groups ?? []) as Row[]).map((x) => x.product_id),
+      }));
+    },
+    async saveExtraGroup(input) {
+      const problem = extraGroupProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const name = input.name.trim();
+      const existing = await self.listExtraGroups();
+      if (existing.some((g) => g.id !== input.id && g.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Grup "${name}" sudah ada`);
+      const old = input.id ? existing.find((g) => g.id === input.id) : undefined;
+      if (input.id && !old) throw new DataError('not_found', 'Grup tidak ditemukan');
+      const id = old?.id ?? newId();
+      const row = { name, is_required: input.required, select_mode: input.mode, max_select: input.mode === 'single' ? null : input.maxSelect ?? null };
+      if (old) must(await db().from('extra_groups').update(row).eq('id', id));
+      else must(await db().from('extra_groups').insert({ id, org_id: orgId, ...row }));
+      // pilihan: yang dihapus dari daftar dinonaktifkan (soft delete) agar pesanan lama tetap merujuk baris yang ada
+      const keep = new Map((old?.options ?? []).map((o) => [o.id, o]));
+      const opts = input.options.filter((o) => o.name.trim()).map((o, k) => ({ id: o.id && keep.has(o.id) ? o.id : newId(), name: o.name.trim(), price: o.price, sort: k + 1 }));
+      const gone = [...keep.keys()].filter((k) => !opts.some((o) => o.id === k));
+      if (gone.length) must(await db().from('extra_options').update({ deleted_at: new Date().toISOString() }).in('id', gone));
+      if (opts.length) must(await db().from('extra_options').upsert(opts.map((o) => ({ ...o, org_id: orgId, group_id: id, deleted_at: null })), { onConflict: 'id' }));
+      const ids = [...new Set(input.productIds)];
+      const drop = (old?.productIds ?? []).filter((p) => !ids.includes(p));
+      if (drop.length) must(await db().from('product_extra_groups').delete().eq('group_id', id).in('product_id', drop));
+      if (ids.length) must(await db().from('product_extra_groups').upsert(ids.map((p, k) => ({ product_id: p, group_id: id, org_id: orgId, sort: k })), { onConflict: 'product_id,group_id' }));
+      return (await self.listExtraGroups()).find((g) => g.id === id)!;
+    },
+    async deleteExtraGroup(id) {
+      const cur = must(await db().from('extra_groups').select('id').eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      if (!cur) throw new DataError('not_found', 'Grup tidak ditemukan');
+      must(await db().from('product_extra_groups').delete().eq('group_id', id));
+      must(await db().from('extra_groups').update({ deleted_at: new Date().toISOString() }).eq('id', id));
+    },
     async listProducts(q = {}) {
       const rows = await fetchAll<Row>((f, t) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -607,12 +649,12 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
 
       const calc = computeOrder({
         orderType: draft.type, orderDiscount: draft.orderDiscount, roundingStep: 0, settings: r.ctx.settings,
-        items: draft.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice })),
+        items: draft.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, extrasTotal: extrasLineTotal(i.qty, i.extras) })),
         orderTaxes: r.ctx.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate })),
       });
       const items = draft.items.map((i) => ({
         id: i.id, productId: i.productId, productUnitId: unitOf.get(i.productId)!.id as string, name: i.name,
-        sku: (unitOf.get(i.productId)!.sku as string | null) ?? null, qty: i.qty, unitPrice: i.unitPrice, note: i.note ?? null,
+        sku: (unitOf.get(i.productId)!.sku as string | null) ?? null, qty: i.qty, unitPrice: i.unitPrice, note: i.note ?? null, extras: i.extras,
       }));
 
       for (let attempt = 0; ; attempt++) {

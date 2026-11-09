@@ -1,12 +1,13 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
+import { extraGroupProblem, extrasLineTotal } from './extras';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
@@ -29,6 +30,10 @@ const CATEGORIES: Category[] = [
 const DEPARTMENTS: Department[] = [{ id: 'd-min', name: 'Minuman', sort: 1 }, { id: 'd-mak', name: 'Makanan', sort: 2 }];
 const P = (id: string, name: string, categoryId: string, price: number, extra: Partial<Product> = {}): Product =>
   ({ id, name, categoryId, price, kind: 'goods', trackStock: true, isActive: true, isFavorite: false, stock: 50, ...extra });
+const EXTRA_GROUPS: ExtraGroup[] = [
+  { id: 'g-gula', name: 'Level gula', required: false, mode: 'single', maxSelect: null, productIds: ['p1', 'p3', 'pv-teh'], options: [{ id: 'o-normal', name: 'Gula normal', price: 0, sort: 1 }, { id: 'o-less', name: 'Kurang manis', price: 0, sort: 2 }, { id: 'o-no', name: 'Tanpa gula', price: 0, sort: 3 }] },
+  { id: 'g-tambah', name: 'Tambahan', required: false, mode: 'multiple', maxSelect: 3, productIds: ['p1', 'p2', 'p3', 'pv-teh'], options: [{ id: 'o-shot', name: 'Extra shot', price: 5000, sort: 1 }, { id: 'o-oat', name: 'Susu oat', price: 6000, sort: 2 }, { id: 'o-cream', name: 'Whipped cream', price: 4000, sort: 3 }] },
+];
 const PRODUCTS: Product[] = [
   P('p1', 'Kopi susu gula aren', 'c-kopi', 20000, { isFavorite: true, sku: 'KP-001' }),
   P('p2', 'Americano', 'c-kopi', 18000, { sku: 'KP-002' }),
@@ -70,6 +75,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let floors: Floor[] = [];
   let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
+  let extraGroups: ExtraGroup[] = [];
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let products: Product[] = [];
@@ -94,7 +100,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
 
   function recompute(draft: OrderDraft, step: number) {
     const items = draft.items.map((i) => ({
-      id: i.id, qty: i.qty, unitPrice: i.unitPrice,
+      id: i.id, qty: i.qty, unitPrice: i.unitPrice, extrasTotal: extrasLineTotal(i.qty, i.extras),
       taxRate: products.find((p) => p.id === i.productId)?.taxRate,
     }));
     return computeOrder({
@@ -113,6 +119,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0)));
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
+    extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
     if (opts.seed !== false) seedHistory();
   }
@@ -259,6 +266,21 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       departments = departments.filter((d) => d.id !== id);
       for (const c of categories) if (c.departmentId === id) c.departmentId = null;
     },
+    async listExtraGroups() { return clone(extraGroups); },
+    async saveExtraGroup(input: ExtraGroupInput) {
+      const problem = extraGroupProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const name = input.name.trim();
+      if (extraGroups.some((g) => g.id !== input.id && g.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Grup "${name}" sudah ada`);
+      const old = extraGroups.find((g) => g.id === input.id);
+      if (input.id && !old) throw new DataError('not_found', 'Grup tidak ditemukan');
+      const options = input.options.filter((o) => o.name.trim()).map((o, k) => ({ id: o.id && old?.options.some((x) => x.id === o.id) ? o.id : newId(), name: o.name.trim(), price: o.price, sort: k + 1 }));
+      const g: ExtraGroup = { id: old?.id ?? newId(), name, required: input.required, mode: input.mode, maxSelect: input.mode === 'single' ? null : input.maxSelect ?? null, options, productIds: [...new Set(input.productIds)] };
+      extraGroups = old ? extraGroups.map((x) => (x.id === old.id ? g : x)) : [...extraGroups, g];
+      return clone(g);
+    },
+    async deleteExtraGroup(id: string) { extraGroups = extraGroups.filter((g) => g.id !== id); },
+
     async listProducts(q = {}) {
       const s = q.search?.trim().toLowerCase();
       return clone(products.filter((p) =>

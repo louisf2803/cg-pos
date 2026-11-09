@@ -45,7 +45,16 @@ export interface ShiftReport {
   productsSold: { productId: string; name: string; qty: number; amount: number }[];
 }
 
-export interface OrderItem { id: string; productId: string; name: string; qty: number; unitPrice: number; lineTotal: number; note?: string }
+/** Satu pilihan Ekstra yang menempel pada baris pesanan; harganya per satu unit produk. */
+export interface ItemExtra { optionId: string; name: string; price: number }
+export interface OrderItem { id: string; productId: string; name: string; qty: number; unitPrice: number; lineTotal: number; note?: string; extras?: ItemExtra[] }
+export interface ExtraOption { id: string; name: string; price: number; sort: number }
+/** Grup Ekstra (modifier): satu atau banyak pilihan, wajib atau tidak, dengan harga tambahan per pilihan. */
+export interface ExtraGroup { id: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect: number | null; options: ExtraOption[]; productIds: string[] }
+export interface ExtraGroupInput {
+  id?: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect?: number | null;
+  options: { id?: string; name: string; price: number }[]; productIds: string[];
+}
 export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string }
 export interface Order {
   id: string; number: string; type: OrderType; tableId?: string; label?: string; guestCount?: number; shiftId?: string; cashierId: string;
@@ -56,7 +65,7 @@ export interface Order {
 }
 export interface OrderDraft {
   id: string; type: OrderType; tableId?: string; label?: string; guestCount?: number;
-  items: { id: string; productId: string; name: string; qty: number; unitPrice: number; note?: string }[];
+  items: { id: string; productId: string; name: string; qty: number; unitPrice: number; note?: string; extras?: ItemExtra[] }[];
   orderDiscount?: number;
 }
 export interface Floor { id: string; name: string; sort: number }
