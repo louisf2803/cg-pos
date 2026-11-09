@@ -5,3 +5,5 @@ export * from './id';
 export * from './types';
 export type { DataLayer } from './data';
 export { createFakeData } from './fake';
+export { createSupabaseData } from './supabase';
+export type { SupabaseDataOptions } from './supabase';

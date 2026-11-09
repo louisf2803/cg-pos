@@ -6,6 +6,8 @@ export interface Product {
   kind: 'goods' | 'service'; trackStock: boolean; stock?: number; isActive: boolean; isFavorite: boolean;
   /** persen pajak khusus produk (mode per_product) */
   taxRate?: number; photoUrl?: string;
+  /** produk induk bila ini varian ukuran (S/M/L); tidak ada untuk produk tunggal */
+  parentId?: string | null;
 }
 export interface ProductInput {
   id?: string; name: string; categoryId: string | null; price: number; sku?: string;
@@ -54,7 +56,7 @@ export interface OutletContext {
   taxes: { id: string; name: string; rate: number }[];
 }
 
-export type DataErrorCode = 'no_open_shift' | 'shift_already_open' | 'order_locked' | 'bad_amount' | 'not_found' | 'bad_pin' | 'invalid';
+export type DataErrorCode = 'no_open_shift' | 'shift_already_open' | 'order_locked' | 'bad_amount' | 'not_found' | 'bad_pin' | 'invalid' | 'forbidden';
 export class DataError extends Error {
   constructor(public code: DataErrorCode, message: string) { super(message); }
 }

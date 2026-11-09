@@ -4,9 +4,11 @@ import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { NAV } from '@/lib/nav';
+import { useAuth } from '@/lib/auth';
 
 export function Sidebar() {
   const path = usePathname();
+  const auth = useAuth();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -52,6 +54,12 @@ export function Sidebar() {
             </ul>
           </div>
         ))}
+        {auth && (
+          <div className="mt-auto grid gap-8 border-t border-border pt-16">
+            <p className="text-xs text-text-muted break-all" title={auth.email}>{auth.email}</p>
+            <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => void auth.signOut()}>Keluar</button>
+          </div>
+        )}
       </nav>
     </>
   );

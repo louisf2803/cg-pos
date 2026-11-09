@@ -1,0 +1,391 @@
+{
+  "ids": {
+    "orderA": "429f9809-2928-44dd-bbc8-6a04d430c062",
+    "orderB": "927ac88f-25d7-41ec-a89a-b0c823299937",
+    "orderC": "1fe3149f-ed98-440d-89b5-ff868dae2fbf",
+    "shift": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a"
+  },
+  "expected": {
+    "totalA": 49665,
+    "totalB": 49700,
+    "roundingB": 35,
+    "expectedCash": 199365,
+    "counted": 199000,
+    "variance": -365
+  },
+  "ops": [
+    {
+      "op_id": "09db2cbe-6451-44c5-862c-ace453d1ba14",
+      "type": "shift.open",
+      "entity_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+      "payload": {
+        "id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "cashier_id": "@emp",
+        "opened_at": "2026-11-10T02:00:00.000Z",
+        "opening_cash": 100000
+      }
+    },
+    {
+      "op_id": "4a5b5bb7-9e79-4805-8089-085499b344bf",
+      "type": "order.upsert",
+      "entity_id": "429f9809-2928-44dd-bbc8-6a04d430c062",
+      "payload": {
+        "id": "429f9809-2928-44dd-bbc8-6a04d430c062",
+        "number": "OUT1/A/261110/101",
+        "order_type": "dine_in",
+        "table_id": null,
+        "label": null,
+        "shift_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "cashier_id": "@emp",
+        "opened_at": "2026-11-10T03:00:00.000Z",
+        "client_created_at": "2026-11-10T03:00:00.000Z",
+        "subtotal": 45000,
+        "discount_total": 2000,
+        "service_charge": 2150,
+        "tax_total": 4515,
+        "rounding": 0,
+        "total": 49665,
+        "items": [
+          {
+            "id": "c6de1566-bdac-49ef-bfc9-4026fdd03e3a",
+            "product_id": "@kopi",
+            "product_unit_id": "@kopi_pu",
+            "name": "Kopi Susu",
+            "sku": null,
+            "qty": 2,
+            "unit_price": 20000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 40000,
+            "note": null,
+            "is_free": false,
+            "sort": 0
+          },
+          {
+            "id": "a80ff8c8-1547-44b7-a48b-2120b98147bc",
+            "product_id": "@air",
+            "product_unit_id": "@air_pu",
+            "name": "Air Mineral",
+            "sku": null,
+            "qty": 1,
+            "unit_price": 5000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 5000,
+            "note": "dingin",
+            "is_free": false,
+            "sort": 1
+          }
+        ],
+        "discounts": [
+          {
+            "id": "bf8adde4-4c76-4f65-86bf-c714fa46b855",
+            "source": "manual",
+            "points_used": 0,
+            "amount": 2000,
+            "authorized_by": "@emp"
+          }
+        ],
+        "tax_lines": [
+          {
+            "tax_id": null,
+            "name": "PB1",
+            "rate": 10,
+            "base_amount": 45150,
+            "amount": 4515
+          }
+        ]
+      }
+    },
+    {
+      "op_id": "31639fa6-047a-47ca-8994-26b6b727c6a5",
+      "type": "order.upsert",
+      "entity_id": "927ac88f-25d7-41ec-a89a-b0c823299937",
+      "payload": {
+        "id": "927ac88f-25d7-41ec-a89a-b0c823299937",
+        "number": "OUT1/A/261110/102",
+        "order_type": "dine_in",
+        "table_id": null,
+        "label": null,
+        "shift_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "cashier_id": "@emp",
+        "opened_at": "2026-11-10T03:00:00.000Z",
+        "client_created_at": "2026-11-10T03:00:00.000Z",
+        "subtotal": 45000,
+        "discount_total": 2000,
+        "service_charge": 2150,
+        "tax_total": 4515,
+        "rounding": 0,
+        "total": 49665,
+        "items": [
+          {
+            "id": "71955ee0-28d3-4fb9-905e-7863de90644d",
+            "product_id": "@kopi",
+            "product_unit_id": "@kopi_pu",
+            "name": "Kopi Susu",
+            "sku": null,
+            "qty": 2,
+            "unit_price": 20000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 40000,
+            "note": null,
+            "is_free": false,
+            "sort": 0
+          },
+          {
+            "id": "d33d1093-4ed3-4c1a-8405-1a8da6fc4ee8",
+            "product_id": "@air",
+            "product_unit_id": "@air_pu",
+            "name": "Air Mineral",
+            "sku": null,
+            "qty": 1,
+            "unit_price": 5000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 5000,
+            "note": "dingin",
+            "is_free": false,
+            "sort": 1
+          }
+        ],
+        "discounts": [
+          {
+            "id": "d26bff0a-f279-474a-aa61-fae68eefb1ef",
+            "source": "manual",
+            "points_used": 0,
+            "amount": 2000,
+            "authorized_by": "@emp"
+          }
+        ],
+        "tax_lines": [
+          {
+            "tax_id": null,
+            "name": "PB1",
+            "rate": 10,
+            "base_amount": 45150,
+            "amount": 4515
+          }
+        ]
+      }
+    },
+    {
+      "op_id": "3d4ccb58-0eba-4a56-b913-79de928953e5",
+      "type": "order.upsert",
+      "entity_id": "927ac88f-25d7-41ec-a89a-b0c823299937",
+      "payload": {
+        "id": "927ac88f-25d7-41ec-a89a-b0c823299937",
+        "number": "OUT1/A/261110/102",
+        "order_type": "dine_in",
+        "table_id": null,
+        "customer_id": null,
+        "guest_count": null,
+        "label": null,
+        "note": null,
+        "queue_no": null,
+        "shift_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "cashier_id": "@emp",
+        "opened_at": "2026-11-10T03:00:00.000Z",
+        "client_created_at": "2026-11-10T03:00:00.000Z",
+        "base_version": 1,
+        "subtotal": 45000,
+        "discount_total": 2000,
+        "service_charge": 2150,
+        "tax_total": 4515,
+        "rounding": 35,
+        "total": 49700,
+        "items": [
+          {
+            "id": "71955ee0-28d3-4fb9-905e-7863de90644d",
+            "product_id": "@kopi",
+            "product_unit_id": "@kopi_pu",
+            "name": "Kopi Susu",
+            "sku": null,
+            "qty": 2,
+            "unit_price": 20000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 40000,
+            "note": null,
+            "is_free": false,
+            "sort": 0,
+            "voided_at": null,
+            "void_reason": null
+          },
+          {
+            "id": "d33d1093-4ed3-4c1a-8405-1a8da6fc4ee8",
+            "product_id": "@air",
+            "product_unit_id": "@air_pu",
+            "name": "Air Mineral",
+            "sku": null,
+            "qty": 1,
+            "unit_price": 5000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 5000,
+            "note": "dingin",
+            "is_free": false,
+            "sort": 1,
+            "voided_at": null,
+            "void_reason": null
+          }
+        ],
+        "discounts": [
+          {
+            "id": "d26bff0a-f279-474a-aa61-fae68eefb1ef",
+            "order_item_id": null,
+            "source": "manual",
+            "promotion_id": null,
+            "coupon_id": null,
+            "points_used": 0,
+            "amount": 2000,
+            "authorized_by": "@emp"
+          }
+        ],
+        "tax_lines": [
+          {
+            "tax_id": null,
+            "name": "PB1",
+            "rate": 10,
+            "base_amount": 45150,
+            "amount": 4515
+          }
+        ]
+      }
+    },
+    {
+      "op_id": "1557dcc3-5a2f-4f54-9949-b85ad766ca79",
+      "type": "payment.add",
+      "entity_id": "467aa434-aa62-44e5-8105-37e8798f1ea9",
+      "payload": {
+        "id": "467aa434-aa62-44e5-8105-37e8798f1ea9",
+        "order_id": "429f9809-2928-44dd-bbc8-6a04d430c062",
+        "method_id": "@cash",
+        "shift_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "amount": 49665,
+        "tendered": 50000,
+        "paid_at": "2026-11-10T03:05:00.000Z",
+        "created_by": "@emp"
+      }
+    },
+    {
+      "op_id": "6b7f4e63-b3b4-4983-9b0c-26fb10a50dbb",
+      "type": "payment.add",
+      "entity_id": "b7d4a70f-2b89-410e-9620-52421840d7d6",
+      "payload": {
+        "id": "b7d4a70f-2b89-410e-9620-52421840d7d6",
+        "order_id": "927ac88f-25d7-41ec-a89a-b0c823299937",
+        "method_id": "@cash",
+        "shift_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "amount": 49700,
+        "tendered": 50000,
+        "paid_at": "2026-11-10T03:06:00.000Z",
+        "created_by": "@emp"
+      }
+    },
+    {
+      "op_id": "194c9219-79a7-4acb-b78a-b7ec706311cd",
+      "type": "order.upsert",
+      "entity_id": "1fe3149f-ed98-440d-89b5-ff868dae2fbf",
+      "payload": {
+        "id": "1fe3149f-ed98-440d-89b5-ff868dae2fbf",
+        "number": "OUT1/A/261110/103",
+        "order_type": "dine_in",
+        "table_id": null,
+        "label": null,
+        "shift_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "cashier_id": "@emp",
+        "opened_at": "2026-11-10T03:00:00.000Z",
+        "client_created_at": "2026-11-10T03:00:00.000Z",
+        "subtotal": 45000,
+        "discount_total": 2000,
+        "service_charge": 2150,
+        "tax_total": 4515,
+        "rounding": 0,
+        "total": 49665,
+        "items": [
+          {
+            "id": "1a5203b8-81d0-4dfc-872e-786b18395358",
+            "product_id": "@kopi",
+            "product_unit_id": "@kopi_pu",
+            "name": "Kopi Susu",
+            "sku": null,
+            "qty": 2,
+            "unit_price": 20000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 40000,
+            "note": null,
+            "is_free": false,
+            "sort": 0
+          },
+          {
+            "id": "44fe929b-c5b9-4342-8aba-249594cbbd04",
+            "product_id": "@air",
+            "product_unit_id": "@air_pu",
+            "name": "Air Mineral",
+            "sku": null,
+            "qty": 1,
+            "unit_price": 5000,
+            "extras_total": 0,
+            "discount": 0,
+            "tax_amount": 0,
+            "line_total": 5000,
+            "note": "dingin",
+            "is_free": false,
+            "sort": 1
+          }
+        ],
+        "discounts": [
+          {
+            "id": "d8ab1b35-ce52-44c5-9cf6-fbf1963829de",
+            "source": "manual",
+            "points_used": 0,
+            "amount": 2000,
+            "authorized_by": "@emp"
+          }
+        ],
+        "tax_lines": [
+          {
+            "tax_id": null,
+            "name": "PB1",
+            "rate": 10,
+            "base_amount": 45150,
+            "amount": 4515
+          }
+        ]
+      }
+    },
+    {
+      "op_id": "a17c4918-6a5d-403f-9c6f-60e62b32d60b",
+      "type": "order.void",
+      "entity_id": "1fe3149f-ed98-440d-89b5-ff868dae2fbf",
+      "payload": {
+        "order_id": "1fe3149f-ed98-440d-89b5-ff868dae2fbf",
+        "authorized_by": "@emp",
+        "auth_method": "pin",
+        "reason": "salah input",
+        "voided_by": "@emp",
+        "voided_at": "2026-11-10T03:10:00.000Z"
+      }
+    },
+    {
+      "op_id": "0d74b70b-7ea7-4289-b3f6-fb50f422ed07",
+      "type": "shift.close",
+      "entity_id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+      "payload": {
+        "id": "6a346315-3ff3-4595-bf1b-cd4fe1cbfd2a",
+        "closed_by": "@emp",
+        "counted": 199000,
+        "closed_at": "2026-11-10T09:00:00.000Z"
+      }
+    }
+  ]
+}

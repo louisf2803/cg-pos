@@ -3,6 +3,7 @@ import { Delete, UserRound } from 'lucide-react';
 import type { Employee } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
+import { useAuth } from '../lib/auth';
 
 const PIN_LEN = 6;
 const MAX_TRIES = 5;
@@ -12,6 +13,7 @@ const ROLE: Record<Employee['role'], string> = { owner: 'Pemilik', manager: 'Man
 
 export function Login({ onSuccess }: { onSuccess: (e: Employee) => void }) {
   const data = useData();
+  const auth = useAuth();
   const emps = useAsync(() => data.listEmployees(), [data]);
   const [who, setWho] = useState<Employee | null>(null);
   const [pin, setPin] = useState('');
@@ -89,6 +91,11 @@ export function Login({ onSuccess }: { onSuccess: (e: Employee) => void }) {
                   </li>
                 ))}
               </ul>)}
+            {auth && (
+              <button className="cg-btn cg-btn--ghost cg-btn--sm justify-self-center" onClick={() => void auth.signOut()}>
+                Keluar akun perangkat{auth.email ? ` (${auth.email})` : ''}
+              </button>
+            )}
           </>
         )}
 

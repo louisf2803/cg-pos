@@ -8,7 +8,7 @@ declare cash uuid; oid uuid := gen_random_uuid(); v jsonb; d date;
 begin
   select id into cash from payment_methods where org_id=ctx('o1') and code='CASH';
   update orgs set books_locked_through = current_date where id = ctx('o1');
-  v := app.sync_push(ctx('dev'), jsonb_build_array(
+  v := pos.sync_push(ctx('dev'), jsonb_build_array(
     jsonb_build_object('op_id', gen_random_uuid(), 'type','order.upsert', 'payload', jsonb_build_object(
        'id', oid, 'number', 'OUT1/A/261109/030', 'order_type','takeaway', 'cashier_id', ctx('emp'), 'opened_at', now(),
        'subtotal', 5000, 'discount_total', 0, 'service_charge', 0, 'tax_total', 0, 'rounding', 0, 'total', 5000,
@@ -21,9 +21,9 @@ begin
   perform pg_temp.ok(d = current_date + 1, 'dibukukan di hari pertama yang terbuka: ' || d);
   -- jurnal manual di periode terkunci ditolak
   begin
-    perform app.post_journal(ctx('o1'), null, current_date, 'MAN', 'manual', 'manual', null, null,
-      jsonb_build_array(jsonb_build_object('account_id', app.account_id(ctx('o1'),'cash_main'), 'debit', 1),
-                        jsonb_build_object('account_id', app.account_id(ctx('o1'),'paid_in_capital'), 'credit', 1)));
+    perform pos.post_journal(ctx('o1'), null, current_date, 'MAN', 'manual', 'manual', null, null,
+      jsonb_build_array(jsonb_build_object('account_id', pos.account_id(ctx('o1'),'cash_main'), 'debit', 1),
+                        jsonb_build_object('account_id', pos.account_id(ctx('o1'),'paid_in_capital'), 'credit', 1)));
     perform pg_temp.ok(false, 'jurnal di periode terkunci seharusnya ditolak');
   exception when others then
     if sqlerrm like 'ASSERT%' then raise; end if;
@@ -72,12 +72,12 @@ begin
   exception when others then ok := true; end;
   perform pg_temp.ok(ok, 'tidak bisa menulis ke org lain');
   -- tidak boleh memanggil fungsi server
-  begin perform app.finalize_order(ctx('order1')); ok := false; exception when insufficient_privilege then ok := true; end;
+  begin perform pos.finalize_order(ctx('order1')); ok := false; exception when insufficient_privilege then ok := true; end;
   perform pg_temp.ok(ok, 'finalize_order tertutup untuk klien');
-  begin perform app.create_org('x', ctx('u1'), 'y', 'ZZ'); ok := false; exception when insufficient_privilege then ok := true; end;
+  begin perform pos.create_org('x', ctx('u1'), 'y', 'ZZ'); ok := false; exception when insufficient_privilege then ok := true; end;
   perform pg_temp.ok(ok, 'create_org tertutup untuk klien');
   -- laporan org-wide boleh untuk pemilik
-  perform pg_temp.ok((select count(*) from app.report_trial_balance(ctx('o1'), current_date - 5, current_date + 2)) > 0, 'laporan untuk pemilik');
+  perform pg_temp.ok((select count(*) from pos.report_trial_balance(ctx('o1'), current_date - 5, current_date + 2)) > 0, 'laporan untuk pemilik');
   reset role;
 end $$;
 
@@ -89,15 +89,15 @@ begin
   set local role authenticated;
   perform pg_temp.ok((select count(*) from orders) = 0, 'akun perangkat tidak membaca tabel');
   perform pg_temp.ok((select count(*) from products) = 0, 'akun perangkat tidak membaca produk langsung');
-  v := app.sync_pull(ctx('dev'), 0, 100);
+  v := pos.sync_pull(ctx('dev'), 0, 100);
   perform pg_temp.ok(v ? 'next_cursor', 'akun perangkat bisa sync_pull');
   reset role;
   -- pemilik org B tidak boleh memakai perangkat org A
   perform set_config('request.jwt.claim.sub', ctx('u2')::text, true);
   set local role authenticated;
-  begin perform app.sync_pull(ctx('dev'), 0, 100); ok := false; exception when others then ok := sqlerrm like '%not your device%'; end;
+  begin perform pos.sync_pull(ctx('dev'), 0, 100); ok := false; exception when others then ok := sqlerrm like '%not your device%'; end;
   perform pg_temp.ok(ok, 'perangkat org lain ditolak');
-  begin perform * from app.report_trial_balance(ctx('o1'), current_date, current_date); ok := false;
+  begin perform * from pos.report_trial_balance(ctx('o1'), current_date, current_date); ok := false;
   exception when others then ok := true; end;
   perform pg_temp.ok(ok, 'laporan org lain ditolak');
   reset role;
@@ -115,7 +115,7 @@ begin
   set local role authenticated;
   perform pg_temp.ok((select count(*) from outlets) = 1, 'manajer hanya melihat outlet tugasnya');
   perform pg_temp.ok((select count(*) from orders) = 0, 'manajer outlet 2 tidak melihat order outlet 1');
-  begin perform * from app.report_trial_balance(ctx('o1'), current_date, current_date); raise exception 'seharusnya ditolak';
+  begin perform * from pos.report_trial_balance(ctx('o1'), current_date, current_date); raise exception 'seharusnya ditolak';
   exception when others then perform pg_temp.ok(sqlerrm like '%org-wide%', 'laporan seluruh org butuh admin: ' || sqlerrm); end;
   reset role;
 end $$;
@@ -125,8 +125,8 @@ do $$
 declare o3 uuid; u3 uuid := gen_random_uuid();
 begin
   insert into auth.users(id,email) values (u3,'c@x');
-  o3 := app.create_org('Sementara', u3, 'O', 'TMP');
-  perform app.delete_org(o3);
+  o3 := pos.create_org('Sementara', u3, 'O', 'TMP');
+  perform pos.delete_org(o3);
   perform pg_temp.ok(not exists (select 1 from accounts where org_id = o3), 'akun ikut terhapus');
 end $$;
 
@@ -134,7 +134,7 @@ end $$;
 do $$
 declare n bigint;
 begin
-  perform app.delete_org(ctx('o1'));
+  perform pos.delete_org(ctx('o1'));
   select (select count(*) from orders where org_id = ctx('o1')) + (select count(*) from journal_lines where org_id = ctx('o1'))
        + (select count(*) from stock_movements where org_id = ctx('o1')) + (select count(*) from gateway_transactions where org_id = ctx('o1'))
        + (select count(*) from products where org_id = ctx('o1')) into n;
