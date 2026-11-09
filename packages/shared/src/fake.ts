@@ -516,6 +516,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       }
       return clone(o);
     },
+    async listRefundsBetween(range: SalesRange) {
+      return clone(refunds.filter((r) => r.createdAt >= range.from && r.createdAt < range.to).map(({ shiftId: _s, methodKind: _k, ...r }) => r));
+    },
     async listRefunds(orderId) { return clone(refunds.filter((r) => r.orderId === orderId).map(({ shiftId: _s, methodKind: _k, ...r }) => r)); },
     async refundOrder(input: RefundInput) {
       const prior = refunds.find((r) => r.id === input.id);

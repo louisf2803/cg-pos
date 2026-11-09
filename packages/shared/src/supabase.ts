@@ -165,6 +165,17 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return db().from('shifts').select('*').eq('device_id', deviceId);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function refundRows(filter: (qb: any) => any): Promise<Refund[]> {
+    const rows = await fetchAll<Row>((from, to) =>
+      filter(db().from('refunds').select('id,number,order_id,total,reason,note,created_at,payment_methods(name),refund_items(order_item_id,qty,amount)').neq('status', 'failed'))
+        .order('created_at').order('id').range(from, to));
+    return rows.map((r): Refund => ({
+      id: r.id, number: r.number, orderId: r.order_id, total: Number(r.total), reason: r.reason, note: r.note ?? undefined, methodName: r.payment_methods?.name ?? '', createdAt: r.created_at,
+      items: ((r.refund_items ?? []) as Row[]).map((i) => ({ orderItemId: i.order_item_id, qty: Number(i.qty), amount: Number(i.amount) })),
+    }));
+  }
+
   const self: DataLayer = {
     async getContext() {
       return JSON.parse(JSON.stringify((await resolve()).ctx)) as OutletContext;
@@ -769,12 +780,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return (await self.getOrder(orderId))!;
     },
     async listRefunds(orderId) {
-      const rows = must(await db().from('refunds').select('id,number,order_id,total,reason,note,created_at,payment_methods(name),refund_items(order_item_id,qty,amount)')
-        .eq('order_id', orderId).neq('status', 'failed').order('created_at')) as Row[] | null;
-      return (rows ?? []).map((r): Refund => ({
-        id: r.id, number: r.number, orderId: r.order_id, total: Number(r.total), reason: r.reason, note: r.note ?? undefined, methodName: r.payment_methods?.name ?? '', createdAt: r.created_at,
-        items: ((r.refund_items ?? []) as Row[]).map((i) => ({ orderItemId: i.order_item_id, qty: Number(i.qty), amount: Number(i.amount) })),
-      }));
+      return refundRows((qb) => qb.eq('order_id', orderId));
+    },
+    async listRefundsBetween(range) {
+      return refundRows((qb) => qb.gte('created_at', range.from).lt('created_at', range.to));
     },
     async refundOrder(input: RefundInput) {
       const { deviceId } = await requireDevice();

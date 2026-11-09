@@ -24,3 +24,18 @@ describe('laporan penjualan', () => {
     expect(c).toBe('﻿"a;b";\'=1+1;"x""y"\r\n5;ok;\'-2');
   });
 });
+
+describe('laporan: refund dan pembatalan', () => {
+  it('penjualan bersih = penjualan - refund; kontrol menghitung refund per alasan dan pesanan batal', () => {
+    const paid = (id: string, total: number) => ({ id, number: id, type: 'takeaway', status: 'paid', items: [], subtotal: total, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0, total, paidTotal: total, payments: [], openedAt: '2026-11-10T03:00:00Z', closedAt: '2026-11-10T03:05:00Z', cashierId: 'e1' }) as never;
+    const refund = (id: string, total: number, reason: string) => ({ id, number: id, orderId: 'a', total, reason, methodName: 'Tunai', createdAt: '2026-11-10T04:00:00Z', items: [] });
+    const r = buildSalesReport({
+      orders: [paid('a', 50000), paid('b', 30000)], products: [], categories: [], employees: [], timezone: 'Asia/Jakarta',
+      refunds: [refund('r1', 10000, 'Pesanan salah'), refund('r2', 5000, 'pesanan salah')],
+      voided: [{ ...paid('c', 20000), status: 'void' } as never],
+    });
+    expect(r.summary.total).toBe(80000);
+    expect(r.control).toMatchObject({ refundCount: 2, refundTotal: 15000, net: 65000, voidCount: 1, voidTotal: 20000 });
+    expect(r.control.byReason).toEqual([{ key: 'pesanan salah', label: 'Pesanan salah', count: 2, amount: 15000 }]);
+  });
+});

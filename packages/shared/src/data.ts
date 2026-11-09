@@ -80,6 +80,8 @@ export interface DataLayer {
   /** Refund sebagian atau penuh per item untuk pesanan lunas. Idempoten menurut `id`. Pemberi izin (manajer/pemilik) sudah diverifikasi PIN-nya oleh layar. */
   refundOrder(input: RefundInput): Promise<Refund>;
   listRefunds(orderId: string): Promise<Refund[]>;
+  /** Semua refund dalam rentang tanggal (untuk laporan penjualan bersih dan kontrol). */
+  listRefundsBetween(range: SalesRange): Promise<Refund[]>;
   voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string): Promise<Order>;
   getOrder(id: string): Promise<Order | null>;
   /** `by: 'closed'` memfilter dengan tanggal tutup (untuk laporan); `all` mengambil semua, tanpa batas 200. */
