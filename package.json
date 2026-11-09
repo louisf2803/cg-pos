@@ -1,0 +1,12 @@
+{
+  "name": "cgpos",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "build": "pnpm -r --if-present build",
+    "tokens": "python3 ../replica/design/build-tokens.py && cp ../replica/design/tokens.css ../replica/design/components.css ../replica/design/tailwind.preset.cjs packages/ui/src/"
+  },
+  "engines": { "node": ">=20" }
+}
