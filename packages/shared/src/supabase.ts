@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, ManagedEmployee, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  CatalogInput, CatalogProduct, Category, Department, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -28,7 +28,7 @@ export interface SupabaseDataOptions {
 const PRODUCT_SELECT =
   'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,product_units(id,price,sku,is_base,deleted_at)';
 const ORDER_SELECT =
-  'id,number,order_type,table_id,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
+  'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at),' +
   'payments(id,method_id,amount,tendered,change_given,status,paid_at,payment_methods(name,kind))';
 /** Untuk membangun ulang payload op: semua kolom yang dibutuhkan _apply_op. */
@@ -202,6 +202,70 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       }).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pengaturan outlet');
       resolved = null;
+    },
+    async listFloors() {
+      const { ctx } = await resolve();
+      const rows = must(await db().from('floors').select('id,name,sort').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort').order('name')) as Row[] | null;
+      return (rows ?? []).map((r): Floor => ({ id: r.id, name: r.name, sort: Number(r.sort ?? 0) }));
+    },
+    async saveFloor(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama lantai wajib diisi');
+      const { orgId, ctx } = await resolve();
+      const floors = await self.listFloors();
+      if (floors.some((f) => f.id !== input.id && f.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Lantai "${name}" sudah ada`);
+      if (input.id) {
+        const row = must(await db().from('floors').update({ name }).eq('id', input.id).is('deleted_at', null).select('id,name,sort').maybeSingle()) as Row | null;
+        if (!row) throw new DataError('not_found', 'Lantai tidak ditemukan');
+        return { id: row.id, name: row.name, sort: Number(row.sort ?? 0) };
+      }
+      const row = must(await db().from('floors').insert({ id: newId(), org_id: orgId, outlet_id: ctx.outletId, name, sort: floors.length + 1 }).select('id,name,sort').single()) as Row;
+      return { id: row.id, name: row.name, sort: Number(row.sort ?? 0) };
+    },
+    async deleteFloor(id) {
+      const status = await self.listTableStatus();
+      const inUse = status.find((t) => t.floorId === id && t.order);
+      if (inUse) throw new DataError('invalid', `Meja ${inUse.name} sedang dipakai pesanan ${inUse.order!.number}. Selesaikan dulu pesanannya`);
+      const cur = must(await db().from('floors').select('name').eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      if (!cur) throw new DataError('not_found', 'Lantai tidak ditemukan');
+      const at = new Date().toISOString();
+      for (const t of status.filter((x) => x.floorId === id)) must(await db().from('tables').update({ deleted_at: at }).eq('id', t.id));
+      must(await db().from('floors').update({ deleted_at: at }).eq('id', id));
+    },
+    async listTables() {
+      const { ctx } = await resolve();
+      const rows = must(await db().from('tables').select('id,floor_id,name,sort').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort').order('name')) as Row[] | null;
+      return (rows ?? []).map((r): DiningTable => ({ id: r.id, floorId: r.floor_id ?? null, name: r.name, sort: Number(r.sort ?? 0) }));
+    },
+    async saveTable(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama meja wajib diisi');
+      const { orgId, ctx } = await resolve();
+      const tables = await self.listTables();
+      if (tables.some((t) => t.id !== input.id && t.floorId === input.floorId && t.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Meja "${name}" sudah ada di lantai ini`);
+      const out = (r: Row): DiningTable => ({ id: r.id, floorId: r.floor_id ?? null, name: r.name, sort: Number(r.sort ?? 0) });
+      if (input.id) {
+        const row = must(await db().from('tables').update({ name, floor_id: input.floorId }).eq('id', input.id).is('deleted_at', null).select('id,floor_id,name,sort').maybeSingle()) as Row | null;
+        if (!row) throw new DataError('not_found', 'Meja tidak ditemukan');
+        return out(row);
+      }
+      const row = must(await db().from('tables').insert({ id: newId(), org_id: orgId, outlet_id: ctx.outletId, floor_id: input.floorId, name, sort: tables.length + 1 }).select('id,floor_id,name,sort').single()) as Row;
+      return out(row);
+    },
+    async deleteTable(id) {
+      const busy = (await self.listTableStatus()).find((t) => t.id === id);
+      if (!busy) throw new DataError('not_found', 'Meja tidak ditemukan');
+      if (busy.order) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${busy.order.number}. Selesaikan dulu pesanannya`);
+      must(await db().from('tables').update({ deleted_at: new Date().toISOString() }).eq('id', id));
+    },
+    async listTableStatus() {
+      const tables = await self.listTables();
+      const rows = must(await db().from('orders').select('id,number,table_id,label,guest_count,total,opened_at').not('table_id', 'is', null).in('status', ['open', 'partially_paid']).order('opened_at')) as Row[] | null;
+      const byTable = new Map((rows ?? []).map((o) => [o.table_id as string, o]));
+      return tables.map((t): TableStatus => {
+        const o = byTable.get(t.id);
+        return o ? { ...t, order: { id: o.id, number: o.number, label: o.label ?? undefined, guestCount: o.guest_count ?? undefined, total: Number(o.total), openedAt: o.opened_at } } : t;
+      });
     },
     async listCategories() {
       const [cats, ing] = await Promise.all([
@@ -524,6 +588,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (r.ctx.settings.requireOpenShift && !shift) throw new DataError('no_open_shift', 'Buka kasir dulu sebelum membuat pesanan');
       if (draft.items.length === 0) throw new DataError('invalid', 'Pesanan masih kosong');
       if (draft.items.some((i) => i.qty <= 0)) throw new DataError('invalid', 'Jumlah item harus lebih dari 0');
+      if (draft.tableId) {
+        const busy = must(await db().from('orders').select('id,number').eq('table_id', draft.tableId).in('status', ['open', 'partially_paid']).neq('id', draft.id).limit(1)) as Row[] | null;
+        if (busy && busy.length > 0) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${busy[0]!.number}`);
+      }
 
       const existing = must(await db().from('orders').select('id,number,status,paid_total,version,opened_at').eq('id', draft.id).maybeSingle()) as Row | null;
       if (existing && (existing.status !== 'open' || Number(existing.paid_total) > 0)) {
@@ -548,7 +616,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       for (let attempt = 0; ; attempt++) {
         const number = existing ? (existing.number as string) : await reserveNumber(r, false);
         const payload = buildOrderPayload({
-          id: draft.id, number, orderType: draft.type, tableId: draft.tableId, label: draft.label, shiftId: shift?.id,
+          id: draft.id, number, orderType: draft.type, tableId: draft.tableId, label: draft.label, guestCount: draft.guestCount, shiftId: shift?.id,
           cashierId, openedAt: existing ? (existing.opened_at as string) : now().toISOString(),
           baseVersion: existing ? Number(existing.version) : undefined, calc, orderDiscount: draft.orderDiscount ?? 0,
           authorizedBy: cashierId, items,

@@ -1,7 +1,7 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  CatalogInput, CatalogProduct, Category, Department, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
@@ -66,6 +66,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const now = opts.now ?? (() => new Date());
   let categories: Category[] = [];
   let departments: Department[] = [];
+  let floors: Floor[] = [];
+  let tables: DiningTable[] = [];
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let products: Product[] = [];
@@ -103,6 +105,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   function reset() {
     categories = opts.seed === false ? [] : clone(CATEGORIES);
     departments = opts.seed === false ? [] : clone(DEPARTMENTS);
+    floors = opts.seed === false ? [] : [{ id: 'f-1', name: 'Lantai 1', sort: 1 }, { id: 'f-teras', name: 'Teras', sort: 2 }];
+    tables = opts.seed === false ? [] : ['T1', 'T2', 'T3', 'T4'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-1', name: n, sort: i + 1 })).concat(['T5', 'T6'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-teras', name: n, sort: i + 5 })));
     employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0)));
     outlet = { address: '', phone: '', receiptFooter: '' };
@@ -164,6 +168,51 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (problem) throw new DataError('invalid', problem);
       const { receiptFooter, ...rest } = input;
       Object.assign(CTX.settings, rest); outlet.receiptFooter = receiptFooter.trim();
+    },
+    async listFloors() { return clone([...floors].sort((a, b) => a.sort - b.sort)); },
+    async saveFloor(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama lantai wajib diisi');
+      if (floors.some((f) => f.id !== input.id && f.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Lantai "${name}" sudah ada`);
+      if (input.id) {
+        const f = floors.find((x) => x.id === input.id);
+        if (!f) throw new DataError('not_found', 'Lantai tidak ditemukan');
+        f.name = name; return clone(f);
+      }
+      const f: Floor = { id: newId(), name, sort: floors.length + 1 };
+      floors.push(f); return clone(f);
+    },
+    async deleteFloor(id) {
+      if (!floors.some((f) => f.id === id)) throw new DataError('not_found', 'Lantai tidak ditemukan');
+      const inUse = (await self.listTableStatus()).find((t) => t.floorId === id && t.order);
+      if (inUse) throw new DataError('invalid', `Meja ${inUse.name} sedang dipakai pesanan ${inUse.order!.number}. Selesaikan dulu pesanannya`);
+      floors = floors.filter((f) => f.id !== id); tables = tables.filter((t) => t.floorId !== id);
+    },
+    async listTables() { return clone([...tables].sort((a, b) => a.sort - b.sort)); },
+    async saveTable(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama meja wajib diisi');
+      if (tables.some((t) => t.id !== input.id && t.floorId === input.floorId && t.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Meja "${name}" sudah ada di lantai ini`);
+      if (input.id) {
+        const t = tables.find((x) => x.id === input.id);
+        if (!t) throw new DataError('not_found', 'Meja tidak ditemukan');
+        t.name = name; t.floorId = input.floorId; return clone(t);
+      }
+      const t: DiningTable = { id: newId(), floorId: input.floorId, name, sort: tables.length + 1 };
+      tables.push(t); return clone(t);
+    },
+    async deleteTable(id) {
+      const t = (await self.listTableStatus()).find((x) => x.id === id);
+      if (!t) throw new DataError('not_found', 'Meja tidak ditemukan');
+      if (t.order) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${t.order.number}. Selesaikan dulu pesanannya`);
+      tables = tables.filter((x) => x.id !== id);
+    },
+    async listTableStatus(): Promise<TableStatus[]> {
+      const live = orders.filter((o) => o.tableId && (o.status === 'open' || o.status === 'partially_paid'));
+      return clone([...tables].sort((a, b) => a.sort - b.sort).map((t): TableStatus => {
+        const o = live.find((x) => x.tableId === t.id);
+        return o ? { ...t, order: { id: o.id, number: o.number, label: o.label, guestCount: o.guestCount, total: o.total, openedAt: o.openedAt } } : t;
+      }));
     },
     async listCategories() { return clone([...categories].sort((a, b) => a.sort - b.sort)); },
     async saveCategory(input) {
@@ -357,6 +406,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (draft.items.some((i) => i.qty <= 0)) throw new DataError('invalid', 'Jumlah item harus lebih dari 0');
       const existing = orders.find((o) => o.id === draft.id);
       if (existing && (existing.status !== 'open' || existing.paidTotal > 0)) throw new DataError('order_locked', 'Pesanan sudah ada pembayaran, tidak bisa diubah');
+      if (draft.tableId) {
+        if (!tables.some((t) => t.id === draft.tableId)) throw new DataError('not_found', 'Meja tidak ditemukan');
+        const busy = orders.find((x) => x.tableId === draft.tableId && x.id !== draft.id && (x.status === 'open' || x.status === 'partially_paid'));
+        if (busy) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${busy.number}`);
+      }
       const calc = recompute(draft, 0);
       const items: OrderItem[] = draft.items.map((d, k) => ({ ...d, lineTotal: calc.lines[k]!.lineTotal }));
       const at = now();
@@ -365,7 +419,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         shiftId: shift?.id, cashierId, status: 'open', items, subtotal: 0, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0, total: 0, paidTotal: 0,
         payments: [], openedAt: at.toISOString(),
       };
-      Object.assign(o, { type: draft.type, tableId: draft.tableId, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
+      Object.assign(o, { type: draft.type, tableId: draft.tableId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
         serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal, rounding: 0, total: calc.total });
       if (!existing) orders.push(o);
       return clone(o);

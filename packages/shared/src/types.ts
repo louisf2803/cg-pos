@@ -48,16 +48,22 @@ export interface ShiftReport {
 export interface OrderItem { id: string; productId: string; name: string; qty: number; unitPrice: number; lineTotal: number; note?: string }
 export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string }
 export interface Order {
-  id: string; number: string; type: OrderType; tableId?: string; shiftId?: string; cashierId: string;
+  id: string; number: string; type: OrderType; tableId?: string; label?: string; guestCount?: number; shiftId?: string; cashierId: string;
   status: 'open' | 'partially_paid' | 'paid' | 'void';
   items: OrderItem[];
   subtotal: number; discountTotal: number; serviceCharge: number; taxTotal: number; rounding: number; total: number; paidTotal: number;
   payments: Payment[]; openedAt: string; closedAt?: string;
 }
 export interface OrderDraft {
-  id: string; type: OrderType; tableId?: string; label?: string;
+  id: string; type: OrderType; tableId?: string; label?: string; guestCount?: number;
   items: { id: string; productId: string; name: string; qty: number; unitPrice: number; note?: string }[];
   orderDiscount?: number;
+}
+export interface Floor { id: string; name: string; sort: number }
+export interface DiningTable { id: string; floorId: string | null; name: string; sort: number }
+/** Meja beserta pesanan yang sedang memakainya (belum lunas dan belum dibatalkan). */
+export interface TableStatus extends DiningTable {
+  order?: { id: string; number: string; label?: string; guestCount?: number; total: number; openedAt: string };
 }
 export interface PaymentInput { id: string; methodId: string; amount: number; tendered?: number; paidAt?: string }
 

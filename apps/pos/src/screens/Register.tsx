@@ -8,6 +8,7 @@ import { useSession } from '../lib/session';
 import { useOnline } from '../lib/online';
 import { Modal } from '../ui';
 import { Orders } from './Orders';
+import { TablePicker } from './TablePicker';
 import { Payment } from './Payment';
 
 const TYPES: { v: OrderType; label: string }[] = [{ v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }];
@@ -27,6 +28,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [saveErr, setSaveErr] = useState('');
   const [showOrders, setShowOrders] = useState(false);
   const [notice, setNotice] = useState('');
+  const [tablePick, setTablePick] = useState(false);
   const cart = useCart(ctx);
 
   const visible = useMemo(() => {
@@ -48,6 +50,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   async function persist(): Promise<Order> {
     const o = await data.saveOrder({
       id: cart.state.orderId ?? newId(), type: cart.state.type,
+      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, label: cart.state.label?.trim() || undefined,
+      guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
       items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice })),
     }, session.employee.id);
     cart.dispatch({ t: 'saved', orderId: o.id });
@@ -81,7 +85,10 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   if (showOrders) {
     return <Orders canResume={cart.state.lines.length === 0}
       onClose={() => setShowOrders(false)}
-      onResume={(o) => { cart.dispatch({ t: 'load', order: o }); setShowOrders(false); setPanelOpen(true); setNotice(''); }}
+      onResume={async (o) => {
+        const tableName = o.tableId ? (await data.listTables().catch(() => [])).find((t) => t.id === o.tableId)?.name : undefined;
+        cart.dispatch({ t: 'load', order: o, tableName }); setShowOrders(false); setPanelOpen(true); setNotice('');
+      }}
       onPay={(o) => setPaying(o)} />;
   }
 
@@ -158,6 +165,21 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           <div className="cg-tabs" role="tablist" aria-label="Jenis pesanan">
             {TYPES.map((t) => <button key={t.v} role="tab" className="cg-tab" aria-selected={cart.state.type === t.v} onClick={() => cart.dispatch({ t: 'type', type: t.v })}>{t.label}</button>)}
           </div>
+          {cart.state.type === 'dine_in' && (
+            <div className="grid gap-8">
+              <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setTablePick(true)} aria-label={cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}, ganti meja` : 'Pilih meja'}>
+                <span>{cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}` : 'Pilih meja'}</span><span className="text-text-muted">{cart.state.tableId ? 'Ganti' : 'Opsional'}</span>
+              </button>
+              <div className="grid grid-cols-[1fr_96px] gap-8">
+                <label className="cg-field"><span className="cg-sr">Nama pesanan</span>
+                  <input className="cg-input" placeholder="Nama pesanan (opsional)" maxLength={40} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: cart.state.guestCount })} />
+                </label>
+                <label className="cg-field"><span className="cg-sr">Jumlah tamu</span>
+                  <input className="cg-input" inputMode="numeric" placeholder="Tamu" value={cart.state.guestCount ?? ''} onChange={(e) => { const n = parseInt(e.target.value.replace(/\D/g, ''), 10); cart.dispatch({ t: 'meta', label: cart.state.label, guestCount: Number.isFinite(n) && n > 0 ? Math.min(n, 99) : undefined }); }} />
+                </label>
+              </div>
+            </div>
+          )}
         </div>
         <div className="cg-shell__lines">
           {cart.state.lines.length === 0
@@ -190,6 +212,16 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
         </button>
       </footer>
+      {tablePick && (
+        <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}
+          onClose={() => setTablePick(false)}
+          onPick={(t) => { cart.dispatch({ t: 'table', tableId: t.id, tableName: t.name }); setTablePick(false); }}
+          onResume={async (t) => {
+            setTablePick(false);
+            const o = await data.getOrder(t.order!.id);
+            if (o) { cart.dispatch({ t: 'load', order: o, tableName: t.name }); setPanelOpen(true); setNotice(''); }
+          }} />
+      )}
       {picking && (
         <Modal title={`Pilih ukuran: ${picking.name}`} onClose={() => setPicking(null)}>
           <ul className="grid gap-8" aria-label="Ukuran">

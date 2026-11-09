@@ -1,6 +1,6 @@
 import type { OutletInfo, OutletOptions } from './outlet';
 import type {
-  Category, CatalogInput, Department, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Category, CatalogInput, Department, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -18,6 +18,16 @@ export interface DataLayer {
   saveOutletInfo(input: { name: string; address: string; phone: string }): Promise<void>;
   /** Biaya layanan, pembulatan, aturan kasir, catatan kaki struk. Pemilik dan manajer. */
   saveOutletOptions(input: OutletOptions): Promise<void>;
+  listFloors(): Promise<Floor[]>;
+  saveFloor(input: { id?: string; name: string }): Promise<Floor>;
+  /** Hapus lantai beserta mejanya. Ditolak bila ada meja yang sedang dipakai pesanan. */
+  deleteFloor(id: string): Promise<void>;
+  listTables(): Promise<DiningTable[]>;
+  saveTable(input: { id?: string; floorId: string | null; name: string }): Promise<DiningTable>;
+  /** Hapus meja. Ditolak bila sedang dipakai pesanan. */
+  deleteTable(id: string): Promise<void>;
+  /** Semua meja dengan pesanan yang sedang memakainya, untuk denah di kasir. */
+  listTableStatus(): Promise<TableStatus[]>;
   listCategories(): Promise<Category[]>;
   saveCategory(input: { id?: string; name: string; departmentId?: string | null }): Promise<Category>;
   /** Hapus kategori. Produk di dalamnya menjadi "tanpa kategori". */

@@ -3,12 +3,14 @@ import { computeOrder, newId, type CalcResult, type Order, type OrderType, type 
 
 export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
-export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string }
+export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number }
 type Action =
   | { t: 'add'; product: Product }
   | { t: 'qty'; lineId: string; qty: number }
   | { t: 'type'; type: OrderType }
-  | { t: 'load'; order: Order }
+  | { t: 'table'; tableId?: string; tableName?: string }
+  | { t: 'meta'; label?: string; guestCount?: number }
+  | { t: 'load'; order: Order; tableName?: string }
   | { t: 'saved'; orderId: string }
   | { t: 'clear' };
 
@@ -23,9 +25,11 @@ function reduce(s: CartState, a: Action): CartState {
     }
     case 'qty':
       return { ...s, lines: a.qty <= 0 ? s.lines.filter((l) => l.id !== a.lineId) : s.lines.map((l) => (l.id === a.lineId ? { ...l, qty: a.qty } : l)) };
-    case 'type': return { ...s, type: a.type };
+    case 'type': return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
+    case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
+    case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };
     case 'load':
-      return { type: a.order.type, orderId: a.order.id, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice })) };
+      return { type: a.order.type, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice })) };
     case 'saved': return { ...s, orderId: a.orderId };
     case 'clear': return initial;
   }

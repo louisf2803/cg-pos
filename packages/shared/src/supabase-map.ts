@@ -76,7 +76,7 @@ export function toOrder(r: Row): Order {
       change: num(p.change_given), paidAt: p.paid_at,
     }));
   return {
-    id: r.id, number: r.number, type: r.order_type as OrderType, tableId: r.table_id ?? undefined, shiftId: r.shift_id ?? undefined,
+    id: r.id, number: r.number, type: r.order_type as OrderType, tableId: r.table_id ?? undefined, label: r.label ?? undefined, guestCount: r.guest_count ?? undefined, shiftId: r.shift_id ?? undefined,
     cashierId: r.cashier_id, status: r.status, items, subtotal: num(r.subtotal), discountTotal: num(r.discount_total),
     serviceCharge: num(r.service_charge), taxTotal: num(r.tax_total), rounding: num(r.rounding), total: num(r.total),
     paidTotal: num(r.paid_total), payments, openedAt: r.opened_at, closedAt: r.closed_at ?? undefined,
@@ -94,7 +94,7 @@ export function nextSeq(existingNumbers: string[], cachedMax: number): number {
 }
 
 export interface NewOrderPayloadInput {
-  id: string; number: string; orderType: OrderType; tableId?: string | null; label?: string | null;
+  id: string; number: string; orderType: OrderType; tableId?: string | null; label?: string | null; guestCount?: number | null;
   shiftId?: string | null; cashierId: string; openedAt: string; baseVersion?: number;
   calc: CalcResult; orderDiscount: number; authorizedBy?: string | null;
   items: { id: string; productId: string; productUnitId: string; name: string; sku?: string | null; qty: number; unitPrice: number; note?: string | null }[];
@@ -106,6 +106,7 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
   const lineTotal = new Map(i.calc.lines.map((l) => [l.id, l.lineTotal]));
   return {
     id: i.id, number: i.number, order_type: i.orderType, table_id: i.tableId ?? null, label: i.label ?? null,
+    ...(i.guestCount != null ? { guest_count: i.guestCount } : {}),
     shift_id: i.shiftId ?? null, cashier_id: i.cashierId, opened_at: i.openedAt, client_created_at: i.openedAt,
     ...(i.baseVersion !== undefined ? { base_version: i.baseVersion } : {}),
     subtotal: i.calc.subtotal, discount_total: i.calc.discountTotal, service_charge: i.calc.serviceCharge,
