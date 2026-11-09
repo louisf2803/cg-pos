@@ -28,6 +28,24 @@ describe('lapisan data palsu', () => {
     expect((await d.listProducts({ includeInactive: true })).some((x) => x.id === p.id)).toBe(true);
   });
 
+  it('karyawan: tambah, ubah peran, nonaktifkan; pemilik tidak bisa diubah; PIN lama tidak berlaku bila nonaktif', async () => {
+    const e = await d.saveEmployee({ name: ' Rina ', role: 'cashier' });
+    expect(e.name).toBe('Rina');
+    expect((await d.listEmployees()).some((x) => x.id === e.id)).toBe(true);
+    await rejects(d.saveEmployee({ name: 'rina', role: 'cashier' }), 'invalid');
+    await rejects(d.saveEmployee({ name: '', role: 'cashier' }), 'invalid');
+    expect(await d.verifyPin(e.id, '123456')).toBe(false);          // belum punya PIN
+    await d.setEmployeePin(e.id, '482916');
+    expect(await d.verifyPin(e.id, '482916')).toBe(true);
+    const up = await d.saveEmployee({ id: e.id, name: 'Rina', role: 'manager' });
+    expect(up.role).toBe('manager');
+    await d.saveEmployee({ id: e.id, name: 'Rina', role: 'manager', isActive: false });
+    expect((await d.listEmployees()).some((x) => x.id === e.id)).toBe(false);
+    expect((await d.listManagedEmployees()).find((x) => x.id === e.id)!.isActive).toBe(false);
+    expect(await d.verifyPin(e.id, '482916')).toBe(false);
+    await rejects(d.saveEmployee({ id: 'e-owner', name: 'X', role: 'cashier' }), 'forbidden');
+  });
+
   it('PIN', async () => {
     expect(await d.verifyPin('e-sari', '222222')).toBe(true);
     expect(await d.verifyPin('e-sari', '000000')).toBe(false);

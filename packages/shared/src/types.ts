@@ -30,6 +30,9 @@ export interface CatalogInput {
   variants: { id?: string; label: string; price: number; sku?: string; isActive?: boolean }[];
 }
 export interface Employee { id: string; name: string; role: 'owner' | 'manager' | 'cashier' }
+/** Karyawan untuk layar pengelolaan (termasuk yang nonaktif). */
+export interface ManagedEmployee extends Employee { isActive: boolean }
+export interface EmployeeInput { id?: string; name: string; role: 'manager' | 'cashier'; isActive?: boolean }
 export interface PaymentMethod { id: string; code: string; name: string; kind: 'cash' | 'noncash' | 'gateway' | 'complimentary' | 'deposit'; requiresOnline: boolean }
 
 export interface Shift {

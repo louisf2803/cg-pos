@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  CatalogInput, CatalogProduct, Category, Department, ManagedEmployee, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -380,6 +380,33 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         .eq('employee_outlets.outlet_id', ctx.outletId).eq('is_active', true).is('deleted_at', null)
         .in('role', ['owner', 'manager', 'cashier']).order('name')) as Row[] | null;
       return (rows ?? []).map((e): Employee => ({ id: e.id, name: e.name, role: e.role }));
+    },
+    async listManagedEmployees() {
+      const { ctx } = await resolve();
+      const rows = must(await db().from('employees').select('id,name,role,is_active,employee_outlets!inner(outlet_id)')
+        .eq('employee_outlets.outlet_id', ctx.outletId).is('deleted_at', null)
+        .in('role', ['owner', 'manager', 'cashier']).order('name')) as Row[] | null;
+      return (rows ?? []).map((e): ManagedEmployee => ({ id: e.id, name: e.name, role: e.role, isActive: !!e.is_active }));
+    },
+    async saveEmployee(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama karyawan wajib diisi');
+      if (input.role !== 'manager' && input.role !== 'cashier') throw new DataError('invalid', 'Peran tidak dikenal');
+      const { orgId, ctx } = await resolve();
+      const clash = (await self.listManagedEmployees()).some((x) => x.id !== input.id && x.isActive && x.name.toLowerCase() === name.toLowerCase());
+      if (clash) throw new DataError('invalid', `Sudah ada karyawan aktif bernama "${name}"`);
+      const out = (r: Row): ManagedEmployee => ({ id: r.id, name: r.name, role: r.role, isActive: !!r.is_active });
+      if (input.id) {
+        const patch: Record<string, unknown> = { name, role: input.role };
+        if (input.isActive !== undefined) patch.is_active = input.isActive;
+        const row = must(await db().from('employees').update(patch).eq('id', input.id).neq('role', 'owner').is('deleted_at', null).select('id,name,role,is_active').maybeSingle()) as Row | null;
+        if (!row) throw new DataError('not_found', 'Karyawan tidak ditemukan, atau datanya hanya bisa diubah pemilik');
+        return out(row);
+      }
+      const id = newId();
+      const row = must(await db().from('employees').insert({ id, org_id: orgId, name, role: input.role, is_active: input.isActive ?? true }).select('id,name,role,is_active').single()) as Row;
+      must(await db().from('employee_outlets').insert({ employee_id: id, outlet_id: ctx.outletId, org_id: orgId }));
+      return out(row);
     },
     async verifyPin(employeeId, pin) {
       const { r } = await requireDevice();

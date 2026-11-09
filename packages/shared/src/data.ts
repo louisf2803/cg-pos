@@ -1,5 +1,5 @@
 import type {
-  Category, CatalogInput, Department, CatalogProduct, Employee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Category, CatalogInput, Department, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -37,6 +37,10 @@ export interface DataLayer {
   verifyPin(employeeId: string, pin: string): Promise<boolean>;
   /** Atur PIN 6 digit karyawan (khusus owner/manajer). PIN tidak pernah dibaca kembali; hanya hash-nya disimpan di server. */
   setEmployeePin(employeeId: string, pin: string): Promise<void>;
+  /** Semua karyawan outlet ini, termasuk nonaktif. Untuk layar pengelolaan. */
+  listManagedEmployees(): Promise<ManagedEmployee[]>;
+  /** Tambah atau ubah karyawan (kasir atau manajer). Peran pemilik tidak diatur dari sini. */
+  saveEmployee(input: EmployeeInput): Promise<ManagedEmployee>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
 
   currentShift(): Promise<Shift | null>;

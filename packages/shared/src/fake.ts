@@ -1,7 +1,7 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, Employee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  CatalogInput, CatalogProduct, Category, Department, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
@@ -64,6 +64,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const now = opts.now ?? (() => new Date());
   let categories: Category[] = [];
   let departments: Department[] = [];
+  let employees: (ManagedEmployee & { pin: string })[] = [];
   let products: Product[] = [];
   let orders: Order[] = [];
   let shifts: Shift[] = [];
@@ -99,6 +100,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   function reset() {
     categories = opts.seed === false ? [] : clone(CATEGORIES);
     departments = opts.seed === false ? [] : clone(DEPARTMENTS);
+    employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
     products = opts.seed === false ? [] : clone(PRODUCTS);
     orders = []; shifts = []; cashMoves = []; seqByDay.clear();
     if (opts.seed !== false) seedHistory();
@@ -260,11 +262,27 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       for (const p of hit) p.isActive = active;
     },
 
-    async listEmployees() { return EMPLOYEES.map(({ pin: _pin, ...e }) => e); },
-    async verifyPin(employeeId, pin) { return EMPLOYEES.some((e) => e.id === employeeId && e.pin === pin); },
+    async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
+    async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
+    async saveEmployee(input: EmployeeInput) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama karyawan wajib diisi');
+      if (input.role !== 'manager' && input.role !== 'cashier') throw new DataError('invalid', 'Peran tidak dikenal');
+      if (employees.some((x) => x.id !== input.id && x.isActive && x.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Sudah ada karyawan aktif bernama "${name}"`);
+      if (input.id) {
+        const e = employees.find((x) => x.id === input.id);
+        if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+        if (e.role === 'owner') throw new DataError('forbidden', 'Data pemilik hanya bisa diubah oleh pemilik');
+        e.name = name; e.role = input.role; if (input.isActive !== undefined) e.isActive = input.isActive;
+        const { pin: _p, ...out } = e; return { ...out };
+      }
+      const e = { id: newId(), name, role: input.role, isActive: input.isActive ?? true, pin: '' };
+      employees.push(e); const { pin: _p, ...out } = e; return { ...out };
+    },
+    async verifyPin(employeeId, pin) { return employees.some((e) => e.isActive && e.pin !== '' && e.id === employeeId && e.pin === pin); },
     async setEmployeePin(employeeId, pin) {
       if (!/^\d{6}$/.test(pin)) throw new DataError('invalid', 'PIN harus 6 digit angka');
-      const e = EMPLOYEES.find((x) => x.id === employeeId);
+      const e = employees.find((x) => x.id === employeeId);
       if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
       e.pin = pin;
     },
