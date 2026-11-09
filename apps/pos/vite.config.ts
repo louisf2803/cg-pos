@@ -1,3 +1,4 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-export default defineConfig({ plugins: [react()], server: { host: true } });
+// VITE_BASE: awalan jalur saat dihosting di subfolder (mis. /cg-pos/pos/). Kosong = akar domain.
+export default defineConfig({ base: process.env.VITE_BASE || '/', plugins: [react()], server: { host: true } });

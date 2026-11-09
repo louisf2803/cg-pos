@@ -1,0 +1,57 @@
+name: Pratinjau (GitHub Pages)
+# Membangun POS dan dashboard sebagai situs statis. Nilai Supabase di bawah ini PUBLIK (URL dan publishable key);
+# hak akses dijaga RLS dan login. Jangan pernah menaruh service_role key atau kunci DOKU di sini.
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
+env:
+  SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://insdyxlffzxjwpfmrxcj.supabase.co' }}
+  SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_z671VjN_Ky6ksBlgi9PdtA_bRfGfZDF' }}
+  BASE: /${{ github.event.repository.name }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r typecheck
+      - run: pnpm -F @cgpos/shared test
+      - name: Bangun POS
+        run: pnpm -F @cgpos/pos build
+        env:
+          VITE_BASE: ${{ env.BASE }}/pos/
+          VITE_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ env.SUPABASE_PUBLISHABLE_KEY }}
+      - name: Bangun dashboard
+        run: pnpm -F @cgpos/dashboard build
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ env.BASE }}/dashboard
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ env.SUPABASE_PUBLISHABLE_KEY }}
+      - name: Susun situs
+        run: |
+          mkdir -p site
+          cp -r apps/pos/dist site/pos
+          cp -r apps/dashboard/out site/dashboard
+          cat > site/index.html <<'HTML'
+          <!doctype html><html lang="id"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>CG POS</title>
+          <body style="font-family:system-ui;display:grid;place-items:center;min-height:100vh;margin:0">
+          <main style="display:grid;gap:16px;text-align:center"><h1>CG POS</h1>
+          <a href="pos/">Buka Kasir</a><a href="dashboard/">Buka Dashboard</a></main></body></html>
+          HTML
+          touch site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
