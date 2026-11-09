@@ -1,12 +1,13 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  Category, Employee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  CatalogInput, CatalogProduct, Category, Employee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder, cashChange } from './order-calc';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
+import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
 
 const CTX: OutletContext = {
@@ -175,6 +176,55 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const p = products.find((x) => x.id === id);
       if (!p) throw new DataError('not_found', 'Produk tidak ditemukan');
       p.isActive = active;
+    },
+
+    async listCatalog(q = {}) {
+      let list = assembleCatalog(products);
+      if (!q.includeInactive) list = list.filter((p) => p.isActive);
+      if (q.categoryId) list = list.filter((p) => p.categoryId === q.categoryId);
+      const s = q.search?.trim().toLowerCase();
+      if (s) list = list.filter((p) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s) || p.variants.some((v) => v.label.toLowerCase().includes(s) || (v.sku ?? '').toLowerCase().includes(s)));
+      return clone(list);
+    },
+    async getCatalogProduct(id) {
+      return clone(assembleCatalog(products).find((c) => c.id === id || c.variants.some((v) => v.id === id)) ?? null);
+    },
+    async saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct> {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama produk wajib diisi');
+      const problem = variantsProblem(input.variants);
+      if (problem) throw new DataError('invalid', problem);
+      const groupId = input.id;
+      const mine = (p: Product) => p.id === groupId || p.parentId === groupId;
+      const skus = [input.variants.length ? undefined : input.sku, ...input.variants.map((v) => v.sku)].map((x) => x?.trim()).filter((x): x is string => !!x);
+      if (new Set(skus).size !== skus.length || skus.some((k) => products.some((p) => p.sku === k && !mine(p)))) throw new DataError('invalid', 'SKU sudah dipakai produk lain');
+      const kind = input.kind ?? 'goods', trackStock = input.trackStock ?? true, isFavorite = input.isFavorite ?? false, active = input.isActive ?? true;
+      if (input.variants.length === 0) {
+        if (!Number.isFinite(input.price) || input.price < 0) throw new DataError('invalid', 'Harga tidak boleh negatif');
+        const kids = groupId ? products.filter((p) => p.parentId === groupId) : [];
+        for (const k of kids) products.splice(products.indexOf(k), 1);
+        const cur = groupId ? products.find((p) => p.id === groupId) : undefined;
+        const patch = { name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active };
+        if (cur) Object.assign(cur, patch);
+        else products.push({ id: groupId ?? newId(), stock: 0, ...patch });
+        return clone((await this.getCatalogProduct(groupId ?? products[products.length - 1]!.id))!);
+      }
+      const parentId = groupId ?? newId();
+      const single = products.find((p) => p.id === parentId && !p.parentId);
+      if (single) products.splice(products.indexOf(single), 1); // produk tunggal berubah jadi berarian
+      const kept = new Set(input.variants.map((v) => v.id).filter(Boolean));
+      for (const k of products.filter((p) => p.parentId === parentId && !kept.has(p.id))) products.splice(products.indexOf(k), 1);
+      for (const v of input.variants) {
+        const patch = { name: variantProductName(name, v.label), categoryId: input.categoryId, price: Math.round(v.price), sku: v.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active && (v.isActive ?? true), parentId };
+        const cur = v.id ? products.find((p) => p.id === v.id) : undefined;
+        if (cur) Object.assign(cur, patch); else products.push({ id: newId(), stock: 0, ...patch });
+      }
+      return clone((await this.getCatalogProduct(parentId))!);
+    },
+    async setCatalogActive(id, active) {
+      const hit = products.filter((p) => p.id === id || p.parentId === id);
+      if (!hit.length) throw new DataError('not_found', 'Produk tidak ditemukan');
+      for (const p of hit) p.isActive = active;
     },
 
     async listEmployees() { return EMPLOYEES.map(({ pin: _pin, ...e }) => e); },

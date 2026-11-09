@@ -8,10 +8,25 @@ export interface Product {
   taxRate?: number; photoUrl?: string;
   /** produk induk bila ini varian ukuran (S/M/L); tidak ada untuk produk tunggal */
   parentId?: string | null;
+  /** false untuk induk grup varian (tidak dijual langsung). Kosong = dijual. */
+  isSellable?: boolean;
 }
 export interface ProductInput {
   id?: string; name: string; categoryId: string | null; price: number; sku?: string;
   kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;
+}
+/** Satu ukuran/varian dari sebuah produk (mis. Americano: S, M, L), masing-masing punya harga dan SKU sendiri. */
+export interface CatalogVariant { id: string; label: string; price: number; sku?: string; isActive: boolean }
+/** Produk di mata pemilik: satu baris, dengan varian di dalamnya. variants kosong = produk tunggal. */
+export interface CatalogProduct {
+  id: string; name: string; categoryId: string | null; kind: 'goods' | 'service'; trackStock: boolean; isActive: boolean; isFavorite: boolean;
+  /** produk tunggal: harganya; produk berarian: harga varian termurah */
+  price: number; sku?: string; variants: CatalogVariant[];
+}
+export interface CatalogInput {
+  id?: string; name: string; categoryId: string | null; kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;
+  price: number; sku?: string;
+  variants: { id?: string; label: string; price: number; sku?: string; isActive?: boolean }[];
 }
 export interface Employee { id: string; name: string; role: 'owner' | 'manager' | 'cashier' }
 export interface PaymentMethod { id: string; code: string; name: string; kind: 'cash' | 'noncash' | 'gateway' | 'complimentary' | 'deposit'; requiresOnline: boolean }

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  Category, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  CatalogInput, CatalogProduct, Category, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -10,6 +10,7 @@ import { computeOrder } from './order-calc';
 import { formatOrderNumber, localDateKey } from './order-number';
 import { roundToStep } from './money';
 import { newId } from './id';
+import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
   buildOrderPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
 } from './supabase-map';
@@ -24,7 +25,7 @@ export interface SupabaseDataOptions {
 }
 
 const PRODUCT_SELECT =
-  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,product_units(id,price,sku,is_base,deleted_at)';
+  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,product_units(id,price,sku,is_base,deleted_at)';
 const ORDER_SELECT =
   'id,number,order_type,table_id,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at),' +
@@ -238,6 +239,93 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async setProductActive(id, active) {
       const row = must(await db().from('products').update({ is_active: active }).eq('id', id).select('id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('not_found', 'Produk tidak ditemukan');
+    },
+
+    // ---------- katalog gaya pemilik (produk + varian) ----------
+    async listCatalog(q = {}) {
+      const rows = await fetchAll<Row>((f, t) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let qb: any = db().from('products').select(PRODUCT_SELECT).in('kind', ['goods', 'service']).is('deleted_at', null);
+        if (q.categoryId) qb = qb.eq('category_id', q.categoryId);
+        return qb.order('name').order('id').range(f, t);
+      });
+      let list = assembleCatalog(rows.map(toProduct));
+      if (!q.includeInactive) list = list.filter((p) => p.isActive);
+      const s = q.search?.trim().toLowerCase();
+      if (s) list = list.filter((p) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s) || p.variants.some((v) => v.label.toLowerCase().includes(s) || (v.sku ?? '').toLowerCase().includes(s)));
+      return list;
+    },
+    async getCatalogProduct(id) {
+      const row = must(await db().from('products').select(PRODUCT_SELECT).eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      if (!row) return null;
+      const parentId = (row.parent_id as string | null) ?? (row.is_sellable === false ? (row.id as string) : null);
+      if (!parentId) return assembleCatalog([toProduct(row)])[0] ?? null;
+      const head = parentId === row.id ? row : (must(await db().from('products').select(PRODUCT_SELECT).eq('id', parentId).maybeSingle()) as Row | null);
+      const kids = (must(await db().from('products').select(PRODUCT_SELECT).eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
+      return assembleCatalog([...(head ? [toProduct(head)] : []), ...kids.map(toProduct)])[0] ?? null;
+    },
+    async saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct> {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama produk wajib diisi');
+      const problem = variantsProblem(input.variants);
+      if (problem) throw new DataError('invalid', problem);
+      const kind = input.kind ?? 'goods';
+      if (input.variants.length === 0) {
+        if (input.id) { // dari produk berarian menjadi tunggal: varian lama diarsipkan, induk dijual langsung
+          const kids = (must(await db().from('products').select('id').eq('parent_id', input.id).is('deleted_at', null)) as Row[] | null) ?? [];
+          if (kids.length) {
+            must(await db().from('products').update({ deleted_at: now().toISOString(), is_active: false }).eq('parent_id', input.id));
+            must(await db().from('products').update({ is_sellable: true, show_in_menu: true }).eq('id', input.id));
+          }
+        }
+        const p = await self.saveProduct({ id: input.id, name, categoryId: input.categoryId, price: input.price, sku: input.sku, kind, trackStock: input.trackStock, isFavorite: input.isFavorite, isActive: input.isActive });
+        return (await self.getCatalogProduct(p.id))!;
+      }
+      for (const v of input.variants) if (!Number.isFinite(v.price) || v.price < 0) throw new DataError('invalid', 'Harga varian tidak valid');
+      const { orgId } = await resolve();
+      const unit = ((must(await db().from('units').select('id').eq('name', 'pcs').is('deleted_at', null).limit(1)) as Row[] | null) ?? [])[0];
+      if (!unit) throw new DataError('not_found', "Satuan 'pcs' belum ada di org ini");
+      const parentId = input.id ?? newId();
+      const trackStock = input.trackStock ?? true;
+      const isFavorite = input.isFavorite ?? false;
+      const groupActive = input.isActive ?? true;
+      try {
+        const existing = input.id ? (must(await db().from('products').select('id').eq('id', input.id).maybeSingle()) as Row | null) : null;
+        if (!existing) {
+          must(await db().from('products').insert({ id: parentId, org_id: orgId, kind, name, category_id: input.categoryId, base_unit_id: unit.id,
+            is_sellable: false, show_in_menu: false, track_stock: false, is_favorite: isFavorite, is_active: groupActive }));
+        } else {
+          must(await db().from('products').update({ name, category_id: input.categoryId, kind, is_sellable: false, show_in_menu: false, is_favorite: isFavorite, is_active: groupActive }).eq('id', parentId));
+        }
+        const kids = (must(await db().from('products').select('id').eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
+        const kidIds = new Set(kids.map((k) => k.id as string));
+        const keep = new Set(input.variants.map((v) => v.id).filter((x): x is string => !!x && kidIds.has(x)));
+        const drop = [...kidIds].filter((id) => !keep.has(id));
+        if (drop.length) must(await db().from('products').update({ deleted_at: now().toISOString(), is_active: false }).in('id', drop));
+        for (const v of input.variants) {
+          const childName = variantProductName(name, v.label);
+          const price = Math.round(v.price);
+          const sku = v.sku?.trim() || null;
+          const active = groupActive && (v.isActive ?? true);
+          if (v.id && kidIds.has(v.id)) {
+            must(await db().from('products').update({ name: childName, category_id: input.categoryId, kind, is_active: active, track_stock: trackStock, is_favorite: isFavorite }).eq('id', v.id));
+            must(await db().from('product_units').update({ price, sku }).eq('product_id', v.id).eq('is_base', true).is('deleted_at', null).select('id'));
+          } else {
+            const id = newId();
+            must(await db().from('products').insert({ id, org_id: orgId, kind, name: childName, category_id: input.categoryId, base_unit_id: unit.id, parent_id: parentId,
+              is_sellable: true, show_in_menu: true, track_stock: trackStock, is_favorite: isFavorite, is_active: active }));
+            must(await db().from('product_units').insert({ org_id: orgId, product_id: id, unit_id: unit.id, conversion: 1, is_base: true, price, sku }));
+          }
+        }
+      } catch (e) {
+        if (e instanceof DataError && /sudah ada/.test(e.message)) throw new DataError('invalid', 'SKU sudah dipakai produk lain');
+        throw e;
+      }
+      return (await self.getCatalogProduct(parentId))!;
+    },
+    async setCatalogActive(id, active) {
+      const rows = (must(await db().from('products').update({ is_active: active }).or(`id.eq.${id},parent_id.eq.${id}`).is('deleted_at', null).select('id')) as Row[] | null) ?? [];
+      if (rows.length === 0) throw new DataError('not_found', 'Produk tidak ditemukan');
     },
 
     // ---------- karyawan dan metode bayar ----------

@@ -1,4 +1,4 @@
-import type { Product } from './types';
+import type { CatalogProduct, Product } from './types';
 
 export interface VariantOption { product: Product; label: string }
 export type CatalogTile =
@@ -41,4 +41,62 @@ export function groupVariants(products: Product[]): CatalogTile[] {
     });
   }
   return tiles;
+}
+
+/** Urutan label ukuran S < M < L; label lain mengikuti harga lalu abjad. */
+export function sortVariants<T extends { label: string; price: number }>(list: T[]): T[] {
+  return [...list].sort((a, b) => sizeRank(a.label) - sizeRank(b.label) || a.price - b.price || a.label.localeCompare(b.label));
+}
+
+/**
+ * Rakit katalog gaya pemilik dari daftar produk datar: induk (isSellable=false) memuat anak-anaknya sebagai varian;
+ * anak yatim (induk tak ada di daftar) dibuatkan grup dari nama dasarnya; produk lain tetap tunggal.
+ */
+export function assembleCatalog(products: Product[]): CatalogProduct[] {
+  const children = new Map<string, Product[]>();
+  for (const p of products) if (p.parentId) (children.get(p.parentId) ?? children.set(p.parentId, []).get(p.parentId)!).push(p);
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const out: CatalogProduct[] = [];
+  const toVariants = (kids: Product[]) => sortVariants(kids.map((k) => ({ id: k.id, label: splitVariantName(k.name).label, price: k.price, sku: k.sku, isActive: k.isActive })));
+  const group = (id: string, name: string, head: Product | undefined, kids: Product[]): CatalogProduct => {
+    const variants = toVariants(kids);
+    const first = kids[0]!;
+    return {
+      id, name, categoryId: head?.categoryId ?? first.categoryId, kind: head?.kind ?? first.kind, trackStock: head?.trackStock ?? first.trackStock,
+      isActive: head ? head.isActive : kids.some((k) => k.isActive), isFavorite: head?.isFavorite ?? first.isFavorite,
+      price: Math.min(...variants.map((v) => v.price)), variants,
+    };
+  };
+  const seen = new Set<string>();
+  for (const p of products) {
+    if (p.parentId) {
+      if (byId.has(p.parentId) || seen.has(p.parentId)) continue; // induk ada: ditangani di induknya
+      seen.add(p.parentId);
+      const kids = children.get(p.parentId)!;
+      out.push(group(p.parentId, splitVariantName(p.name).base, undefined, kids));
+    } else if (p.isSellable === false) {
+      const kids = children.get(p.id);
+      if (kids?.length) out.push(group(p.id, p.name, p, kids));
+    } else {
+      out.push({ id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind, trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [] });
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'id'));
+}
+
+/** Nama produk anak dari nama induk dan label: "Americano" + "S" -> "Americano (S)". */
+export const variantProductName = (base: string, label: string) => `${base.trim()} (${label.trim()})`;
+
+/** Periksa isian varian; mengembalikan pesan galat atau null. */
+export function variantsProblem(variants: { label: string; price: number }[]): string | null {
+  const seen = new Set<string>();
+  for (const v of variants) {
+    const l = v.label.trim();
+    if (!l) return 'Nama varian wajib diisi.';
+    if (/[()]/.test(l)) return 'Nama varian tidak boleh memuat tanda kurung.';
+    if (seen.has(l.toLowerCase())) return `Varian "${l}" dobel.`;
+    seen.add(l.toLowerCase());
+    if (!Number.isFinite(v.price) || v.price < 0) return `Harga varian "${l}" tidak valid.`;
+  }
+  return null;
 }

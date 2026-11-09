@@ -1,5 +1,5 @@
 import type {
-  Category, Employee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Category, CatalogInput, CatalogProduct, Employee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -17,6 +17,13 @@ export interface DataLayer {
   getProduct(id: string): Promise<Product | null>;
   saveProduct(input: ProductInput): Promise<Product>;
   setProductActive(id: string, active: boolean): Promise<void>;
+
+  /** Katalog gaya pemilik: satu produk punya banyak varian (S/M/L). Kasir tetap memakai listProducts (satu baris per ukuran). */
+  listCatalog(q?: { search?: string; includeInactive?: boolean; categoryId?: string | null }): Promise<CatalogProduct[]>;
+  getCatalogProduct(id: string): Promise<CatalogProduct | null>;
+  saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct>;
+  /** Menonaktifkan/mengaktifkan produk beserta seluruh variannya. */
+  setCatalogActive(id: string, active: boolean): Promise<void>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;
