@@ -39,7 +39,7 @@ const PRODUCTS: Product[] = [
   P('p1', 'Kopi susu gula aren', 'c-kopi', 20000, { isFavorite: true, sku: 'KP-001' }),
   P('p2', 'Americano', 'c-kopi', 18000, { sku: 'KP-002' }),
   P('p3', 'Latte', 'c-kopi', 24000, { sku: 'KP-003' }),
-  P('p4', 'Espresso', 'c-kopi', 15000, { sku: 'KP-004' }),
+  P('p4', 'Espresso', 'c-kopi', 15000, { sku: 'KP-004', photoUrl: "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 30'%3E%3Crect width='40' height='30' fill='%23c9a27e'/%3E%3Ccircle cx='20' cy='15' r='9' fill='%236b4423'/%3E%3C/svg%3E" }),
   P('p5', 'Teh tarik', 'c-non', 16000, { sku: 'NK-001' }),
   P('p6', 'Cokelat panas', 'c-non', 22000, { sku: 'NK-002' }),
   P('p7', 'Jus jeruk', 'c-non', 19000, { sku: 'NK-003' }),

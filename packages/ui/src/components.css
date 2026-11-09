@@ -196,3 +196,5 @@ button,input,select,textarea{font:inherit;color:inherit}
 .cg-shell__lines{overflow:auto}
 .cg-shell__bar{grid-column:1/-1;display:flex;align-items:center;gap:var(--space-12);padding:0 var(--space-16);border-top:1px solid var(--color-border);background:var(--color-surface-raised)}
 @media (max-width:599px){.cg-shell{grid-template-columns:1fr;grid-template-rows:var(--layout-pos-header) auto 1fr auto var(--layout-pos-action-bar)}}
+
+.cg-thumb{display:inline-block;width:40px;height:40px;object-fit:cover;border-radius:var(--radius-md);vertical-align:middle;margin-right:var(--space-8);background:var(--color-surface)}

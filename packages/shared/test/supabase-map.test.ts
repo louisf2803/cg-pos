@@ -41,6 +41,8 @@ describe('pemetaan baris', () => {
     });
     expect(p).toMatchObject({ id: 'p1', price: 26000, sku: 'KP-1', parentId: 'p0', categoryId: 'c1', kind: 'goods', trackStock: false });
     expect(toProduct({ id: 'p2', name: 'X', kind: 'service', product_units: [] }).price).toBe(0);
+    expect(toProduct({ id: 'p3', name: 'Y', kind: 'goods', photo_path: 'https://x/y.png', product_units: [] }).photoUrl).toBe('https://x/y.png');
+    expect(toProduct({ id: 'p4', name: 'Z', kind: 'goods', photo_path: null, product_units: [] }).photoUrl).toBeUndefined();
   });
   it('shift: angka teks jadi angka, kolom kosong jadi undefined', () => {
     const s = toShift({ id: 's', cashier_id: 'e', opened_at: 't', opening_cash: '100000.00', status: 'open', closing_cash_counted: null, expected_cash: null, cash_variance: null });

@@ -19,6 +19,16 @@ describe('assembleCatalog', () => {
     expect(a.price).toBe(20000);
     expect(c[0]!.variants).toEqual([]);
   });
+  it('foto induk atau anak pertama yang punya foto ikut ke katalog', () => {
+    const c = assembleCatalog([
+      P('par', 'Aerocano', 0, { isSellable: false }),
+      P('s', 'Aerocano (S)', 20000, { parentId: 'par', photoUrl: 'https://x/a.png' }), P('m', 'Aerocano (M)', 25000, { parentId: 'par' }),
+      P('x', 'Air mineral', 5000, { photoUrl: 'https://x/b.png' }), P('y', 'Teh', 4000),
+    ]);
+    expect(c.find((p) => p.name === 'Aerocano')!.photoUrl).toBe('https://x/a.png');
+    expect(c.find((p) => p.name === 'Air mineral')!.photoUrl).toBe('https://x/b.png');
+    expect(c.find((p) => p.name === 'Teh')!.photoUrl).toBeUndefined();
+  });
   it('anak yatim dibuatkan grup dari nama dasar; induk tanpa anak tidak tampil', () => {
     const c = assembleCatalog([P('a', 'Teh (S)', 1, { parentId: 'gone' }), P('b', 'Teh (M)', 2, { parentId: 'gone' }), P('e', 'Kosong', 0, { isSellable: false })]);
     expect(c).toHaveLength(1);

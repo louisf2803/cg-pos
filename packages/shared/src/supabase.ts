@@ -29,7 +29,7 @@ export interface SupabaseDataOptions {
 }
 
 const PRODUCT_SELECT =
-  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,product_units(id,price,sku,is_base,deleted_at)';
+  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,photo_path,product_units(id,price,sku,is_base,deleted_at)';
 const ORDER_SELECT =
   'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at,order_item_extras(option_id,name,price,qty)),' +

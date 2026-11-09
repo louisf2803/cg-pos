@@ -75,7 +75,7 @@ export default function DaftarProduk() {
                         {grouped
                           ? <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-expanded={expanded} onClick={() => flip(p.id)} aria-label={`${expanded ? 'Tutup' : 'Buka'} varian ${p.name}`}>{expanded ? <ChevronDown className="cg-icon cg-icon--sm" aria-hidden /> : <ChevronRight className="cg-icon cg-icon--sm" aria-hidden />}</button>
                           : null}
-                        {p.name} {grouped && <span className="cg-badge">{p.variants.length} varian</span>} {!p.isActive && <span className="cg-badge">Nonaktif</span>}
+                        {p.photoUrl && <img className="cg-thumb" src={p.photoUrl} alt="" loading="lazy" width={40} height={40} />}{p.name} {grouped && <span className="cg-badge">{p.variants.length} varian</span>} {!p.isActive && <span className="cg-badge">Nonaktif</span>}
                       </td>
                       <td className="whitespace-nowrap">{state.data.cats.find((c) => c.id === p.categoryId)?.name ?? '—'}</td>
                       <td className="text-text-muted whitespace-nowrap">{grouped ? '—' : p.sku ?? '—'}</td>

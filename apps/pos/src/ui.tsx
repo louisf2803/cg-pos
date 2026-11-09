@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /** Dialog: fokus masuk ke dalam, Tab terkurung, Escape menutup, fokus kembali ke pemicu. */
 export function Modal({ title, children, onClose, labelledBy = 'modal-title' }: { title: string; children: ReactNode; onClose?: () => void; labelledBy?: string }) {
@@ -31,3 +31,10 @@ export function Modal({ title, children, onClose, labelledBy = 'modal-title' }: 
 }
 
 export function Spinner() { return <span className="cg-sr">Memuat…</span>; }
+
+/** Foto produk; bila kosong atau gagal dimuat, tampil ikon pengganti. */
+export function ProductPhoto({ src, fallback }: { src?: string; fallback: ReactNode }) {
+  const [bad, setBad] = useState(false);
+  if (!src || bad) return <>{fallback}</>;
+  return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBad(true)} />;
+}

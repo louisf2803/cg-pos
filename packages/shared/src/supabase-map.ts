@@ -57,6 +57,7 @@ export function toProduct(r: Row): Product {
     id: r.id, name: r.name, categoryId: r.category_id ?? null, price: num(base?.price), sku: base?.sku ?? undefined,
     kind: r.kind === 'service' ? 'service' : r.kind === 'bundle' ? 'bundle' : 'goods', trackStock: !!r.track_stock, isActive: !!r.is_active,
     isFavorite: !!r.is_favorite, parentId: r.parent_id ?? null, isSellable: r.is_sellable === false ? false : undefined,
+    ...(r.photo_path ? { photoUrl: String(r.photo_path) } : {}),
   };
 }
 

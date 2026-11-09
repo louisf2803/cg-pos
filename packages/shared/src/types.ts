@@ -22,7 +22,7 @@ export interface CatalogVariant { id: string; label: string; price: number; sku?
 export interface CatalogProduct {
   id: string; name: string; categoryId: string | null; kind: 'goods' | 'service'; trackStock: boolean; isActive: boolean; isFavorite: boolean;
   /** produk tunggal: harganya; produk berarian: harga varian termurah */
-  price: number; sku?: string; variants: CatalogVariant[];
+  price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string;
 }
 export interface CatalogInput {
   id?: string; name: string; categoryId: string | null; kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;

@@ -6,7 +6,7 @@ import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
 import { useSession } from '../lib/session';
 import { useOnline } from '../lib/online';
-import { Modal } from '../ui';
+import { Modal, ProductPhoto } from '../ui';
 import { Orders } from './Orders';
 import { TablePicker } from './TablePicker';
 import { Payment } from './Payment';
@@ -155,7 +155,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                 onClick={() => (isGroup ? setPicking(t) : choose(t.product))}
                 aria-haspopup={isGroup ? 'dialog' : undefined}
                 aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
-                <span className="cg-tile__media" aria-hidden><ShoppingBag className="cg-icon cg-icon--lg" /></span>
+                <span className="cg-tile__media" aria-hidden><ProductPhoto src={isGroup ? t.options.find((o) => o.product.photoUrl)?.product.photoUrl : t.product.photoUrl} fallback={<ShoppingBag className="cg-icon cg-icon--lg" />} /></span>
                 <span className="cg-tile__body">
                   <span className="cg-tile__name">{name}</span>
                   <span className="cg-tile__price">{price}</span>
