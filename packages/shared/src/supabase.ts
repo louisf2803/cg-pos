@@ -661,13 +661,14 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         type: 'shift.close', entityId: shiftId,
         payload: { id: shiftId, closed_by: closedBy, counted: Math.round(counted), closed_at: now().toISOString() },
       }]);
-      const [shiftRow, pays, moves, items, paidCount] = await Promise.all([
+      const [shiftRow, pays, moves, items, paidCount, shiftRefunds] = await Promise.all([
         db().from('shifts').select('*').eq('id', shiftId).single(),
-        fetchAll<Row>((f, t) => db().from('payments').select('amount,payment_methods(kind)').eq('shift_id', shiftId).eq('status', 'succeeded').order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('payments').select('amount,payment_methods(name,kind)').eq('shift_id', shiftId).eq('status', 'succeeded').order('id').range(f, t)),
         fetchAll<Row>((f, t) => db().from('cash_movements').select('kind,amount').eq('shift_id', shiftId).order('id').range(f, t)),
         fetchAll<Row>((f, t) => db().from('order_items').select('product_id,name,qty,line_total,orders!inner(shift_id,status)')
           .eq('orders.shift_id', shiftId).eq('orders.status', 'paid').is('voided_at', null).order('id').range(f, t)),
         db().from('orders').select('id', { count: 'exact', head: true }).eq('shift_id', shiftId).eq('status', 'paid'),
+        fetchAll<Row>((f, t) => db().from('refunds').select('total,payment_methods(kind)').eq('shift_id', shiftId).neq('status', 'failed').order('id').range(f, t)),
       ]);
       const shift = toShift(must(shiftRow) as Row);
       const sumOf = (rows: Row[], f: (r: Row) => boolean) => rows.filter(f).reduce((a, x) => a + Number(x.amount), 0);
@@ -681,6 +682,12 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return {
         shift, expectedCash: shift.expectedCash ?? 0, counted: shift.counted ?? Math.round(counted), variance: shift.variance ?? 0,
         cashSales, otherSales,
+        cashRefunds: shiftRefunds.filter((r) => r.payment_methods?.kind === 'cash').reduce((a, r) => a + Number(r.total), 0),
+        byMethod: [...pays.reduce((m, p) => {
+          const name = p.payment_methods?.name ?? '?';
+          const c = m.get(name) ?? { methodName: name, kind: (p.payment_methods?.kind ?? 'cash') as PaymentMethod['kind'], count: 0, amount: 0 };
+          c.count += 1; c.amount += Number(p.amount); return m.set(name, c);
+        }, new Map<string, { methodName: string; kind: PaymentMethod['kind']; count: number; amount: number }>()).values()].sort((a, b) => b.amount - a.amount),
         cashIn: sumOf(moves, (m) => m.kind === 'in'), cashOut: sumOf(moves, (m) => m.kind === 'out'),
         orderCount: paidCount.count ?? 0,
         productsSold: [...sold.values()].sort((a, b) => b.amount - a.amount),

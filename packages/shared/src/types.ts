@@ -45,6 +45,8 @@ export interface Shift {
 export interface ShiftReport {
   shift: Shift; expectedCash: number; counted: number; variance: number;
   cashSales: number; otherSales: number; cashIn: number; cashOut: number; orderCount: number;
+  /** Penerimaan per metode bayar selama shift, dan refund tunai yang mengurangi kas. */
+  byMethod: { methodName: string; kind: PaymentMethod['kind']; count: number; amount: number }[]; cashRefunds: number;
   productsSold: { productId: string; name: string; qty: number; amount: number }[];
 }
 

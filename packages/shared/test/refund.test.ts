@@ -46,5 +46,7 @@ describe('refund', () => {
     const sh = await d.currentShift();
     const rep = await d.closeShift({ shiftId: sh!.id, counted: 100000, closedBy: 'e-sari' });
     expect(rep.shift.expectedCash).toBe(100000 + o.paidTotal - r.total);
+    expect(rep.cashRefunds).toBe(r.total);
+    expect(rep.byMethod).toEqual([expect.objectContaining({ methodName: expect.any(String), kind: 'cash', count: 1, amount: o.paidTotal })]);
   });
 });

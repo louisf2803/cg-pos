@@ -14,6 +14,8 @@ export function CloseShift({ onCancel, onClosed }: { onCancel: () => void; onClo
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<ShiftReport | null>(null);
+  const [pin, setPin] = useState('');
+  const [pinErr, setPinErr] = useState('');
 
   function ask(e: FormEvent) {
     e.preventDefault();
@@ -21,8 +23,11 @@ export function CloseShift({ onCancel, onClosed }: { onCancel: () => void; onClo
     setErr(''); setConfirming(true);
   }
   async function close() {
-    setBusy(true);
-    try { setReport(await data.closeShift({ shiftId: shift.id, counted: parseRp(raw), closedBy: session.employee.id })); setShift(null); setConfirming(false); }
+    setBusy(true); setPinErr('');
+    try {
+      // PIN karyawan yang sedang bertugas menyetujui penutupan
+      if (!(await data.verifyPin(session.employee.id, pin))) { setPin(''); setPinErr('PIN salah.'); setBusy(false); return; }
+      setReport(await data.closeShift({ shiftId: shift.id, counted: parseRp(raw), closedBy: session.employee.id })); setShift(null); setConfirming(false); }
     catch (x) { setConfirming(false); setErr(x instanceof DataError || x instanceof Error ? x.message : 'Gagal menutup kasir.'); }
     finally { setBusy(false); }
   }
@@ -41,8 +46,15 @@ export function CloseShift({ onCancel, onClosed }: { onCancel: () => void; onClo
             <div className="cg-totals__row"><span>Modal awal</span><span className="cg-num">{formatRp(shift.openingCash)}</span></div>
             <div className="cg-totals__row"><span>Penjualan tunai</span><span className="cg-num">{formatRp(report.cashSales)}</span></div>
             <div className="cg-totals__row"><span>Penjualan non-tunai</span><span className="cg-num">{formatRp(report.otherSales)}</span></div>
+            {report.cashRefunds > 0 && <div className="cg-totals__row"><span>Refund tunai</span><span className="cg-num">-{formatRp(report.cashRefunds)}</span></div>}
             <div className="cg-totals__row cg-totals__row--grand"><span>Uang seharusnya di laci</span><span className="cg-num">{formatRp(report.expectedCash)}</span></div>
           </div>
+          <section aria-labelledby="h-metode">
+            <h2 id="h-metode" className="text-lg mb-8">Penerimaan per metode</h2>
+            {report.byMethod.length === 0 ? <p className="text-text-muted">Belum ada pembayaran di shift ini.</p> : (
+              <ul className="grid gap-4">{report.byMethod.map((m) => <li key={m.methodName} className="flex justify-between gap-12"><span>{m.methodName} <span className="text-text-muted">· {m.count}x</span></span><span className="cg-num">{formatRp(m.amount)}</span></li>)}</ul>
+            )}
+          </section>
           <section aria-labelledby="h-terjual">
             <h2 id="h-terjual" className="text-lg mb-8">Produk terjual</h2>
             {report.productsSold.length === 0 ? <p className="text-text-muted">Belum ada produk terjual di shift ini.</p> : (
@@ -68,11 +80,16 @@ export function CloseShift({ onCancel, onClosed }: { onCancel: () => void; onClo
         <button type="button" className="cg-btn cg-btn--ghost cg-btn--block" onClick={onCancel}>Batal, kembali ke kasir</button>
       </form>
       {confirming && (
-        <Modal title="Tutup kasir sekarang?" onClose={() => setConfirming(false)}>
+        <Modal title="Tutup kasir sekarang?" onClose={() => { setConfirming(false); setPin(''); setPinErr(''); }}>
           <p className="cg-modal__body">Setelah ditutup, shift ini tidak bisa dibuka lagi dan angkanya dikunci. Uang dihitung: {formatRp(parseRp(raw))}.</p>
+          <div className="cg-field">
+            <label className="cg-label" htmlFor="pin-tutup">PIN {session.employee.name}</label>
+            <input id="pin-tutup" className="cg-input" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, '')); setPinErr(''); }} />
+            <p role="alert" className="cg-error min-h-[20px]">{pinErr}</p>
+          </div>
           <div className="cg-modal__actions">
             <button className="cg-btn cg-btn--ghost" data-autofocus onClick={() => setConfirming(false)} disabled={busy}>Batal</button>
-            <button className="cg-btn cg-btn--primary" onClick={() => void close()} disabled={busy}>{busy ? 'Menutup…' : 'Ya, tutup'}</button>
+            <button className="cg-btn cg-btn--primary" onClick={() => void close()} disabled={busy || pin.length !== 6}>{busy ? 'Menutup…' : 'Ya, tutup'}</button>
           </div>
         </Modal>
       )}

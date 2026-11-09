@@ -455,7 +455,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         }
       }
       return {
-        shift: clone(s), expectedCash: expected, counted: s.counted!, variance: s.variance!, cashSales, otherSales, cashIn, cashOut,
+        shift: clone(s), expectedCash: expected, counted: s.counted!, variance: s.variance!, cashSales, otherSales, cashIn, cashOut, cashRefunds,
+        byMethod: [...pays.reduce((m, p) => { const c = m.get(p.methodName) ?? { methodName: p.methodName, kind: p.kind, count: 0, amount: 0 }; c.count += 1; c.amount += p.amount; return m.set(p.methodName, c); }, new Map<string, { methodName: string; kind: PaymentMethod['kind']; count: number; amount: number }>()).values()].sort((a, b) => b.amount - a.amount),
         orderCount: orders.filter((o) => o.shiftId === s.id && o.status === 'paid').length,
         productsSold: [...sold.values()].sort((a, b) => b.amount - a.amount),
       } satisfies ShiftReport;
