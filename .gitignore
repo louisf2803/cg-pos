@@ -5,3 +5,5 @@ dist
 *.log
 .env*
 !.env.example
+tsconfig.tsbuildinfo
+next-env.d.ts

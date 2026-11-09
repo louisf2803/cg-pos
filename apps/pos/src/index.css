@@ -1,0 +1,26 @@
+@import '../../../packages/ui/src/fonts.css';
+@import '../../../packages/ui/src/tokens.css';
+@import '../../../packages/ui/src/components.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html, body, #root { height: 100%; }
+body { overscroll-behavior: none; }
+
+/* Susunan layar kasir: tablet = rail | katalog | panel; HP = tumpuk, panel jadi lembar penuh */
+.reg { position: fixed; inset: 0; grid-template-columns: var(--layout-pos-category-rail) 1fr var(--layout-pos-order-panel); }
+.reg__catalog { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; }
+.reg__search { margin: var(--space-12) var(--space-16) 0; display: block; }
+.reg__close, .reg__show { display: none; }
+@media (max-width: 599px) {
+  .reg { grid-template-columns: 1fr; grid-template-rows: var(--layout-pos-header) auto minmax(0, 1fr) var(--layout-pos-action-bar); }
+  .reg .cg-shell__rail { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--color-border); padding: var(--space-8) var(--space-12); }
+  .reg .cg-rail-item { white-space: nowrap; flex: none; }
+  .reg__panel { display: none; }
+  .reg--panel .reg__panel { display: grid; position: fixed; inset: var(--layout-pos-header) 0 var(--layout-pos-action-bar) 0; z-index: 30; border-left: 0; }
+  .reg__close, .reg__show { display: inline-flex; }
+  .reg .cg-shell__bar { gap: var(--space-8); padding: 0 var(--space-12); }
+  .reg .cg-shell__header .cg-conn { display: none; }
+}
+.reg__pay { white-space: nowrap; }
+@media (max-width: 599px) { .reg__pay { flex: 1; } }
