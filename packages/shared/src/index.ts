@@ -15,3 +15,4 @@ export * from './refund';
 export * from './extras';
 export * from './bundle';
 export * from './offline';
+export * from './escpos';
