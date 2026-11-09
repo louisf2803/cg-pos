@@ -586,10 +586,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return fetchOrders((qb) => {
         let x = qb;
         if (q.status) x = x.eq('status', q.status);
-        if (q.from) x = x.gte('opened_at', q.from);
-        if (q.to) x = x.lt('opened_at', q.to);
+        const col = q.by === 'closed' ? 'closed_at' : 'opened_at';
+        if (q.from) x = x.gte(col, q.from);
+        if (q.to) x = x.lt(col, q.to);
         return x;
-      }, q.limit ?? 200);
+      }, q.all ? undefined : q.limit ?? 200);
     },
 
     // ---------- laporan ----------

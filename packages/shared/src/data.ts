@@ -53,7 +53,8 @@ export interface DataLayer {
   addPayment(orderId: string, payment: PaymentInput): Promise<Order>;
   voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string): Promise<Order>;
   getOrder(id: string): Promise<Order | null>;
-  listOrders(q?: { status?: Order['status']; from?: string; to?: string; limit?: number }): Promise<Order[]>;
+  /** `by: 'closed'` memfilter dengan tanggal tutup (untuk laporan); `all` mengambil semua, tanpa batas 200. */
+  listOrders(q?: { status?: Order['status']; from?: string; to?: string; limit?: number; by?: 'opened' | 'closed'; all?: boolean }): Promise<Order[]>;
   nextOrderNumber(): Promise<string>;
 
   salesSummary(range: SalesRange): Promise<SalesSummary>;

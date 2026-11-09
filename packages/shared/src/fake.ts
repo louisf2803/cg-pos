@@ -379,8 +379,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async getOrder(id) { return clone(orders.find((o) => o.id === id) ?? null); },
     async listOrders(q = {}) {
       return clone(orders
-        .filter((o) => (!q.status || o.status === q.status) && (!q.from || o.openedAt >= q.from) && (!q.to || o.openedAt < q.to))
-        .sort((a, b) => b.openedAt.localeCompare(a.openedAt)).slice(0, q.limit ?? 200));
+        .filter((o) => { const t = q.by === 'closed' ? o.closedAt ?? o.openedAt : o.openedAt; return (!q.status || o.status === q.status) && (!q.from || t >= q.from) && (!q.to || t < q.to); })
+        .sort((a, b) => b.openedAt.localeCompare(a.openedAt)).slice(0, q.all ? undefined : q.limit ?? 200));
     },
 
     async salesSummary(range: SalesRange) {

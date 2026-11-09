@@ -3,13 +3,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import { NAV } from '@/lib/nav';
+import { ALL_ITEMS, NAV } from '@/lib/nav';
 import { useAuth } from '@/lib/auth';
 
 export function Sidebar() {
   const path = usePathname();
   const auth = useAuth();
   const [open, setOpen] = useState(false);
+  const trimmed = path.length > 1 ? path.replace(/\/$/, '') : path;
+  // item dengan alamat terpanjang yang cocok yang menyala, agar /laporan tidak ikut menyala di /laporan/penjualan
+  const current = ALL_ITEMS.filter((i) => (i.href === '/' ? trimmed === '/' : trimmed === i.href || trimmed.startsWith(i.href + '/'))).sort((a, b) => b.href.length - a.href.length)[0]?.href;
   return (
     <>
       <header className="desktop:hidden flex items-center gap-12 px-16 h-[56px] border-b border-border bg-surface-raised">
@@ -36,7 +39,7 @@ export function Sidebar() {
             </p>
             <ul className="grid gap-4">
               {g.items.map((i) => {
-                const active = i.href === '/' ? path === '/' : path === i.href || path.startsWith(i.href + '/');
+                const active = i.href === current;
                 return (
                   <li key={i.href}>
                     <Link

@@ -25,8 +25,8 @@ export const NAV: NavGroup[] = [
   },
   {
     label: 'Laporan', icon: BarChart3, items: [
-      { href: '/laporan', label: 'Semua laporan', screen: 'S80', tier: 1 },
-      { href: '/laporan/penjualan', label: 'Detail penjualan', screen: 'S81', tier: 1 },
+      { href: '/laporan', label: 'Laporan penjualan', screen: 'S80', tier: 1, built: true },
+      { href: '/laporan/penjualan', label: 'Detail penjualan', screen: 'S81', tier: 1, built: true },
       { href: '/laporan/qris', label: 'Settlement QRIS', screen: 'S84', tier: 1 },
       { href: '/laporan/jam-ramai', label: 'Jam ramai', screen: 'S85', tier: 2 },
     ],
