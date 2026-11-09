@@ -18,6 +18,9 @@ export function mapDbError(err: { code?: string; message?: string }): DataError 
   if (err.code === 'PGRST301' || /jwt/i.test(msg)) return new DataError('forbidden', 'Sesi berakhir, silakan masuk lagi');
   if (err.code === '23505') return new DataError('invalid', 'Data yang sama sudah ada');
   if (err.code === '23503') return new DataError('invalid', 'Data terkait tidak ditemukan');
+  if (/^no access$/i.test(msg)) return new DataError('forbidden', 'Hanya owner atau manajer yang boleh mengatur PIN');
+  if (/PIN must be exactly 6 digits/i.test(msg)) return new DataError('invalid', 'PIN harus 6 digit angka');
+  if (/employee not found/i.test(msg)) return new DataError('not_found', 'Karyawan tidak ditemukan');
   if (/not your device/i.test(msg)) return new DataError('forbidden', 'Perangkat ini bukan milik akunmu');
   return new DataError('invalid', msg);
 }

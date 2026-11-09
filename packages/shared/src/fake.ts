@@ -179,6 +179,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
 
     async listEmployees() { return EMPLOYEES.map(({ pin: _pin, ...e }) => e); },
     async verifyPin(employeeId, pin) { return EMPLOYEES.some((e) => e.id === employeeId && e.pin === pin); },
+    async setEmployeePin(employeeId, pin) {
+      if (!/^\d{6}$/.test(pin)) throw new DataError('invalid', 'PIN harus 6 digit angka');
+      const e = EMPLOYEES.find((x) => x.id === employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      e.pin = pin;
+    },
     async listPaymentMethods() { return clone(METHODS); },
 
     async currentShift() { return clone(shifts.find((s) => s.status === 'open') ?? null); },

@@ -254,6 +254,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (error) throw mapDbError(error);
       return data === true;
     },
+    async setEmployeePin(employeeId, pin) {
+      if (!/^\d{6}$/.test(pin)) throw new DataError('invalid', 'PIN harus 6 digit angka');
+      const { error } = await db().rpc('admin_set_pin', { p_employee: employeeId, p_pin: pin });
+      if (error) throw mapDbError(error);
+    },
     async listPaymentMethods() {
       const rows = must(await db().from('payment_methods').select('id,code,name,kind,requires_online')
         .eq('is_active', true).is('deleted_at', null).order('sort').order('code')) as Row[] | null;

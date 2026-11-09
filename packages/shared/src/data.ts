@@ -20,6 +20,8 @@ export interface DataLayer {
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;
+  /** Atur PIN 6 digit karyawan (khusus owner/manajer). PIN tidak pernah dibaca kembali; hanya hash-nya disimpan di server. */
+  setEmployeePin(employeeId: string, pin: string): Promise<void>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
 
   currentShift(): Promise<Shift | null>;

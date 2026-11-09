@@ -52,7 +52,7 @@ export const NAV: NavGroup[] = [
       { href: '/pengaturan/outlet', label: 'Bisnis dan outlet', screen: 'S31', tier: 1 },
       { href: '/pengaturan/biaya', label: 'Biaya dan pembulatan', screen: 'S39', tier: 1 },
       { href: '/pengaturan/pajak', label: 'Pajak', screen: 'S40', tier: 1 },
-      { href: '/pengaturan/karyawan', label: 'Karyawan dan akses', screen: 'S43', tier: 1 },
+      { href: '/pengaturan/karyawan', label: 'Karyawan dan akses', screen: 'S43', tier: 1, built: true },
       { href: '/pengaturan/denah', label: 'Denah dan meja', screen: 'S32', tier: 3 },
     ],
   },
