@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Lock, Minus, Plus, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { formatRp, groupVariants, type CatalogTile, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { ClipboardList, Lock, Minus, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { formatRp, groupVariants, newId, type CatalogTile, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
 import { useSession } from '../lib/session';
 import { useOnline } from '../lib/online';
 import { Modal } from '../ui';
+import { Orders } from './Orders';
 import { Payment } from './Payment';
 
 const TYPES: { v: OrderType; label: string }[] = [{ v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }];
@@ -24,6 +25,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [picking, setPicking] = useState<Extract<CatalogTile, { kind: 'group' }> | null>(null);
   const [placing, setPlacing] = useState(false);
   const [saveErr, setSaveErr] = useState('');
+  const [showOrders, setShowOrders] = useState(false);
+  const [notice, setNotice] = useState('');
   const cart = useCart(ctx);
 
   const visible = useMemo(() => {
@@ -41,21 +44,45 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const qtyOf = (p: Product) => cart.state.lines.find((l) => l.productId === p.id)?.qty ?? 0;
   const qtyOfTile = (t: CatalogTile) => (t.kind === 'single' ? qtyOf(t.product) : t.options.reduce((n, o) => n + qtyOf(o.product), 0));
 
+  /** Simpan pesanan ke server. Id dipertahankan di keranjang, jadi simpan ulang memperbarui pesanan yang sama. */
+  async function persist(): Promise<Order> {
+    const o = await data.saveOrder({
+      id: cart.state.orderId ?? newId(), type: cart.state.type,
+      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice })),
+    }, session.employee.id);
+    cart.dispatch({ t: 'saved', orderId: o.id });
+    return o;
+  }
+
   async function pay() {
     if (!cart.state.lines.length || placing) return;
-    setPlacing(true); setSaveErr('');
+    setPlacing(true); setSaveErr(''); setNotice('');
+    try { setPaying(await persist()); }
+    catch (e) { setSaveErr(e instanceof Error ? e.message : 'Pesanan gagal disimpan.'); }
+    finally { setPlacing(false); }
+  }
+
+  async function hold() {
+    if (!cart.state.lines.length || placing) return;
+    setPlacing(true); setSaveErr(''); setNotice('');
     try {
-      const o = await data.saveOrder({
-        id: crypto.randomUUID(), type: cart.state.type,
-        items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice })),
-      }, session.employee.id);
-      setPaying(o);
+      const o = await persist();
+      cart.dispatch({ t: 'clear' }); setPanelOpen(false);
+      setNotice(`Pesanan ${o.number} disimpan. Lanjutkan dari Daftar Order.`);
     } catch (e) { setSaveErr(e instanceof Error ? e.message : 'Pesanan gagal disimpan.'); }
     finally { setPlacing(false); }
   }
 
   if (paying) {
-    return <Payment order={paying} ctx={ctx} onBack={() => setPaying(null)} onDone={() => { cart.dispatch({ t: 'clear' }); setPaying(null); setPanelOpen(false); prods.reload(); }} />;
+    const fromList = showOrders && paying.id !== cart.state.orderId;
+    return <Payment order={paying} ctx={ctx} onBack={() => setPaying(null)}
+      onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); }} />;
+  }
+  if (showOrders) {
+    return <Orders canResume={cart.state.lines.length === 0}
+      onClose={() => setShowOrders(false)}
+      onResume={(o) => { cart.dispatch({ t: 'load', order: o }); setShowOrders(false); setPanelOpen(true); setNotice(''); }}
+      onPay={(o) => setPaying(o)} />;
   }
 
   return (
@@ -67,6 +94,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           {online ? <Wifi className="cg-icon cg-icon--sm" aria-hidden /> : <WifiOff className="cg-icon cg-icon--sm" aria-hidden />}
           {online ? 'Online' : 'Offline'}
         </span>
+        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setShowOrders(true)}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> Daftar Order</button>
         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onCloseShift}>Tutup kasir</button>
         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onLock} aria-label="Kunci dan ganti kasir"><Lock className="cg-icon" aria-hidden /></button>
       </header>
@@ -155,7 +183,9 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 
       <footer className="cg-shell__bar">
         {saveErr && <span role="alert" className="text-danger-strong text-sm flex-1">{saveErr}</span>}
+        {!saveErr && notice && <span role="status" className="text-sm flex-1">{notice}</span>}
         <button className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
+        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={hold}><Save className="cg-icon cg-icon--sm" aria-hidden /> Simpan</button>
         <button className="cg-btn cg-btn--primary cg-btn--lg ml-auto reg__pay" disabled={!cart.state.lines.length || placing} aria-busy={placing} onClick={pay}>
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
         </button>
