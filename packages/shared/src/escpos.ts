@@ -1,5 +1,6 @@
 import { formatRp } from './money';
 import { orderTypeLabel } from './report';
+import { taxDisplay } from './outlet';
 import type { Order, OutletContext } from './types';
 
 /**
@@ -78,12 +79,14 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
     if (i.note) text(`  ${i.note}`);
   }
   p.push({ text: dash });
-  row('Subtotal', formatRp(order.subtotal));
-  if (order.discountTotal > 0) row('Potongan', `-${formatRp(order.discountTotal)}`);
+  const d = taxDisplay(order);
+  row('Subtotal', formatRp(d.subtotal));
+  if (d.discount > 0) row('Potongan', `-${formatRp(d.discount)}`);
   if (order.serviceCharge > 0) row('Biaya layanan', formatRp(order.serviceCharge));
-  if (order.taxTotal > 0) row('Pajak', formatRp(order.taxTotal));
+  if (d.tax > 0 && !d.inclusive) row('Pajak', formatRp(d.tax));
   if (order.rounding !== 0) row('Pembulatan', formatRp(order.rounding));
   row('TOTAL', formatRp(order.total), true);
+  if (d.inclusive) row('Sudah termasuk pajak', formatRp(d.tax));
   if (kind === 'receipt') {
     p.push({ text: dash });
     for (const pay of order.payments) row(pay.methodName, formatRp(pay.amount));

@@ -43,6 +43,7 @@ export interface CalcInput {
 export interface CalcTaxLine { taxId?: string; name: string; rate: number; base: number; amount: number }
 
 export interface CalcResult {
+  /** taxAmount: pajak baris; pada harga inklusif = pajak yang terkandung di harga baris sebelum potongan order */
   lines: { id: string; lineTotal: number; taxAmount: number }[];
   /** jumlah baris (sudah dikurangi potongan baris), tanpa pajak */
   subtotal: number;
@@ -54,6 +55,8 @@ export interface CalcResult {
   /** = subtotal - discountTotal + serviceCharge + taxTotal + rounding (sama dengan CHECK di database) */
   total: number;
   taxLines: CalcTaxLine[];
+  /** jumlah harga menu seluruh baris (sebelum potongan order); beda dari subtotal hanya bila harga sudah termasuk pajak */
+  grossTotal: number;
 }
 
 export class NotSupportedYet extends Error {}
@@ -82,13 +85,11 @@ export function allocate(amount: number, weights: number[]): number[] {
  *  - biaya layanan = persen x (subtotal - potongan order), hanya untuk jenis order yang dipilih
  *  - pajak: dasar = subtotal atau subtotal - potongan order (sesuai taxCalc), plus biaya layanan bila kena pajak
  *  - pembulatan menurut kelipatan (terdekat), dihitung terakhir
- * Belum didukung: harga sudah termasuk pajak (inclusive); melempar NotSupportedYet.
+ * taxCalc 'inclusive' (harga menu sudah termasuk pajak): lihat computeInclusive.
  */
 export function computeOrder(input: CalcInput): CalcResult {
   const { settings, orderType } = input;
-  if (settings.taxCalc === 'inclusive') {
-    throw new NotSupportedYet('tax_calc inclusive belum diimplementasikan (butuh aturan subtotal bersih di server)');
-  }
+  if (settings.taxCalc === 'inclusive') return computeInclusive(input);
   const live = input.items.filter((i) => !i.voided);
   const lineTotals = live.map((i) => {
     if (i.isFree) return 0;
@@ -139,7 +140,65 @@ export function computeOrder(input: CalcInput): CalcResult {
 
   return {
     lines: live.map((it, idx) => ({ id: it.id, lineTotal: lineTotals[idx]!, taxAmount: lineTax[idx]! })),
-    subtotal, discountTotal, serviceCharge, taxTotal, rounding, total, taxLines,
+    subtotal, discountTotal, serviceCharge, taxTotal, rounding, total, taxLines, grossTotal: subtotal,
+  };
+}
+
+/**
+ * Harga sudah termasuk pajak. Yang dibayar pelanggan = harga menu (dikurangi potongan); pajak dipisah ke dalamnya:
+ *  - baris.lineTotal = harga menu x qty + ekstra - potongan baris, dikurangi pajak di dalamnya (bersih; jumlahnya = subtotal,
+ *    persis yang diminta server). unit_price tetap harga menu.
+ *  - pajak baris = jumlah x tarif / (100 + tarif), dibulatkan
+ *  - subtotal = jumlah baris TANPA pajak (aturan database: subtotal selalu bersih), discountTotal = potongan versi bersih,
+ *    sehingga total = subtotal - discountTotal + biaya layanan + pajak + pembulatan tetap berlaku
+ *  - biaya layanan dihitung dari nilai bersih setelah potongan dan tidak dikenai pajak lagi
+ * Tanpa tarif pajak (PB1 dimatikan) hasilnya sama dengan perhitungan biasa tanpa pajak.
+ */
+function computeInclusive(input: CalcInput): CalcResult {
+  const { settings, orderType } = input;
+  const live = input.items.filter((i) => !i.voided);
+  const gross = live.map((i) => {
+    if (i.isFree) return 0;
+    const g = Math.round(i.qty * i.unitPrice) + Math.round(i.extrasTotal ?? 0);
+    return g - Math.min(Math.max(Math.round(i.discount ?? 0), 0), g);
+  });
+  const sumGross = gross.reduce((a, b) => a + b, 0);
+  const orderDiscount = Math.min(Math.max(Math.round(input.orderDiscount ?? 0), 0), sumGross);
+  const share = allocate(orderDiscount, gross);
+  const taxes = input.orderTaxes ?? [];
+  const perOrder = settings.taxMode === 'per_order';
+  const rateSum = taxes.reduce((a, t) => a + t.rate, 0);
+  const rateOf = (it: CalcItem) => (perOrder ? rateSum : it.taxRate ?? 0);
+  const inc = (amount: number, rate: number) => (rate > 0 ? Math.round((amount * rate) / (100 + rate)) : 0);
+  const tax0 = live.map((it, i) => inc(gross[i]!, rateOf(it)));
+  const tax1 = live.map((it, i) => inc(gross[i]! - share[i]!, rateOf(it)));
+  const subtotal = gross.reduce((a, g, i) => a + g - tax0[i]!, 0);
+  const afterNet = gross.reduce((a, g, i) => a + g - share[i]! - tax1[i]!, 0);
+  const discountTotal = subtotal - afterNet;
+  const taxIncluded = tax1.reduce((a, b) => a + b, 0);
+  const serviceCharge = settings.serviceChargeOrderTypes.includes(orderType) ? Math.round((afterNet * settings.serviceChargePct) / 100) : 0;
+
+  const taxLines: CalcTaxLine[] = [];
+  if (perOrder) {
+    const parts = allocate(taxIncluded, taxes.map((t) => t.rate));
+    taxes.forEach((t, k) => taxLines.push({ taxId: t.taxId, name: t.name, rate: t.rate, base: afterNet, amount: parts[k]! }));
+  } else {
+    const byRate = new Map<number, { base: number; amount: number }>();
+    live.forEach((it, idx) => {
+      const rate = it.taxRate ?? 0;
+      if (rate <= 0) return;
+      const cur = byRate.get(rate) ?? { base: 0, amount: 0 };
+      cur.base += gross[idx]! - share[idx]! - tax1[idx]!; cur.amount += tax1[idx]!;
+      byRate.set(rate, cur);
+    });
+    for (const [rate, v] of byRate) taxLines.push({ name: `Pajak ${rate}%`, rate, base: v.base, amount: v.amount });
+  }
+  const taxTotal = taxLines.reduce((a, t) => a + t.amount, 0);
+  const preRound = afterNet + serviceCharge + taxTotal;
+  const rounding = input.roundingStep ? roundToStep(preRound, input.roundingStep) - preRound : 0;
+  return {
+    lines: live.map((it, idx) => ({ id: it.id, lineTotal: gross[idx]! - tax0[idx]!, taxAmount: tax0[idx]! })),
+    subtotal, discountTotal, serviceCharge, taxTotal, rounding, total: preRound + rounding, taxLines, grossTotal: sumGross,
   };
 }
 

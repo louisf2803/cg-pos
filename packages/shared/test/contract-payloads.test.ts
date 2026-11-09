@@ -59,6 +59,15 @@ describe('payload klien -> database', () => {
     });
     const payloadC = buildOrderPayload({ ...base, items: cItems, calc: calcC, id: idC, number: 'OUT1/A/261110/103' });
     expect(payloadC.items[0].extras_total).toBe(10000);
+    // pesanan D: harga sudah termasuk pajak (mode inklusif). Subtotal bersih 36364 + pajak 3636 = 40000; dibatalkan agar kas tidak berubah
+    const idD = newId();
+    const dItems = [{ ...items[0]!, id: newId() }];
+    const calcD = computeOrder({
+      orderType: 'dine_in', orderDiscount: 0, roundingStep: 0, settings: { ...SETTINGS, taxCalc: 'inclusive', serviceChargePct: 0 },
+      items: dItems.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice })), orderTaxes: [{ taxId: null as unknown as string, name: 'PB1', rate: 10 }],
+    });
+    expect(calcD).toMatchObject({ subtotal: 36364, taxTotal: 3636, total: 40000, grossTotal: 40000 });
+    const payloadD = buildOrderPayload({ ...base, orderDiscount: 0, items: dItems, calc: calcD, id: idD, number: 'OUT1/A/261110/104' });
     const op = (type: string, entityId: string, payload: unknown) => ({ op_id: newId(), type, entity_id: entityId, payload });
     // refund 1 dari 2 kopi pada pesanan A (tunai): nilai dihitung oleh kode klien, kas harapan berkurang sebesar itu
     const orderA = { id: idA, status: 'paid', total: 49665, paidTotal: 49665, items: a.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, lineTotal: a.calc.lines.find((l) => l.id === i.id)!.lineTotal })) } as never;
@@ -70,7 +79,7 @@ describe('payload klien -> database', () => {
     const payA = newId();
     const payB = newId();
     const fixture = {
-      ids: { orderA: idA, orderB: idB, orderC: idC, shift: shiftId, refund: refundId },
+      ids: { orderA: idA, orderB: idB, orderC: idC, orderD: idD, shift: shiftId, refund: refundId },
       // kas tunai = modal 100000 + 49665 + 49700; dihitung 199000 -> selisih -365
       expected: { totalA: 49665, totalB: 49700, roundingB: 35, refundTotal, expectedCash: 199365 - refundTotal, counted: 199000 - refundTotal, variance: -365 + (refundTotal - refundTotal) },
       ops: [
@@ -82,6 +91,8 @@ describe('payload klien -> database', () => {
         op('payment.add', payB, { id: payB, order_id: idB, method_id: '@cash', shift_id: shiftId, amount: 49700, tendered: 50000, paid_at: '2026-11-10T03:06:00.000Z', created_by: '@emp' }),
         op('refund.add', refundId, refundPayload),
         op('order.upsert', idC, payloadC),
+        op('order.upsert', idD, payloadD),
+        op('order.void', idD, { order_id: idD, authorized_by: '@emp', auth_method: 'pin', reason: 'uji inklusif', voided_by: '@emp', voided_at: '2026-11-10T03:11:00.000Z' }),
         op('order.void', idC, { order_id: idC, authorized_by: '@emp', auth_method: 'pin', reason: 'salah input', voided_by: '@emp', voided_at: '2026-11-10T03:10:00.000Z' }),
         op('shift.close', shiftId, { id: shiftId, closed_by: '@emp', counted: 199000 - refundTotal, closed_at: '2026-11-10T09:00:00.000Z' }),
       ],

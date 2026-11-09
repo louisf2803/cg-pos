@@ -116,6 +116,7 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
     ...(i.baseVersion !== undefined ? { base_version: i.baseVersion } : {}),
     subtotal: i.calc.subtotal, discount_total: i.calc.discountTotal, service_charge: i.calc.serviceCharge,
     tax_total: i.calc.taxTotal, rounding: i.calc.rounding, total: i.calc.total,
+    ...(i.calc.grossTotal > i.calc.subtotal ? { tax_inclusive: true } : {}),
     items: i.items.map((it, idx) => ({
       id: it.id, product_id: it.productId, product_unit_id: it.productUnitId, name: it.name, sku: it.sku ?? null,
       qty: it.qty, unit_price: it.unitPrice, extras_total: Math.round(it.qty * (it.extras ?? []).reduce((a, e) => a + e.price, 0)), discount: 0, tax_amount: lineTax.get(it.id) ?? 0,
@@ -127,6 +128,13 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
       : [],
     tax_lines: i.calc.taxLines.map((t) => ({ tax_id: t.taxId ?? null, name: t.name, rate: t.rate, base_amount: t.base, amount: t.amount })),
   };
+}
+
+/** Pesanan tersimpan berharga inklusif pajak: harga menu seluruh baris melebihi subtotal bersih. (Kolom orders.tax_inclusive sengaja tidak dibaca agar klien tetap jalan sebelum migrasi 0012 diterapkan.) */
+function storedIsInclusive(raw: Row): boolean {
+  const items = ((raw.order_items ?? []) as Row[]).filter((it) => !it.voided_at);
+  const gross = items.reduce((a, it) => a + Math.round(num(it.qty) * num(it.unit_price)) + Math.round(num(it.extras_total)), 0);
+  return num(raw.tax_total) > 0 && gross > num(raw.subtotal);
 }
 
 /**
@@ -142,6 +150,7 @@ export function payloadFromStored(raw: Row, rounding: number): Row {
     client_created_at: raw.client_created_at ?? raw.opened_at, base_version: raw.version,
     subtotal: num(raw.subtotal), discount_total: num(raw.discount_total), service_charge: num(raw.service_charge),
     tax_total: num(raw.tax_total), rounding, total,
+    ...(storedIsInclusive(raw) ? { tax_inclusive: true } : {}),
     items: ((raw.order_items ?? []) as Row[]).map((it) => ({
       id: it.id, product_id: it.product_id, product_unit_id: it.product_unit_id, name: it.name, sku: it.sku ?? null,
       qty: num(it.qty), unit_price: num(it.unit_price), extras_total: num(it.extras_total), discount: num(it.discount),

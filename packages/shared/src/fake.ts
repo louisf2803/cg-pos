@@ -5,7 +5,7 @@ import type {
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
-import { outletInfoProblem, outletOptionsProblem } from './outlet';
+import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
 import { bundleProblem } from './bundle';
@@ -23,6 +23,7 @@ const CTX: OutletContext = {
   taxes: [{ id: 'tax-pb1', name: 'PB1', rate: 10 }],
 };
 
+let fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
 const CTX0 = JSON.parse(JSON.stringify(CTX)) as OutletContext;
 const CATEGORIES: Category[] = [
   { id: 'c-kopi', name: 'Kopi', sort: 1, departmentId: 'd-min' }, { id: 'c-non', name: 'Non-kopi', sort: 2, departmentId: 'd-min' },
@@ -126,7 +127,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     floors = opts.seed === false ? [] : [{ id: 'f-1', name: 'Lantai 1', sort: 1 }, { id: 'f-teras', name: 'Teras', sort: 2 }];
     tables = opts.seed === false ? [] : ['T1', 'T2', 'T3', 'T4'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-1', name: n, sort: i + 1 })).concat(['T5', 'T6'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-teras', name: n, sort: i + 5 })));
     employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
-    Object.assign(CTX, JSON.parse(JSON.stringify(CTX0)));
+    Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
     extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
@@ -183,6 +184,16 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (problem) throw new DataError('invalid', problem);
       CTX.outletName = input.name.trim(); outlet.address = input.address.trim(); outlet.phone = input.phone.trim();
       CTX.address = outlet.address || undefined; CTX.phone = outlet.phone || undefined;
+    },
+    async getTaxSettings() {
+      return { enabled: CTX.taxes.length > 0, name: fakeTax.name, rate: fakeTax.rate, inclusive: CTX.settings.taxCalc === 'inclusive' };
+    },
+    async saveTaxSettings(input) {
+      const problem = taxSettingsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      fakeTax = { ...fakeTax, name: input.name.trim(), rate: input.rate };
+      CTX.taxes = input.enabled ? [{ ...fakeTax }] : [];
+      CTX.settings.taxCalc = input.inclusive ? 'inclusive' : CTX.settings.taxCalc === 'inclusive' ? 'after_discount' : CTX.settings.taxCalc;
     },
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);

@@ -10,7 +10,7 @@ import { computeOrder } from './order-calc';
 import { formatOrderNumber, localDateKey } from './order-number';
 import { roundToStep } from './money';
 import { newId } from './id';
-import { outletInfoProblem, outletOptionsProblem } from './outlet';
+import { DEFAULT_TAX, outletInfoProblem, outletOptionsProblem, taxSettingsProblem, type TaxSettings } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
 import { bundleProblem } from './bundle';
@@ -204,6 +204,39 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { ctx } = await resolve();
       const row = must(await db().from('outlets').update({ name: input.name.trim(), address: input.address.trim() || null, phone: input.phone.trim() || null }).eq('id', ctx.outletId).select('id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Hanya pemilik yang bisa mengubah informasi outlet');
+      resolved = null;
+    },
+    async getTaxSettings() {
+      const { ctx } = await resolve();
+      const [tax, st] = await Promise.all([
+        db().from('taxes').select('id,name,rate,is_default').is('deleted_at', null).order('created_at').limit(1),
+        db().from('outlet_settings').select('tax_calc').eq('outlet_id', ctx.outletId).single(),
+      ]);
+      const t = ((must(tax) as Row[] | null) ?? [])[0];
+      const inclusive = (must(st) as Row).tax_calc === 'inclusive';
+      return t ? { enabled: !!t.is_default, name: t.name, rate: Number(t.rate), inclusive } satisfies TaxSettings : { ...DEFAULT_TAX, inclusive };
+    },
+    async saveTaxSettings(input) {
+      const problem = taxSettingsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId, ctx } = await resolve();
+      if (input.inclusive) {
+        // mode harga termasuk pajak butuh migrasi 0012 (kolom orders.tax_inclusive); tolak dulu daripada pesanan ditolak server nanti
+        const probe = await db().from('orders').select('tax_inclusive').limit(1);
+        if (probe.error) throw new DataError('invalid', 'Mode harga sudah termasuk pajak belum bisa dinyalakan: database belum menerima migrasi 0012 (minta Claude menerapkannya).');
+      }
+      const rows = (must(await db().from('taxes').select('id').is('deleted_at', null).order('created_at').limit(1)) as Row[] | null) ?? [];
+      const fields = { name: input.name.trim(), rate: input.rate, is_default: input.enabled };
+      if (rows[0]) {
+        const r = must(await db().from('taxes').update(fields).eq('id', rows[0].id).select('id').maybeSingle()) as Row | null;
+        if (!r) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pajak');
+      } else {
+        must(await db().from('taxes').insert({ id: newId(), org_id: orgId, ...fields }));
+      }
+      const cur = (must(await db().from('outlet_settings').select('tax_calc').eq('outlet_id', ctx.outletId).single()) as Row).tax_calc as string;
+      const taxCalc = input.inclusive ? 'inclusive' : cur === 'inclusive' ? 'after_discount' : cur;
+      const s = must(await db().from('outlet_settings').update({ tax_calc: taxCalc }).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
+      if (!s) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pajak');
       resolved = null;
     },
     async saveOutletOptions(input) {

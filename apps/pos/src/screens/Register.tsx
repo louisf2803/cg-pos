@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Lock, Minus, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -268,13 +268,15 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 }
 
 export function Totals({ calc }: { calc: ReturnType<typeof useCart>['calc'] }) {
+  const d = taxDisplay({ gross: calc.grossTotal, subtotal: calc.subtotal, discountTotal: calc.discountTotal, taxTotal: calc.taxTotal });
   return (
     <div className="cg-totals">
-      <div className="cg-totals__row"><span>Subtotal</span><span className="cg-num">{formatRp(calc.subtotal)}</span></div>
-      {calc.discountTotal > 0 && <div className="cg-totals__row"><span>Potongan</span><span className="cg-num">-{formatRp(calc.discountTotal)}</span></div>}
+      <div className="cg-totals__row"><span>Subtotal</span><span className="cg-num">{formatRp(d.subtotal)}</span></div>
+      {d.discount > 0 && <div className="cg-totals__row"><span>Potongan</span><span className="cg-num">-{formatRp(d.discount)}</span></div>}
       {calc.serviceCharge > 0 && <div className="cg-totals__row"><span>Biaya layanan</span><span className="cg-num">{formatRp(calc.serviceCharge)}</span></div>}
-      {calc.taxLines.map((t) => <div key={t.name} className="cg-totals__row"><span>{t.name} {t.rate}%</span><span className="cg-num">{formatRp(t.amount)}</span></div>)}
+      {!d.inclusive && calc.taxLines.map((t) => <div key={t.name} className="cg-totals__row"><span>{t.name} {t.rate}%</span><span className="cg-num">{formatRp(t.amount)}</span></div>)}
       <div className="cg-totals__row cg-totals__row--grand"><span>Total</span><span className="cg-num">{formatRp(calc.total)}</span></div>
+      {d.inclusive && calc.taxLines.map((t) => <div key={t.name} className="cg-totals__row text-text-muted text-sm"><span>Sudah termasuk {t.name} {t.rate}%</span><span className="cg-num">{formatRp(t.amount)}</span></div>)}
     </div>
   );
 }

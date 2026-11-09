@@ -1,4 +1,4 @@
-import type { OutletInfo, OutletOptions } from './outlet';
+import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type {
   Bundle, BundleInput, Category, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -18,6 +18,10 @@ export interface DataLayer {
   saveOutletInfo(input: { name: string; address: string; phone: string }): Promise<void>;
   /** Biaya layanan, pembulatan, aturan kasir, catatan kaki struk. Pemilik dan manajer. */
   saveOutletOptions(input: OutletOptions): Promise<void>;
+  /** Pajak PB1: nyala/mati, nama, tarif, harga termasuk pajak atau tidak. */
+  getTaxSettings(): Promise<TaxSettings>;
+  /** Pemilik dan manajer. Berlaku untuk pesanan baru; kasir memuat ulang saat dibuka. */
+  saveTaxSettings(input: TaxSettings): Promise<void>;
   listFloors(): Promise<Floor[]>;
   saveFloor(input: { id?: string; name: string }): Promise<Floor>;
   /** Hapus lantai beserta mejanya. Ditolak bila ada meja yang sedang dipakai pesanan. */

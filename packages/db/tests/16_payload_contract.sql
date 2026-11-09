@@ -55,6 +55,8 @@ begin
 
   -- batalkan pesanan belum dibayar dan tutup shift dengan payload klien
   perform pg_temp.ok((select status from orders where id = (fx->'ids'->>'orderC')::uuid) = 'void', 'pesanan C dibatalkan');
+  perform pg_temp.ok((select subtotal = 36364 and tax_total = 3636 and total = 40000 and status = 'void' from orders where id = (fx->'ids'->>'orderD')::uuid), 'pesanan D inklusif: subtotal bersih + pajak = harga menu');
+  perform pg_temp.ok((select base_amount = 36364 and amount = 3636 from order_tax_lines where order_id = (fx->'ids'->>'orderD')::uuid), 'baris pajak D tersimpan');
   perform pg_temp.ok((select count(*) from order_voids where order_id = (fx->'ids'->>'orderC')::uuid) = 1, 'catatan pembatalan tersimpan');
   perform pg_temp.ok((select status from shifts where id = (fx->'ids'->>'shift')::uuid) = 'closed', 'shift ditutup');
   perform pg_temp.ok((select expected_cash from shifts where id = (fx->'ids'->>'shift')::uuid) = (fx->'expected'->>'expectedCash')::numeric, 'kas diharapkan cocok: ' || (select expected_cash from shifts where id = (fx->'ids'->>'shift')::uuid));

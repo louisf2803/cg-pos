@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bluetooth, Printer } from 'lucide-react';
-import { formatRp, orderTypeLabel, receiptBytes, testPageBytes, type Order, type OutletContext } from '@cgpos/shared';
+import { formatRp, orderTypeLabel, receiptBytes, taxDisplay, testPageBytes, type Order, type OutletContext } from '@cgpos/shared';
 import { bluetoothSupported, connectPrinter, disconnectPrinter, printBytes, reconnectPrinter, setOpenDrawer, usePrinter } from '../lib/printer';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -15,6 +15,7 @@ const fmt = (iso: string, tz: string) => new Intl.DateTimeFormat('id-ID', { time
 /** Isi struk atau tagihan sementara. Lebar mengikuti kertas; dicetak lewat dialog cetak peramban (printer thermal bawaan sistem). */
 export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: Order; ctx: OutletContext; cashierName: string; kind: 'receipt' | 'bill'; paper: Paper }) {
   const last = order.payments[order.payments.length - 1];
+  const d = taxDisplay(order);
   return (
     <div className={`receipt receipt--${paper}`} data-testid="receipt">
       <header className="receipt__center">
@@ -38,12 +39,13 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: O
         </div>
       ))}
       <hr />
-      <div className="receipt__row"><span>Subtotal</span><span>{formatRp(order.subtotal)}</span></div>
-      {order.discountTotal > 0 && <div className="receipt__row"><span>Potongan</span><span>-{formatRp(order.discountTotal)}</span></div>}
+      <div className="receipt__row"><span>Subtotal</span><span>{formatRp(d.subtotal)}</span></div>
+      {d.discount > 0 && <div className="receipt__row"><span>Potongan</span><span>-{formatRp(d.discount)}</span></div>}
       {order.serviceCharge > 0 && <div className="receipt__row"><span>Biaya layanan</span><span>{formatRp(order.serviceCharge)}</span></div>}
-      {order.taxTotal > 0 && <div className="receipt__row"><span>Pajak</span><span>{formatRp(order.taxTotal)}</span></div>}
+      {d.tax > 0 && !d.inclusive && <div className="receipt__row"><span>Pajak</span><span>{formatRp(d.tax)}</span></div>}
       {order.rounding !== 0 && <div className="receipt__row"><span>Pembulatan</span><span>{formatRp(order.rounding)}</span></div>}
       <div className="receipt__row receipt__total"><span>TOTAL</span><span>{formatRp(order.total)}</span></div>
+      {d.inclusive && <div className="receipt__row"><span>Sudah termasuk pajak</span><span>{formatRp(d.tax)}</span></div>}
       {kind === 'receipt' && (
         <>
           <hr />

@@ -25,3 +25,40 @@ export function outletInfoProblem(i: Pick<OutletInfo, 'name' | 'address' | 'phon
   if (i.phone.trim() && !/^[0-9+()\-\s]{6,20}$/.test(i.phone.trim())) return 'Nomor telepon hanya boleh berisi angka, spasi, +, - dan tanda kurung.';
   return null;
 }
+
+/** Pajak (PB1) yang bisa dinyalakan atau dimatikan per outlet. Mati = pesanan tidak dikenai pajak. */
+export interface TaxSettings {
+  enabled: boolean; name: string;
+  /** persen, 0 sampai 100 */
+  rate: number;
+  /** true = harga menu sudah termasuk pajak; false = pajak ditambahkan di atas harga menu */
+  inclusive: boolean;
+}
+export const DEFAULT_TAX: TaxSettings = { enabled: false, name: 'PB1', rate: 10, inclusive: false };
+export function taxSettingsProblem(t: TaxSettings): string | null {
+  if (!t.name.trim()) return 'Nama pajak wajib diisi.';
+  if (t.name.trim().length > 40) return 'Nama pajak maksimal 40 karakter.';
+  if (!Number.isFinite(t.rate) || t.rate < 0 || t.rate > 100) return 'Tarif pajak harus antara 0 dan 100 persen.';
+  if (t.enabled && t.rate === 0) return 'Tarif 0 persen tidak ada gunanya; matikan pajak atau isi tarifnya.';
+  return null;
+}
+type GrossItem = { qty: number; unitPrice: number; extras?: { price: number }[] };
+/** Jumlah harga menu (termasuk ekstra) seluruh baris, sebelum potongan order. */
+export const orderGross = (items: GrossItem[]) => items.reduce((a, i) => a + Math.round(i.qty * i.unitPrice) + Math.round(i.qty * (i.extras ?? []).reduce((x, e) => x + e.price, 0)), 0);
+
+/** Pesanan dengan harga sudah termasuk pajak: harga menu seluruh baris lebih besar daripada subtotal bersih yang tersimpan. */
+export function isInclusiveOrder(o: { items: GrossItem[]; subtotal: number; taxTotal: number }): boolean {
+  return o.taxTotal > 0 && orderGross(o.items) > o.subtotal;
+}
+
+/**
+ * Angka untuk ditampilkan di tagihan/struk. Harga eksklusif: subtotal, potongan, pajak apa adanya (pajak ditambahkan).
+ * Harga inklusif: subtotal = jumlah harga menu, potongan = versi harga menu, dan pajak hanya keterangan "sudah termasuk".
+ * Beri `items` (pesanan tersimpan) atau `gross` (hasil hitung di keranjang: CalcResult.grossTotal).
+ */
+export function taxDisplay(o: { subtotal: number; discountTotal: number; taxTotal: number } & ({ items: GrossItem[] } | { gross: number })) {
+  const gross = 'items' in o ? orderGross(o.items) : o.gross;
+  const inclusive = o.taxTotal > 0 && gross > o.subtotal;
+  if (!inclusive) return { inclusive, subtotal: o.subtotal, discount: o.discountTotal, tax: o.taxTotal };
+  return { inclusive, subtotal: gross, discount: Math.max(0, gross - (o.subtotal - o.discountTotal + o.taxTotal)), tax: o.taxTotal };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocate, cashChange, computeOrder, formatRp, parseRp, quickCashAmounts, roundToStep, NotSupportedYet, formatOrderNumber, localDateKey } from '../src';
+import { allocate, cashChange, computeOrder, formatRp, parseRp, quickCashAmounts, roundToStep, formatOrderNumber, localDateKey } from '../src';
 import type { CalcSettings } from '../src';
 
 const S: CalcSettings = { taxCalc: 'after_discount', taxMode: 'per_order', serviceChargePct: 0, serviceChargeTaxable: false, serviceChargeOrderTypes: ['dine_in'] };
@@ -85,8 +85,44 @@ describe('computeOrder', () => {
     expect(r.total).toBe(100000 - 10000 + 5400);
     expect(r.taxLines).toHaveLength(1);
   });
-  it('inclusive belum didukung dan menyatakannya terang-terangan', () => {
-    expect(() => computeOrder({ orderType: 'takeaway', settings: { ...S, taxCalc: 'inclusive' }, items: [] })).toThrow(NotSupportedYet);
+  it('inclusive: harga menu sudah termasuk pajak; subtotal bersih, total = harga menu', () => {
+    const I = { ...S, taxCalc: 'inclusive' as const };
+    const r = computeOrder({ orderType: 'takeaway', settings: I, orderTaxes: PB1, items: [{ id: 'a', qty: 1, unitPrice: 11000 }] });
+    expect(r).toMatchObject({ subtotal: 10000, discountTotal: 0, taxTotal: 1000, total: 11000 });
+    expect(r.lines[0]).toMatchObject({ lineTotal: 10000, taxAmount: 1000 }); // taxAmount = pajak di harga baris (sebelum potongan order)
+    expect(r.grossTotal).toBe(11000);
+    expect(r.taxLines).toEqual([{ taxId: undefined, name: 'PB1', rate: 10, base: 10000, amount: 1000 }]);
+  });
+  it('inclusive dengan potongan order: pajak mengecil, identitas total tetap', () => {
+    const r = computeOrder({ orderType: 'takeaway', orderDiscount: 1100, settings: { ...S, taxCalc: 'inclusive' }, orderTaxes: PB1, items: [{ id: 'a', qty: 1, unitPrice: 11000 }] });
+    expect(r).toMatchObject({ subtotal: 10000, discountTotal: 1000, taxTotal: 900, total: 9900 });
+    expect(identity(r)).toBe(r.total);
+  });
+  it('inclusive tanpa tarif pajak (PB1 mati) = tanpa pajak', () => {
+    const r = computeOrder({ orderType: 'takeaway', settings: { ...S, taxCalc: 'inclusive' }, items: [{ id: 'a', qty: 2, unitPrice: 15000 }] });
+    expect(r).toMatchObject({ subtotal: 30000, taxTotal: 0, total: 30000 });
+  });
+  it('inclusive: biaya layanan dari nilai bersih, pembulatan terakhir, per produk memakai tarif sendiri', () => {
+    const I = { ...S, taxCalc: 'inclusive' as const, serviceChargePct: 5 };
+    const r = computeOrder({ orderType: 'dine_in', roundingStep: 100, settings: I, orderTaxes: PB1, items: [{ id: 'a', qty: 3, unitPrice: 22000 }] });
+    expect(r.subtotal).toBe(60000); expect(r.taxTotal).toBe(6000); expect(r.serviceCharge).toBe(3000);
+    expect(identity(r)).toBe(r.total);
+    const pp = computeOrder({ orderType: 'takeaway', settings: { ...I, taxMode: 'per_product' }, items: [{ id: 'a', qty: 1, unitPrice: 11000, taxRate: 10 }, { id: 'b', qty: 1, unitPrice: 5000, taxRate: 0 }] });
+    expect(pp).toMatchObject({ subtotal: 15000, taxTotal: 1000, total: 16000 });
+  });
+  it('inclusive: identitas total dan total = harga menu - potongan untuk 2000 kombinasi acak', () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    for (let n = 0; n < 2000; n++) {
+      const items = Array.from({ length: 1 + Math.floor(rnd() * 5) }, (_, k) => ({ id: `i${k}`, qty: 1 + Math.floor(rnd() * 4), unitPrice: 1000 + Math.floor(rnd() * 90) * 500, extrasTotal: rnd() < 0.3 ? 2500 : 0 }));
+      const gross = items.reduce((a, i) => a + i.qty * i.unitPrice + i.extrasTotal, 0);
+      const disc = rnd() < 0.5 ? Math.floor(rnd() * gross * 0.5) : 0;
+      const pct = rnd() < 0.5 ? 5 : 0;
+      const r = computeOrder({ orderType: 'dine_in', orderDiscount: disc, settings: { ...S, taxCalc: 'inclusive', serviceChargePct: pct }, orderTaxes: PB1, items });
+      expect(identity(r)).toBe(r.total);
+      expect(r.discountTotal).toBeGreaterThanOrEqual(0);
+      expect(r.subtotal - r.discountTotal + r.taxTotal).toBe(gross - disc);
+    }
   });
   it('identitas total berlaku untuk 2000 kombinasi acak', () => {
     let seed = 42;
