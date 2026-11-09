@@ -10,6 +10,7 @@ import { computeOrder } from './order-calc';
 import { formatOrderNumber, localDateKey } from './order-number';
 import { roundToStep } from './money';
 import { newId } from './id';
+import { outletInfoProblem, outletOptionsProblem } from './outlet';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
   buildOrderPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
@@ -166,6 +167,42 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
 
     // ---------- katalog ----------
+    async getOutletSettings() {
+      const { ctx } = await resolve();
+      const [o, st] = await Promise.all([
+        db().from('outlets').select('code,name,address,phone,timezone').eq('id', ctx.outletId).single(),
+        db().from('outlet_settings').select('*').eq('outlet_id', ctx.outletId).single(),
+      ]);
+      const a = must(o) as Row, s = must(st) as Row;
+      return {
+        info: { code: a.code, name: a.name, address: a.address ?? '', phone: a.phone ?? '', timezone: a.timezone },
+        options: {
+          serviceChargePct: Number(s.service_charge_pct), serviceChargeTaxable: !!s.service_charge_taxable, serviceChargeOrderTypes: (s.service_charge_order_types ?? []) as OrderType[],
+          roundingCashStep: Number(s.rounding_cash_step), roundingNoncashStep: Number(s.rounding_noncash_step), requireOpenShift: !!s.require_open_shift,
+          allowNegativeStock: !!s.allow_negative_stock, receiptFooter: s.receipt_footer ?? '',
+        },
+      };
+    },
+    async saveOutletInfo(input) {
+      const problem = outletInfoProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const row = must(await db().from('outlets').update({ name: input.name.trim(), address: input.address.trim() || null, phone: input.phone.trim() || null }).eq('id', ctx.outletId).select('id').maybeSingle()) as Row | null;
+      if (!row) throw new DataError('forbidden', 'Hanya pemilik yang bisa mengubah informasi outlet');
+      resolved = null;
+    },
+    async saveOutletOptions(input) {
+      const problem = outletOptionsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const row = must(await db().from('outlet_settings').update({
+        service_charge_pct: input.serviceChargePct, service_charge_taxable: input.serviceChargeTaxable, service_charge_order_types: input.serviceChargeOrderTypes,
+        rounding_cash_step: input.roundingCashStep, rounding_noncash_step: input.roundingNoncashStep, require_open_shift: input.requireOpenShift,
+        allow_negative_stock: input.allowNegativeStock, receipt_footer: input.receiptFooter.trim() || null,
+      }).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
+      if (!row) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pengaturan outlet');
+      resolved = null;
+    },
     async listCategories() {
       const [cats, ing] = await Promise.all([
         fetchAll<Row>((f, t) => db().from('categories').select('id,name,sort,department_id').is('deleted_at', null).order('sort').order('name').order('id').range(f, t)),

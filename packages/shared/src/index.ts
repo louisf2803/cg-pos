@@ -10,3 +10,4 @@ export type { SupabaseDataOptions } from './supabase';
 export * from './variants';
 export * from './pin';
 export * from './report';
+export * from './outlet';

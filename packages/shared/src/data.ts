@@ -1,3 +1,4 @@
+import type { OutletInfo, OutletOptions } from './outlet';
 import type {
   Category, CatalogInput, Department, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -11,6 +12,12 @@ import type {
  */
 export interface DataLayer {
   getContext(): Promise<OutletContext>;
+  /** Informasi dan pengaturan outlet untuk layar Pengaturan outlet. */
+  getOutletSettings(): Promise<{ info: OutletInfo; options: OutletOptions }>;
+  /** Nama, alamat, telepon. Hanya pemilik/admin organisasi. */
+  saveOutletInfo(input: { name: string; address: string; phone: string }): Promise<void>;
+  /** Biaya layanan, pembulatan, aturan kasir, catatan kaki struk. Pemilik dan manajer. */
+  saveOutletOptions(input: OutletOptions): Promise<void>;
   listCategories(): Promise<Category[]>;
   saveCategory(input: { id?: string; name: string; departmentId?: string | null }): Promise<Category>;
   /** Hapus kategori. Produk di dalamnya menjadi "tanpa kategori". */

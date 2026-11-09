@@ -5,6 +5,7 @@ import type {
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
+import { outletInfoProblem, outletOptionsProblem } from './outlet';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
@@ -19,6 +20,7 @@ const CTX: OutletContext = {
   taxes: [{ id: 'tax-pb1', name: 'PB1', rate: 10 }],
 };
 
+const CTX0 = JSON.parse(JSON.stringify(CTX)) as OutletContext;
 const CATEGORIES: Category[] = [
   { id: 'c-kopi', name: 'Kopi', sort: 1, departmentId: 'd-min' }, { id: 'c-non', name: 'Non-kopi', sort: 2, departmentId: 'd-min' },
   { id: 'c-makan', name: 'Makanan', sort: 3, departmentId: 'd-mak' }, { id: 'c-camil', name: 'Camilan', sort: 4, departmentId: 'd-mak' },
@@ -64,6 +66,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const now = opts.now ?? (() => new Date());
   let categories: Category[] = [];
   let departments: Department[] = [];
+  let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let products: Product[] = [];
   let orders: Order[] = [];
@@ -101,6 +104,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     categories = opts.seed === false ? [] : clone(CATEGORIES);
     departments = opts.seed === false ? [] : clone(DEPARTMENTS);
     employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
+    Object.assign(CTX, JSON.parse(JSON.stringify(CTX0)));
+    outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
     orders = []; shifts = []; cashMoves = []; seqByDay.clear();
     if (opts.seed !== false) seedHistory();
@@ -141,6 +146,25 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const self: DataLayer & { reset(): void } = {
     reset,
     async getContext() { return clone(CTX); },
+    async getOutletSettings() {
+      const st = CTX.settings;
+      return clone({
+        info: { code: CTX.outletCode, name: CTX.outletName, address: outlet.address, phone: outlet.phone, timezone: CTX.timezone },
+        options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
+          roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter },
+      });
+    },
+    async saveOutletInfo(input) {
+      const problem = outletInfoProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      CTX.outletName = input.name.trim(); outlet.address = input.address.trim(); outlet.phone = input.phone.trim();
+    },
+    async saveOutletOptions(input) {
+      const problem = outletOptionsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { receiptFooter, ...rest } = input;
+      Object.assign(CTX.settings, rest); outlet.receiptFooter = receiptFooter.trim();
+    },
     async listCategories() { return clone([...categories].sort((a, b) => a.sort - b.sort)); },
     async saveCategory(input) {
       const name = input.name.trim();
