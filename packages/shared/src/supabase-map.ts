@@ -179,3 +179,17 @@ export function summarizeSales(paid: Order[], timezone: string): SalesSummary {
     topProducts: [...top.values()].sort((a, b) => b.amount - a.amount).slice(0, 5),
   };
 }
+
+export interface RefundPayloadInput {
+  id: string; orderId: string; shiftId?: string | null; number: string; methodId: string; restock: boolean; authorizedBy: string;
+  reason: string; note?: string | null; items: { orderItemId: string; qty: number; amount: number }[];
+}
+/** Payload op `refund.add`. Total = jumlah nilai baris; server menolak bila melebihi yang dibayar. */
+export function buildRefundPayload(i: RefundPayloadInput): Row {
+  return {
+    id: i.id, order_id: i.orderId, shift_id: i.shiftId ?? null, number: i.number, method_id: i.methodId,
+    total: i.items.reduce((a, x) => a + x.amount, 0), restock: i.restock, refund_delivery: false,
+    authorized_by: i.authorizedBy, auth_method: 'pin', approved_offline: false, reason: i.reason.trim(), note: i.note?.trim() || null,
+    items: i.items.map((x) => ({ order_item_id: x.orderItemId, qty: x.qty, amount: x.amount })),
+  };
+}

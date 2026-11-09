@@ -1,11 +1,12 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  CatalogInput, CatalogProduct, Category, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem } from './outlet';
+import { refundAmounts, refundProblem } from './refund';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
@@ -67,6 +68,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let categories: Category[] = [];
   let departments: Department[] = [];
   let floors: Floor[] = [];
+  let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
@@ -111,7 +113,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0)));
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
-    orders = []; shifts = []; cashMoves = []; seqByDay.clear();
+    orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
     if (opts.seed !== false) seedHistory();
   }
 
@@ -378,7 +380,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const otherSales = pays.filter((p) => p.kind !== 'cash').reduce((a, p) => a + p.amount, 0);
       const cashIn = cashMoves.filter((m) => m.shiftId === s.id && m.kind === 'in').reduce((a, m) => a + m.amount, 0);
       const cashOut = cashMoves.filter((m) => m.shiftId === s.id && m.kind === 'out').reduce((a, m) => a + m.amount, 0);
-      const expected = s.openingCash + cashSales + cashIn - cashOut;
+      const cashRefunds = refunds.filter((r) => r.shiftId === s.id && r.methodKind === 'cash').reduce((a, r) => a + r.total, 0);
+      const expected = s.openingCash + cashSales + cashIn - cashOut - cashRefunds;
       Object.assign(s, { status: 'closed', closedAt: now().toISOString(), counted: Math.round(counted), expectedCash: expected, variance: Math.round(counted) - expected });
       const sold = new Map<string, { productId: string; name: string; qty: number; amount: number }>();
       for (const o of orders.filter((x) => x.shiftId === s.id && x.status === 'paid')) {
@@ -448,6 +451,25 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         for (const it of o.items) { const p = products.find((x) => x.id === it.productId); if (p?.trackStock && p.stock !== undefined) p.stock -= it.qty; }
       }
       return clone(o);
+    },
+    async listRefunds(orderId) { return clone(refunds.filter((r) => r.orderId === orderId).map(({ shiftId: _s, methodKind: _k, ...r }) => r)); },
+    async refundOrder(input: RefundInput) {
+      const prior = refunds.find((r) => r.id === input.id);
+      if (prior) { const { shiftId: _s, methodKind: _k, ...r } = prior; return clone(r); }          // idempoten
+      const o = orders.find((x) => x.id === input.orderId);
+      if (!o) throw new DataError('not_found', 'Pesanan tidak ditemukan');
+      const m = method(input.methodId);
+      if (m.kind === 'gateway') throw new DataError('invalid', 'Refund ke QRIS belum diaktifkan');
+      if (!input.reason.trim()) throw new DataError('invalid', 'Alasan refund wajib diisi');
+      const mine = refunds.filter((r) => r.orderId === o.id);
+      const problem = refundProblem(o, mine, input.items);
+      if (problem) throw new DataError('bad_amount', problem);
+      const lines = refundAmounts(o, input.items);
+      const r = { id: input.id, number: `R${mine.length + 1}-${o.number}`, orderId: o.id, total: lines.reduce((a, x) => a + x.amount, 0), reason: input.reason.trim(), note: input.note?.trim() || undefined,
+        methodName: m.name, createdAt: now().toISOString(), items: lines, shiftId: shifts.find((s) => s.status === 'open')?.id, methodKind: m.kind };
+      refunds.push(r);
+      if (input.restock) for (const l of lines) { const it = o.items.find((i) => i.id === l.orderItemId); const p = products.find((x) => x.id === it?.productId); if (p?.trackStock && p.stock !== undefined) p.stock += l.qty; }
+      const { shiftId: _s, methodKind: _k, ...out } = r; return clone(out);
     },
     async voidUnpaidOrder(orderId) {
       const o = orders.find((x) => x.id === orderId);

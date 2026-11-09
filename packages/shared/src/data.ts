@@ -1,6 +1,6 @@
 import type { OutletInfo, OutletOptions } from './outlet';
 import type {
-  Category, CatalogInput, Department, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Category, CatalogInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -68,6 +68,9 @@ export interface DataLayer {
   saveOrder(draft: OrderDraft, cashierId: string): Promise<Order>;
   /** setara op payment.add. Order jadi paid bila lunas. */
   addPayment(orderId: string, payment: PaymentInput): Promise<Order>;
+  /** Refund sebagian atau penuh per item untuk pesanan lunas. Idempoten menurut `id`. Pemberi izin (manajer/pemilik) sudah diverifikasi PIN-nya oleh layar. */
+  refundOrder(input: RefundInput): Promise<Refund>;
+  listRefunds(orderId: string): Promise<Refund[]>;
   voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string): Promise<Order>;
   getOrder(id: string): Promise<Order | null>;
   /** `by: 'closed'` memfilter dengan tanggal tutup (untuk laporan); `all` mengambil semua, tanpa batas 200. */

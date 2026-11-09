@@ -59,6 +59,13 @@ begin
   perform pg_temp.ok((select expected_cash from shifts where id = (fx->'ids'->>'shift')::uuid) = (fx->'expected'->>'expectedCash')::numeric, 'kas diharapkan cocok: ' || (select expected_cash from shifts where id = (fx->'ids'->>'shift')::uuid));
   perform pg_temp.ok((select cash_variance from shifts where id = (fx->'ids'->>'shift')::uuid) = (fx->'expected'->>'variance')::numeric, 'selisih kas -365');
 
+  -- refund dari payload klien: tersimpan, jurnal seimbang, nilainya sama dengan hitungan klien
+  perform pg_temp.ok((select total from refunds where id = (fx->'ids'->>'refund')::uuid) = (fx->'expected'->>'refundTotal')::numeric, 'total refund cocok dengan hitungan klien');
+  perform pg_temp.ok((select count(*) from refund_items where refund_id = (fx->'ids'->>'refund')::uuid) = 1, 'baris refund tersimpan');
+  perform pg_temp.ok(
+    (select sum(debit) = sum(credit) from journal_lines where entry_id = (select id from journal_entries where source_key = 'refund:' || (fx->'ids'->>'refund'))),
+    'jurnal refund seimbang');
+
   -- kirim ulang seluruh batch: idempoten
   v := pos.sync_push(ctx('dev'), fx->'ops');
   perform pg_temp.ok((select bool_and((e->>'duplicate')::boolean) from jsonb_array_elements(v) e), 'kirim ulang batch -> semua duplikat');

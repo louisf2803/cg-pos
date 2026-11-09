@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  CatalogInput, CatalogProduct, Category, Department, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -11,9 +11,10 @@ import { formatOrderNumber, localDateKey } from './order-number';
 import { roundToStep } from './money';
 import { newId } from './id';
 import { outletInfoProblem, outletOptionsProblem } from './outlet';
+import { refundAmounts, refundProblem } from './refund';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
-  buildOrderPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
+  buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
 } from './supabase-map';
 import type { Row } from './supabase-map';
 
@@ -670,6 +671,38 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       await pushOps(deviceId, ops);
       return (await self.getOrder(orderId))!;
+    },
+    async listRefunds(orderId) {
+      const rows = must(await db().from('refunds').select('id,number,order_id,total,reason,note,created_at,payment_methods(name),refund_items(order_item_id,qty,amount)')
+        .eq('order_id', orderId).neq('status', 'failed').order('created_at')) as Row[] | null;
+      return (rows ?? []).map((r): Refund => ({
+        id: r.id, number: r.number, orderId: r.order_id, total: Number(r.total), reason: r.reason, note: r.note ?? undefined, methodName: r.payment_methods?.name ?? '', createdAt: r.created_at,
+        items: ((r.refund_items ?? []) as Row[]).map((i) => ({ orderItemId: i.order_item_id, qty: Number(i.qty), amount: Number(i.amount) })),
+      }));
+    },
+    async refundOrder(input: RefundInput) {
+      const { deviceId } = await requireDevice();
+      const prior = (await self.listRefunds(input.orderId)).find((x) => x.id === input.id);
+      if (prior) return prior;                                                       // idempoten
+      const order = await self.getOrder(input.orderId);
+      if (!order) throw new DataError('not_found', 'Pesanan tidak ditemukan');
+      const methods = await self.listPaymentMethods();
+      const m = methods.find((x) => x.id === input.methodId);
+      if (!m) throw new DataError('not_found', 'Metode bayar tidak ditemukan');
+      if (m.kind === 'gateway') throw new DataError('invalid', 'Refund ke QRIS belum diaktifkan');
+      if (!input.reason.trim()) throw new DataError('invalid', 'Alasan refund wajib diisi');
+      const mine = await self.listRefunds(order.id);
+      const problem = refundProblem(order, mine, input.items);
+      if (problem) throw new DataError('bad_amount', problem);
+      const lines = refundAmounts(order, input.items);
+      const shift = await self.currentShift();
+      const number = `R${mine.length + 1}-${order.number}`;
+      const payload = buildRefundPayload({
+        id: input.id, orderId: order.id, shiftId: shift?.id, number, methodId: m.id, restock: input.restock, authorizedBy: input.authorizedBy,
+        reason: input.reason, note: input.note, items: lines,
+      });
+      await pushOps(deviceId, [{ type: 'refund.add', entityId: input.id, payload }]);
+      return (await self.listRefunds(order.id)).find((x) => x.id === input.id)!;
     },
     async voidUnpaidOrder(orderId, reason, authorizedBy) {
       const { deviceId } = await requireDevice();

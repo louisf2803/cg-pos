@@ -65,6 +65,14 @@ export interface DiningTable { id: string; floorId: string | null; name: string;
 export interface TableStatus extends DiningTable {
   order?: { id: string; number: string; label?: string; guestCount?: number; total: number; openedAt: string };
 }
+export interface Refund {
+  id: string; number: string; orderId: string; total: number; reason: string; note?: string; methodName: string; createdAt: string;
+  items: { orderItemId: string; qty: number; amount: number }[];
+}
+export interface RefundInput {
+  id: string; orderId: string; methodId: string; items: { orderItemId: string; qty: number }[];
+  reason: string; note?: string; restock: boolean; authorizedBy: string;
+}
 export interface PaymentInput { id: string; methodId: string; amount: number; tendered?: number; paidAt?: string }
 
 export interface SalesRange { from: string; to: string }
