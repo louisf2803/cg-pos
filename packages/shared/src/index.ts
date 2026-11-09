@@ -7,3 +7,4 @@ export type { DataLayer } from './data';
 export { createFakeData } from './fake';
 export { createSupabaseData } from './supabase';
 export type { SupabaseDataOptions } from './supabase';
+export * from './variants';

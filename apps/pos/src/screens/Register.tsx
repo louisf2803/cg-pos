@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Lock, Minus, Plus, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { formatRp, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { formatRp, groupVariants, type CatalogTile, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
 import { useSession } from '../lib/session';
 import { useOnline } from '../lib/online';
+import { Modal } from '../ui';
 import { Payment } from './Payment';
 
 const TYPES: { v: OrderType; label: string }[] = [{ v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }];
@@ -20,6 +21,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [q, setQ] = useState('');
   const [panelOpen, setPanelOpen] = useState(false);
   const [paying, setPaying] = useState<Order | null>(null);
+  const [picking, setPicking] = useState<Extract<CatalogTile, { kind: 'group' }> | null>(null);
   const [placing, setPlacing] = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const cart = useCart(ctx);
@@ -27,10 +29,17 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const visible = useMemo(() => {
     if (prods.status !== 'ready') return [];
     const s = q.trim().toLowerCase();
-    return prods.data.filter((p) => (cat === 'all' || p.categoryId === cat) && (!s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s)));
+    const hit = (p: Product) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s);
+    return groupVariants(prods.data).filter((t) => {
+      const c = t.kind === 'single' ? t.product.categoryId : t.categoryId;
+      if (cat !== 'all' && c !== cat) return false;
+      if (!s) return true;
+      return t.kind === 'single' ? hit(t.product) : t.name.toLowerCase().includes(s) || t.options.some((o) => hit(o.product));
+    });
   }, [prods, cat, q]);
 
   const qtyOf = (p: Product) => cart.state.lines.find((l) => l.productId === p.id)?.qty ?? 0;
+  const qtyOfTile = (t: CatalogTile) => (t.kind === 'single' ? qtyOf(t.product) : t.options.reduce((n, o) => n + qtyOf(o.product), 0));
 
   async function pay() {
     if (!cart.state.lines.length || placing) return;
@@ -84,15 +93,22 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
               <p>{q ? `Tidak ada yang cocok dengan “${q}”.` : 'Tambahkan produk dari dashboard.'}</p>
             </div>
           )}
-          {visible.map((p) => {
-            const n = qtyOf(p);
-            const out = p.trackStock && (p.stock ?? 0) <= 0;
+          {visible.map((t) => {
+            const n = qtyOfTile(t);
+            const isGroup = t.kind === 'group';
+            const name = isGroup ? t.name : t.product.name;
+            const out = isGroup ? t.soldOut : t.product.trackStock && (t.product.stock ?? 0) <= 0;
+            const price = isGroup ? (t.minPrice === t.maxPrice ? formatRp(t.minPrice) : `mulai ${formatRp(t.minPrice)}`) : formatRp(t.product.price);
             return (
-              <button key={p.id} className="cg-tile" onClick={() => cart.dispatch({ t: 'add', product: p })} aria-label={`${p.name}, ${formatRp(p.price)}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
+              <button key={t.key} className="cg-tile"
+                onClick={() => (isGroup ? setPicking(t) : cart.dispatch({ t: 'add', product: t.product }))}
+                aria-haspopup={isGroup ? 'dialog' : undefined}
+                aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
                 <span className="cg-tile__media" aria-hidden><ShoppingBag className="cg-icon cg-icon--lg" /></span>
                 <span className="cg-tile__body">
-                  <span className="cg-tile__name">{p.name}</span>
-                  <span className="cg-tile__price">{formatRp(p.price)}</span>
+                  <span className="cg-tile__name">{name}</span>
+                  <span className="cg-tile__price">{price}</span>
+                  {isGroup && <span className="text-xs text-text-muted">{t.options.map((o) => o.label).join(' · ')}</span>}
                   {out && <span className="cg-badge cg-badge--warning w-fit">Stok habis</span>}
                 </span>
                 {n > 0 && <span className="cg-badge cg-badge--accent cg-tile__qty" aria-hidden>{n}</span>}
@@ -144,6 +160,27 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
         </button>
       </footer>
+      {picking && (
+        <Modal title={`Pilih ukuran: ${picking.name}`} onClose={() => setPicking(null)}>
+          <ul className="grid gap-8" aria-label="Ukuran">
+            {picking.options.map((o, i) => {
+              const out = o.product.trackStock && (o.product.stock ?? 0) <= 0;
+              const n = qtyOf(o.product);
+              return (
+                <li key={o.product.id}>
+                  <button className="cg-btn cg-btn--secondary cg-btn--lg cg-btn--block flex justify-between" data-autofocus={i === 0 ? '' : undefined}
+                    onClick={() => { cart.dispatch({ t: 'add', product: o.product }); setPicking(null); }}
+                    aria-label={`${o.label}, ${formatRp(o.product.price)}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
+                    <span>{o.label}{n > 0 && <span className="cg-badge cg-badge--accent ml-8">{n}</span>}{out && <span className="cg-badge cg-badge--warning ml-8">Stok habis</span>}</span>
+                    <span className="cg-num">{formatRp(o.product.price)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="cg-modal__actions"><button className="cg-btn cg-btn--ghost" onClick={() => setPicking(null)}>Batal</button></div>
+        </Modal>
+      )}
     </div>
   );
 }
