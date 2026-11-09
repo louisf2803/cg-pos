@@ -69,4 +69,26 @@ describe('fake: simpan katalog', () => {
     expect(r.variants).toHaveLength(2);
     expect((await d.listCatalog()).filter((x) => x.name === 'Latte')).toHaveLength(1);
   });
+
+  it('kategori dan departemen: tambah, pindah, nama ganda ditolak, hapus melepas isinya', async () => {
+    const d = createFakeData({ now: () => new Date('2026-11-09T05:00:00Z') }); d.reset();
+    const dept = await d.saveDepartment({ name: ' Bar ' });
+    expect(dept.name).toBe('Bar');
+    await expect(d.saveDepartment({ name: 'bar' })).rejects.toThrow(/sudah ada/);
+    const cat = await d.saveCategory({ name: 'Manual brew', departmentId: dept.id });
+    expect(cat.departmentId).toBe(dept.id);
+    await expect(d.saveCategory({ name: 'manual brew' })).rejects.toThrow(/sudah ada/);
+    await expect(d.saveCategory({ name: 'X', departmentId: 'nope' })).rejects.toThrow(/tidak ditemukan/);
+    const moved = await d.saveCategory({ id: cat.id, name: 'Manual brew', departmentId: null });
+    expect(moved.departmentId).toBeNull();
+    await d.saveCategory({ id: cat.id, name: 'Manual brew', departmentId: dept.id });
+    await d.saveProduct({ name: 'V60', categoryId: cat.id, price: 25000 });
+    expect((await d.categoryProductCounts())[cat.id]).toBe(1);
+    await d.deleteDepartment(dept.id);
+    expect((await d.listCategories()).find((c) => c.id === cat.id)!.departmentId).toBeNull();
+    await d.deleteCategory(cat.id);
+    expect((await d.listCategories()).some((c) => c.id === cat.id)).toBe(false);
+    expect((await d.listProducts({ search: 'V60' }))[0]!.categoryId).toBeNull();
+    await expect(d.deleteCategory(cat.id)).rejects.toThrow(/tidak ditemukan/);
+  });
 });

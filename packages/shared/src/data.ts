@@ -1,5 +1,5 @@
 import type {
-  Category, CatalogInput, CatalogProduct, Employee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Category, CatalogInput, Department, CatalogProduct, Employee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -12,7 +12,15 @@ import type {
 export interface DataLayer {
   getContext(): Promise<OutletContext>;
   listCategories(): Promise<Category[]>;
-  saveCategory(input: { id?: string; name: string }): Promise<Category>;
+  saveCategory(input: { id?: string; name: string; departmentId?: string | null }): Promise<Category>;
+  /** Hapus kategori. Produk di dalamnya menjadi "tanpa kategori". */
+  deleteCategory(id: string): Promise<void>;
+  /** Jumlah produk (induk dan satuan, bukan bahan) per kategori. */
+  categoryProductCounts(): Promise<Record<string, number>>;
+  listDepartments(): Promise<Department[]>;
+  saveDepartment(input: { id?: string; name: string }): Promise<Department>;
+  /** Hapus departemen. Kategori di dalamnya menjadi "tanpa departemen". */
+  deleteDepartment(id: string): Promise<void>;
   listProducts(q?: { categoryId?: string | null; search?: string; includeInactive?: boolean }): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
   saveProduct(input: ProductInput): Promise<Product>;

@@ -1,7 +1,7 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Employee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  CatalogInput, CatalogProduct, Category, Department, Employee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
@@ -20,9 +20,10 @@ const CTX: OutletContext = {
 };
 
 const CATEGORIES: Category[] = [
-  { id: 'c-kopi', name: 'Kopi', sort: 1 }, { id: 'c-non', name: 'Non-kopi', sort: 2 },
-  { id: 'c-makan', name: 'Makanan', sort: 3 }, { id: 'c-camil', name: 'Camilan', sort: 4 },
+  { id: 'c-kopi', name: 'Kopi', sort: 1, departmentId: 'd-min' }, { id: 'c-non', name: 'Non-kopi', sort: 2, departmentId: 'd-min' },
+  { id: 'c-makan', name: 'Makanan', sort: 3, departmentId: 'd-mak' }, { id: 'c-camil', name: 'Camilan', sort: 4, departmentId: 'd-mak' },
 ];
+const DEPARTMENTS: Department[] = [{ id: 'd-min', name: 'Minuman', sort: 1 }, { id: 'd-mak', name: 'Makanan', sort: 2 }];
 const P = (id: string, name: string, categoryId: string, price: number, extra: Partial<Product> = {}): Product =>
   ({ id, name, categoryId, price, kind: 'goods', trackStock: true, isActive: true, isFavorite: false, stock: 50, ...extra });
 const PRODUCTS: Product[] = [
@@ -62,6 +63,7 @@ export interface FakeOptions { now?: () => Date; seed?: boolean }
 export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): void } {
   const now = opts.now ?? (() => new Date());
   let categories: Category[] = [];
+  let departments: Department[] = [];
   let products: Product[] = [];
   let orders: Order[] = [];
   let shifts: Shift[] = [];
@@ -96,6 +98,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
 
   function reset() {
     categories = opts.seed === false ? [] : clone(CATEGORIES);
+    departments = opts.seed === false ? [] : clone(DEPARTMENTS);
     products = opts.seed === false ? [] : clone(PRODUCTS);
     orders = []; shifts = []; cashMoves = []; seqByDay.clear();
     if (opts.seed !== false) seedHistory();
@@ -140,13 +143,43 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async saveCategory(input) {
       const name = input.name.trim();
       if (!name) throw new DataError('invalid', 'Nama kategori wajib diisi');
+      if (categories.some((x) => x.id !== input.id && x.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Kategori "${name}" sudah ada`);
+      if (input.departmentId && !departments.some((d) => d.id === input.departmentId)) throw new DataError('not_found', 'Departemen tidak ditemukan');
       if (input.id) {
         const c = categories.find((x) => x.id === input.id);
         if (!c) throw new DataError('not_found', 'Kategori tidak ditemukan');
-        c.name = name; return clone(c);
+        c.name = name; if (input.departmentId !== undefined) c.departmentId = input.departmentId; return clone(c);
       }
-      const c: Category = { id: newId(), name, sort: categories.length + 1 };
+      const c: Category = { id: newId(), name, sort: categories.length + 1, departmentId: input.departmentId ?? null };
       categories.push(c); return clone(c);
+    },
+    async deleteCategory(id) {
+      if (!categories.some((c) => c.id === id)) throw new DataError('not_found', 'Kategori tidak ditemukan');
+      categories = categories.filter((c) => c.id !== id);
+      for (const p of products) if (p.categoryId === id) p.categoryId = null;
+    },
+    async categoryProductCounts() {
+      const out: Record<string, number> = {};
+      for (const p of products) if (p.categoryId) out[p.categoryId] = (out[p.categoryId] ?? 0) + 1;
+      return out;
+    },
+    async listDepartments() { return clone([...departments].sort((a, b) => a.sort - b.sort)); },
+    async saveDepartment(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama departemen wajib diisi');
+      if (departments.some((x) => x.id !== input.id && x.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Departemen "${name}" sudah ada`);
+      if (input.id) {
+        const d = departments.find((x) => x.id === input.id);
+        if (!d) throw new DataError('not_found', 'Departemen tidak ditemukan');
+        d.name = name; return clone(d);
+      }
+      const d: Department = { id: newId(), name, sort: departments.length + 1 };
+      departments.push(d); return clone(d);
+    },
+    async deleteDepartment(id) {
+      if (!departments.some((d) => d.id === id)) throw new DataError('not_found', 'Departemen tidak ditemukan');
+      departments = departments.filter((d) => d.id !== id);
+      for (const c of categories) if (c.departmentId === id) c.departmentId = null;
     },
     async listProducts(q = {}) {
       const s = q.search?.trim().toLowerCase();

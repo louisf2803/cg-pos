@@ -1,9 +1,9 @@
 {
   "ids": {
-    "orderA": "24bdc0ac-9cf4-4993-bfe3-f188e789741f",
-    "orderB": "6b964ec0-b5e0-42dc-ab2f-9847a9e46a1f",
-    "orderC": "2711075c-0f6b-4013-b336-ea52bb777604",
-    "shift": "4adaec96-2387-4522-98ce-8d3fdf00c51e"
+    "orderA": "57b36d80-1392-4662-b097-2f6d3996c001",
+    "orderB": "ec84cb25-7924-4477-87aa-d84551598bdf",
+    "orderC": "ed1e9846-083c-4df4-b42e-0c7bdadb997e",
+    "shift": "f8bd0dda-ec65-4981-97f6-91ad41d4264d"
   },
   "expected": {
     "totalA": 49665,
@@ -15,27 +15,27 @@
   },
   "ops": [
     {
-      "op_id": "3717d0c0-690e-451c-82ca-dec9d0328fd6",
+      "op_id": "d05301ff-ec64-41fa-9439-b41e5083aaf1",
       "type": "shift.open",
-      "entity_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+      "entity_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
       "payload": {
-        "id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "cashier_id": "@emp",
         "opened_at": "2026-11-10T02:00:00.000Z",
         "opening_cash": 100000
       }
     },
     {
-      "op_id": "5ca66a8c-69e9-4a8a-be91-83f7134f4eca",
+      "op_id": "fbdc8602-9a38-41d4-95f1-e5331cbda9af",
       "type": "order.upsert",
-      "entity_id": "24bdc0ac-9cf4-4993-bfe3-f188e789741f",
+      "entity_id": "57b36d80-1392-4662-b097-2f6d3996c001",
       "payload": {
-        "id": "24bdc0ac-9cf4-4993-bfe3-f188e789741f",
+        "id": "57b36d80-1392-4662-b097-2f6d3996c001",
         "number": "OUT1/A/261110/101",
         "order_type": "dine_in",
         "table_id": null,
         "label": null,
-        "shift_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "shift_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "cashier_id": "@emp",
         "opened_at": "2026-11-10T03:00:00.000Z",
         "client_created_at": "2026-11-10T03:00:00.000Z",
@@ -47,7 +47,7 @@
         "total": 49665,
         "items": [
           {
-            "id": "d7594e6b-484d-45cb-ae5d-35dedee88bed",
+            "id": "3a615299-7ab7-499b-b61e-0227a8231300",
             "product_id": "@kopi",
             "product_unit_id": "@kopi_pu",
             "name": "Kopi Susu",
@@ -63,7 +63,7 @@
             "sort": 0
           },
           {
-            "id": "1c32f339-6394-4293-ba2c-2903c7ac2197",
+            "id": "4cf0063c-a765-437d-8c36-d8d6bf3111ba",
             "product_id": "@air",
             "product_unit_id": "@air_pu",
             "name": "Air Mineral",
@@ -81,7 +81,7 @@
         ],
         "discounts": [
           {
-            "id": "45fb6352-a4bb-4ae2-9dcc-73a50fdaf041",
+            "id": "8889db19-e6b9-4576-947c-050d7ae86c14",
             "source": "manual",
             "points_used": 0,
             "amount": 2000,
@@ -100,16 +100,16 @@
       }
     },
     {
-      "op_id": "fee697f5-0bab-499a-926d-f1f92b083f05",
+      "op_id": "ff246a01-af30-4da7-be39-cc7f957e22f2",
       "type": "order.upsert",
-      "entity_id": "6b964ec0-b5e0-42dc-ab2f-9847a9e46a1f",
+      "entity_id": "ec84cb25-7924-4477-87aa-d84551598bdf",
       "payload": {
-        "id": "6b964ec0-b5e0-42dc-ab2f-9847a9e46a1f",
+        "id": "ec84cb25-7924-4477-87aa-d84551598bdf",
         "number": "OUT1/A/261110/102",
         "order_type": "dine_in",
         "table_id": null,
         "label": null,
-        "shift_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "shift_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "cashier_id": "@emp",
         "opened_at": "2026-11-10T03:00:00.000Z",
         "client_created_at": "2026-11-10T03:00:00.000Z",
@@ -121,7 +121,7 @@
         "total": 49665,
         "items": [
           {
-            "id": "73a3f06e-309f-4a8e-9c5e-692a757b4933",
+            "id": "7ba6bc7f-d52a-436c-a92f-69d11c3358bc",
             "product_id": "@kopi",
             "product_unit_id": "@kopi_pu",
             "name": "Kopi Susu",
@@ -137,7 +137,7 @@
             "sort": 0
           },
           {
-            "id": "0f6dc0d9-a8eb-4d95-8c27-b9a1b56657a4",
+            "id": "13dcd6cb-c69b-471e-82e7-013f1a467935",
             "product_id": "@air",
             "product_unit_id": "@air_pu",
             "name": "Air Mineral",
@@ -155,7 +155,7 @@
         ],
         "discounts": [
           {
-            "id": "a429b3fb-a028-4954-a19e-594e5481c39d",
+            "id": "8e1221ca-bd65-4d5a-8452-128367660016",
             "source": "manual",
             "points_used": 0,
             "amount": 2000,
@@ -174,11 +174,11 @@
       }
     },
     {
-      "op_id": "60cf3720-8799-4175-a259-eb5f551c4ae4",
+      "op_id": "bf201a24-e9e0-4ae5-8455-c868ab9860ea",
       "type": "order.upsert",
-      "entity_id": "6b964ec0-b5e0-42dc-ab2f-9847a9e46a1f",
+      "entity_id": "ec84cb25-7924-4477-87aa-d84551598bdf",
       "payload": {
-        "id": "6b964ec0-b5e0-42dc-ab2f-9847a9e46a1f",
+        "id": "ec84cb25-7924-4477-87aa-d84551598bdf",
         "number": "OUT1/A/261110/102",
         "order_type": "dine_in",
         "table_id": null,
@@ -187,7 +187,7 @@
         "label": null,
         "note": null,
         "queue_no": null,
-        "shift_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "shift_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "cashier_id": "@emp",
         "opened_at": "2026-11-10T03:00:00.000Z",
         "client_created_at": "2026-11-10T03:00:00.000Z",
@@ -200,7 +200,7 @@
         "total": 49700,
         "items": [
           {
-            "id": "73a3f06e-309f-4a8e-9c5e-692a757b4933",
+            "id": "7ba6bc7f-d52a-436c-a92f-69d11c3358bc",
             "product_id": "@kopi",
             "product_unit_id": "@kopi_pu",
             "name": "Kopi Susu",
@@ -218,7 +218,7 @@
             "void_reason": null
           },
           {
-            "id": "0f6dc0d9-a8eb-4d95-8c27-b9a1b56657a4",
+            "id": "13dcd6cb-c69b-471e-82e7-013f1a467935",
             "product_id": "@air",
             "product_unit_id": "@air_pu",
             "name": "Air Mineral",
@@ -238,7 +238,7 @@
         ],
         "discounts": [
           {
-            "id": "a429b3fb-a028-4954-a19e-594e5481c39d",
+            "id": "8e1221ca-bd65-4d5a-8452-128367660016",
             "order_item_id": null,
             "source": "manual",
             "promotion_id": null,
@@ -260,14 +260,14 @@
       }
     },
     {
-      "op_id": "f7964dd4-39e9-4b29-8cb5-834008613e29",
+      "op_id": "6abd3862-3abd-4c9d-83b3-18c17bdd5c95",
       "type": "payment.add",
-      "entity_id": "8e2d9bfd-173b-45cc-863a-432d740a93c1",
+      "entity_id": "8dd59196-383b-4ff7-9e2e-a43b8fecfb4e",
       "payload": {
-        "id": "8e2d9bfd-173b-45cc-863a-432d740a93c1",
-        "order_id": "24bdc0ac-9cf4-4993-bfe3-f188e789741f",
+        "id": "8dd59196-383b-4ff7-9e2e-a43b8fecfb4e",
+        "order_id": "57b36d80-1392-4662-b097-2f6d3996c001",
         "method_id": "@cash",
-        "shift_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "shift_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "amount": 49665,
         "tendered": 50000,
         "paid_at": "2026-11-10T03:05:00.000Z",
@@ -275,14 +275,14 @@
       }
     },
     {
-      "op_id": "c8c71481-3b57-4f7e-92e8-878edebe6cee",
+      "op_id": "36ce137b-4628-490b-a133-6683e8179e07",
       "type": "payment.add",
-      "entity_id": "66957c02-7a59-4baf-9979-788055188c5a",
+      "entity_id": "a471dfda-e2db-40e9-a931-0676220cf4c0",
       "payload": {
-        "id": "66957c02-7a59-4baf-9979-788055188c5a",
-        "order_id": "6b964ec0-b5e0-42dc-ab2f-9847a9e46a1f",
+        "id": "a471dfda-e2db-40e9-a931-0676220cf4c0",
+        "order_id": "ec84cb25-7924-4477-87aa-d84551598bdf",
         "method_id": "@cash",
-        "shift_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "shift_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "amount": 49700,
         "tendered": 50000,
         "paid_at": "2026-11-10T03:06:00.000Z",
@@ -290,16 +290,16 @@
       }
     },
     {
-      "op_id": "f0a4e5e4-f36a-409a-a81e-a665eb47d0fc",
+      "op_id": "43ec35b6-7a06-4176-b9a9-3df60f056357",
       "type": "order.upsert",
-      "entity_id": "2711075c-0f6b-4013-b336-ea52bb777604",
+      "entity_id": "ed1e9846-083c-4df4-b42e-0c7bdadb997e",
       "payload": {
-        "id": "2711075c-0f6b-4013-b336-ea52bb777604",
+        "id": "ed1e9846-083c-4df4-b42e-0c7bdadb997e",
         "number": "OUT1/A/261110/103",
         "order_type": "dine_in",
         "table_id": null,
         "label": null,
-        "shift_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "shift_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "cashier_id": "@emp",
         "opened_at": "2026-11-10T03:00:00.000Z",
         "client_created_at": "2026-11-10T03:00:00.000Z",
@@ -311,7 +311,7 @@
         "total": 49665,
         "items": [
           {
-            "id": "ff436c35-3948-4d91-a038-1580d6034a2d",
+            "id": "05729719-76aa-4c03-8dc8-16ff0c01c6d0",
             "product_id": "@kopi",
             "product_unit_id": "@kopi_pu",
             "name": "Kopi Susu",
@@ -327,7 +327,7 @@
             "sort": 0
           },
           {
-            "id": "f758fcc9-04d4-4696-ab99-878ca59ce732",
+            "id": "4edf5553-105c-4a45-ae18-282fcf33824b",
             "product_id": "@air",
             "product_unit_id": "@air_pu",
             "name": "Air Mineral",
@@ -345,7 +345,7 @@
         ],
         "discounts": [
           {
-            "id": "a195a91a-c213-40c9-b7f7-981895b5eb4b",
+            "id": "c4ca9f0e-9178-44c1-9b76-f94d4f809939",
             "source": "manual",
             "points_used": 0,
             "amount": 2000,
@@ -364,11 +364,11 @@
       }
     },
     {
-      "op_id": "fedc38e8-102d-4cc6-afc2-1888ef258a29",
+      "op_id": "8b0d0f7b-d92e-4dfc-8b89-d02c7ab6a91e",
       "type": "order.void",
-      "entity_id": "2711075c-0f6b-4013-b336-ea52bb777604",
+      "entity_id": "ed1e9846-083c-4df4-b42e-0c7bdadb997e",
       "payload": {
-        "order_id": "2711075c-0f6b-4013-b336-ea52bb777604",
+        "order_id": "ed1e9846-083c-4df4-b42e-0c7bdadb997e",
         "authorized_by": "@emp",
         "auth_method": "pin",
         "reason": "salah input",
@@ -377,11 +377,11 @@
       }
     },
     {
-      "op_id": "6d974977-4db2-4c31-a6af-cf961ee7f382",
+      "op_id": "6213fe09-e3ec-46f4-ba21-03b7d31037ca",
       "type": "shift.close",
-      "entity_id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+      "entity_id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
       "payload": {
-        "id": "4adaec96-2387-4522-98ce-8d3fdf00c51e",
+        "id": "f8bd0dda-ec65-4981-97f6-91ad41d4264d",
         "closed_by": "@emp",
         "counted": 199000,
         "closed_at": "2026-11-10T09:00:00.000Z"

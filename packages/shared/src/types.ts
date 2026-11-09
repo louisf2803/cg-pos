@@ -1,6 +1,7 @@
 import type { CalcSettings, OrderType } from './order-calc';
 
-export interface Category { id: string; name: string; sort: number }
+export interface Department { id: string; name: string; sort: number }
+export interface Category { id: string; name: string; sort: number; departmentId?: string | null }
 export interface Product {
   id: string; name: string; categoryId: string | null; price: number; sku?: string;
   kind: 'goods' | 'service'; trackStock: boolean; stock?: number; isActive: boolean; isFavorite: boolean;

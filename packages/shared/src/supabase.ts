@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  CatalogInput, CatalogProduct, Category, Department, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -168,24 +168,69 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     // ---------- katalog ----------
     async listCategories() {
       const [cats, ing] = await Promise.all([
-        fetchAll<Row>((f, t) => db().from('categories').select('id,name,sort').is('deleted_at', null).order('sort').order('name').order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('categories').select('id,name,sort,department_id').is('deleted_at', null).order('sort').order('name').order('id').range(f, t)),
         fetchAll<Row>((f, t) => db().from('products').select('category_id').eq('kind', 'ingredient').not('category_id', 'is', null).is('deleted_at', null).order('id').range(f, t)),
       ]);
       const ingredientCats = new Set(ing.map((r) => r.category_id as string));
-      return cats.filter((c) => !ingredientCats.has(c.id)).map((c): Category => ({ id: c.id, name: c.name, sort: Number(c.sort ?? 0) }));
+      return cats.filter((c) => !ingredientCats.has(c.id)).map((c): Category => ({ id: c.id, name: c.name, sort: Number(c.sort ?? 0), departmentId: c.department_id ?? null }));
     },
     async saveCategory(input) {
       const name = input.name.trim();
       if (!name) throw new DataError('invalid', 'Nama kategori wajib diisi');
       const { orgId } = await resolve();
-      if (input.id) {
-        const row = must(await db().from('categories').update({ name }).eq('id', input.id).select('id,name,sort').maybeSingle()) as Row | null;
-        if (!row) throw new DataError('not_found', 'Kategori tidak ditemukan');
-        return { id: row.id, name: row.name, sort: Number(row.sort ?? 0) };
-      }
-      const sort = (await self.listCategories()).length + 1;
-      const row = must(await db().from('categories').insert({ id: newId(), org_id: orgId, name, sort }).select('id,name,sort').single()) as Row;
-      return { id: row.id, name: row.name, sort: Number(row.sort ?? 0) };
+      const cols = 'id,name,sort,department_id';
+      const out = (row: Row): Category => ({ id: row.id, name: row.name, sort: Number(row.sort ?? 0), departmentId: row.department_id ?? null });
+      const clash = (e: unknown): never => { throw e instanceof DataError && /duplicate|unique|already/i.test(e.message) ? new DataError('invalid', `Kategori "${name}" sudah ada`) : e; };
+      try {
+        if (input.id) {
+          const patch: Record<string, unknown> = { name };
+          if (input.departmentId !== undefined) patch.department_id = input.departmentId;
+          const row = must(await db().from('categories').update(patch).eq('id', input.id).is('deleted_at', null).select(cols).maybeSingle()) as Row | null;
+          if (!row) throw new DataError('not_found', 'Kategori tidak ditemukan');
+          return out(row);
+        }
+        const sort = (await self.listCategories()).length + 1;
+        return out(must(await db().from('categories').insert({ id: newId(), org_id: orgId, name, sort, department_id: input.departmentId ?? null }).select(cols).single()) as Row);
+      } catch (e) { return clash(e); }
+    },
+    async deleteCategory(id) {
+      const cur = must(await db().from('categories').select('name').eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      if (!cur) throw new DataError('not_found', 'Kategori tidak ditemukan');
+      must(await db().from('products').update({ category_id: null }).eq('category_id', id));
+      // nama dilepas agar bisa dipakai lagi (unik per organisasi, baris terhapus tetap ikut hitungan)
+      must(await db().from('categories').update({ deleted_at: new Date().toISOString(), name: `${cur.name} (dihapus ${id.slice(0, 8)})` }).eq('id', id));
+    },
+    async categoryProductCounts() {
+      const rows = await fetchAll<Row>((f, t) => db().from('products').select('category_id').in('kind', ['goods', 'service']).is('parent_id', null).not('category_id', 'is', null).is('deleted_at', null).order('id').range(f, t));
+      const out: Record<string, number> = {};
+      for (const r of rows) out[r.category_id] = (out[r.category_id] ?? 0) + 1;
+      return out;
+    },
+    async listDepartments() {
+      const rows = await fetchAll<Row>((f, t) => db().from('departments').select('id,name,sort').is('deleted_at', null).order('sort').order('name').order('id').range(f, t));
+      return rows.map((r): Department => ({ id: r.id, name: r.name, sort: Number(r.sort ?? 0) }));
+    },
+    async saveDepartment(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama departemen wajib diisi');
+      const { orgId } = await resolve();
+      const out = (row: Row): Department => ({ id: row.id, name: row.name, sort: Number(row.sort ?? 0) });
+      try {
+        if (input.id) {
+          const row = must(await db().from('departments').update({ name }).eq('id', input.id).is('deleted_at', null).select('id,name,sort').maybeSingle()) as Row | null;
+          if (!row) throw new DataError('not_found', 'Departemen tidak ditemukan');
+          return out(row);
+        }
+        const sort = (await self.listDepartments()).length + 1;
+        return out(must(await db().from('departments').insert({ id: newId(), org_id: orgId, name, sort }).select('id,name,sort').single()) as Row);
+      } catch (e) { throw e instanceof DataError && /duplicate|unique|already/i.test(e.message) ? new DataError('invalid', `Departemen "${name}" sudah ada`) : e; }
+    },
+    async deleteDepartment(id) {
+      const cur = must(await db().from('departments').select('name').eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      if (!cur) throw new DataError('not_found', 'Departemen tidak ditemukan');
+      must(await db().from('categories').update({ department_id: null }).eq('department_id', id));
+      // nama dilepas agar bisa dipakai lagi (unik per organisasi, baris terhapus tetap ikut hitungan)
+      must(await db().from('departments').update({ deleted_at: new Date().toISOString(), name: `${cur.name} (dihapus ${id.slice(0, 8)})` }).eq('id', id));
     },
     async listProducts(q = {}) {
       const rows = await fetchAll<Row>((f, t) => {
