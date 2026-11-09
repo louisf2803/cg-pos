@@ -1,0 +1,9 @@
+{
+  "name": "@cgpos/db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "bash tests/run.sh",
+    "sync-schema": "bash scripts/sync-schema.sh"
+  }
+}
