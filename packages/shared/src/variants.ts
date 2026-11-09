@@ -52,7 +52,8 @@ export function sortVariants<T extends { label: string; price: number }>(list: T
  * Rakit katalog gaya pemilik dari daftar produk datar: induk (isSellable=false) memuat anak-anaknya sebagai varian;
  * anak yatim (induk tak ada di daftar) dibuatkan grup dari nama dasarnya; produk lain tetap tunggal.
  */
-export function assembleCatalog(products: Product[]): CatalogProduct[] {
+export function assembleCatalog(all: Product[]): CatalogProduct[] {
+  const products = all.filter((p): p is Product & { kind: 'goods' | 'service' } => p.kind !== 'bundle');   // paket punya halaman sendiri
   const children = new Map<string, Product[]>();
   for (const p of products) if (p.parentId) (children.get(p.parentId) ?? children.set(p.parentId, []).get(p.parentId)!).push(p);
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -62,7 +63,7 @@ export function assembleCatalog(products: Product[]): CatalogProduct[] {
     const variants = toVariants(kids);
     const first = kids[0]!;
     return {
-      id, name, categoryId: head?.categoryId ?? first.categoryId, kind: head?.kind ?? first.kind, trackStock: head?.trackStock ?? first.trackStock,
+      id, name, categoryId: head?.categoryId ?? first.categoryId, kind: (head?.kind ?? first.kind) as CatalogProduct['kind'], trackStock: head?.trackStock ?? first.trackStock,
       isActive: head ? head.isActive : kids.some((k) => k.isActive), isFavorite: head?.isFavorite ?? first.isFavorite,
       price: Math.min(...variants.map((v) => v.price)), variants,
     };
@@ -78,7 +79,7 @@ export function assembleCatalog(products: Product[]): CatalogProduct[] {
       const kids = children.get(p.id);
       if (kids?.length) out.push(group(p.id, p.name, p, kids));
     } else {
-      out.push({ id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind, trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [] });
+      out.push({ id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind as CatalogProduct['kind'], trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [] });
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name, 'id'));

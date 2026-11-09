@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
 } from './types';
 import type { OrderType } from './order-calc';
@@ -13,6 +13,7 @@ import { newId } from './id';
 import { outletInfoProblem, outletOptionsProblem } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
+import { bundleProblem } from './bundle';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
   buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
@@ -336,6 +337,59 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       // nama dilepas agar bisa dipakai lagi (unik per organisasi, baris terhapus tetap ikut hitungan)
       must(await db().from('departments').update({ deleted_at: new Date().toISOString(), name: `${cur.name} (dihapus ${id.slice(0, 8)})` }).eq('id', id));
     },
+    async listBundles(q = {}) {
+      let qb = db().from('products').select(PRODUCT_SELECT).eq('kind', 'bundle').is('deleted_at', null);
+      if (!q.includeInactive) qb = qb.eq('is_active', true);
+      const rows = (must(await qb.order('name')) as Row[] | null) ?? [];
+      if (rows.length === 0) return [];
+      const items = (must(await db().from('bundle_items').select('bundle_id,product_id,qty').in('bundle_id', rows.map((r) => r.id))) as Row[] | null) ?? [];
+      const names = new Map<string, string>();
+      const compIds = [...new Set(items.map((i) => i.product_id as string))];
+      if (compIds.length) for (const r of (must(await db().from('products').select('id,name').in('id', compIds)) as Row[] | null) ?? []) names.set(r.id, r.name);
+      return rows.map((r): Bundle => {
+        const p = toProduct(r);
+        return { id: p.id, name: p.name, categoryId: p.categoryId, price: p.price, sku: p.sku, isActive: p.isActive,
+          items: items.filter((i) => i.bundle_id === p.id).map((i) => ({ productId: i.product_id, name: names.get(i.product_id) ?? '?', qty: Number(i.qty) })) };
+      });
+    },
+    async saveBundle(input) {
+      const problem = bundleProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const name = input.name.trim();
+      const comps = (must(await db().from('products').select('id,kind').in('id', input.items.map((i) => i.productId)).is('deleted_at', null)) as Row[] | null) ?? [];
+      if (comps.length !== new Set(input.items.map((i) => i.productId)).size) throw new DataError('not_found', 'Ada produk dalam paket yang tidak ditemukan');
+      if (comps.some((c) => c.kind === 'bundle')) throw new DataError('invalid', 'Paket tidak boleh berisi paket lain');
+      const sameName = (must(await db().from('products').select('id').eq('kind', 'bundle').ilike('name', name.replace(/[%_]/g, '\\$&')).is('deleted_at', null)) as Row[] | null) ?? [];
+      if (sameName.some((r) => r.id !== input.id)) throw new DataError('invalid', `Paket "${name}" sudah ada`);
+      const sku = input.sku?.trim() || null;
+      let id = input.id;
+      try {
+        if (id) {
+          const patch: Row = { name, category_id: input.categoryId };
+          if (input.isActive !== undefined) patch.is_active = input.isActive;
+          const row = must(await db().from('products').update(patch).eq('id', id).eq('kind', 'bundle').select('id').maybeSingle()) as Row | null;
+          if (!row) throw new DataError('not_found', 'Paket tidak ditemukan');
+          must(await db().from('product_units').update({ price: input.price, sku }).eq('product_id', id).eq('is_base', true).is('deleted_at', null).select('id'));
+        } else {
+          const unit = ((must(await db().from('units').select('id').eq('name', 'pcs').is('deleted_at', null).limit(1)) as Row[] | null) ?? [])[0];
+          if (!unit) throw new DataError('not_found', "Satuan 'pcs' belum ada di org ini");
+          id = newId();
+          must(await db().from('products').insert({ id, org_id: orgId, kind: 'bundle', name, category_id: input.categoryId, base_unit_id: unit.id, is_sellable: true, show_in_menu: true, track_stock: false, is_favorite: false, is_active: input.isActive ?? true }));
+          must(await db().from('product_units').insert({ org_id: orgId, product_id: id, unit_id: unit.id, conversion: 1, is_base: true, price: input.price, sku }));
+        }
+        must(await db().from('bundle_items').delete().eq('bundle_id', id));
+        must(await db().from('bundle_items').insert(input.items.map((i) => ({ bundle_id: id, product_id: i.productId, org_id: orgId, qty: i.qty }))));
+      } catch (e) {
+        if (e instanceof DataError && /sudah ada/.test(e.message)) throw new DataError('invalid', 'SKU sudah dipakai produk lain');
+        throw e;
+      }
+      return (await self.listBundles({ includeInactive: true })).find((b) => b.id === id)!;
+    },
+    async setBundleActive(id, active) {
+      const row = must(await db().from('products').update({ is_active: active }).eq('id', id).eq('kind', 'bundle').select('id').maybeSingle()) as Row | null;
+      if (!row) throw new DataError('not_found', 'Paket tidak ditemukan');
+    },
     async listExtraGroups() {
       const rows = must(await db().from('extra_groups')
         .select('id,name,is_required,select_mode,max_select,extra_options(id,name,price,sort,deleted_at),product_extra_groups(product_id)')
@@ -380,7 +434,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async listProducts(q = {}) {
       const rows = await fetchAll<Row>((f, t) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let qb: any = db().from('products').select(PRODUCT_SELECT).eq('is_sellable', true).in('kind', ['goods', 'service']).is('deleted_at', null);
+        let qb: any = db().from('products').select(PRODUCT_SELECT).eq('is_sellable', true).in('kind', ['goods', 'service', 'bundle']).is('deleted_at', null);
         if (!q.includeInactive) qb = qb.eq('is_active', true).eq('show_in_menu', true);
         if (q.categoryId) qb = qb.eq('category_id', q.categoryId);
         return qb.order('name').order('id').range(f, t);

@@ -4,7 +4,7 @@ export interface Department { id: string; name: string; sort: number }
 export interface Category { id: string; name: string; sort: number; departmentId?: string | null }
 export interface Product {
   id: string; name: string; categoryId: string | null; price: number; sku?: string;
-  kind: 'goods' | 'service'; trackStock: boolean; stock?: number; isActive: boolean; isFavorite: boolean;
+  kind: 'goods' | 'service' | 'bundle'; trackStock: boolean; stock?: number; isActive: boolean; isFavorite: boolean;
   /** persen pajak khusus produk (mode per_product) */
   taxRate?: number; photoUrl?: string;
   /** produk induk bila ini varian ukuran (S/M/L); tidak ada untuk produk tunggal */
@@ -29,6 +29,9 @@ export interface CatalogInput {
   price: number; sku?: string;
   variants: { id?: string; label: string; price: number; sku?: string; isActive?: boolean }[];
 }
+/** Paket: beberapa produk dijual dengan satu harga. Stok yang terpotong adalah stok komponennya. */
+export interface Bundle { id: string; name: string; categoryId: string | null; price: number; sku?: string; isActive: boolean; items: { productId: string; name: string; qty: number }[] }
+export interface BundleInput { id?: string; name: string; categoryId: string | null; price: number; sku?: string; isActive?: boolean; items: { productId: string; qty: number }[] }
 export interface Employee { id: string; name: string; role: 'owner' | 'manager' | 'cashier' }
 /** Karyawan untuk layar pengelolaan (termasuk yang nonaktif). */
 export interface ManagedEmployee extends Employee { isActive: boolean }

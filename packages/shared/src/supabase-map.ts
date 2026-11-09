@@ -54,7 +54,7 @@ export function toProduct(r: Row): Product {
   const base = units.find((u) => u.is_base && !u.deleted_at) ?? units[0];
   return {
     id: r.id, name: r.name, categoryId: r.category_id ?? null, price: num(base?.price), sku: base?.sku ?? undefined,
-    kind: r.kind === 'service' ? 'service' : 'goods', trackStock: !!r.track_stock, isActive: !!r.is_active,
+    kind: r.kind === 'service' ? 'service' : r.kind === 'bundle' ? 'bundle' : 'goods', trackStock: !!r.track_stock, isActive: !!r.is_active,
     isFavorite: !!r.is_favorite, parentId: r.parent_id ?? null, isSellable: r.is_sellable === false ? false : undefined,
   };
 }

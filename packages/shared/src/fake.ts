@@ -1,13 +1,14 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
-  CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
+import { bundleProblem } from './bundle';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
@@ -76,6 +77,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
   let extraGroups: ExtraGroup[] = [];
+  let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let products: Product[] = [];
@@ -96,6 +98,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     const n = (seqByDay.get(key) ?? 0) + 1;
     seqByDay.set(key, n);
     return n;
+  }
+
+  /** Gerakan stok untuk satu produk terjual; paket menggerakkan stok komponennya. */
+  function stockMove(productId: string, qty: number) {
+    const p = products.find((x) => x.id === productId);
+    if (!p) return;
+    if (p.kind === 'bundle') { for (const c of bundleItems.get(p.id) ?? []) stockMove(c.productId, qty * c.qty); return; }
+    if (p.trackStock && p.stock !== undefined) p.stock += qty;
   }
 
   function recompute(draft: OrderDraft, step: number) {
@@ -120,6 +130,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
     extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
+    bundleItems = new Map();
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
     if (opts.seed !== false) seedHistory();
   }
@@ -266,6 +277,37 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       departments = departments.filter((d) => d.id !== id);
       for (const c of categories) if (c.departmentId === id) c.departmentId = null;
     },
+    async listBundles(q = {}) {
+      return clone(products.filter((p) => p.kind === 'bundle' && (q.includeInactive || p.isActive)).map((p): Bundle => ({
+        id: p.id, name: p.name, categoryId: p.categoryId, price: p.price, sku: p.sku, isActive: p.isActive,
+        items: (bundleItems.get(p.id) ?? []).map((c) => ({ productId: c.productId, name: products.find((x) => x.id === c.productId)?.name ?? '?', qty: c.qty })),
+      })));
+    },
+    async saveBundle(input: BundleInput) {
+      const problem = bundleProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const name = input.name.trim();
+      if (products.some((p) => p.id !== input.id && p.name.toLowerCase() === name.toLowerCase() && p.kind === 'bundle')) throw new DataError('invalid', `Paket "${name}" sudah ada`);
+      if (input.sku && products.some((p) => p.sku === input.sku && p.id !== input.id)) throw new DataError('invalid', 'SKU sudah dipakai produk lain');
+      for (const it of input.items) {
+        const c = products.find((p) => p.id === it.productId);
+        if (!c) throw new DataError('not_found', 'Ada produk dalam paket yang tidak ditemukan');
+        if (c.kind === 'bundle') throw new DataError('invalid', 'Paket tidak boleh berisi paket lain');
+      }
+      const old = input.id ? products.find((p) => p.id === input.id && p.kind === 'bundle') : undefined;
+      if (input.id && !old) throw new DataError('not_found', 'Paket tidak ditemukan');
+      const patch = { name, categoryId: input.categoryId, price: input.price, sku: input.sku?.trim() || undefined, isActive: input.isActive ?? old?.isActive ?? true };
+      const id = old?.id ?? newId();
+      if (old) Object.assign(old, patch); else products.push({ id, kind: 'bundle', trackStock: false, isFavorite: false, ...patch });
+      bundleItems.set(id, input.items.map((i) => ({ ...i })));
+      return (await this.listBundles({ includeInactive: true })).find((b) => b.id === id)!;
+    },
+    async setBundleActive(id: string, active: boolean) {
+      const p = products.find((x) => x.id === id && x.kind === 'bundle');
+      if (!p) throw new DataError('not_found', 'Paket tidak ditemukan');
+      p.isActive = active;
+    },
+
     async listExtraGroups() { return clone(extraGroups); },
     async saveExtraGroup(input: ExtraGroupInput) {
       const problem = extraGroupProblem(input);
@@ -470,7 +512,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       o.status = o.paidTotal >= o.total ? 'paid' : 'partially_paid';
       if (o.status === 'paid') {
         o.closedAt = at;
-        for (const it of o.items) { const p = products.find((x) => x.id === it.productId); if (p?.trackStock && p.stock !== undefined) p.stock -= it.qty; }
+        for (const it of o.items) stockMove(it.productId, -it.qty);
       }
       return clone(o);
     },
@@ -490,7 +532,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const r = { id: input.id, number: `R${mine.length + 1}-${o.number}`, orderId: o.id, total: lines.reduce((a, x) => a + x.amount, 0), reason: input.reason.trim(), note: input.note?.trim() || undefined,
         methodName: m.name, createdAt: now().toISOString(), items: lines, shiftId: shifts.find((s) => s.status === 'open')?.id, methodKind: m.kind };
       refunds.push(r);
-      if (input.restock) for (const l of lines) { const it = o.items.find((i) => i.id === l.orderItemId); const p = products.find((x) => x.id === it?.productId); if (p?.trackStock && p.stock !== undefined) p.stock += l.qty; }
+      if (input.restock) for (const l of lines) { const it = o.items.find((i) => i.id === l.orderItemId); if (it) stockMove(it.productId, l.qty); }
       const { shiftId: _s, methodKind: _k, ...out } = r; return clone(out);
     },
     async voidUnpaidOrder(orderId) {
