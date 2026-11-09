@@ -1,4 +1,3 @@
--- STATUS: BELUM DITERAPKAN ke project nyata (2026-11-10). Uji dengan rollback tertahan: server Supabase meminta konfirmasi yang tidak terjawab.
 -- Hanya pemilik (atau admin) organisasi yang boleh memberi, mencabut, atau mengubah peran "owner" pada karyawan.
 -- Tanpa ini, manajer (yang boleh mengelola karyawan) bisa mengangkat diri atau orang lain menjadi pemilik,
 -- lalu memakai PIN pemilik untuk menyetujui void. Jalur server (tanpa JWT pengguna) tidak dibatasi.
