@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { ArrowLeft, Ban, CreditCard, Play, Printer, Undo2 } from 'lucide-react';
-import { formatRp, refundAmounts, refundableLines, newId, type Employee, type Order, type OutletContext, type Refund } from '@cgpos/shared';
-import { useData } from '../lib/app-data';
+import { formatRp, type PendingEntry, refundAmounts, refundableLines, newId, type Employee, type Order, type OutletContext, type Refund } from '@cgpos/shared';
+import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useSession } from '../lib/session';
 import { Modal } from '../ui';
@@ -13,10 +13,12 @@ const TYPE: Record<Order['type'], string> = { takeaway: 'Bawa pulang', dine_in: 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
 /** Daftar pesanan yang belum lunas di outlet ini: lanjutkan, bayar, atau batalkan (void). */
-export function Orders({ ctx, canResume, onClose, onResume, onPay }: { ctx: OutletContext; canResume: boolean; onClose: () => void; onResume: (o: Order) => void; onPay: (o: Order) => void }) {
+export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResume, onPay }: { ctx: OutletContext; canResume: boolean; initialTab?: 'waiting' | 'paid' | 'pending'; onClose: () => void; onResume: (o: Order) => void; onPay: (o: Order) => void }) {
   const data = useData();
-  const [tab, setTab] = useState<'waiting' | 'paid'>('waiting');
+  const [tab, setTab] = useState<'waiting' | 'paid' | 'pending'>(initialTab);
+  const pend = usePending();
   const list = useAsync(async () => {
+    if (tab === 'pending') return [];
     if (tab === 'paid') return data.listOrders({ status: 'paid', limit: 50 });
     const [open, part] = await Promise.all([data.listOrders({ status: 'open', limit: 100 }), data.listOrders({ status: 'partially_paid', limit: 100 })]);
     return [...open, ...part].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
@@ -36,17 +38,19 @@ export function Orders({ ctx, canResume, onClose, onResume, onPay }: { ctx: Outl
       <div className="cg-tabs" role="tablist" aria-label="Jenis order">
         <button role="tab" className="cg-tab" aria-selected={tab === 'waiting'} onClick={() => { setTab('waiting'); setNotice(''); }}>Menunggu</button>
         <button role="tab" className="cg-tab" aria-selected={tab === 'paid'} onClick={() => { setTab('paid'); setNotice(''); }}>Lunas</button>
+        <button role="tab" className="cg-tab" aria-selected={tab === 'pending'} onClick={() => { setTab('pending'); setNotice(''); }}>Tertunda{pend.entries.length > 0 ? ` (${pend.entries.length})` : ''}</button>
       </div>
       {notice && <p role="status" className="cg-banner cg-banner--info">{notice}</p>}
+      {tab === 'pending' && <PendingList entries={pend.entries} onRetry={pend.retry} onDiscard={pend.discard} onNotice={setNotice} />}
       {tab === 'waiting' && !canResume && list.status === 'ready' && list.data.length > 0 && (
         <p className="cg-banner cg-banner--warning">Pesanan di layar kasir belum disimpan. Simpan atau kosongkan dulu sebelum melanjutkan pesanan lain.</p>
       )}
-      {list.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 96 }} />)}</div>}
-      {list.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert"><span>Daftar order gagal dimuat. {list.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={list.reload}>Coba lagi</button></div>}
-      {list.status === 'ready' && list.data.length === 0 && (
+      {tab !== 'pending' && list.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 96 }} />)}</div>}
+      {tab !== 'pending' && list.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert"><span>Daftar order gagal dimuat. {list.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={list.reload}>Coba lagi</button></div>}
+      {tab !== 'pending' && list.status === 'ready' && list.data.length === 0 && (
         <div className="cg-empty">{tab === 'paid' ? <><h3>Belum ada pesanan lunas</h3><p>Pesanan yang sudah dibayar muncul di sini dan bisa di-refund.</p></> : <><h3>Tidak ada pesanan yang menunggu</h3><p>Pesanan yang disimpan dari layar kasir muncul di sini.</p></>}</div>
       )}
-      {list.status === 'ready' && (
+      {tab !== 'pending' && list.status === 'ready' && (
         <ul className="grid gap-12">
           {list.data.map((o) => {
             const partial = o.status === 'partially_paid';
@@ -262,6 +266,67 @@ function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () =>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Tutup</button>
           {!nothingLeft && <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || total <= 0 || !method || ap.staffLoading || (ap.needsPin && ap.pin.length !== 6)}>{busy ? 'Mencatat…' : `Refund ${formatRp(total)}`}</button>}
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+const hhmm2 = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+function PendingList({ entries, onRetry, onDiscard, onNotice }: { entries: PendingEntry[]; onRetry: (id: string) => Promise<void>; onDiscard: (id: string) => void; onNotice: (m: string) => void }) {
+  const [discarding, setDiscarding] = useState<PendingEntry | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (entries.length === 0) return <div className="cg-empty"><h3>Semua transaksi sudah terkirim</h3><p>Pesanan dan pembayaran yang dibuat saat internet putus muncul di sini sampai terkirim ke server.</p></div>;
+  return (
+    <>
+      <p className="cg-banner cg-banner--info">Transaksi di bawah ini tersimpan di perangkat ini dan akan dikirim otomatis saat koneksi kembali. Nomor pesanan sementara diganti nomor resmi setelah terkirim.</p>
+      <ul className="grid gap-12">
+        {entries.map((e) => (
+          <li key={e.id} className="border border-border rounded-lg bg-surface-raised p-16 grid gap-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-8">
+              <strong className="break-all">{e.label}</strong>
+              <span className="text-text-muted text-sm">{hhmm2(e.createdAt)} · <span className="cg-num">{formatRp(e.amount)}</span></span>
+            </div>
+            <p className="text-sm">
+              {e.status === 'failed' ? <span className="cg-badge cg-badge--warning">Ditolak server</span> : <span className="cg-badge">Menunggu koneksi</span>}
+              {e.status === 'failed' && e.error && <span className="ml-8 text-danger-strong break-words">{e.error}</span>}
+            </p>
+            <div className="flex flex-wrap gap-8">
+              <button className="cg-btn cg-btn--secondary" disabled={busy === e.id} onClick={async () => { setBusy(e.id); try { await onRetry(e.id); } finally { setBusy(null); } }}>{busy === e.id ? 'Mengirim…' : 'Kirim ulang'}</button>
+              <button className="cg-btn cg-btn--ghost ml-auto" onClick={() => setDiscarding(e)}>Hapus</button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {discarding && <DiscardDialog entry={discarding} onClose={() => setDiscarding(null)} onDone={() => { onDiscard(discarding.id); onNotice('Transaksi tertunda dihapus dari perangkat.'); setDiscarding(null); }} />}
+    </>
+  );
+}
+
+function DiscardDialog({ entry, onClose, onDone }: { entry: PendingEntry; onClose: () => void; onDone: () => void }) {
+  const ap = useApprover();
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(ev: FormEvent) {
+    ev.preventDefault();
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const by = await ap.authorize();
+      if (!by) { setBusy(false); return setError('PIN salah.'); }
+      onDone();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Gagal menghapus.'); setBusy(false); }
+  }
+  return (
+    <Modal title="Hapus transaksi tertunda?" onClose={busy ? undefined : onClose} labelledBy="discard-title">
+      <form onSubmit={submit} className="grid gap-16">
+        <p className="cg-modal__body">{entry.label} ({formatRp(entry.amount)}) akan dihapus dari perangkat dan <strong>tidak pernah tercatat di server</strong>. {entry.kind === 'order' ? 'Pembayaran yang menempel pada pesanan ini ikut terhapus. ' : ''}Tindakan ini tidak bisa dibatalkan.</p>
+        <ApproverFields a={ap} idPrefix="discard" what="penghapusan" />
+        <p role="alert" className="min-h-[24px] text-danger-strong">{error}</p>
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Jangan hapus</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || ap.staffLoading || (ap.needsPin && ap.pin.length !== 6)}>{busy ? 'Menghapus…' : 'Hapus transaksi'}</button>
         </div>
       </form>
     </Modal>

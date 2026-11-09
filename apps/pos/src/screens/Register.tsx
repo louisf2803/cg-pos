@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Lock, Minus, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
-import { useData } from '../lib/app-data';
+import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
 import { useSession } from '../lib/session';
@@ -29,9 +29,13 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [placing, setPlacing] = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const [showOrders, setShowOrders] = useState(false);
+  const [ordersTab, setOrdersTab] = useState<'waiting' | 'pending'>('waiting');
+  const pend = usePending();
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
   const cart = useCart(ctx);
+  // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
+  useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
 
   const visible = useMemo(() => {
     if (prods.status !== 'ready') return [];
@@ -90,7 +94,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); }} />;
   }
   if (showOrders) {
-    return <Orders ctx={ctx} canResume={cart.state.lines.length === 0}
+    return <Orders ctx={ctx} canResume={cart.state.lines.length === 0} initialTab={ordersTab}
       onClose={() => setShowOrders(false)}
       onResume={async (o) => {
         const tableName = o.tableId ? (await data.listTables().catch(() => [])).find((t) => t.id === o.tableId)?.name : undefined;
@@ -108,7 +112,12 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           {online ? <Wifi className="cg-icon cg-icon--sm" aria-hidden /> : <WifiOff className="cg-icon cg-icon--sm" aria-hidden />}
           {online ? 'Online' : 'Offline'}
         </span>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setShowOrders(true)}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> Daftar Order</button>
+        {pend.entries.length > 0 && (
+          <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => { setOrdersTab('pending'); setShowOrders(true); }} aria-label={`${pend.entries.length} transaksi tertunda, buka daftar`}>
+            Tertunda ({pend.entries.length})
+          </button>
+        )}
+        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => { setOrdersTab('waiting'); setShowOrders(true); }}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> Daftar Order</button>
         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onCloseShift}>Tutup kasir</button>
         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onLock} aria-label="Kunci dan ganti kasir"><Lock className="cg-icon" aria-hidden /></button>
       </header>

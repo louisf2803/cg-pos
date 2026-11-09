@@ -102,7 +102,7 @@ export interface OutletContext {
   taxes: { id: string; name: string; rate: number }[];
 }
 
-export type DataErrorCode = 'no_open_shift' | 'shift_already_open' | 'order_locked' | 'bad_amount' | 'not_found' | 'bad_pin' | 'invalid' | 'forbidden';
+export type DataErrorCode = 'no_open_shift' | 'shift_already_open' | 'order_locked' | 'bad_amount' | 'not_found' | 'bad_pin' | 'invalid' | 'forbidden' | 'network';
 export class DataError extends Error {
   constructor(public code: DataErrorCode, message: string) { super(message); }
 }

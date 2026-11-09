@@ -1,12 +1,20 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { createFakeData, createSupabaseData, type DataLayer } from '@cgpos/shared';
+import { createFakeData, createOfflineData, createSupabaseData, type KV, type OfflineData, type PendingEntry } from '@cgpos/shared';
 import { supabase } from './backend';
 import { AuthCtx, type AuthInfo } from './auth';
 import { SignIn } from '../screens/SignIn';
 
-const Ctx = createContext<DataLayer | null>(null);
-let fake: DataLayer | null = null;
+const Ctx = createContext<OfflineData | null>(null);
+let fake: OfflineData | null = null;
+
+/** localStorage dengan awalan per akun, supaya antrean milik satu akun tidak terkirim lewat akun lain. */
+function storageFor(scope: string): KV {
+  return {
+    get: (k) => { try { return localStorage.getItem(`${scope}:${k}`); } catch { return null; } },
+    set: (k, v) => { try { localStorage.setItem(`${scope}:${k}`, v); } catch { /* penuh/diblokir */ } },
+  };
+}
 
 /**
  * Sumber data aplikasi. Dengan env Supabase terisi: wajib masuk akun, lalu data nyata (schema `pos`).
@@ -14,7 +22,8 @@ let fake: DataLayer | null = null;
  */
 export function DataProvider({ children }: { children: ReactNode }) {
   if (!supabase) {
-    const data = (fake ??= createFakeData());
+    const data = (fake ??= createOfflineData(createFakeData(), { storage: storageFor('fake') }));
+    useAutoFlush(data);
     return <Ctx.Provider value={data}>{children}</Ctx.Provider>;
   }
   return <SupabaseGate>{children}</SupabaseGate>;
@@ -32,7 +41,8 @@ function SupabaseGate({ children }: { children: ReactNode }) {
   }, [client]);
 
   const userId = session?.user.id;
-  const data = useMemo(() => (userId ? createSupabaseData(client) : null), [client, userId]);
+  const data = useMemo(() => (userId ? createOfflineData(createSupabaseData(client), { storage: storageFor(userId) }) : null), [client, userId]);
+  useAutoFlush(data);
   const email = session?.user.email ?? '';
   const auth = useMemo<AuthInfo | null>(
     () => (userId ? { email, signOut: async () => { await client.auth.signOut(); } } : null),
@@ -46,7 +56,26 @@ function SupabaseGate({ children }: { children: ReactNode }) {
   return <AuthCtx.Provider value={auth}><Ctx.Provider value={data}>{children}</Ctx.Provider></AuthCtx.Provider>;
 }
 
-export function useData(): DataLayer {
+/** Kirim antrean saat koneksi kembali dan secara berkala selama aplikasi terbuka. */
+function useAutoFlush(data: OfflineData | null) {
+  useEffect(() => {
+    if (!data) return;
+    const go = () => void data.pending.flush();
+    go();
+    addEventListener('online', go);
+    const t = setInterval(go, 20_000);
+    return () => { removeEventListener('online', go); clearInterval(t); };
+  }, [data]);
+}
+
+export function usePending() {
+  const data = useData();
+  const [entries, setEntries] = useState<PendingEntry[]>(() => data.pending.list());
+  useEffect(() => { setEntries(data.pending.list()); return data.pending.subscribe(() => setEntries(data.pending.list())); }, [data]);
+  return { entries, flush: () => data.pending.flush(), retry: (id: string) => data.pending.retry(id), discard: (id: string) => data.pending.discard(id) };
+}
+
+export function useData(): OfflineData {
   const d = useContext(Ctx);
   if (!d) throw new Error('useData dipakai di luar DataProvider');
   return d;

@@ -12,6 +12,7 @@ const num = (v: unknown, d = 0): number => (v === null || v === undefined ? d : 
 /** Galat dari tabel/RPC Supabase -> DataError dengan pesan yang bisa dibaca kasir. */
 export function mapDbError(err: { code?: string; message?: string }): DataError {
   const msg = err.message ?? 'Galat tidak dikenal';
+  if (/failed to fetch|networkerror|network request failed|load failed|fetch failed|timed? ?out|ERR_INTERNET/i.test(msg)) return new DataError('network', 'Tidak ada koneksi ke server');
   if (err.code === '42501' || /permission denied|row-level security/i.test(msg)) {
     return new DataError('forbidden', 'Akunmu tidak punya izin untuk tindakan ini');
   }
