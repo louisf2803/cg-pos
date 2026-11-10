@@ -1,6 +1,6 @@
 import { accessFor, IDLE_LOCK_CHOICES, idleLockLabel, PERMISSIONS, ROLE_LABEL, type Access } from '@cgpos/shared';
 import { useSession } from '../lib/session';
-import { devicePrefs, useDevicePrefs } from '../lib/device-prefs';
+import { devicePrefs, useDevicePrefs, VIEW_MODES } from '../lib/device-prefs';
 import { Modal } from '../ui';
 
 const ACCESS_TEXT: Record<Access, string> = { allow: 'Boleh', approve: 'Perlu PIN manajer', deny: 'Tidak boleh' };
@@ -24,6 +24,16 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
             {canEdit ? 'Layar meminta PIN lagi setelah tidak disentuh. Pesanan di layar tetap aman. Tidak terkunci selama offline. Berlaku untuk perangkat ini saja.' : 'Hanya manajer atau pemilik yang boleh mengubah ini.'}
           </p>
         </div>
+        <fieldset className="grid gap-8 border border-border rounded-md p-12" data-testid="view-mode">
+          <legend className="cg-label px-4">Tampilan produk di kasir</legend>
+          {VIEW_MODES.map((m) => (
+            <label key={m.id} className="flex items-start gap-8 cursor-pointer">
+              <input type="radio" name="view-mode" className="mt-4" checked={prefs.viewMode === m.id} onChange={() => devicePrefs.set({ viewMode: m.id })} />
+              <span><span className="font-bold text-sm">{m.label}</span><span className="block text-text-muted text-sm">{m.hint}</span></span>
+            </label>
+          ))}
+          <p className="text-text-muted text-sm">Berlaku untuk perangkat ini saja dan bisa diubah semua peran.</p>
+        </fieldset>
         <section aria-labelledby="hak-akses">
           <h3 id="hak-akses" className="text-base mb-8">Hak akses {session.employee.name} ({ROLE_LABEL[role]})</h3>
           <ul className="grid gap-4">

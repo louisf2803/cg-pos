@@ -4,6 +4,7 @@ import { checkStockLimit, splitByItem, stockLimitMessage, extrasLineTotal, extra
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
+import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { useOnline } from '../lib/online';
 import { Modal, ProductPhoto } from '../ui';
@@ -52,6 +53,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [q, setQ] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
+  const { viewMode } = useDevicePrefs();
   /** true selama bagian yang dipisah sedang dibayar: keranjang (sisa pesanan) tidak dikosongkan setelahnya */
   const [keepCart, setKeepCart] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -342,6 +344,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
               value={q}
               onChange={(e) => { setQ(e.target.value); setScanMsg(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSearchEnter(); } }}
+              autoFocus={viewMode === 'sku'}
             />
             <button
               type="button"
@@ -372,16 +375,22 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             {scanMsg.text}
           </p>
         )}
-        <div className="cg-shell__grid">
+        <div className={`cg-shell__grid ${viewMode !== 'grid' ? 'reg-grid--list' : ''}`} data-view={viewMode}>
           {prods.status === 'loading' && Array.from({ length: 8 }, (_, i) => <div key={i} className="cg-skeleton" style={{ height: 170 }} aria-hidden />)}
           {prods.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert" style={{ gridColumn: '1 / -1' }}><span>Produk gagal dimuat. {prods.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={prods.reload}>Coba lagi</button></div>}
-          {prods.status === 'ready' && visible.length === 0 && (
+          {prods.status === 'ready' && viewMode === 'sku' && !q.trim() && (
+            <div className="cg-empty" style={{ gridColumn: '1 / -1' }} data-testid="sku-idle">
+              <h3>Scan atau ketik kode SKU</h3>
+              <p>Produk yang cocok muncul di sini. Tekan Enter untuk langsung memasukkan produk yang kodenya persis sama.</p>
+            </div>
+          )}
+          {prods.status === 'ready' && !(viewMode === 'sku' && !q.trim()) && visible.length === 0 && (
             <div className="cg-empty" style={{ gridColumn: '1 / -1' }}>
               <h3>{q ? 'Produk tidak ditemukan' : 'Belum ada produk di kategori ini'}</h3>
               <p>{q ? `Tidak ada yang cocok dengan “${q}”.` : 'Tambahkan produk dari dashboard.'}</p>
             </div>
           )}
-          {visible.map((t) => {
+          {(viewMode === 'sku' && !q.trim() ? [] : visible).map((t) => {
             const n = qtyOfTile(t);
             const isGroup = t.kind === 'group';
             const name = isGroup ? t.name : t.product.name;
@@ -438,13 +447,19 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                 <span className="cg-tile__body">
                   <span className="cg-tile__name">{name}</span>
                   <span className="cg-tile__price">{price}</span>
+                  {viewMode !== 'grid' && (isFav || (tracksStock && !out)) && (
+                    <span className="text-xs text-text-muted flex items-center gap-4 tabular-nums">
+                      {isFav && <Star className="w-[12px] h-[12px] fill-amber-400 text-amber-400" aria-label="Favorit" />}
+                      {tracksStock && !out && <span>Stok {currentStock}</span>}
+                    </span>
+                  )}
                   {isGroup && <span className="text-xs text-text-muted">{t.options.map((o) => o.label).join(' · ')}</span>}
                   {out && <span className="cg-badge cg-badge--warning w-fit">Stok habis</span>}
                 </span>
 
                 {/* Lapisan hijau semi-transparan dengan jumlah di tengah setelah ada di pesanan */}
                 {n > 0 && (
-                  <div className="absolute inset-0 bg-accent/25 backdrop-blur-[0.5px] rounded-[inherit] flex items-center justify-center z-20 pointer-events-none transition-all">
+                  <div className="reg-tile-count absolute inset-0 bg-accent/25 backdrop-blur-[0.5px] rounded-[inherit] flex items-center justify-center z-20 pointer-events-none transition-all">
                     <span className="w-[36px] h-[36px] rounded-full bg-accent text-on-accent font-bold text-[16px] flex items-center justify-center shadow-lg border-2 border-white">
                       {n}
                     </span>

@@ -82,6 +82,14 @@ body { overscroll-behavior: none; }
   }
 }
 
+/* Mode tampilan: daftar ringkas (juga dipakai mode SKU). Satu produk satu baris. */
+.cg-shell__grid.reg-grid--list { grid-template-columns: minmax(0, 1fr) !important; gap: var(--space-6) !important; }
+.reg-grid--list .cg-tile { grid-template-rows: none; grid-template-columns: 56px minmax(0, 1fr); align-items: stretch; border-radius: var(--radius-md); text-align: left; }
+.reg-grid--list .cg-tile__media { aspect-ratio: auto; width: 56px; height: 56px; align-self: center; }
+.reg-grid--list .cg-tile__media > span.absolute { display: none; }
+.reg-grid--list .cg-tile__body { padding: var(--space-8) var(--space-12); align-content: center; }
+.reg-grid--list .reg-tile-count { justify-content: flex-end; padding-right: var(--space-12); }
+
 @media (max-width: 599px) {
   .reg { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--layout-pos-header) auto minmax(0, 1fr) var(--layout-pos-action-bar); }
   .reg .cg-shell__rail { display: flex; overflow-x: auto; width: 100%; min-width: 100%; border-right: 0; border-bottom: 1px solid var(--color-border); gap: var(--space-8); padding: var(--space-8) var(--space-12); }
