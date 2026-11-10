@@ -42,4 +42,5 @@ export * from './stock-limit';
 export * from './staff-report';
 export * from './kitchen-report';
 export * from './analysis';
+export * from './cash-entry';
 

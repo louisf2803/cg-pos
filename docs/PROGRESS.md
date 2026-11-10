@@ -106,4 +106,14 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   4. Helper Murni & Tes: `packages/shared/src/analysis.ts` (`buildProductPeakHours`, `buildSalesHeatmap`, `buildStockTurnoverReport`) beserta 5 uji unit di `packages/shared/test/analysis.test.ts`. Diekspor di `packages/shared/src/index.ts`.
   5. Pendaftaran Menu: Ditandai `built: true` di `apps/dashboard/src/lib/nav.ts` untuk rute `/analisa/waktu-teramai-penjualan`, `/analisa/waktu-teramai-produk`, dan `/analisa/perputaran-stok`.
   6. Lolos uji: `pnpm -r typecheck`, 258 tes shared vitest, build dashboard 114 halaman statis, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (9 tangkapan layar di `docs/shots/a18/`).
+- Selesai (tugas A19): Penerimaan dan Pengeluaran Kas (/keuangan/biaya):
+  1. Dua Tab Transaksi: Tab "Pengeluaran (Kas Keluar)" dan Tab "Penerimaan (Kas Masuk)" yang mengelompokkan riwayat mutasi kas/bank di luar transaksi kasir POS.
+  2. Filter & Rentang Tanggal: Terintegrasi dengan `useReport` dan `RangePicker` serta kolom pencarian teks untuk keterangan, nomor jurnal, atau nama akun.
+  3. Kartu Ringkasan KPI: 3 kartu di atas tabel (Total Nominal, Banyak Transaksi, dan Rata-rata per Transaksi) yang otomatis bereaksi sesuai tab dan rentang tanggal aktif.
+  4. Dialog Pencatatan Kas: Modal interaktif "Catat penerimaan kas" / "Catat pengeluaran kas" dengan input tanggal, jumlah nominal, pemilihan akun kas/bank, pemilihan akun lawan kategori beban/pendapatan, dan catatan.
+  5. Integrasi DataLayer & Jurnal Berpasangan: Menggunakan `data.postJournal` dengan aturan double-entry seimbang (Pengeluaran = Debit akun beban, Kredit kas/bank; Penerimaan = Debit kas/bank, Kredit akun pendapatan/lawan). Validasi format tanggal, jumlah nominal > 0, akun dipilih, pencegahan akun kembar, dan pencegahan periode terkunci.
+  6. Tampilan Responsif & Ekspor CSV: Tabel desktop dengan kolom terstruktur dan tampilan kartu mobile mandiri (`md:hidden`), serta tombol ekspor CSV sesuai data filter yang aktif.
+  7. Helper Murni & Tes: `packages/shared/src/cash-entry.ts` (`validateCashEntry`, `buildCashEntryJournal`, `categorizeCashEntries`) beserta uji unit di `packages/shared/test/cash-entry.test.ts`. Diekspor di `packages/shared/src/index.ts`.
+  8. Pendaftaran Menu: Ditandai `built: true` di `apps/dashboard/src/lib/nav.ts` untuk rute `/keuangan/biaya`.
+  9. Lolos uji: `pnpm -r typecheck`, 261 tes shared vitest, build dashboard 114 halaman statis, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a19/`).
 
