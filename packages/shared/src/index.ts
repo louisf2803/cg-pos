@@ -37,3 +37,4 @@ export * from './promo-report';
 export * from './price-override';
 export * from './csv';
 export * from './period-compare';
+export * from './finance-widget';
