@@ -72,6 +72,20 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     });
   }, [prods, cat, q]);
 
+  const [scanMsg, setScanMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  /** Enter di kolom cari: kode SKU persis langsung masuk pesanan (pemindai kode batang mengetik lalu menekan Enter); kalau hasil cari tinggal satu, itu yang dipakai. */
+  const onSearchEnter = () => {
+    const code = q.trim();
+    if (!code || prods.status !== 'ready') return;
+    const exact = prods.data.find((p) => p.isActive !== false && (p.sku ?? '').trim().toLowerCase() === code.toLowerCase());
+    const only = visible.length === 1 ? visible[0] : undefined;
+    if (exact) { choose(exact); setScanMsg({ ok: true, text: `${exact.name} masuk pesanan.` }); setQ(''); return; }
+    if (only) {
+      if (only.kind === 'group') { setPicking(only); setQ(''); setScanMsg(null); return; }
+      choose(only.product); setScanMsg({ ok: true, text: `${only.product.name} masuk pesanan.` }); setQ(''); return;
+    }
+    setScanMsg({ ok: false, text: visible.length ? `Ada ${visible.length} produk yang cocok. Pilih dari daftar atau ketik kode SKU lengkap.` : `Kode atau nama “${code}” tidak ditemukan.` });
+  };
   const qtyOf = (p: Product) => cart.state.lines.filter((l) => l.productId === p.id).reduce((n, l) => n + l.qty, 0);
   /** Produk dengan grup Ekstra membuka pemilih dulu; selainnya langsung masuk pesanan. */
   const choose = (p: Product) => {
@@ -174,8 +188,10 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         <label className="cg-search reg__search">
           <Search className="cg-icon cg-icon--sm" aria-hidden />
           <span className="cg-sr">Cari produk</span>
-          <input className="cg-input" type="search" placeholder="Cari produk atau SKU" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="cg-input" type="search" placeholder="Cari produk, atau ketik/scan SKU lalu Enter" value={q} onChange={(e) => { setQ(e.target.value); setScanMsg(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSearchEnter(); } }} />
         </label>
+        {scanMsg && <p role="status" className={`text-sm ${scanMsg.ok ? 'text-text-muted' : 'text-danger-strong'}`} data-testid="scan-msg">{scanMsg.text}</p>}
         <div className="cg-shell__grid">
           {prods.status === 'loading' && Array.from({ length: 8 }, (_, i) => <div key={i} className="cg-skeleton" style={{ height: 170 }} aria-hidden />)}
           {prods.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert" style={{ gridColumn: '1 / -1' }}><span>Produk gagal dimuat. {prods.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={prods.reload}>Coba lagi</button></div>}
