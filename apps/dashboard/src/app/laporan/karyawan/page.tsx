@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Download, Search, UserCheck } from 'lucide-react';
-import { buildStaffReport, formatRp, toCsv, type StaffReportRow } from '@cgpos/shared';
+import { buildStaffReport, formatRole, formatRp, toCsv, type StaffReportRow } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -63,7 +63,7 @@ export default function StaffReportPage() {
     ];
     const line = (r: StaffReportRow) => [
       r.name,
-      r.role || 'Kasir',
+      formatRole(r.role),
       r.transactionCount,
       r.totalSales,
       r.avgSalesPerTx,
@@ -191,11 +191,11 @@ export default function StaffReportPage() {
                 <p className="text-xs text-text-muted">Urutan berdasarkan perolehan total penjualan tertinggi</p>
               </div>
               <div className="relative w-full sm:w-240">
-                <Search className="w-16 h-16 absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
+                <Search className="w-16 h-16 absolute left-12 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden />
                 <input
                   type="text"
                   placeholder="Cari karyawan..."
-                  className="cg-input pl-36 text-sm w-full"
+                  className="cg-input pl-[36px] text-sm w-full"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -225,7 +225,7 @@ export default function StaffReportPage() {
                           <UserCheck className="w-16 h-16 text-primary shrink-0" aria-hidden />
                           <div>
                             <span className="font-semibold block">{r.name}</span>
-                            <span className="text-xs text-text-muted capitalize">{r.role || 'Kasir'}</span>
+                            <span className="text-xs text-text-muted">{formatRole(r.role)}</span>
                           </div>
                         </div>
                       </td>
@@ -294,7 +294,7 @@ export default function StaffReportPage() {
                       <UserCheck className="w-16 h-16 text-primary shrink-0" aria-hidden />
                       <div className="truncate">
                         <strong className="text-sm block truncate">{r.name}</strong>
-                        <span className="text-xs text-text-muted capitalize">{r.role || 'Kasir'}</span>
+                        <span className="text-xs text-text-muted">{formatRole(r.role)}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -366,12 +366,14 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0">
-      <span className="text-xs text-text-muted font-medium block mb-4 truncate">{label}</span>
-      <strong className={`text-lg block cg-num truncate ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
-        {value}
-      </strong>
-      {subtext && <span className="text-xs text-text-muted block mt-2 truncate">{subtext}</span>}
+    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
+      <div>
+        <span className="text-xs text-text-muted font-medium block mb-4 leading-tight break-words">{label}</span>
+        <strong className={`text-xl sm:text-2xl font-bold block text-left leading-tight tracking-tight ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
+          {value}
+        </strong>
+      </div>
+      {subtext && <span className="text-xs text-text-muted block mt-4 leading-tight break-words">{subtext}</span>}
     </div>
   );
 }
