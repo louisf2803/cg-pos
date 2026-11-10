@@ -118,7 +118,9 @@ export function describePromotion(p: Promotion, productName?: (id: string) => st
 /** Diskon yang dipilih kasir; nilainya dihitung ulang tiap isi pesanan berubah. */
 export interface AppliedDiscount {
   id: string;
-  source: 'promo' | 'coupon' | 'manual';
+  source: 'promo' | 'coupon' | 'manual' | 'points';
+  /** tukar poin: jumlah poin; `fixed` = nilai rupiahnya */
+  points?: number;
   promotionId?: string; couponId?: string; code?: string;
   label: string;
   /** diskon manual */
@@ -142,8 +144,16 @@ export function resolveDiscounts(applied: AppliedDiscount[], promos: Promotion[]
   const gross = cartGross(cart);
   let left = gross;
   const entries: DiscountEntry[] = []; const skipped: ResolvedDiscounts['skipped'] = [];
-  for (const a of applied) {
+  // tukar poin dihitung terakhir dan tidak boleh dipotong: nilainya harus persis poin x nilai per poin (aturan server)
+  const ordered = [...applied.filter((a) => a.source !== 'points'), ...applied.filter((a) => a.source === 'points')];
+  for (const a of ordered) {
     let amount = 0; let reason: string | null = null;
+    if (a.source === 'points') {
+      amount = a.fixed ?? 0;
+      if (amount > left) { skipped.push({ id: a.id, label: a.label, reason: 'Potongan poin melebihi sisa tagihan.' }); continue; }
+      if (amount > 0) { left -= amount; entries.push({ id: a.id, source: 'points', points: a.points, label: a.label, amount, authorizedBy: a.authorizedBy }); }
+      continue;
+    }
     if (a.manual) {
       reason = manualProblem(a.manual.mode, a.manual.value, gross);
       amount = a.manual.mode === 'percent' ? Math.round((left * a.manual.value) / 100) : a.manual.value;
@@ -176,8 +186,8 @@ export function fitDiscounts(entries: DiscountEntry[], total: number): DiscountE
 /** Entri diskon tersimpan pada pesanan lama menjadi pilihan di keranjang. */
 export function appliedFromEntries(entries: DiscountEntry[]): AppliedDiscount[] {
   return entries.map((e) => ({
-    id: e.id, source: e.source, promotionId: e.promotionId, couponId: e.couponId, label: e.label, authorizedBy: e.authorizedBy,
-    ...(e.source === 'manual' || !e.promotionId ? { manual: { mode: 'amount' as const, value: e.amount } } : { fixed: e.amount }),
+    id: e.id, source: e.source, points: e.points, promotionId: e.promotionId, couponId: e.couponId, label: e.label, authorizedBy: e.authorizedBy,
+    ...(e.source === 'points' ? { fixed: e.amount } : e.source === 'manual' || !e.promotionId ? { manual: { mode: 'amount' as const, value: e.amount } } : { fixed: e.amount }),
   }));
 }
 

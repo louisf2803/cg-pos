@@ -1,6 +1,7 @@
 import type { DataLayer } from './data';
 import { createTableOps } from './table-ops';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
+import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
@@ -98,6 +99,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let customers: (Customer & { deleted?: boolean })[] = [];
   let promotions: (Promotion & { deleted?: boolean })[] = [];
   let coupons: Coupon[] = [];
+  let loyaltyRules: LoyaltyRules = { ...DEFAULT_LOYALTY };
+  let ledger: LoyaltyEntry[] = [];
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -157,6 +160,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     customers = opts.seed === false ? [] : SEED_CUSTOMERS.map((c) => ({ ...c }));
     promotions = opts.seed === false ? [] : clone(SEED_PROMOS);
     coupons = opts.seed === false ? [] : clone(SEED_COUPONS);
+    loyaltyRules = opts.seed === false ? { ...DEFAULT_LOYALTY } : { ...DEFAULT_LOYALTY, isActive: true };
+    ledger = [];
+    if (opts.seed !== false) pushPoints('cu-ani', 120, 'adjust', 'Saldo awal');
     if (opts.seed !== false) seedHistory();
   }
 
@@ -202,6 +208,27 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const couponUsed = (id: string) => orders.filter((o) => o.status !== 'void').reduce((n, o) => n + (o.discounts ?? []).filter((d) => d.couponId === id).length, 0);
   const withUsage = (c: Coupon): Coupon => ({ ...c, usedCount: couponUsed(c.id) });
   const cleanPromo = ({ deleted: _d, ...p }: Promotion & { deleted?: boolean }): Promotion => p;
+
+  /** Buku poin: saldo pelanggan = jumlah baris (sama dengan trigger server). */
+  function pushPoints(customerId: string, points: number, kind: LoyaltyEntry['kind'], note: string | undefined, orderId?: string) {
+    if (points === 0) return;
+    ledger.unshift({ id: newId(), customerId, orderId, points, kind, note, createdAt: now().toISOString() });
+    const c = customers.find((x) => x.id === customerId);
+    if (c) c.pointsBalance += points;
+  }
+  function pointsProblem(draft: OrderDraft, entries: DiscountEntry[]): string | null {
+    const pts = entries.filter((e) => e.source === 'points');
+    if (pts.length === 0) return null;
+    if (!draft.customerId) return 'Tukar poin butuh pelanggan pada pesanan.';
+    if (!loyaltyRules.isActive) return 'Loyalti sedang tidak aktif, tukar poin tidak bisa dipakai.';
+    let used = 0;
+    for (const e of pts) {
+      if (!e.points || e.points < 1 || e.amount !== e.points * loyaltyRules.redeemValuePerPoint) return 'Potongan poin tidak sesuai aturan loyalti.';
+      used += e.points;
+    }
+    const bal = customers.find((c) => c.id === draft.customerId)?.pointsBalance ?? 0;
+    return used > bal ? 'Saldo poin pelanggan tidak cukup. Muat ulang saldo lalu coba lagi.' : null;
+  }
 
   function shiftInputs(s: Shift): ShiftInputs {
     const mine = orders.filter((o) => o.shiftId === s.id);
@@ -567,6 +594,22 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return c && p ? clone({ coupon: withUsage(c), promotion: cleanPromo(p) }) : null;
     },
 
+    async getLoyaltyRules() { return { ...loyaltyRules }; },
+    async saveLoyaltyRules(rules) {
+      const problem = loyaltyRulesProblem(rules);
+      if (problem) throw new DataError('invalid', problem);
+      loyaltyRules = { ...rules }; return { ...loyaltyRules };
+    },
+    async listLoyaltyLedger(customerId, limit = 50) { return clone(ledger.filter((e) => e.customerId === customerId).slice(0, limit)); },
+    async adjustPoints(customerId, delta, note) {
+      const c = customers.find((x) => x.id === customerId && !x.deleted);
+      if (!c) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
+      if (!Number.isInteger(delta) || delta === 0) throw new DataError('invalid', 'Isi jumlah poin yang berbeda dari nol.');
+      if (c.pointsBalance + delta < 0) throw new DataError('invalid', 'Saldo poin tidak boleh menjadi negatif.');
+      pushPoints(customerId, delta, 'adjust', note?.trim() || undefined);
+      return c.pointsBalance;
+    },
+
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
     async saveEmployee(input: EmployeeInput) {
@@ -643,6 +686,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         payments: [], openedAt: at.toISOString(),
       };
       const entries: DiscountEntry[] = fitDiscounts(draft.discounts ?? ((draft.orderDiscount ?? 0) > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon manual', amount: draft.orderDiscount! }] : []), calc.discountTotal);
+      const pp = pointsProblem(draft, entries);
+      if (pp) throw new DataError('invalid', pp);
       Object.assign(o, { discounts: entries, type: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
         serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal, rounding: 0, total: calc.total });
       if (!existing) orders.push(o);
@@ -669,6 +714,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (o.status === 'paid') {
         o.closedAt = at;
         for (const it of o.items) stockMove(it.productId, -it.qty);
+        if (o.customerId) {
+          const used = (o.discounts ?? []).filter((d) => d.source === 'points').reduce((n, d) => n + (d.points ?? 0), 0);
+          pushPoints(o.customerId, -used, 'redeem', `Tukar poin ${o.number}`, o.id);
+          pushPoints(o.customerId, earnedPoints(o.total, loyaltyRules), 'earn', `Belanja ${o.number}`, o.id);
+        }
       }
       return clone(named(o));
     },
@@ -691,6 +741,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const r = { id: input.id, number: `R${mine.length + 1}-${o.number}`, orderId: o.id, total: lines.reduce((a, x) => a + x.amount, 0), reason: input.reason.trim(), note: input.note?.trim() || undefined,
         methodName: m.name, createdAt: now().toISOString(), items: lines, shiftId: shifts.find((s) => s.status === 'open')?.id, methodKind: m.kind };
       refunds.push(r);
+      if (o.customerId) {
+        const earned = ledger.filter((e) => e.orderId === o.id && e.kind === 'earn').reduce((n, e) => n + e.points, 0);
+        const redeemed = -ledger.filter((e) => e.orderId === o.id && e.kind === 'redeem').reduce((n, e) => n + e.points, 0);
+        pushPoints(o.customerId, refundPointsDelta(earned, redeemed, r.total, o.paidTotal), 'refund_reverse', `Refund ${r.number}`, o.id);
+      }
       if (input.restock) for (const l of lines) { const it = o.items.find((i) => i.id === l.orderItemId); if (it) stockMove(it.productId, l.qty); }
       const { shiftId: _s, methodKind: _k, ...out } = r; return clone(out);
     },

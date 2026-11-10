@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
+import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { photoPath, photoProblem } from './photo';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 
@@ -803,6 +804,36 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const promo = ((must(await db().from('promotions').select(PROMO_COLUMNS).eq('id', row.promotion_id).is('deleted_at', null).limit(1)) as Row[] | null) ?? [])[0];
       if (!promo) return null;
       return { coupon: toCoupon(row, (await couponUsage([row.id as string])).get(row.id as string) ?? 0), promotion: toPromotion(promo) };
+    },
+
+    // ---------- loyalti ----------
+    async getLoyaltyRules() {
+      const row = ((must(await db().from('loyalty_rules').select('earn_amount,earn_points,redeem_value_per_point,is_active').limit(1)) as Row[] | null) ?? [])[0];
+      if (!row) return { ...DEFAULT_LOYALTY };
+      return { isActive: !!row.is_active, earnAmount: Number(row.earn_amount), earnPoints: Number(row.earn_points), redeemValuePerPoint: Number(row.redeem_value_per_point) } satisfies LoyaltyRules;
+    },
+    async saveLoyaltyRules(rules) {
+      const problem = loyaltyRulesProblem(rules);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      must(await db().from('loyalty_rules').upsert({
+        org_id: orgId, earn_amount: rules.earnAmount, earn_points: rules.earnPoints, redeem_value_per_point: rules.redeemValuePerPoint, is_active: rules.isActive, updated_at: now().toISOString(),
+      }, { onConflict: 'org_id' }));
+      return { ...rules };
+    },
+    async listLoyaltyLedger(customerId, limit = 50) {
+      const rows = (must(await db().from('loyalty_ledger').select('id,customer_id,order_id,points_delta,kind,note,created_at').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(limit)) as Row[] | null) ?? [];
+      return rows.map((r): LoyaltyEntry => ({ id: r.id, customerId: r.customer_id, points: Number(r.points_delta), kind: r.kind, createdAt: r.created_at, ...(r.order_id ? { orderId: r.order_id } : {}), ...(r.note ? { note: r.note } : {}) }));
+    },
+    async adjustPoints(customerId, delta, note) {
+      if (!Number.isInteger(delta) || delta === 0) throw new DataError('invalid', 'Isi jumlah poin yang berbeda dari nol.');
+      const { data, error } = await db().rpc('loyalty_adjust', { p_customer: customerId, p_delta: delta, p_note: note ?? null });
+      if (error) {
+        if (/negative/i.test(error.message)) throw new DataError('invalid', 'Saldo poin tidak boleh menjadi negatif.');
+        if (/not allowed/i.test(error.message)) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengoreksi poin.');
+        throw mapDbError(error);
+      }
+      return Number(data);
     },
 
     // ---------- karyawan dan metode bayar ----------

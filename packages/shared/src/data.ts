@@ -1,5 +1,6 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
+import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -90,6 +91,15 @@ export interface DataLayer {
   deleteCoupon(id: string): Promise<void>;
   /** Cari kupon dari kode (huruf besar kecil sama). Null bila tidak ada. Pemakaiannya sudah terhitung. */
   findCoupon(code: string): Promise<{ coupon: Coupon; promotion: Promotion } | null>;
+
+  /** Aturan poin loyalti outlet ini (bawaan: mati). */
+  getLoyaltyRules(): Promise<LoyaltyRules>;
+  /** Pemilik dan manajer. */
+  saveLoyaltyRules(rules: LoyaltyRules): Promise<LoyaltyRules>;
+  /** Riwayat poin satu pelanggan, terbaru dulu. */
+  listLoyaltyLedger(customerId: string, limit?: number): Promise<LoyaltyEntry[]>;
+  /** Koreksi poin manual (+ atau -); saldo tidak boleh negatif. Pemilik dan manajer. Mengembalikan saldo baru. */
+  adjustPoints(customerId: string, delta: number, note?: string): Promise<number>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;

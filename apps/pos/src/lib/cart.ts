@@ -32,7 +32,8 @@ function reduce(s: CartState, a: Action): CartState {
     case 'type': return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
     case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };
-    case 'customer': return { ...s, customerId: a.customerId, customerName: a.customerName };
+    // Poin milik pelanggan tertentu: ganti atau lepas pelanggan = potongan poin ikut lepas.
+    case 'customer': return { ...s, customerId: a.customerId, customerName: a.customerName, discounts: a.customerId === s.customerId ? s.discounts : s.discounts.filter((d) => d.source !== 'points') };
     case 'discount-add': return { ...s, discounts: [...s.discounts, a.discount] };
     case 'discount-remove': return { ...s, discounts: s.discounts.filter((d) => d.id !== a.id) };
     case 'load':

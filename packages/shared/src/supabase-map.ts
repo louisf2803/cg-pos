@@ -34,6 +34,9 @@ export function mapOpError(message: string): DataError {
   }
   if (/version_conflict/i.test(message)) return new DataError('order_locked', 'Pesanan berubah di perangkat lain, muat ulang dulu');
   if (/exceeds balance|payments .* exceed/i.test(message)) return new DataError('bad_amount', 'Jumlah melebihi sisa tagihan');
+  if (/not enough points/i.test(message)) return new DataError('invalid', 'Saldo poin pelanggan tidak cukup. Muat ulang saldo lalu coba lagi.');
+  if (/loyalty is not active/i.test(message)) return new DataError('invalid', 'Loyalti sedang tidak aktif, tukar poin tidak bisa dipakai.');
+  if (/points discount/i.test(message)) return new DataError('invalid', 'Potongan poin tidak sesuai aturan loyalti.');
   if (/shift_closed|shift not found/i.test(message)) return new DataError('no_open_shift', 'Shift tidak terbuka, buka kasir dulu');
   if (/gateway payments/i.test(message)) return new DataError('invalid', 'Pembayaran QRIS (DOKU) belum diaktifkan');
   if (/duplicate key.*number|outlet_id, number/i.test(message)) return new DataError('invalid', 'Nomor pesanan bentrok, coba lagi');
@@ -54,10 +57,11 @@ export function toCoupon(r: Row, used: number): Coupon {
     ...(r.usage_limit != null ? { usageLimit: num(r.usage_limit) } : {}), ...(r.valid_from ? { validFrom: r.valid_from } : {}), ...(r.valid_to ? { validTo: r.valid_to } : {}),
   };
 }
-const DISCOUNT_LABEL = { manual: 'Diskon manual', coupon: 'Kupon', promo: 'Promo', points: 'Poin' } as const;
+const DISCOUNT_LABEL = { manual: 'Diskon manual', coupon: 'Kupon', promo: 'Promo', points: 'Tukar poin' } as const;
 export function toDiscounts(raw: unknown): DiscountEntry[] {
-  return ((raw ?? []) as Row[]).filter((d) => d.source !== 'points').map((d) => ({
+  return ((raw ?? []) as Row[]).map((d) => ({
     id: d.id, source: d.source as DiscountEntry['source'], label: DISCOUNT_LABEL[d.source as keyof typeof DISCOUNT_LABEL] ?? 'Diskon', amount: num(d.amount),
+    ...(d.source === 'points' ? { points: num(d.points_used) } : {}),
     ...(d.promotion_id ? { promotionId: d.promotion_id } : {}), ...(d.coupon_id ? { couponId: d.coupon_id } : {}), ...(d.authorized_by ? { authorizedBy: d.authorized_by } : {}),
   }));
 }
@@ -155,7 +159,7 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
       extras: (it.extras ?? []).map((e) => ({ id: newId(), option_id: e.optionId, name: e.name, price: e.price, qty: it.qty })),
     })),
     discounts: i.calc.discountTotal <= 0 ? [] : (i.discounts?.length ? fitDiscounts(i.discounts, i.calc.discountTotal) : [{ id: newId(), source: 'manual' as const, label: '', amount: i.calc.discountTotal, authorizedBy: i.authorizedBy ?? undefined }])
-      .map((d) => ({ id: d.id, source: d.source, promotion_id: d.promotionId ?? null, coupon_id: d.couponId ?? null, points_used: 0, amount: d.amount, authorized_by: d.authorizedBy ?? i.authorizedBy ?? null })),
+      .map((d) => ({ id: d.id, source: d.source, promotion_id: d.promotionId ?? null, coupon_id: d.couponId ?? null, points_used: d.source === 'points' ? d.points ?? 0 : 0, amount: d.amount, authorized_by: d.authorizedBy ?? i.authorizedBy ?? null })),
     tax_lines: i.calc.taxLines.map((t) => ({ tax_id: t.taxId ?? null, name: t.name, rate: t.rate, base_amount: t.base, amount: t.amount })),
   };
 }

@@ -274,7 +274,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       {discOpen && (
         <DiscountDialog applied={cart.state.discounts} resolved={cart.discounts} promos={promos.status === 'ready' ? promos.data : NO_PROMOS}
           cart={{ orderType: cart.state.type, lines: cart.state.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })) }}
-          gross={cart.calc.grossTotal} productName={(id) => (prods.status === 'ready' ? prods.data.find((p) => p.id === id)?.name : undefined)}
+          gross={cart.calc.grossTotal} customerId={cart.state.customerId} productName={(id) => (prods.status === 'ready' ? prods.data.find((p) => p.id === id)?.name : undefined)}
           onAdd={(d) => cart.dispatch({ t: 'discount-add', discount: d })} onRemove={(id) => cart.dispatch({ t: 'discount-remove', id })} onClose={() => setDiscOpen(false)} />
       )}
       {custPick && <CustomerPicker currentId={cart.state.customerId} onClose={() => setCustPick(false)} onPick={(c) => { cart.dispatch({ t: 'customer', customerId: c?.id, customerName: c?.name }); setCustPick(false); }} />}

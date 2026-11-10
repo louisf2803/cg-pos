@@ -13,7 +13,7 @@ const readPaper = (): Paper => { try { return localStorage.getItem(KEY) === '58'
 const fmt = (iso: string, tz: string) => new Intl.DateTimeFormat('id-ID', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
 
 /** Isi struk atau tagihan sementara. Lebar mengikuti kertas; dicetak lewat dialog cetak peramban (printer thermal bawaan sistem). */
-export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: Order; ctx: OutletContext; cashierName: string; kind: 'receipt' | 'bill'; paper: Paper }) {
+export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { order: Order; ctx: OutletContext; cashierName: string; kind: 'receipt' | 'bill'; paper: Paper; points?: { earned: number; balance: number } }) {
   const last = order.payments[order.payments.length - 1];
   const d = taxDisplay(order);
   return (
@@ -47,6 +47,7 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: O
       {order.rounding !== 0 && <div className="receipt__row"><span>Pembulatan</span><span>{formatRp(order.rounding)}</span></div>}
       <div className="receipt__row receipt__total"><span>TOTAL</span><span>{formatRp(order.total)}</span></div>
       {d.inclusive && <div className="receipt__row"><span>Sudah termasuk pajak</span><span>{formatRp(d.tax)}</span></div>}
+      {kind === 'receipt' && points && points.earned > 0 && <div className="receipt__row"><span>Poin didapat (saldo {points.balance})</span><span>+{points.earned}</span></div>}
       {kind === 'receipt' && (
         <>
           <hr />
@@ -68,6 +69,16 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: O
 export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx: OutletContext; kind: 'receipt' | 'bill'; onClose: () => void }) {
   const data = useData();
   const emp = useAsync(() => data.listManagedEmployees(), [data]);
+  // Poin hanya info tambahan: bila gagal dimuat (offline), struk tetap tampil tanpa baris poin.
+  const [pts, setPts] = useState<{ earned: number; balance: number }>();
+  useEffect(() => {
+    if (!order.customerId || order.status !== 'paid') return;
+    let live = true;
+    Promise.all([data.listLoyaltyLedger(order.customerId, 50), data.getCustomer(order.customerId)])
+      .then(([led, c]) => { if (live && c) setPts({ earned: led.filter((e) => e.orderId === order.id && e.kind === 'earn').reduce((n, e) => n + e.points, 0), balance: c.pointsBalance }); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [data, order.id, order.customerId, order.status]);
   const [paper, setPaper] = useState<Paper>(readPaper);
   const name = emp.status === 'ready' ? emp.data.find((e) => e.id === order.cashierId)?.name ?? '-' : '…';
   const pr = usePrinter();
@@ -84,7 +95,7 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
       <div className="cg-tabs mb-12" role="tablist" aria-label="Lebar kertas">
         {(['58', '80'] as const).map((p) => <button key={p} role="tab" className="cg-tab" aria-selected={paper === p} onClick={() => choose(p)}>Kertas {p} mm</button>)}
       </div>
-      <div className="receipt-preview"><div className="receipt-print"><ReceiptBody order={order} ctx={ctx} cashierName={name} kind={kind} paper={paper} /></div></div>
+      <div className="receipt-preview"><div className="receipt-print"><ReceiptBody order={order} ctx={ctx} cashierName={name} kind={kind} paper={paper} points={pts} /></div></div>
       <section aria-labelledby="h-bt" className="mt-12 grid gap-8">
         <h3 id="h-bt" className="text-base">Printer Bluetooth</h3>
         {!bluetoothSupported() ? (

@@ -22,3 +22,4 @@ export * from './shift-report';
 export * from './photo';
 export * from './customer';
 export * from './promo';
+export * from './loyalty';

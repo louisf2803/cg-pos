@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { customerProblem, formatRp, type Customer, type CustomerInput, type Order } from '@cgpos/shared';
+import { customerProblem, formatRp, LOYALTY_KIND_LABEL, type Customer, type CustomerInput, type Order } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -129,6 +129,21 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
   const data = useData();
   const d = useDialog(onClose);
   const hist = useAsync(() => data.listOrders({ customerId: item.id, all: true }), [data, item.id]);
+  const led = useAsync(() => data.listLoyaltyLedger(item.id, 30), [data, item.id]);
+  const [balance, setBalance] = useState(item.pointsBalance);
+  const [adj, setAdj] = useState({ delta: '', note: '' });
+  const [adjErr, setAdjErr] = useState('');
+  const [adjBusy, setAdjBusy] = useState(false);
+  async function adjust(e: FormEvent) {
+    e.preventDefault();
+    if (adjBusy) return;
+    const n = Number(adj.delta.replace(/[^\d-]/g, ''));
+    if (!Number.isInteger(n) || n === 0) return setAdjErr('Isi jumlah poin, positif untuk menambah atau negatif untuk mengurangi.');
+    setAdjBusy(true); setAdjErr('');
+    try { setBalance(await data.adjustPoints(item.id, n, adj.note)); setAdj({ delta: '', note: '' }); led.reload(); }
+    catch (err) { setAdjErr(err instanceof Error ? err.message : 'Poin gagal disesuaikan.'); }
+    finally { setAdjBusy(false); }
+  }
   const paid = hist.status === 'ready' ? hist.data.filter((o: Order) => o.status === 'paid') : [];
   const spend = paid.reduce((n, o) => n + o.total, 0);
   const last = paid.map((o) => o.closedAt ?? o.openedAt).sort().at(-1);
@@ -142,7 +157,7 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
         <h2 id="judul-detail" className="cg-modal__title break-words">{item.name}</h2>
         <dl className="grid gap-4 text-sm" style={{ gridTemplateColumns: 'max-content 1fr', columnGap: 16 }}>
           {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt className="text-text-muted">{k}</dt><dd className="break-words">{v}</dd></div>)}
-          <dt className="text-text-muted">Poin</dt><dd>{item.pointsBalance}</dd>
+          <dt className="text-text-muted">Poin</dt><dd className="cg-num" data-testid="saldo-poin">{balance}</dd>
         </dl>
         <section aria-labelledby="riwayat-judul">
           <h3 id="riwayat-judul" className="font-semibold mb-8">Riwayat belanja</h3>
@@ -161,6 +176,31 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
               </ul>
             </>
           ))}
+        </section>
+        <section aria-labelledby="poin-judul">
+          <h3 id="poin-judul" className="font-semibold mb-8">Riwayat poin</h3>
+          {led.status === 'loading' && <div className="cg-skeleton" style={{ height: 48 }} aria-busy="true" aria-label="Memuat" />}
+          {led.status === 'error' && <ErrorBox message={led.message} onRetry={led.reload} />}
+          {led.status === 'ready' && (led.data.length === 0 ? <p className="text-text-muted">Belum ada pergerakan poin.</p> : (
+            <ul className="grid gap-4 max-h-[160px] overflow-auto" aria-label="Pergerakan poin">
+              {led.data.map((e) => (
+                <li key={e.id} className="flex justify-between gap-12 text-sm border-b border-border pb-4">
+                  <span className="min-w-0 break-words">{LOYALTY_KIND_LABEL[e.kind]}{e.note ? ` · ${e.note}` : ''}<span className="block text-text-muted">{fmtDate(e.createdAt)}</span></span>
+                  <span className="cg-num">{e.points > 0 ? `+${e.points}` : e.points}</span>
+                </li>
+              ))}
+            </ul>
+          ))}
+          <form onSubmit={adjust} className="grid gap-8 mt-12" noValidate aria-label="Sesuaikan poin">
+            <div className="grid gap-8" style={{ gridTemplateColumns: 'minmax(96px, 1fr) 2fr' }}>
+              <div className="cg-field"><label className="cg-label" htmlFor="poin-delta">Tambah/kurangi poin</label>
+                <input id="poin-delta" className="cg-input" inputMode="numeric" maxLength={7} value={adj.delta} onChange={(e) => { setAdj((s) => ({ ...s, delta: e.target.value })); setAdjErr(''); }} /></div>
+              <div className="cg-field"><label className="cg-label" htmlFor="poin-catatan">Alasan</label>
+                <input id="poin-catatan" className="cg-input" maxLength={200} value={adj.note} onChange={(e) => setAdj((s) => ({ ...s, note: e.target.value }))} /></div>
+            </div>
+            <p role="alert" className="text-danger-strong min-h-[20px]">{adjErr}</p>
+            <div><button type="submit" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={adjBusy}>{adjBusy ? 'Menyimpan…' : 'Sesuaikan poin'}</button></div>
+          </form>
         </section>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Tutup</button>
