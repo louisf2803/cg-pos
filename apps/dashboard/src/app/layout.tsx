@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <DataProvider>
           <ShellProvider>
             <Topbar />
-            <div className="flex flex-1 min-w-0 relative">
+            <div className="flex flex-1 min-w-0 relative items-start">
               <Sidebar />
               <main id="isi" className="flex-1 min-w-0 p-16 desktop:p-24 overflow-x-hidden">
                 {children}

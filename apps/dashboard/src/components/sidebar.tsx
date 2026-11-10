@@ -143,7 +143,7 @@ export function Sidebar() {
           mobileNavOpen ? 'fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[85vw]' : 'hidden'
         } laptop:flex flex-col ${
           sidebarCollapsed ? 'laptop:w-[72px]' : 'laptop:w-[250px]'
-        } shrink-0 h-screen laptop:h-[calc(100vh-60px)] laptop:sticky laptop:top-[60px] cg-sidebar-shell overflow-y-auto overflow-x-hidden select-none transition-[width] duration-150`}
+        } shrink-0 self-start h-screen laptop:h-[calc(100vh-60px)] laptop:sticky laptop:top-[60px] cg-sidebar-shell overflow-y-auto overflow-x-hidden select-none transition-[width] duration-150`}
       >
         {/* Top Section */}
         <div className="p-16 border-b border-white/10 shrink-0">
