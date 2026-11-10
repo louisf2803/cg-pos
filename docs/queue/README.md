@@ -15,3 +15,5 @@ Aturan semua tugas:
 - Catat ringkasan di docs/PROGRESS.md. Jangan tinggalkan perubahan tanpa commit.
 - Jika ragu, ambil keputusan paling masuk akal dan tulis di PROGRESS.md; jangan berhenti bertanya.
 - Referensi struktur: docs/NAV-MAP-A12.md.
+
+Aturan tambahan untuk tugas apps/pos (LINGKUP KHUSUS), dari review A22: (1) Skala spasi Tailwind proyek HANYA mendefinisikan 4/8/12/16/20/24/32/40/48/64; kunci kecil 1,2,3,5,6,10,36 didefinisikan piksel di apps/pos/tailwind.config.cjs. Jangan memakai kunci angka lain (mis. w-10, top-6 di luar daftar itu) karena jatuh ke skala bawaan Tailwind (w-10 = 40px, w-36 = 144px) dan merusak tampilan; pakai nilai eksplisit w-[14px] bila perlu. (2) SELALU lihat screenshot hasilmu sendiri di 390/1280 sebelum menandai selesai; tes e2e lulus tidak berarti tampilan benar. (3) A22 sudah digabung ke main dengan perbaikan; mulai dari origin/main terbaru dan selesaikan konflik di Register.tsx dengan mempertahankan batas stok (stockOk/checkStockLimit) dan kelas-kelas A22.

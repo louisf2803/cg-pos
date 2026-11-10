@@ -302,7 +302,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             />
             <button
               type="button"
-              className="absolute right-8 top-1/2 -translate-y-1/2 text-text-muted hover:text-text p-4 cursor-pointer"
+              className="absolute right-12 top-1/2 -translate-y-1/2 text-text-muted hover:text-text p-4 cursor-pointer"
               title="Pemindai kode batang"
               aria-label="Pemindai kode batang"
               onClick={() => { if (q) onSearchEnter(); }}
@@ -365,7 +365,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                   {/* Lencana stok kecil di pojok kiri atas gambar jika melacak stok */}
                   {tracksStock && (
                     <span
-                      className={`absolute top-6 left-6 z-10 px-6 py-2 rounded text-[10px] font-bold tracking-tight shadow-xs ${
+                      className={`absolute top-[6px] left-[6px] z-10 px-[6px] py-[1px] rounded-[4px] text-[11px] leading-[16px] font-bold tracking-tight shadow-xs ${
                         currentStock <= 0
                           ? 'bg-danger text-on-danger'
                           : 'bg-surface/90 text-text border border-border'
@@ -377,8 +377,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 
                   {/* Bintang kecil bila favorit di pojok kanan atas gambar */}
                   {isFav && (
-                    <span className="absolute top-6 right-6 z-10 p-3 rounded-full bg-surface/90 text-amber-500 shadow-xs border border-border flex items-center justify-center">
-                      <Star className="w-10 h-10 fill-amber-400 text-amber-400" />
+                    <span className="absolute top-[6px] right-[6px] z-10 p-[3px] rounded-full bg-surface/90 text-amber-500 shadow-xs border border-border flex items-center justify-center">
+                      <Star className="w-[14px] h-[14px] fill-amber-400 text-amber-400" aria-hidden />
                     </span>
                   )}
 
@@ -402,7 +402,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                 {/* Lapisan hijau semi-transparan dengan jumlah di tengah setelah ada di pesanan */}
                 {n > 0 && (
                   <div className="absolute inset-0 bg-accent/25 backdrop-blur-[0.5px] rounded-[inherit] flex items-center justify-center z-20 pointer-events-none transition-all">
-                    <span className="w-36 h-36 rounded-full bg-accent text-on-accent font-bold text-base flex items-center justify-center shadow-lg border-2 border-white">
+                    <span className="w-[36px] h-[36px] rounded-full bg-accent text-on-accent font-bold text-[16px] flex items-center justify-center shadow-lg border-2 border-white">
                       {n}
                     </span>
                   </div>
