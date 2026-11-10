@@ -369,9 +369,14 @@ export default function Beranda() {
 
   const getX = (hour: number) => padLeft + (hour / 23) * plotW;
   const getY = (val: number) => padTop + plotH - (val / maxHourlyVal) * plotH;
+  const getYPrev = (val: number) => {
+    const baseY = getY(val);
+    // Bila 0, angkat 2px agar garis putus-putus abu terlihat jelas di atas garis sumbu dasar
+    return val === 0 ? baseY - 2 : baseY;
+  };
 
   const curPoints = curHourly.map((h) => ({ x: getX(h.hour), y: getY(h.total) }));
-  const prevPoints = prevHourly.map((h) => ({ x: getX(h.hour), y: getY(h.total) }));
+  const prevPoints = prevHourly.map((h) => ({ x: getX(h.hour), y: getYPrev(h.total) }));
 
   const curPath = createSmoothPath(curPoints);
   const prevPath = createSmoothPath(prevPoints);
@@ -390,64 +395,70 @@ export default function Beranda() {
         updatedAt={updatedTimeStr}
       />
 
-      {/* Kontrol Periode: Tab Harian / Mingguan / Bulan & Pemilih Tanggal */}
-      <div className="flex flex-wrap items-center justify-between gap-12 p-12 rounded-xl bg-surface-raised border border-border cg-card">
-        {/* Tab Pilihan Periode */}
-        <div className="flex items-center gap-6" role="tablist" aria-label="Pilihan Periode Laporan">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={periodType === 'daily'}
-            className={`px-14 py-6 rounded-full text-xs font-semibold transition-colors ${
-              periodType === 'daily'
-                ? 'bg-accent text-on-accent shadow-sm'
-                : 'text-text-muted hover:text-text hover:bg-surface'
-            }`}
-            onClick={() => setPeriodType('daily')}
-          >
-            Harian
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={periodType === 'weekly'}
-            className={`px-14 py-6 rounded-full text-xs font-semibold transition-colors ${
-              periodType === 'weekly'
-                ? 'bg-accent text-on-accent shadow-sm'
-                : 'text-text-muted hover:text-text hover:bg-surface'
-            }`}
-            onClick={() => setPeriodType('weekly')}
-          >
-            Mingguan
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={periodType === 'monthly'}
-            className={`px-14 py-6 rounded-full text-xs font-semibold transition-colors ${
-              periodType === 'monthly'
-                ? 'bg-accent text-on-accent shadow-sm'
-                : 'text-text-muted hover:text-text hover:bg-surface'
-            }`}
-            onClick={() => setPeriodType('monthly')}
-          >
-            Bulan
-          </button>
+      {/* Kontrol Periode: Segmented Control Rapat 36px & Pemilih Tanggal */}
+      <div className="flex flex-wrap items-center gap-12 mb-8">
+        {/* Segmented Control Rapat 36px */}
+        <div
+          role="tablist"
+          aria-label="Pilihan periode ringkasan penjualan"
+          className="inline-flex items-center h-[36px] p-2 rounded-full bg-surface-raised border border-border shrink-0"
+          onKeyDown={(e) => {
+            const periods: PeriodType[] = ['daily', 'weekly', 'monthly'];
+            const currentIndex = periods.indexOf(periodType);
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+              e.preventDefault();
+              const next = periods[(currentIndex + 1) % periods.length];
+              if (next) {
+                setPeriodType(next);
+                document.getElementById(`period-tab-${next}`)?.focus();
+              }
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+              e.preventDefault();
+              const prev = periods[(currentIndex - 1 + periods.length) % periods.length];
+              if (prev) {
+                setPeriodType(prev);
+                document.getElementById(`period-tab-${prev}`)?.focus();
+              }
+            }
+          }}
+        >
+          {(['daily', 'weekly', 'monthly'] as const).map((t) => {
+            const label = t === 'daily' ? 'Harian' : t === 'weekly' ? 'Mingguan' : 'Bulan';
+            const isActive = periodType === t;
+            return (
+              <button
+                key={t}
+                id={`period-tab-${t}`}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                className={`h-[30px] px-12 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center justify-center ${
+                  isActive
+                    ? 'bg-accent text-on-accent shadow-sm'
+                    : 'text-text-muted hover:text-text'
+                }`}
+                onClick={() => setPeriodType(t)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Pemilih Tanggal Bergeser dengan Panah ‹ › */}
-        <div className="flex items-center gap-8">
+        {/* Pemilih Tanggal Bergeser dengan Panah ‹ › di Sebelahnya */}
+        <div className="inline-flex items-center gap-6 h-[36px] shrink-0">
           <button
             type="button"
             onClick={() => handleShiftDate(-1)}
-            className="p-6 rounded-lg text-text-muted hover:text-text hover:bg-surface transition-colors"
+            className="h-[36px] w-[36px] flex items-center justify-center rounded-lg bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface transition-colors shrink-0"
             title="Geser periode sebelumnya"
             aria-label="Geser periode sebelumnya"
           >
             <ChevronLeft className="cg-icon cg-icon--sm" aria-hidden />
           </button>
 
-          <div className="flex items-center gap-6 px-12 py-6 rounded-lg bg-surface border border-border text-sm font-medium">
+          <div className="flex items-center gap-6 px-12 h-[36px] rounded-lg bg-surface-raised border border-border text-xs font-medium whitespace-nowrap shrink-0">
             <Calendar className="cg-icon cg-icon--xs text-accent" aria-hidden />
             <span>{activePeriodLabel}</span>
           </div>
@@ -456,7 +467,7 @@ export default function Beranda() {
             type="button"
             onClick={() => handleShiftDate(1)}
             disabled={isFutureDisabled}
-            className={`p-6 rounded-lg transition-colors ${
+            className={`h-[36px] w-[36px] flex items-center justify-center rounded-lg bg-surface-raised border border-border transition-colors shrink-0 ${
               isFutureDisabled
                 ? 'text-text-muted/40 cursor-not-allowed'
                 : 'text-text-muted hover:text-text hover:bg-surface'
@@ -475,7 +486,7 @@ export default function Beranda() {
             onChange={(e) => {
               if (e.target.value) setCurrentDateKey(e.target.value);
             }}
-            className="cg-input px-8 py-4 text-xs h-[32px] w-auto"
+            className="cg-input px-8 h-[36px] text-xs w-auto bg-surface-raised"
             aria-label="Pilih tanggal tertentu"
           />
         </div>
@@ -578,9 +589,9 @@ export default function Beranda() {
             </span>
           </div>
 
-          {/* 2. Penjualan per Transaksi */}
+          {/* 2. Rata-rata per Transaksi */}
           <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted truncate">Penjualan / Transaksi</span>
+            <span className="text-xs text-text-muted leading-tight">Rata-rata per transaksi</span>
             <div className="my-4">
               <span className="text-lg font-bold text-text truncate">{formatRp(curAvgTicket)}</span>
             </div>
@@ -595,7 +606,7 @@ export default function Beranda() {
 
           {/* 3. Produk Terjual */}
           <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted">Produk Terjual</span>
+            <span className="text-xs text-text-muted leading-tight">Produk Terjual</span>
             <div className="my-4">
               <span className="text-lg font-bold text-text">{curItemsSold} item</span>
             </div>
@@ -610,7 +621,7 @@ export default function Beranda() {
 
           {/* 4. Produk per Transaksi */}
           <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted truncate">Produk / Transaksi</span>
+            <span className="text-xs text-text-muted leading-tight">Produk per transaksi</span>
             <div className="my-4">
               <span className="text-lg font-bold text-text">{curProdPerOrder} item</span>
             </div>
@@ -640,8 +651,8 @@ export default function Beranda() {
               <span className="font-medium text-text">Periode Ini</span>
             </div>
             <div className="flex items-center gap-6">
-              <span className="w-16 h-3 border-t-2 border-dashed border-text-muted/60" />
-              <span className="text-text-muted">Periode Sebelumnya</span>
+              <span className="w-16 h-0 border-t-2 border-dashed border-text-muted" />
+              <span className="text-text-muted font-medium">Periode Sebelumnya</span>
             </div>
           </div>
         </div>
@@ -719,14 +730,14 @@ export default function Beranda() {
               <path d={areaPath} fill={`url(#${gradientId})`} />
             )}
 
-            {/* Kurva Periode Sebelumnya (Garis Abu Putus-putus) */}
+            {/* Kurva Periode Sebelumnya (Garis Abu Putus-putus Kontras Tebal 2px) */}
             {prevPath && (
               <path
                 d={prevPath}
                 fill="none"
-                stroke="var(--color-text-muted, #9CA3AF)"
+                stroke="var(--color-text-muted, #64748B)"
                 strokeWidth="2"
-                strokeDasharray="4 4"
+                strokeDasharray="5 4"
                 strokeLinecap="round"
               />
             )}
@@ -813,7 +824,7 @@ export default function Beranda() {
       </div>
 
       {/* 4. Grid 8 Widget (4 Kolom >=1280, 2 Kolom >=768, 1 Kolom Mobile) */}
-      <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-16">
+      <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-16 items-start">
         {/* Widget 1: Metode Pembayaran */}
         <WidgetCard
           title="Metode Pembayaran"
@@ -1068,7 +1079,7 @@ function WidgetCard({
 /** Keadaan kosong widget */
 function EmptyWidget({ text }: { text: string }) {
   return (
-    <div className="py-16 text-center text-xs text-text-muted italic bg-surface/50 rounded-lg">
+    <div className="py-12 px-8 text-center text-xs text-text-muted italic bg-surface/50 rounded-lg">
       {text}
     </div>
   );
