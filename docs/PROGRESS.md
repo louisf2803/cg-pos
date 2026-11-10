@@ -70,3 +70,4 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   5. Grid 8 Widget: Metode pembayaran, Transaksi void, Penjualan per kasir, Produk terlaris, Stok terendah (merah bila minus / <= 0), Penjualan per kategori, Jenis order, dan Komisi per kasir (status kosong "Belum ada data komisi"). Tiap kartu memiliki bar proporsional bulat, menu ⋯ placeholder, dan link "Lihat semua ›".
   6. Filter Outlet: Terhubung dengan state pemilih outlet sidebar (`selectedOutlet` dari ShellContext).
   7. Lolos uji: `pnpm -r typecheck`, 237 tes shared vitest, build dashboard 112 halaman, serta Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (screenshot di `docs/shots/a14/`).
+- Giliran 34: review A14 (beranda) — lulus typecheck, 224+ tes, build; di cloud tanpa overflow. Digabung ke main. Temuan perapian diteruskan ke antrean A21. Skor dihitung ulang di bawah.
