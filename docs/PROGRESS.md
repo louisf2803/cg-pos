@@ -261,3 +261,20 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   8. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (282 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a30/`).
 
 - S127 (Claude) — review & merge A29+A30: tampilan awal rusak karena preset Tailwind dashboard hanya punya breakpoint tablet/laptop/desktop/wide dan spasi 4–64 (prefix `sm: lg:` tidak berlaku; `w-14`/`gap-10` jatuh ke skala bawaan: ikon 56px, KPI membengkak; `text-accent-contrast` tidak ada → chip aktif gelap di atas hijau). Diperbaiki di denah, rekonsiliasi, biaya (prefix → tablet:/laptop:, nilai eksplisit [Npx], `text-on-accent`). Ditambah `scripts/lint-tailwind.sh` (ikut review.sh; menolak baris BARU dengan prefix mati / kunci spasi tak terdefinisi, diuji positif & negatif) dan aturan di docs/queue/README.md. 8 halaman lama yang masih memakai prefix mati dijadwalkan di A43. review.sh SEMUA LULUS; Playwright 390/1280/1440 tanpa overflow/galat; tangkapan layar di docs/shots/rv29/.
+
+- Selesai (tugas A32): Atur Kolom Tabel Laporan dan Ekspor CSV (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni Kolom (`packages/shared/src/columns.ts`):
+     - Definisi antarmuka `ColumnDef`, `ColumnPref`, fungsi inisialisasi `initColumnPrefs`, dan penggabung `mergeColumnPrefs` (aman dari data corrupt atau perubahan definisi kolom).
+     - Fungsi murni manipulasi urutan `moveColumn`, visibilitas `toggleColumnVisibility`, penyaring kolom aktif `getActiveColumns`, pengecek visibilitas `hasVisibleColumns`, dan pemetaan baris CSV `projectCsvRow`.
+     - 8 unit tests komprehensif di `packages/shared/test/columns.test.ts` (suite 48 file, 290 tes vitest lolos).
+  2. Komponen Popover & Hook Bersama:
+     - `useColumnPrefs(storageKey, columns)` di `apps/dashboard/src/components/column-chooser.tsx`: menyimpan urutan dan visibilitas kolom ke `localStorage` (try/catch), terhindar dari hydration mismatch React (#418) dengan inisialisasi default pada render pertama dan sinkronisasi client mount.
+     - Komponen `ColumnChooser`: tombol "Atur kolom" dengan indikator jumlah kolom aktif, popover dropdown (tampilan modal centered di mobile `< 600px` dengan backdrop, dropdown absolut di tablet/desktop), checkbox tiap kolom, tombol naik/turun reorder per baris (aksesibel keyboard), tombol "Reset bawaan", dan tombol "Selesai".
+  3. Integrasi 3 Laporan Utama:
+     - Detail Penjualan (`/laporan/penjualan`): 11 kolom (nomor, waktu, jenis, kasir, bayar, subtotal, diskon, biaya layanan, pajak, pembulatan, total).
+     - Laporan Karyawan (`/laporan/karyawan`): 13 kolom kinerja karyawan (nama, peran, transaksi, penjualan, rata-rata, void count/total, refund count/total, diskon manual count/total, komplimen count/total).
+     - Laporan Per Periode (`/laporan/periode`): 9 kolom (periode, transaksi, porsi transaksi, rata-rata nilai, subtotal, diskon, total penjualan, porsi nilai, grafik proporsi).
+  4. Penanganan Khusus Ekspor & Keadaan Kosong:
+     - Ekspor CSV otomatis hanya menyertakan kolom yang aktif dan mengikuti urutan kolom yang telah diatur pengguna.
+     - Keadaan semua kolom dimatikan: menampilkan pesan kosong yang jelas ("Semua kolom disembunyikan. Klik tombol Atur kolom untuk memilih kolom yang ingin ditampilkan.") dan menonaktifkan tombol "Unduh CSV".
+  5. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (290 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), lint Tailwind `scripts/lint-tailwind.sh`, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (15 tangkapan layar di `docs/shots/a32/`).
