@@ -2,7 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
-import { DataError, formatRp, newId, parseRp, variantsProblem, type CatalogProduct, type ProductPhotoInput } from '@cgpos/shared';
+import { DataError, formatRp, newId, parseRp, priceOverridePctProblem, variantsProblem, type CatalogProduct, type ProductPhotoInput } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox } from '@/components/page';
@@ -26,6 +26,7 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const [rows, setRows] = useState<Row[]>(initial?.variants.map((v) => newRow({ id: v.id, label: v.label, price: String(v.price), sku: v.sku ?? '', isActive: v.isActive })) ?? []);
   const [trackStock, setTrackStock] = useState(initial?.trackStock ?? false);
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [overridePct, setOverridePct] = useState(initial?.priceOverridePct ? String(initial.priceOverridePct) : '');
   const [err, setErr] = useState<{ field?: string; msg: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const firstNew = useRef<HTMLInputElement | null>(null);
@@ -62,12 +63,16 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
       const vp = variantsProblem(variants);
       if (vp) return setErr({ field: 'variants', msg: vp });
     } else if (!/\d/.test(price)) return setErr({ field: 'price', msg: 'Isi harga dalam rupiah, 0 atau lebih.' });
+    const pct = overridePct.trim() === '' ? 0 : Number(overridePct.replace(',', '.'));
+    const pctProblem = priceOverridePctProblem(pct);
+    if (pctProblem) return setErr({ field: 'override', msg: pctProblem });
     setSaving(true);
     try {
       const saved = await data.saveCatalogProduct({
         id: savedId.current, name, categoryId: categoryId || null, price: hasVariants ? 0 : parseRp(price), sku: hasVariants ? undefined : sku.trim() || undefined,
         trackStock, isActive, isFavorite: initial?.isFavorite, kind: initial?.kind, variants,
       });
+      if (pct > 0 || initial?.priceOverridePct) await data.setPriceOverride(saved.variants.length ? saved.variants.map((v) => v.id) : [saved.id], pct);
       savedId.current = saved.id;      // bila foto gagal, simpan ulang memperbarui produk yang sama, bukan membuat ganda
       if (photo.kind === 'new') await data.setProductPhoto(saved.id, photo.input).catch((e3: unknown) => { throw new PhotoFailed(e3 instanceof Error ? e3.message : 'Foto gagal diunggah.'); });
       else if (photo.kind === 'remove') await data.setProductPhoto(saved.id, null).catch((e3: unknown) => { throw new PhotoFailed(e3 instanceof Error ? e3.message : 'Foto gagal dihapus.'); });
@@ -163,6 +168,10 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
           </fieldset>
         )}
 
+        <div className="cg-field"><label className="cg-label" htmlFor="pf-override">Kasir boleh ubah harga jual (± persen)</label>
+          <input id="pf-override" className="cg-input cg-num" style={{ maxWidth: 160 }} inputMode="decimal" placeholder="0 = tidak boleh" value={overridePct} onChange={(e) => { setOverridePct(e.target.value.replace(/[^\d.,]/g, '')); setErr(null); }} aria-invalid={err?.field === 'override'} />
+          <p className="text-sm text-text-muted">Kosong atau 0: harga tetap. Isi 20 bila kasir boleh menaikkan atau menurunkan harga sampai 20% dari harga daftar, misalnya untuk menu yang dihitung per timbangan atau tawar-menawar.</p>
+          {err?.field === 'override' && <p className="cg-error" role="alert">{err.msg}</p>}</div>
         <label className="flex items-center gap-8"><input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} /> Lacak stok produk ini</label>
         {initial && <label className="flex items-center gap-8"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Produk aktif (tampil di kasir)</label>}
         <div className="flex gap-8">

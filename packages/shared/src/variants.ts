@@ -66,6 +66,7 @@ export function assembleCatalog(all: Product[]): CatalogProduct[] {
       id, name, categoryId: head?.categoryId ?? first.categoryId, kind: (head?.kind ?? first.kind) as CatalogProduct['kind'], trackStock: head?.trackStock ?? first.trackStock,
       isActive: head ? head.isActive : kids.some((k) => k.isActive), isFavorite: head?.isFavorite ?? first.isFavorite,
       price: Math.min(...variants.map((v) => v.price)), variants,
+      ...((head?.priceOverridePct ?? first.priceOverridePct) ? { priceOverridePct: (head?.priceOverridePct ?? first.priceOverridePct)! } : {}),
       ...((head?.photoUrl ?? kids.find((k) => k.photoUrl)?.photoUrl) ? { photoUrl: (head?.photoUrl ?? kids.find((k) => k.photoUrl)?.photoUrl)! } : {}),
     };
   };
@@ -80,7 +81,7 @@ export function assembleCatalog(all: Product[]): CatalogProduct[] {
       const kids = children.get(p.id);
       if (kids?.length) out.push(group(p.id, p.name, p, kids));
     } else {
-      out.push({ id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind as CatalogProduct['kind'], trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [], ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}) });
+      out.push({ id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind as CatalogProduct['kind'], trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [], ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}), ...(p.priceOverridePct ? { priceOverridePct: p.priceOverridePct } : {}) });
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name, 'id'));

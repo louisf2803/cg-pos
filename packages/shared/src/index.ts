@@ -31,3 +31,4 @@ export * from './kitchen';
 export * from './auth-code';
 export * from './activity';
 export * from './recipe';
+export * from './price-override';

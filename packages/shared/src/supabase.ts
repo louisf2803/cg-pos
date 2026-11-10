@@ -10,6 +10,7 @@ import {
 } from './purchasing';
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { priceOverridePctProblem } from './price-override';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
@@ -55,7 +56,7 @@ export interface SupabaseDataOptions {
 }
 
 const PRODUCT_SELECT =
-  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,photo_path,product_units(id,price,sku,is_base,deleted_at)';
+  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,photo_path,allow_price_override,max_price_override_pct,product_units(id,price,sku,is_base,deleted_at)';
 const ORDER_SELECT =
   'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at,order_item_extras(option_id,name,price,qty)),' +
@@ -1354,6 +1355,14 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         throw mapDbError(error);
       }
       return Number(data ?? lines.length);
+    },
+
+    async setPriceOverride(productIds, pct) {
+      const problem = priceOverridePctProblem(pct);
+      if (problem) throw new DataError('invalid', problem);
+      if (!productIds.length) return;
+      const rows = (must(await db().from('products').update({ allow_price_override: pct > 0, max_price_override_pct: pct }).in('id', productIds).select('id')) as Row[] | null) ?? [];
+      if (rows.length !== productIds.length) throw new DataError('forbidden', 'Sebagian produk tidak ditemukan, atau akunmu tidak boleh mengubahnya.');
     },
 
     // ---------- log aktivitas ----------

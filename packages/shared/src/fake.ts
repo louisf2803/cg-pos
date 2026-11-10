@@ -5,6 +5,7 @@ import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, 
 import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
+import { priceOverridePctProblem } from './price-override';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
@@ -71,7 +72,7 @@ const PRODUCTS: Product[] = [
   P('p9', 'Roti bakar cokelat keju', 'c-makan', 18500, { sku: 'MK-001' }),
   P('p10', 'Nasi goreng kampung', 'c-makan', 32000, { sku: 'MK-002' }),
   P('p11', 'Mie goreng telur', 'c-makan', 28000, { sku: 'MK-003' }),
-  P('p12', 'Kentang goreng', 'c-camil', 15000, { sku: 'CM-001' }),
+  P('p12', 'Kentang goreng', 'c-camil', 15000, { sku: 'CM-001', priceOverridePct: 20 }),
   P('p13', 'Pisang goreng', 'c-camil', 14000, { sku: 'CM-002', stock: 0 }),
   P('p14', 'Singkong keju', 'c-camil', 16000, { sku: 'CM-003' }),
 ];
@@ -1124,6 +1125,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (lines.length) recipes.set(productId, clone(lines)); else recipes.delete(productId);
       if (before !== after) activityLog.unshift({ id: newId(), at: now().toISOString(), action: 'recipe.updated', entity: 'recipe', entityId: productId, name: p.name, actorUserId: 'u-owner', actorEmail: 'pemilik@contoh.id', changes: [{ column: 'lines', from: before.slice(0, 200) || null, to: after.slice(0, 200) || null }] });
       return lines.length;
+    },
+    async setPriceOverride(productIds, pct) {
+      const problem = priceOverridePctProblem(pct);
+      if (problem) throw new DataError('invalid', problem);
+      for (const id of productIds) {
+        const p = products.find((x) => x.id === id);
+        if (!p) throw new DataError('not_found', 'Produk tidak ditemukan.');
+        if (pct > 0) p.priceOverridePct = pct; else delete p.priceOverridePct;
+      }
     },
     async listActivity(q: ActivityQuery = {}) {
       const to = q.to ? new Date(q.to).getTime() : now().getTime() + 86400000;

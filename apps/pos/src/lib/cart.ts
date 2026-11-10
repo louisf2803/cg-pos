@@ -1,13 +1,14 @@
 import { useMemo, useReducer } from 'react';
 import { appliedFromEntries, computeOrder, extrasKey, extrasLineTotal, newId, resolveDiscounts, type AppliedDiscount, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product, type Promotion, type ResolvedDiscounts } from '@cgpos/shared';
 
-export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string }
+export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string; /** harga daftar saat ditambahkan dan batas persen ubah harga; hanya untuk baris baru (tidak ikut tersimpan) */ basePrice?: number; overridePct?: number }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string; discounts: AppliedDiscount[] }
 type Action =
   | { t: 'add'; product: Product; extras?: ItemExtra[] }
   | { t: 'qty'; lineId: string; qty: number }
   | { t: 'note'; lineId: string; note: string }
+  | { t: 'price'; lineId: string; unitPrice: number }
   | { t: 'type'; type: OrderType }
   | { t: 'table'; tableId?: string; tableName?: string }
   | { t: 'meta'; label?: string; guestCount?: number }
@@ -24,13 +25,14 @@ function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {
       // baris yang sama = produk sama dan pilihan Ekstra sama persis
-      const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras) && !l.note);
+      const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && l.unitPrice === (l.basePrice ?? l.unitPrice));
       if (ex) return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: l.qty + 1 } : l)) };
-      return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, ...(a.extras?.length ? { extras: a.extras } : {}) }] };
+      return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, basePrice: a.product.price, ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}), ...(a.extras?.length ? { extras: a.extras } : {}) }] };
     }
     case 'qty':
       return { ...s, lines: a.qty <= 0 ? s.lines.filter((l) => l.id !== a.lineId) : s.lines.map((l) => (l.id === a.lineId ? { ...l, qty: a.qty } : l)) };
     case 'note': return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, note: a.note.slice(0, 120) || undefined } : l)) };
+    case 'price': return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, unitPrice: a.unitPrice } : l)) };
     case 'type': return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
     case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };

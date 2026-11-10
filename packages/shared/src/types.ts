@@ -11,6 +11,8 @@ export interface Product {
   parentId?: string | null;
   /** false untuk induk grup varian (tidak dijual langsung). Kosong = dijual. */
   isSellable?: boolean;
+  /** batas persen kasir boleh mengubah harga baris; kosong = tidak boleh */
+  priceOverridePct?: number;
 }
 export interface ProductInput {
   id?: string; name: string; categoryId: string | null; price: number; sku?: string;
@@ -22,7 +24,7 @@ export interface CatalogVariant { id: string; label: string; price: number; sku?
 export interface CatalogProduct {
   id: string; name: string; categoryId: string | null; kind: 'goods' | 'service'; trackStock: boolean; isActive: boolean; isFavorite: boolean;
   /** produk tunggal: harganya; produk berarian: harga varian termurah */
-  price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string;
+  price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string; priceOverridePct?: number;
 }
 export interface CatalogInput {
   id?: string; name: string; categoryId: string | null; kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;

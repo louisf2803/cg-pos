@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { extrasLineTotal, extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -48,6 +48,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [custPick, setCustPick] = useState(false);
   const promos = useAsync<Promotion[]>(() => data.listPromotions({ activeOnly: true }).catch(() => []), [data]);
   const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [priceFor, setPriceFor] = useState<{ id: string; text: string; err: string } | null>(null);
   const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS);
   const [discOpen, setDiscOpen] = useState(false);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
@@ -258,6 +259,24 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                       onBlur={() => setNoteFor(null)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setNoteFor(null); } }} />
                     : <button className="cg-btn cg-btn--ghost cg-btn--sm break-words text-left" style={{ gridColumn: '1 / -1', justifySelf: 'start' }} onClick={() => setNoteFor(l.id)}
                       aria-label={l.note ? `Ubah catatan ${l.name}: ${l.note}` : `Tambah catatan ${l.name}`}>{l.note ? `Catatan: ${l.note}` : '+ Catatan'}</button>}
+                  {l.overridePct && l.basePrice !== undefined && (priceFor?.id === l.id
+                    ? (
+                      <form style={{ gridColumn: '1 / -1', marginTop: 8 }} className="grid gap-4" noValidate onSubmit={(e) => {
+                        e.preventDefault();
+                        const price = Number(priceFor.text.replace(/\./g, '').replace(',', '.'));
+                        const problem = priceOverrideProblem(l.basePrice!, l.overridePct!, price);
+                        if (problem) return setPriceFor({ ...priceFor, err: problem });
+                        cart.dispatch({ t: 'price', lineId: l.id, unitPrice: price }); setPriceFor(null);
+                      }}>
+                        <label className="cg-label" htmlFor={`harga-${l.id}`}>Harga baru {l.name} (daftar {formatRp(l.basePrice)})</label>
+                        <div className="flex gap-8"><input id={`harga-${l.id}`} className="cg-input cg-num" inputMode="numeric" autoFocus value={priceFor.text}
+                          onChange={(e) => setPriceFor({ ...priceFor, text: e.target.value.replace(/[^\d.,]/g, ''), err: '' })} onKeyDown={(e) => { if (e.key === 'Escape') setPriceFor(null); }} />
+                        <button className="cg-btn cg-btn--primary">Pakai</button><button type="button" className="cg-btn cg-btn--ghost" onClick={() => setPriceFor(null)}>Batal</button></div>
+                        {priceFor.err && <p role="alert" className="text-sm text-danger-strong break-words">{priceFor.err}</p>}
+                      </form>
+                    )
+                    : <button className="cg-btn cg-btn--ghost cg-btn--sm" style={{ gridColumn: '1 / -1', justifySelf: 'start' }} onClick={() => setPriceFor({ id: l.id, text: String(l.unitPrice), err: '' })}
+                      aria-label={`Ubah harga ${l.name}`}>{l.unitPrice === l.basePrice ? 'Ubah harga' : `Harga diubah dari ${formatRp(l.basePrice)}`}</button>)}
                   <span className="cg-stepper" style={{ gridColumn: '1 / -1', justifySelf: 'start', marginTop: 8 }}>
                     <button onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })} aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}>{l.qty === 1 ? <Trash2 className="cg-icon cg-icon--sm" aria-hidden /> : <Minus className="cg-icon cg-icon--sm" aria-hidden />}</button>
                     <output aria-label={`Jumlah ${l.name}`}>{l.qty}</output>

@@ -74,6 +74,8 @@ export interface DataLayer {
   listCatalog(q?: { search?: string; includeInactive?: boolean; categoryId?: string | null }): Promise<CatalogProduct[]>;
   getCatalogProduct(id: string): Promise<CatalogProduct | null>;
   saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct>;
+  /** Atur batas persen kasir boleh mengubah harga baris untuk produk-produk ini (satu produk, atau semua variannya). 0 = tidak boleh. Pemilik/admin/manajer. */
+  setPriceOverride(productIds: string[], pct: number): Promise<void>;
   /** Menonaktifkan/mengaktifkan produk beserta seluruh variannya. */
   setCatalogActive(id: string, active: boolean): Promise<void>;
   /** Pasang foto produk (null = hapus, termasuk foto varian). Pemilik dan manajer. Foto lama di penyimpanan tidak dihapus. */
