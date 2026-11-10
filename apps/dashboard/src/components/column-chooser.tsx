@@ -206,13 +206,13 @@ export function ColumnChooser<TKey extends string>({
           <div
             role="dialog"
             aria-label="Atur kolom tabel"
-            className="fixed tablet:absolute top-1/2 tablet:top-full left-1/2 tablet:left-auto tablet:right-0 -translate-x-1/2 tablet:translate-x-0 -translate-y-1/2 tablet:translate-y-0 tablet:mt-6 z-50 w-[calc(100vw-32px)] tablet:w-[320px] max-w-[384px] max-h-[85vh] flex flex-col bg-surface border border-border rounded-xl shadow-xl p-16 text-text"
+            className="fixed tablet:absolute top-1/2 tablet:top-full left-1/2 tablet:left-auto tablet:right-0 -translate-x-1/2 tablet:translate-x-0 -translate-y-1/2 tablet:translate-y-0 tablet:mt-[6px] z-50 w-[calc(100vw-32px)] tablet:w-[320px] max-w-[384px] max-h-[85vh] flex flex-col bg-surface border border-border rounded-xl shadow-xl p-16 text-text"
           >
             {/* Header Popover */}
             <div className="flex items-start justify-between gap-8 pb-12 border-b border-border shrink-0">
               <div>
                 <h3 className="text-sm font-semibold text-text">Atur kolom tabel</h3>
-                <p className="text-xs text-text-muted mt-2">
+                <p className="text-xs text-text-muted mt-[2px]">
                   Pilih kolom dan atur urutan posisi dengan tombol naik/turun.
                 </p>
               </div>

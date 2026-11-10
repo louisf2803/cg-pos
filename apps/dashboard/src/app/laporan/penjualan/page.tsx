@@ -82,7 +82,7 @@ function OrderRefundHistory({
                   <span className="font-medium text-text">{r.number}</span>
                   <span className="text-text-muted"> · {fmtTime(r.createdAt, tz)}</span>
                   <span className="text-danger"> · Alasan: {r.reason}</span>
-                  <div className="text-text-muted mt-2">
+                  <div className="text-text-muted mt-[2px]">
                     Barang:{' '}
                     {r.items.map((it) => `${it.qty}× ${itemMap.get(it.orderItemId) ?? 'Item'}`).join(', ')}
                   </div>

@@ -283,7 +283,7 @@ export default function StaffReportPage() {
 
       {(ctx.status === 'loading' || state.status === 'loading' || extra.status === 'loading') && (
         <div className="space-y-16" aria-busy="true" aria-label="Memuat laporan">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton h-72 rounded-lg" />
             ))}
@@ -370,7 +370,7 @@ export default function StaffReportPage() {
             ) : (
               <>
                 {/* Tampilan Desktop (Tabel) */}
-                <div className="hidden md:block overflow-x-auto min-w-0">
+                <div className="hidden tablet:block overflow-x-auto min-w-0">
                   <table className="w-full text-sm text-left border-collapse">
                     <thead>
                       <tr className="bg-surface-raised border-b border-border text-xs text-text-muted uppercase">
@@ -407,7 +407,7 @@ export default function StaffReportPage() {
                 </div>
 
                 {/* Tampilan Mobile (< 768px: Kartu Responsif) */}
-                <div className="md:hidden divide-y divide-border min-w-0">
+                <div className="tablet:hidden divide-y divide-border min-w-0">
                   {filteredRows.map((r) => (
                     <div key={r.key} className="p-16 space-y-12 min-w-0">
                       <div className="flex items-center justify-between gap-8 min-w-0">
