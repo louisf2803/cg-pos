@@ -128,7 +128,7 @@ export interface SalesSummary {
 export interface OutletContext {
   orgName: string; outletId: string; outletCode: string; outletName: string; timezone: string;
   address?: string; phone?: string; receiptFooter?: string;
-  deviceCode: string; settings: CalcSettings & { roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean };
+  deviceCode: string; settings: CalcSettings & { roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean; cashOutDailyLimit?: number | null; defaultOpeningCash?: number | null };
   taxes: { id: string; name: string; rate: number }[];
 }
 

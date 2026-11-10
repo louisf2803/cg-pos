@@ -55,7 +55,7 @@ function Shell() {
         {view === 'close'
           ? <CloseShift onCancel={() => setView('register')} onClosed={logout} />
           : !session.shift
-            ? <OpenShift employee={session.employee} onOpened={setShift} onLogout={logout} />
+            ? <OpenShift employee={session.employee} onOpened={setShift} onLogout={logout} defaultCash={ctx.data.settings.defaultOpeningCash} />
             : <Register ctx={ctx.data} onCloseShift={() => setView('close')} onLock={lockNow} />}
       </div>
       {lock && <LockScreen reason={lock} onUnlock={() => setLock(null)} onSwitch={logout} />}

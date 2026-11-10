@@ -24,3 +24,26 @@ describe('kas masuk dan keluar selama shift', () => {
     await expect(d.addCashMovement({ id: newId(), shiftId: sh.id, kind: 'in', amount: 100, reason: 'Setelah tutup' })).rejects.toBeInstanceOf(DataError);
   });
 });
+
+describe('batas kas keluar harian (S122)', () => {
+  it('menolak kas keluar yang melewati batas, kas masuk dan nilai tepat batas tetap boleh', async () => {
+    const d = createFakeData({ now: () => new Date('2026-11-09T05:00:00Z') });
+    d.reset();
+    const o = (await d.getOutletSettings()).options;
+    await d.saveOutletOptions({ ...o, cashOutDailyLimit: 20000 });
+    const sh = await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 100000 });
+    await d.addCashMovement({ id: newId(), shiftId: sh.id, kind: 'out', amount: 12000, reason: 'Beli es batu' });
+    await expect(d.addCashMovement({ id: newId(), shiftId: sh.id, kind: 'out', amount: 9000, reason: 'Beli plastik' })).rejects.toMatchObject({ message: /Batas kas keluar harian/ });
+    await d.addCashMovement({ id: newId(), shiftId: sh.id, kind: 'out', amount: 8000, reason: 'Beli sedotan' }); // total tepat 20.000
+    await d.addCashMovement({ id: newId(), shiftId: sh.id, kind: 'in', amount: 90000, reason: 'Tambah kembalian' });
+  });
+  it('tanpa batas (null) tidak membatasi, dan modal awal bawaan terbaca di konteks', async () => {
+    const d = createFakeData({ now: () => new Date('2026-11-09T05:00:00Z') });
+    d.reset();
+    const o = (await d.getOutletSettings()).options;
+    await d.saveOutletOptions({ ...o, cashOutDailyLimit: null, defaultOpeningCash: 150000 });
+    expect((await d.getContext()).settings.defaultOpeningCash).toBe(150000);
+    const sh = await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 150000 });
+    await d.addCashMovement({ id: newId(), shiftId: sh.id, kind: 'out', amount: 140000, reason: 'Bayar pemasok' });
+  });
+});

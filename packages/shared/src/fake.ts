@@ -529,7 +529,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return clone({
         info: { code: CTX.outletCode, name: CTX.outletName, address: outlet.address, phone: outlet.phone, timezone: CTX.timezone },
         options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
-          roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter },
+          roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter,
+          cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null },
       });
     },
     async saveOutletInfo(input) {
@@ -551,7 +552,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);
       if (problem) throw new DataError('invalid', problem);
-      const { receiptFooter, ...rest } = input;
+      const { receiptFooter, requireCashPhoto: _p, ...rest } = input;
       Object.assign(CTX.settings, rest); outlet.receiptFooter = receiptFooter.trim(); CTX.receiptFooter = outlet.receiptFooter || undefined;
     },
     async listFloors() { return clone([...floors].sort((a, b) => a.sort - b.sort)); },
@@ -1360,6 +1361,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (reason.length < 3) throw new DataError('invalid', 'Alasan wajib diisi (minimal 3 huruf)');
       const existing = cashMoves.find((m) => m.id === input.id);
       if (existing) return clone(existing);
+      const limit = CTX.settings.cashOutDailyLimit;
+      if (input.kind === 'out' && limit != null) {
+        const day = now().toISOString().slice(0, 10);
+        const used = cashMoves.filter((m) => m.kind === 'out' && m.occurredAt.slice(0, 10) === day).reduce((n, m) => n + m.amount, 0);
+        if (used + Math.round(input.amount) > limit) throw new DataError('invalid', 'Batas kas keluar harian terlampaui.');
+      }
       const m: CashMovement = { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt: now().toISOString() };
       cashMoves.push(m); return clone(m);
     },

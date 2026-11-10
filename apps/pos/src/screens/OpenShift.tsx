@@ -4,9 +4,9 @@ import { useData } from '../lib/app-data';
 
 const PRESETS = [0, 100_000, 200_000, 500_000];
 
-export function OpenShift({ employee, onOpened, onLogout }: { employee: Employee; onOpened: (s: Shift) => void; onLogout: () => void }) {
+export function OpenShift({ employee, onOpened, onLogout, defaultCash }: { employee: Employee; onOpened: (s: Shift) => void; onLogout: () => void; defaultCash?: number | null }) {
   const data = useData();
-  const [raw, setRaw] = useState('');
+  const [raw, setRaw] = useState(defaultCash != null ? String(defaultCash) : '');
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -28,6 +28,7 @@ export function OpenShift({ employee, onOpened, onLogout }: { employee: Employee
         <div className="cg-field">
           <label className="cg-label" htmlFor="modal">Modal awal (Rp)</label>
           <input id="modal" className="cg-input" inputMode="numeric" autoFocus value={raw} onChange={(e) => { setRaw(e.target.value); setErr(''); }} aria-invalid={!!err} aria-describedby={err ? 'e-modal' : undefined} />
+          {defaultCash != null && <p className="text-text-muted text-sm">Terisi dari pengaturan outlet ({formatRp(defaultCash)}). Hitung laci, ubah bila berbeda.</p>}
           {err && <p id="e-modal" className="cg-error" role="alert">{err}</p>}
         </div>
         <div className="flex flex-wrap gap-8" role="group" aria-label="Nominal cepat">

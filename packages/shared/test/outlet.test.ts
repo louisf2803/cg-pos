@@ -33,3 +33,14 @@ describe('pengaturan outlet', () => {
     expect((await d.getOutletSettings()).info.name).toBe('Outlet Contoh');
   });
 });
+
+describe('kas kasir (S122)', () => {
+  const base: OutletOptions = { serviceChargePct: 0, serviceChargeTaxable: false, serviceChargeOrderTypes: ['dine_in'], roundingCashStep: 0, roundingNoncashStep: 0, requireOpenShift: true, allowNegativeStock: true, receiptFooter: '' };
+  it('batas dan modal awal boleh kosong', () => { expect(outletOptionsProblem(base)).toBeNull(); expect(outletOptionsProblem({ ...base, cashOutDailyLimit: null, defaultOpeningCash: null })).toBeNull(); });
+  it('nol dan angka bulat sah', () => { expect(outletOptionsProblem({ ...base, cashOutDailyLimit: 0, defaultOpeningCash: 200000 })).toBeNull(); });
+  it('negatif, pecahan, dan terlalu besar ditolak', () => {
+    expect(outletOptionsProblem({ ...base, cashOutDailyLimit: -1 })).toMatch(/Batas kas keluar/);
+    expect(outletOptionsProblem({ ...base, defaultOpeningCash: 10.5 })).toMatch(/Modal awal/);
+    expect(outletOptionsProblem({ ...base, defaultOpeningCash: 2_000_000_000 })).toMatch(/Modal awal/);
+  });
+});

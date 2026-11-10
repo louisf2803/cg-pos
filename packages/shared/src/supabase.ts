@@ -278,6 +278,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         serviceChargeTaxable: !!s.service_charge_taxable, serviceChargeOrderTypes: (s.service_charge_order_types ?? []) as OrderType[],
         roundingCashStep: Number(s.rounding_cash_step), roundingNoncashStep: Number(s.rounding_noncash_step),
         requireOpenShift: !!s.require_open_shift, allowNegativeStock: !!s.allow_negative_stock,
+        cashOutDailyLimit: s.cash_out_daily_limit == null ? null : Number(s.cash_out_daily_limit),
+        defaultOpeningCash: s.default_opening_cash == null ? null : Number(s.default_opening_cash),
       },
       taxes: ((must(taxes) as Row[] | null) ?? []).map((t) => ({ id: t.id, name: t.name, rate: Number(t.rate) })),
     };
@@ -411,6 +413,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           serviceChargePct: Number(s.service_charge_pct), serviceChargeTaxable: !!s.service_charge_taxable, serviceChargeOrderTypes: (s.service_charge_order_types ?? []) as OrderType[],
           roundingCashStep: Number(s.rounding_cash_step), roundingNoncashStep: Number(s.rounding_noncash_step), requireOpenShift: !!s.require_open_shift,
           allowNegativeStock: !!s.allow_negative_stock, receiptFooter: s.receipt_footer ?? '',
+          cashOutDailyLimit: s.cash_out_daily_limit == null ? null : Number(s.cash_out_daily_limit), requireCashPhoto: !!s.require_cash_photo,
+          defaultOpeningCash: s.default_opening_cash == null ? null : Number(s.default_opening_cash),
         },
       };
     },
@@ -459,11 +463,24 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const problem = outletOptionsProblem(input);
       if (problem) throw new DataError('invalid', problem);
       const { ctx } = await resolve();
-      const row = must(await db().from('outlet_settings').update({
+      const fields: Row = {
         service_charge_pct: input.serviceChargePct, service_charge_taxable: input.serviceChargeTaxable, service_charge_order_types: input.serviceChargeOrderTypes,
         rounding_cash_step: input.roundingCashStep, rounding_noncash_step: input.roundingNoncashStep, require_open_shift: input.requireOpenShift,
         allow_negative_stock: input.allowNegativeStock, receipt_footer: input.receiptFooter.trim() || null,
-      }).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
+      };
+      // kolom lama (sudah ada di produksi): hanya dikirim bila pemanggil menyertakannya, supaya klien lama tidak menimpa dengan null
+      if (input.cashOutDailyLimit !== undefined) fields.cash_out_daily_limit = input.cashOutDailyLimit;
+      if (input.requireCashPhoto !== undefined) fields.require_cash_photo = input.requireCashPhoto;
+      // kolom baru (migrasi 0026): hanya dikirim bila diisi; tanpa migrasi, tolak dengan pesan jelas daripada merusak penyimpanan lain
+      if (input.defaultOpeningCash != null) {
+        const probe = await db().from('outlet_settings').select('default_opening_cash').limit(1);
+        if (probe.error) throw new DataError('invalid', 'Modal awal bawaan belum bisa dipakai: database belum menerima migrasi 0026 (minta Claude menerapkannya setelah disetujui).');
+        fields.default_opening_cash = input.defaultOpeningCash;
+      } else if (input.defaultOpeningCash === null) {
+        const probe = await db().from('outlet_settings').select('default_opening_cash').limit(1);
+        if (!probe.error) fields.default_opening_cash = null;
+      }
+      const row = must(await db().from('outlet_settings').update(fields).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pengaturan outlet');
       resolved = null;
     },
