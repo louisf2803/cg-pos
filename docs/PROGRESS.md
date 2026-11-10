@@ -213,3 +213,8 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   5. Integritas DataLayer: `fake.ts` dan `supabase.ts` telah mendukung penuh penyimpanan `kind: 'goods' | 'service'` dan pembacaan katalog tanpa perlu mengubah `data.ts` atau skema database.
   6. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (46 file, 270 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (13 tangkapan layar di `docs/shots/a26/`).
 
+
+## Review A26 + A27 — digabung
+- A26 (produk jasa, dashboard) dan A27 (laporan karyawan/dapur: label peran Indonesia lewat `formatRole`, kolom cari rapat, keterangan kartu membungkus di 390px, KPI seragam). Lingkup sesuai (apps/dashboard, packages/shared pure, docs). `formatRole` hanya pemetaan label, tidak menyentuh izin (kubaca diff-nya).
+- Lulus: review.sh; Playwright 1440/390 tanpa overflow dan tanpa galat konsol; screenshot docs/shots/rv26/ kulihat; uji fungsional sendiri: pilih Jasa menyembunyikan "Lacak stok", produk jasa tersimpan dan tampil di daftar.
+- Paritas: Produk layanan (jasa) no -> partial.
