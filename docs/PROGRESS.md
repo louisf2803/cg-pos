@@ -232,3 +232,8 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   3. Pembulatan Wajar Kartu KPI:
      - Kartu KPI "Rata-rata per hari" di semua halaman analisa dibulatkan secara wajar: 1 angka desimal jika nilai rata-rata < 10 (misal `1,4 transaksi`), dan bilangan bulat jika >= 10.
   4. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (278 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (11 tangkapan layar di `docs/shots/a28/`).
+
+## Review A28 (perapian analisa) — digabung
+- Lingkup sesuai (apps/dashboard + docs). review.sh lulus; Playwright 1440/1280/390 pada 4 halaman analisa tanpa overflow dan tanpa galat konsol; screenshot docs/shots/rv28/ kulihat.
+- Beres: heatmap hari x jam (24 kolom muat, sel hijau menurut intensitas), batang distribusi per hari sejajar, kontrol Transaksi | Nominal jadi segmented control.
+- Sisa kosmetik jadi tugas A42 (nilai KPI terpotong di 390, ruang kosong di atas kontrol, teks aksesibilitas yang tampil ke pengguna).
