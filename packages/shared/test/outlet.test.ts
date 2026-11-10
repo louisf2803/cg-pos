@@ -44,3 +44,27 @@ describe('kas kasir (S122)', () => {
     expect(outletOptionsProblem({ ...base, defaultOpeningCash: 2_000_000_000 })).toMatch(/Modal awal/);
   });
 });
+
+describe('tampilan struk (S123)', () => {
+  const base: OutletOptions = { serviceChargePct: 0, serviceChargeTaxable: false, serviceChargeOrderTypes: ['dine_in'], roundingCashStep: 0, roundingNoncashStep: 0, requireOpenShift: true, allowNegativeStock: true, receiptFooter: '' };
+  it('menolak teks kepala >200 karakter atau >4 baris, menerima yang sah', () => {
+    expect(outletOptionsProblem({ ...base, receiptHeader: 'x'.repeat(201) })).toMatch(/200/);
+    expect(outletOptionsProblem({ ...base, receiptHeader: 'a\nb\nc\nd\ne' })).toMatch(/4 baris/);
+    expect(outletOptionsProblem({ ...base, receiptHeader: 'Buka 08.00-22.00\nWi-Fi: kopi123' })).toBeNull();
+    expect(outletOptionsProblem(base)).toBeNull();
+  });
+  it('lapisan data demo menyimpan dan membaca kembali pilihan struk', async () => {
+    const d = createFakeData();
+    const before = await d.getOutletSettings();
+    expect(before.options.receiptHeader).toBe('');
+    expect(before.options.receiptShowCashier).toBe(true);
+    await d.saveOutletOptions({ ...before.options, receiptHeader: '  Buka setiap hari  ', receiptShowCashier: false });
+    const after = await d.getOutletSettings();
+    expect(after.options.receiptHeader).toBe('Buka setiap hari');
+    expect(after.options.receiptShowCashier).toBe(false);
+    expect(after.options.receiptShowCustomer).toBe(true);
+    const ctx = await d.getContext();
+    expect(ctx.receiptHeader).toBe('Buka setiap hari');
+    expect(ctx.receiptShowCashier).toBe(false);
+  });
+});

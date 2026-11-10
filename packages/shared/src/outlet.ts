@@ -11,6 +11,11 @@ export interface OutletOptions {
   requireCashPhoto?: boolean;
   /** modal awal bawaan saat buka shift (Rp); null/undefined = tidak ada. Butuh migrasi 0026. */
   defaultOpeningCash?: number | null;
+  /** teks kepala struk (maks 200 karakter, 4 baris); kosong = tidak ada. Butuh migrasi 0027. */
+  receiptHeader?: string;
+  /** tampilkan nama kasir / pelanggan di struk; tidak diisi = tampil. Butuh migrasi 0027. */
+  receiptShowCashier?: boolean;
+  receiptShowCustomer?: boolean;
 }
 export const ROUNDING_STEPS = [0, 50, 100, 500, 1000] as const;
 export const ORDER_TYPES: { id: OrderType; label: string }[] = [
@@ -23,6 +28,8 @@ export function outletOptionsProblem(o: OutletOptions): string | null {
   if (o.serviceChargePct > 0 && o.serviceChargeOrderTypes.length === 0) return 'Pilih minimal satu jenis pesanan yang dikenai biaya layanan.';
   for (const step of [o.roundingCashStep, o.roundingNoncashStep]) if (!Number.isInteger(step) || step < 0 || step > 1000) return 'Pembulatan harus bilangan bulat 0 sampai 1.000 rupiah.';
   if (o.receiptFooter.length > 300) return 'Catatan kaki struk maksimal 300 karakter.';
+  if ((o.receiptHeader ?? '').length > 200) return 'Teks kepala struk maksimal 200 karakter.';
+  if ((o.receiptHeader ?? '').split('\n').length > 4) return 'Teks kepala struk maksimal 4 baris.';
   for (const [v, label] of [[o.cashOutDailyLimit, 'Batas kas keluar harian'], [o.defaultOpeningCash, 'Modal awal bawaan']] as const) {
     if (v == null) continue;
     if (!Number.isInteger(v) || v < 0 || v > 1_000_000_000) return `${label} harus bilangan bulat rupiah antara 0 dan 1.000.000.000, atau dikosongkan.`;

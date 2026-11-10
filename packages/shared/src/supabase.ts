@@ -273,6 +273,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       orgName: (must(org) as Row).name, outletId: outlet.id, outletCode: outlet.code, outletName: outlet.name,
       timezone: outlet.timezone, deviceCode: device?.code ?? '-',
       address: outlet.address ?? undefined, phone: outlet.phone ?? undefined, receiptFooter: s.receipt_footer ?? undefined,
+      receiptHeader: s.receipt_header ?? undefined, receiptShowCashier: s.receipt_show_cashier !== false, receiptShowCustomer: s.receipt_show_customer !== false,
       settings: {
         taxCalc: s.tax_calc, taxMode: s.tax_mode, serviceChargePct: Number(s.service_charge_pct),
         serviceChargeTaxable: !!s.service_charge_taxable, serviceChargeOrderTypes: (s.service_charge_order_types ?? []) as OrderType[],
@@ -415,6 +416,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           allowNegativeStock: !!s.allow_negative_stock, receiptFooter: s.receipt_footer ?? '',
           cashOutDailyLimit: s.cash_out_daily_limit == null ? null : Number(s.cash_out_daily_limit), requireCashPhoto: !!s.require_cash_photo,
           defaultOpeningCash: s.default_opening_cash == null ? null : Number(s.default_opening_cash),
+          receiptHeader: s.receipt_header ?? '', receiptShowCashier: s.receipt_show_cashier !== false, receiptShowCustomer: s.receipt_show_customer !== false,
         },
       };
     },
@@ -479,6 +481,17 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       } else if (input.defaultOpeningCash === null) {
         const probe = await db().from('outlet_settings').select('default_opening_cash').limit(1);
         if (!probe.error) fields.default_opening_cash = null;
+      }
+      // tampilan struk (migrasi 0027): kolom ditulis hanya bila pemanggil menyertakannya; tanpa migrasi, tolak hanya bila ada yang berbeda dari bawaan
+      if (input.receiptHeader !== undefined || input.receiptShowCashier !== undefined || input.receiptShowCustomer !== undefined) {
+        const probe = await db().from('outlet_settings').select('receipt_header').limit(1);
+        const nonDefault = (input.receiptHeader ?? '').trim() !== '' || input.receiptShowCashier === false || input.receiptShowCustomer === false;
+        if (probe.error && nonDefault) throw new DataError('invalid', 'Tampilan struk belum bisa dipakai: database belum menerima migrasi 0027 (minta Claude menerapkannya setelah disetujui).');
+        if (!probe.error) {
+          if (input.receiptHeader !== undefined) fields.receipt_header = input.receiptHeader.trim() || null;
+          if (input.receiptShowCashier !== undefined) fields.receipt_show_cashier = input.receiptShowCashier;
+          if (input.receiptShowCustomer !== undefined) fields.receipt_show_customer = input.receiptShowCustomer;
+        }
       }
       const row = must(await db().from('outlet_settings').update(fields).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pengaturan outlet');

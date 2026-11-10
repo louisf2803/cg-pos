@@ -22,14 +22,15 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { 
         <strong>{ctx.outletName}</strong>
         {ctx.address && <div>{ctx.address}</div>}
         {ctx.phone && <div>{ctx.phone}</div>}
+        {ctx.receiptHeader && ctx.receiptHeader.split('\n').filter((l) => l.trim()).map((l, i) => <div key={i}>{l.trim()}</div>)}
       </header>
       <hr />
       <div className="receipt__row"><span>{kind === 'bill' ? 'TAGIHAN (belum lunas)' : 'STRUK'}</span><span>{orderTypeLabel(order.type)}</span></div>
       <div>{order.number}</div>
-      {order.customerName && <div>Pelanggan: {order.customerName}</div>}
+      {order.customerName && ctx.receiptShowCustomer !== false && <div>Pelanggan: {order.customerName}</div>}
       {(order.label || order.guestCount) && <div>{[order.label, order.guestCount ? `${order.guestCount} tamu` : ''].filter(Boolean).join(' · ')}</div>}
       <div>{fmt(order.closedAt ?? order.openedAt, ctx.timezone)}</div>
-      <div>Kasir: {cashierName}</div>
+      {ctx.receiptShowCashier !== false && <div>Kasir: {cashierName}</div>}
       <hr />
       {order.items.map((i) => (
         <div key={i.id} className="receipt__item">

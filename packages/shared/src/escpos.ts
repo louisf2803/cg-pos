@@ -64,14 +64,15 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
   center(ctx.outletName, true);
   if (ctx.address) center(ctx.address);
   if (ctx.phone) center(ctx.phone);
+  if (ctx.receiptHeader) for (const l of ctx.receiptHeader.split('\n')) if (l.trim()) center(l.trim());
   p.push({ text: dash });
   row(kind === 'bill' ? 'TAGIHAN (belum lunas)' : 'STRUK', orderTypeLabel(order.type));
   text(order.number);
   const meta = [order.label, order.guestCount ? `${order.guestCount} tamu` : ''].filter(Boolean).join(' - ');
   if (meta) text(meta);
   text(fmtTime(order.closedAt ?? order.openedAt, ctx.timezone));
-  text(`Kasir: ${cashierName}`);
-  if (order.customerName) text(`Pelanggan: ${order.customerName}`);
+  if (ctx.receiptShowCashier !== false) text(`Kasir: ${cashierName}`);
+  if (order.customerName && ctx.receiptShowCustomer !== false) text(`Pelanggan: ${order.customerName}`);
   p.push({ text: dash });
   for (const i of order.items) {
     text(i.name);

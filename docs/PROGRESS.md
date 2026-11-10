@@ -152,7 +152,7 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 - Penilaian ulang jujur 10 Nov: 4 baris yang catatannya usang (pembulatan x2, service charge, impor produk) dinaikkan ke yes karena fiturnya memang sudah ada (63.6).
 
 ## Menunggu keputusan Louis (ringkasan berjalan)
-- Terapkan migrasi 0011 (penjaga peran owner), 0025 (item bebas), 0026 (modal awal bawaan) ke produksi; selama belum, fitur terkait ditandai partial.
+- Terapkan migrasi 0011 (penjaga peran owner), 0025 (item bebas), 0026 (modal awal bawaan), 0027 (tampilan struk) ke produksi; selama belum, fitur terkait ditandai partial.
 - DOKU/QRIS (ditunda), uji printer thermal fisik, nyalakan PB1, kebijakan stok minus (bawaan: izinkan).
 - Selesai (tugas A23): Tampilan Kasir — Keranjang & Layar Pembayaran (`apps/pos`):
   1. Header Keranjang: Menampilkan nomor transaksi kecil abu di atas daftar (`#BARU` atau ID pesanan tersimpan). Jenis pesanan dan tombol Pelanggan ditempatkan sebaris dalam dua kolom sama lebar di atas daftar.
@@ -177,3 +177,5 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 - Cacat yang kuperbaiki sendiri (tes lulus tapi tampilan salah): (1) `w-28/h-28` pada tombol stepper keranjang jatuh ke skala bawaan Tailwind = 112px, kini 32px; (2) bilah bawah kasir kosong menyisakan pita putih 72px di desktop, kini disembunyikan bila tak ada pesan/galat; (3) teks "di sebelah kiri" di layar bayar salah di mobile, kini netral.
 - Catatan kecil untuk tugas berikut: chip tab aktif di Daftar Order mobile kurang menonjol; ikon Kartu dan Transfer bank sama.
 - Paritas fitur tidak berubah (baris sudah `yes`; ini polesan tampilan).
+
+- S123 (goal 90): Pengaturan tampilan struk. Migrasi 0027 (3 kolom outlet_settings: receipt_header maks 200 karakter, receipt_show_cashier, receipt_show_customer; bawaan = perilaku lama; tes SQL 19_receipt_display lulus di DB LOKAL; BELUM diterapkan ke produksi). Shared: OutletOptions/OutletContext + validasi (200 karakter, 4 baris); supabase.ts membaca llewat select('*') dan hanya menulis bila kolom ada (nilai non-bawaan tanpa migrasi ditolak dengan pesan jelas); fake menyimpan di konteks. Struk layar (Receipt.tsx) dan ESC/POS menampilkan teks kepala dan menghormati kasir/pelanggan; pajak, total, dan pembayaran tidak bisa disembunyikan. Dashboard /pengaturan/outlet punya fieldset Tampilan struk (screenshot docs/shots/s123/). Tes shared 273, SQL lulus, e2e 13/13. Paritas 63.9 -> 64.3 (baris Pengaturan tampilan struk: no -> partial, logo belum).

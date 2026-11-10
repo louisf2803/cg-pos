@@ -45,6 +45,17 @@ describe('ESC/POS', () => {
     expect(t).not.toContain('É');
     for (const line of t.split('\n')) expect(line.length).toBeLessThanOrEqual(32);
   });
+  it('tampilan struk: teks kepala tampil; kasir dan pelanggan bisa disembunyikan; total dan pajak tetap', () => {
+    const o = { ...order, customerName: 'Ibu Sari' } as unknown as Order;
+    const plain = asText(receiptBytes({ order: o, ctx, cashierName: 'Budi', kind: 'receipt', paper: '80' }));
+    expect(plain).toContain('Kasir: Budi'); expect(plain).toContain('Pelanggan: Ibu Sari');
+    const custom = { ...ctx, receiptHeader: 'Buka 08.00-22.00\n\n  Wi-Fi: kopi123 ', receiptShowCashier: false, receiptShowCustomer: false } as unknown as OutletContext;
+    const t = asText(receiptBytes({ order: o, ctx: custom, cashierName: 'Budi', kind: 'receipt', paper: '80' }));
+    expect(t).toContain('Buka 08.00-22.00'); expect(t).toContain('Wi-Fi: kopi123');
+    expect(t).not.toContain('Kasir:'); expect(t).not.toContain('Pelanggan:');
+    expect(t).toContain('TOTAL'); expect(t).toContain('Kembalian');
+    expect(t.indexOf('Buka 08.00')).toBeGreaterThan(t.indexOf('031-123'));
+  });
   it('tagihan memuat sisa dan tanpa Kembalian; laci kas hanya bila diminta', () => {
     const bill = { ...order, status: 'open', paidTotal: 10000, payments: [] } as unknown as Order;
     const t = asText(receiptBytes({ order: bill, ctx, cashierName: 'Budi', kind: 'bill', paper: '80' }));

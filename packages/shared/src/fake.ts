@@ -530,7 +530,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         info: { code: CTX.outletCode, name: CTX.outletName, address: outlet.address, phone: outlet.phone, timezone: CTX.timezone },
         options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
           roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter,
-          cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null },
+          cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null,
+          receiptHeader: CTX.receiptHeader ?? '', receiptShowCashier: CTX.receiptShowCashier !== false, receiptShowCustomer: CTX.receiptShowCustomer !== false },
       });
     },
     async saveOutletInfo(input) {
@@ -552,7 +553,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);
       if (problem) throw new DataError('invalid', problem);
-      const { receiptFooter, requireCashPhoto: _p, ...rest } = input;
+      const { receiptFooter, requireCashPhoto: _p, receiptHeader, receiptShowCashier, receiptShowCustomer, ...rest } = input;
+      if (receiptHeader !== undefined) CTX.receiptHeader = receiptHeader.trim() || undefined;
+      if (receiptShowCashier !== undefined) CTX.receiptShowCashier = receiptShowCashier;
+      if (receiptShowCustomer !== undefined) CTX.receiptShowCustomer = receiptShowCustomer;
       Object.assign(CTX.settings, rest); outlet.receiptFooter = receiptFooter.trim(); CTX.receiptFooter = outlet.receiptFooter || undefined;
     },
     async listFloors() { return clone([...floors].sort((a, b) => a.sort - b.sort)); },
