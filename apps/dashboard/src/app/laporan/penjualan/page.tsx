@@ -1,12 +1,61 @@
 'use client';
 import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight, Download } from 'lucide-react';
-import { formatRp, orderTypeLabel, toCsv } from '@cgpos/shared';
+import { formatRp, orderTypeLabel, toCsv, type OrderItem } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { useData } from '@/lib/data';
+import { useAsync } from '@/lib/use-async';
 import { useReport } from '@/lib/use-report';
 
 const fmtTime = (iso: string, tz: string) => new Intl.DateTimeFormat('id-ID', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+
+function OrderRefundHistory({
+  orderId,
+  items,
+  tz,
+}: {
+  orderId: string;
+  items: OrderItem[];
+  tz: string;
+}) {
+  const data = useData();
+  const state = useAsync(() => data.listRefunds(orderId), [data, orderId]);
+
+  if (state.status !== 'ready' || state.data.length === 0) return null;
+
+  const itemMap = new Map(items.map((i) => [i.id, i.name]));
+
+  return (
+    <tr>
+      <td colSpan={6} style={{ paddingLeft: 48, background: 'var(--color-surface)' }}>
+        <div className="py-8">
+          <div className="text-xs font-semibold text-danger mb-4">
+            Riwayat refund ({state.data.length}x pengembalian):
+          </div>
+          <div className="grid gap-6">
+            {state.data.map((r) => (
+              <div key={r.id} className="text-xs flex flex-wrap justify-between gap-12 border-t border-border pt-4">
+                <div>
+                  <span className="font-medium text-text">{r.number}</span>
+                  <span className="text-text-muted"> · {fmtTime(r.createdAt, tz)}</span>
+                  <span className="text-danger"> · Alasan: {r.reason}</span>
+                  <div className="text-text-muted mt-2">
+                    Barang:{' '}
+                    {r.items.map((it) => `${it.qty}× ${itemMap.get(it.orderItemId) ?? 'Item'}`).join(', ')}
+                  </div>
+                </div>
+                <div className="cg-num font-semibold text-danger">
+                  -{formatRp(r.total)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 export default function DetailPenjualan() {
   const { ctx, value, setValue, range, today, state } = useReport();
@@ -70,6 +119,7 @@ export default function DetailPenjualan() {
                             <td className="cg-num">{formatRp(i.lineTotal)}</td>
                           </tr>
                         ))}
+                        {ex && <OrderRefundHistory orderId={o.id} items={o.items} tz={tz} />}
                       </Fragment>
                     );
                   })}
