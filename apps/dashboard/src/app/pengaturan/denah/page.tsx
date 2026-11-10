@@ -234,7 +234,7 @@ export default function DenahDanMeja() {
             className={`cg-tab ${viewTab === 'denah' ? 'cg-tab--active' : ''}`}
             onClick={() => setViewTab('denah')}
           >
-            <LayoutGrid className="w-16 h-16 inline mr-6 shrink-0" aria-hidden /> Denah
+            <LayoutGrid className="w-16 h-16 inline mr-[6px] shrink-0" aria-hidden /> Denah
           </button>
           <button
             type="button"
@@ -243,7 +243,7 @@ export default function DenahDanMeja() {
             className={`cg-tab ${viewTab === 'daftar' ? 'cg-tab--active' : ''}`}
             onClick={() => setViewTab('daftar')}
           >
-            <ListFilter className="w-16 h-16 inline mr-6 shrink-0" aria-hidden /> Daftar
+            <ListFilter className="w-16 h-16 inline mr-[6px] shrink-0" aria-hidden /> Daftar
           </button>
         </div>
 
@@ -671,7 +671,7 @@ export default function DenahDanMeja() {
 
               {/* Active Order Details (if occupied) */}
               {selectedTable.order ? (
-                <div className="p-16 rounded-xl border border-warning/40 bg-warning/5 space-y-10 mb-20">
+                <div className="p-16 rounded-xl border border-warning/40 bg-warning/5 space-y-[10px] mb-20">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-warning-strong flex items-center gap-[6px]">
                       <Clock className="w-[14px] h-[14px]" aria-hidden /> Pesanan Aktif

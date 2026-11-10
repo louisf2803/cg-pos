@@ -155,7 +155,7 @@ function CashEntryModal({ kind, accounts, onClose, onDone }: CashModalProps) {
           </p>
         )}
 
-        <div className="grid gap-12 sm:grid-cols-2">
+        <div className="grid gap-12 tablet:grid-cols-2">
           <div className="cg-field">
             <label className="cg-label" htmlFor="entry-date">
               Tanggal transaksi
@@ -192,7 +192,7 @@ function CashEntryModal({ kind, accounts, onClose, onDone }: CashModalProps) {
           </div>
         </div>
 
-        <div className="grid gap-12 sm:grid-cols-2">
+        <div className="grid gap-12 tablet:grid-cols-2">
           <div className="cg-field">
             <label className="cg-label" htmlFor="entry-cash-acc">
               {kind === 'in' ? 'Masuk ke kas / bank' : 'Diambil dari kas / bank'}
@@ -450,42 +450,42 @@ export default function ExpensesAndReceiptsPage() {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-12 mb-16 min-w-0">
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+      <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12 mb-16 min-w-0">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Total {activeTab === 'in' ? 'Penerimaan' : 'Pengeluaran'}
             </span>
-            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
+            <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
               {formatRp(currentTotal)}
             </strong>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             Periode: {formatLocalPeriod(localFrom, localTo)}
           </span>
         </div>
 
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Banyak Transaksi
             </span>
-            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-text cg-num">
+            <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-text cg-num">
               {currentEntries.length}{' '}
               <span className="text-sm font-normal text-text-muted">transaksi</span>
             </strong>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             Tercatat di pembukuan
           </span>
         </div>
 
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Rata-rata per Transaksi
             </span>
-            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-text cg-num">
+            <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-text cg-num">
               {formatRp(
                 currentEntries.length > 0
                   ? Math.round(currentTotal / currentEntries.length)
@@ -493,18 +493,18 @@ export default function ExpensesAndReceiptsPage() {
               )}
             </strong>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             Estimasi per transaksi kas
           </span>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-12 mb-16 justify-between items-stretch sm:items-center">
+      <div className="flex flex-col tablet:flex-row gap-12 mb-16 justify-between items-stretch tablet:items-center">
         <div className="flex-1 max-w-sm">
           <div className="relative">
             <Search
-              className="w-16 h-16 text-text-muted absolute left-10 top-1/2 -translate-y-1/2 pointer-events-none"
+              className="w-16 h-16 text-text-muted absolute left-[10px] top-1/2 -translate-y-1/2 pointer-events-none"
               aria-hidden
             />
             <input
@@ -549,7 +549,7 @@ export default function ExpensesAndReceiptsPage() {
       ) : (
         <>
           {/* Desktop Table View */}
-          <div className="hidden md:block cg-data-wrap min-w-0">
+          <div className="hidden tablet:block cg-data-wrap min-w-0">
             <table
               className="cg-data min-w-0"
               aria-label={`Daftar ${activeTab === 'in' ? 'Penerimaan' : 'Pengeluaran'}`}
@@ -598,15 +598,15 @@ export default function ExpensesAndReceiptsPage() {
           </div>
 
           {/* Mobile Card List View */}
-          <div className="grid gap-12 md:hidden min-w-0" aria-label="Daftar transaksi mobile">
+          <div className="grid gap-12 tablet:hidden min-w-0" aria-label="Daftar transaksi mobile">
             {filteredEntries.map((row) => (
               <div key={row.id} className="cg-card p-12 min-w-0">
-                <div className="flex justify-between items-start gap-8 mb-6">
+                <div className="flex justify-between items-start gap-8 mb-[6px]">
                   <div>
                     <span className="text-xs text-text-muted block">
                       {fmtDate(row.date)} · {row.number}
                     </span>
-                    <strong className="text-sm font-semibold block mt-2">
+                    <strong className="text-sm font-semibold block mt-[2px]">
                       {row.description || '—'}
                     </strong>
                   </div>
@@ -615,7 +615,7 @@ export default function ExpensesAndReceiptsPage() {
                   </strong>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-6 pt-6 border-t border-[var(--color-border)] text-xs text-text-muted">
+                <div className="flex flex-wrap items-center gap-[6px] pt-[6px] border-t border-[var(--color-border)] text-xs text-text-muted">
                   <span className="cg-badge">{row.cashAccountName}</span>
                   <span>➜</span>
                   <span>{row.counterpartAccountName}</span>

@@ -393,13 +393,13 @@ export default function NonCashReconciliationPage() {
                     </td>
                     <td className="text-right py-8 px-12">
                       <div className="flex items-center h-[44px] w-[180px] ml-auto border border-border rounded-lg bg-surface-raised focus-within:border-accent focus-within:ring-1 focus-within:ring-accent overflow-hidden transition-colors">
-                        <span className="pl-10 pr-4 text-xs font-semibold text-text-muted select-none shrink-0">
+                        <span className="pl-[10px] pr-4 text-xs font-semibold text-text-muted select-none shrink-0">
                           Rp
                         </span>
                         <input
                           type="text"
                           inputMode="numeric"
-                          className="w-full h-full bg-transparent pr-10 text-right cg-num text-sm text-text font-semibold focus:outline-hidden"
+                          className="w-full h-full bg-transparent pr-[10px] text-right cg-num text-sm text-text font-semibold focus:outline-hidden"
                           placeholder="0"
                           value={
                             row.actualAmount !== undefined
