@@ -299,3 +299,27 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   5. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (301 tes vitest), `pnpm -F @cgpos/dashboard build` (115 halaman statis), lint Tailwind `scripts/lint-tailwind.sh`, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (15 tangkapan layar di `docs/shots/a32/`).
 - S132 (Claude) — review & merge A32 (atur kolom + ekspor laporan Penjualan/Per periode/Karyawan): lingkup benar (apps/dashboard, packages/shared, docs); lulus review.sh setelah kuperbaiki: prefix mati `md:` di laporan/karyawan, kunci spasi tak terdefinisi (`mt-6`, `mt-2`). Cacat tampilan yang lolos dari tes AG: (1) `PageHeader` memberi blok judul `flex-1` basis 0 sehingga di 390 px judul halaman terhimpit tombol aksi (huruf bertumpuk) — kini `basis-[240px]` (berlaku untuk semua halaman dashboard); (2) popover Atur kolom `absolute` terpotong wadah halaman yang pendek di ≥600 px (tombol Reset/Selesai tak terjangkau) — kini `fixed` dengan posisi dihitung dari tombol. Playwright 390/1280/1440: tanpa overflow/galat; tangkapan docs/shots/rv32/ sudah kulihat.
 - S133 (Claude) — migrasi produksi atas persetujuan Louis ("Migrasi lanjutkan aja", 11 Nov 2026 01:23 WIB, menjawab usulan menerapkan 0028, 0029, 0030): diterapkan satu per satu, semuanya `success`: 0028_owner_guard_revoke, 0029_print_stations, 0030_note_presets (tanpa begin/commit, dibungkus apply_migration). Verifikasi baca-saja: anon dan authenticated tidak lagi bisa mengeksekusi `employees_owner_guard()`; tabel `pos.print_stations` dan `pos.note_presets` ada, RLS aktif, anon tanpa akses, 0 baris; kolom `products.print_station_id` dan `kitchen_items.station_id` ada; 0 produk terpetakan (tidak ada data produksi diubah/diisi; stasiun belum dibuat — menunggu layar A44 atau Louis). Penasihat keamanan: SECURITY DEFINER dapat dieksekusi authenticated turun 43→42; tidak ada temuan baru dari tabel baru; sisa temuan (public.* RLS/search_path, 42 RPC pos, leaked password) sudah ada sebelumnya dan schema public tidak disentuh. Belum dicoba dengan login nyata. Daftar migrasi produksi kini sampai 0030 (0001–0030 lengkap).
+
+- Selesai (tugas A34): Laporan Arus Kas Metode Tidak Langsung (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/cashflow-indirect.ts`:
+     - `computeNetIncomeFromTrial`: menghitung laba bersih periode dari baris neraca saldo `TrialRow[]` ((Pendapatan + Pendapatan Lain) - (HPP + Beban Operasional + Beban Lain)).
+     - `computeIndirectCashFlow`: menghitung rekonsiliasi arus kas metode tidak langsung:
+       - Arus Kas Operasi: Laba bersih periode + penyesuaian beban non-kas (beban penyusutan `accumulated_depreciation`) + penyesuaian modal kerja (perubahan saldo piutang `receivable`, persediaan `inventory`, aset lancar lain `other_current_asset`, utang usaha `payable`, kewajiban lancar `short_term_liability`).
+       - Arus Kas Investasi: Perolehan/pelepasan aset tetap (`fixed_asset`). Menyediakan baris informatif 0 bila tidak ada mutasi aset tetap.
+       - Arus Kas Pendanaan: Perubahan pinjaman jangka panjang (`long_term_liability`) dan setoran/penarikan ekuitas (`equity`). Menyediakan baris informatif 0 bila tidak ada mutasi.
+       - Rekonsiliasi Kas: memverifikasi bahwa total arus kas bersih = perubahan saldo kas dan bank (`cashSummary.netChange`), menghitung selisih rekonsiliasi (`discrepancy`), dan menandai status `reconciled`.
+     - 5 unit test komprehensif di `packages/shared/test/cashflow-indirect.test.ts` (total 329 tes vitest lolos).
+  2. Tampilan UI di `/keuangan/laporan` (Tab Arus Kas):
+     - Segmented Tab Kontrol: pilihan metode "Langsung | Tidak langsung" dengan sinkronisasi URL parameter (`?tab=arus-kas&metode=tidak-langsung`).
+     - Tampilan Metode Tidak Langsung (`CashFlowIndirectView`):
+       - Ringkasan mutasi saldo awal kas, kenaikan/penurunan bersih kas, dan saldo akhir kas.
+       - Lencana status rekonsiliasi ("Terbukti seimbang" saat total arus kas cocok dengan mutasi kas, atau banner peringatan penjelasan saat terdeteksi selisih non-kas khusus).
+       - Tabel hierarkis terstruktur: Aktivitas Operasi (Laba bersih, Beban non-kas, Perubahan modal kerja dengan saldo awal & akhir), Aktivitas Investasi, Aktivitas Pendanaan, dan Rekonsiliasi Perubahan Kas.
+       - Desain responsif di semua breakpoint (termasuk 390px tanpa teks meluap atau scroll horizontal).
+  3. Kepatuhan Tailwind Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (hanya memakai breakpoint `tablet:`, `laptop:`, `desktop:`, `wide:`, dan token CSS monorepo).
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (53 file, 329 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).

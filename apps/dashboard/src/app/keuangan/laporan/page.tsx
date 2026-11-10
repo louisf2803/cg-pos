@@ -1,6 +1,15 @@
 'use client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { agingBucket, AGING_BUCKETS, formatRp, payablesBySupplier, sourceLabel, type StatementRow } from '@cgpos/shared';
+import {
+  agingBucket,
+  AGING_BUCKETS,
+  computeIndirectCashFlow,
+  formatRp,
+  payablesBySupplier,
+  sourceLabel,
+  type IndirectCashFlow,
+  type StatementRow,
+} from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync, type AsyncState } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -129,24 +138,304 @@ function TrialBalance() {
 function CashFlow() {
   const data = useData();
   const { span, setSpan } = useSpan();
-  const state = useAsync(() => data.cashFlow(span), [data, span.from, span.to]);
+  const [method, setMethod] = useState<'direct' | 'indirect'>('direct');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const m = new URLSearchParams(window.location.search).get('metode');
+    if (m === 'tidak-langsung' || m === 'indirect') {
+      setMethod('indirect');
+    } else if (m === 'langsung' || m === 'direct') {
+      setMethod('direct');
+    }
+  }, []);
+
+  const changeMethod = (m: 'direct' | 'indirect') => {
+    setMethod(m);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'arus-kas');
+      url.searchParams.set('metode', m === 'indirect' ? 'tidak-langsung' : 'langsung');
+      window.history.replaceState(null, '', url.toString());
+    } catch {
+      // Abaikan bila di lingkungan non-browser
+    }
+  };
+
+  const directState = useAsync(() => data.cashFlow(span), [data, span.from, span.to]);
+  const indirectState = useAsync(async () => {
+    const [trial, income] = await Promise.all([
+      data.trialBalance(span),
+      data.incomeStatement(span),
+    ]);
+    const netProfitRow = income.find((r) => r.section === 'net_profit');
+    return computeIndirectCashFlow(trial, netProfitRow?.amount);
+  }, [data, span.from, span.to]);
+
   return (
     <>
-      <div className="flex flex-wrap gap-12 mb-16 items-end"><DateSpan from={span.from} to={span.to} onChange={setSpan} idPrefix="ak" /></div>
-      <Wait state={state}>{(cf) => (
-        <>
-          <p className="mb-12" data-testid="ak-ringkas">Saldo awal kas dan bank <strong className="cg-num">{money(cf.opening)}</strong> · masuk <strong className="cg-num">{formatRp(cf.inflow)}</strong> · keluar <strong className="cg-num">{formatRp(cf.outflow)}</strong> · saldo akhir <strong className="cg-num">{money(cf.closing)}</strong></p>
-          {cf.groups.length === 0 ? <div className="cg-empty"><p><strong>Tidak ada gerakan kas atau bank di rentang ini.</strong></p></div> : (
-            <div className="cg-data-wrap"><table className="cg-data" aria-label="Arus kas">
-              <thead><tr><th>Sumber</th><th className="text-right">Masuk</th><th className="text-right">Keluar</th><th className="text-right">Bersih</th></tr></thead>
-              <tbody>
-                {cf.groups.map((g) => <tr key={g.source}><td>{g.label || sourceLabel(g.source)}</td><td className="text-right cg-num">{g.inflow ? formatRp(g.inflow) : '—'}</td><td className="text-right cg-num">{g.outflow ? formatRp(g.outflow) : '—'}</td><td className="text-right cg-num">{money(g.net)}</td></tr>)}
-                <tr><td><strong>Kenaikan (penurunan) kas</strong></td><td className="text-right cg-num"><strong>{formatRp(cf.inflow)}</strong></td><td className="text-right cg-num"><strong>{formatRp(cf.outflow)}</strong></td><td className="text-right cg-num"><strong>{money(cf.net)}</strong></td></tr>
-              </tbody></table></div>
+      <div className="flex flex-wrap gap-12 mb-16 items-end">
+        <DateSpan from={span.from} to={span.to} onChange={setSpan} idPrefix="ak" />
+      </div>
+
+      {/* Tab Pemilih Metode Langsung | Tidak Langsung */}
+      <div className="flex items-center gap-8 mb-16" role="tablist" aria-label="Metode arus kas">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={method === 'direct'}
+          className="cg-chip"
+          aria-pressed={method === 'direct'}
+          onClick={() => changeMethod('direct')}
+        >
+          Langsung
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={method === 'indirect'}
+          className="cg-chip"
+          aria-pressed={method === 'indirect'}
+          onClick={() => changeMethod('indirect')}
+        >
+          Tidak langsung
+        </button>
+      </div>
+
+      {method === 'direct' ? (
+        <Wait state={directState}>
+          {(cf) => (
+            <>
+              <p className="mb-12" data-testid="ak-ringkas">
+                Saldo awal kas dan bank <strong className="cg-num">{money(cf.opening)}</strong> · masuk{' '}
+                <strong className="cg-num">{formatRp(cf.inflow)}</strong> · keluar{' '}
+                <strong className="cg-num">{formatRp(cf.outflow)}</strong> · saldo akhir{' '}
+                <strong className="cg-num">{money(cf.closing)}</strong>
+              </p>
+              {cf.groups.length === 0 ? (
+                <div className="cg-empty">
+                  <p><strong>Tidak ada gerakan kas atau bank di rentang ini.</strong></p>
+                </div>
+              ) : (
+                <div className="cg-data-wrap">
+                  <table className="cg-data" aria-label="Arus kas langsung">
+                    <thead>
+                      <tr>
+                        <th>Sumber</th>
+                        <th className="text-right">Masuk</th>
+                        <th className="text-right">Keluar</th>
+                        <th className="text-right">Bersih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cf.groups.map((g) => (
+                        <tr key={g.source}>
+                          <td>{g.label || sourceLabel(g.source)}</td>
+                          <td className="text-right cg-num">{g.inflow ? formatRp(g.inflow) : '—'}</td>
+                          <td className="text-right cg-num">{g.outflow ? formatRp(g.outflow) : '—'}</td>
+                          <td className="text-right cg-num">{money(g.net)}</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td><strong>Kenaikan (penurunan) kas</strong></td>
+                        <td className="text-right cg-num"><strong>{formatRp(cf.inflow)}</strong></td>
+                        <td className="text-right cg-num"><strong>{formatRp(cf.outflow)}</strong></td>
+                        <td className="text-right cg-num"><strong>{money(cf.net)}</strong></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}</Wait>
+        </Wait>
+      ) : (
+        <Wait state={indirectState}>
+          {(icf) => <CashFlowIndirectView cf={icf} />}
+        </Wait>
+      )}
     </>
+  );
+}
+
+function CashFlowIndirectView({ cf }: { cf: IndirectCashFlow }) {
+  return (
+    <div className="grid gap-16 min-w-0">
+      <p className="text-sm" data-testid="ak-indirect-ringkas">
+        Saldo awal kas dan bank <strong className="cg-num">{money(cf.cashSummary.opening)}</strong> ·
+        Kenaikan (penurunan) bersih kas <strong className="cg-num">{money(cf.totalCashFlow)}</strong> ·
+        Saldo akhir kas dan bank <strong className="cg-num">{money(cf.cashSummary.closing)}</strong>
+      </p>
+
+      {cf.reconciled ? (
+        <p className="text-xs text-text-muted flex items-center gap-8">
+          <span className="cg-badge cg-badge--success">Terbukti seimbang</span>
+          <span>
+            Total arus kas operasi, investasi, dan pendanaan cocok persis dengan perubahan kas dan bank ({money(cf.cashSummary.netChange)}).
+          </span>
+        </p>
+      ) : (
+        <p role="alert" className="cg-banner cg-banner--warning text-xs">
+          Terdapat penyesuaian khusus sebesar {formatRp(Math.abs(cf.discrepancy))} dari transaksi non-kas atau penyesuaian antar-akun yang belum dapat direkonsiliasi langsung ke kas.
+        </p>
+      )}
+
+      <div className="cg-data-wrap min-w-0">
+        <table className="cg-data w-full" aria-label="Arus kas metode tidak langsung">
+          <thead>
+            <tr>
+              <th className="text-left">Keterangan / Akun</th>
+              <th className="text-right whitespace-nowrap">Arus Kas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Bagian Operasi */}
+            <tr className="bg-surface-muted/40 font-semibold text-text">
+              <td colSpan={2}>Arus Kas dari Aktivitas Operasi</td>
+            </tr>
+            <tr data-testid="ak-indirect-net-income">
+              <td className="pl-16">
+                <strong>Laba bersih periode</strong>
+                <span className="block text-xs text-text-muted">Dari laporan laba rugi</span>
+              </td>
+              <td className="text-right cg-num font-semibold">{money(cf.netIncome)}</td>
+            </tr>
+
+            {/* Penyesuaian Non-Kas */}
+            {cf.operating.nonCash.length > 0 && (
+              <>
+                <tr>
+                  <td colSpan={2} className="pl-16 text-xs text-text-muted font-medium pt-8 pb-4">
+                    Penyesuaian Beban Non-Kas:
+                  </td>
+                </tr>
+                {cf.operating.nonCash.map((item) => (
+                  <tr key={item.id}>
+                    <td className="pl-24 break-words max-w-[360px]">
+                      <span>{item.label}</span>
+                      <span className="text-xs text-text-muted block">
+                        {item.code} {item.name}
+                      </span>
+                    </td>
+                    <td className="text-right cg-num">{money(item.cashImpact)}</td>
+                  </tr>
+                ))}
+              </>
+            )}
+
+            {/* Perubahan Modal Kerja */}
+            <tr>
+              <td colSpan={2} className="pl-16 text-xs text-text-muted font-medium pt-8 pb-4">
+                Perubahan Modal Kerja Operasional:
+              </td>
+            </tr>
+            {cf.operating.workingCapital.length === 0 ? (
+              <tr>
+                <td className="pl-24 text-text-muted text-xs">
+                  Tidak ada perubahan piutang, persediaan, atau utang di periode ini
+                </td>
+                <td className="text-right cg-num text-text-muted">—</td>
+              </tr>
+            ) : (
+              cf.operating.workingCapital.map((item) => (
+                <tr key={item.id}>
+                  <td className="pl-24 break-words max-w-[360px]">
+                    <span>{item.label}</span>
+                    <span className="text-xs text-text-muted block">
+                      Saldo awal: {money(item.opening)} → Saldo akhir: {money(item.closing)}
+                    </span>
+                  </td>
+                  <td className="text-right cg-num">{money(item.cashImpact)}</td>
+                </tr>
+              ))
+            )}
+
+            <tr
+              className="bg-surface-muted/60 font-semibold border-t border-border"
+              data-testid="ak-indirect-operating-subtotal"
+            >
+              <td>Arus Kas Bersih dari Aktivitas Operasi</td>
+              <td className="text-right cg-num font-bold">{money(cf.operating.subtotal)}</td>
+            </tr>
+
+            {/* Bagian Investasi */}
+            <tr className="bg-surface-muted/40 font-semibold text-text">
+              <td colSpan={2}>Arus Kas dari Aktivitas Investasi</td>
+            </tr>
+            {cf.investing.lines.map((item) => (
+              <tr key={item.id}>
+                <td className="pl-16 break-words max-w-[360px]">
+                  <span>{item.label}</span>
+                  {item.code !== '-' && (
+                    <span className="text-xs text-text-muted block">
+                      {item.code} {item.name}
+                    </span>
+                  )}
+                </td>
+                <td className="text-right cg-num">
+                  {item.cashImpact === 0 ? '—' : money(item.cashImpact)}
+                </td>
+              </tr>
+            ))}
+            <tr
+              className="bg-surface-muted/60 font-semibold border-t border-border"
+              data-testid="ak-indirect-investing-subtotal"
+            >
+              <td>Arus Kas Bersih dari Aktivitas Investasi</td>
+              <td className="text-right cg-num font-bold">{money(cf.investing.subtotal)}</td>
+            </tr>
+
+            {/* Bagian Pendanaan */}
+            <tr className="bg-surface-muted/40 font-semibold text-text">
+              <td colSpan={2}>Arus Kas dari Aktivitas Pendanaan</td>
+            </tr>
+            {cf.financing.lines.map((item) => (
+              <tr key={item.id}>
+                <td className="pl-16 break-words max-w-[360px]">
+                  <span>{item.label}</span>
+                  {item.code !== '-' && (
+                    <span className="text-xs text-text-muted block">
+                      {item.code} {item.name}
+                    </span>
+                  )}
+                </td>
+                <td className="text-right cg-num">
+                  {item.cashImpact === 0 ? '—' : money(item.cashImpact)}
+                </td>
+              </tr>
+            ))}
+            <tr
+              className="bg-surface-muted/60 font-semibold border-t border-border"
+              data-testid="ak-indirect-financing-subtotal"
+            >
+              <td>Arus Kas Bersih dari Aktivitas Pendanaan</td>
+              <td className="text-right cg-num font-bold">{money(cf.financing.subtotal)}</td>
+            </tr>
+
+            {/* Rekonsiliasi Perubahan Kas */}
+            <tr
+              className="border-t-2 border-border font-bold text-base"
+              data-testid="ak-indirect-total"
+            >
+              <td>Kenaikan (Penurunan) Bersih Kas dan Bank</td>
+              <td className="text-right cg-num font-bold">{money(cf.totalCashFlow)}</td>
+            </tr>
+            <tr className="text-sm">
+              <td className="text-text-muted">Saldo awal kas dan bank</td>
+              <td className="text-right cg-num text-text-muted">
+                {money(cf.cashSummary.opening)}
+              </td>
+            </tr>
+            <tr className="bg-surface-muted/30 font-semibold text-sm">
+              <td>Saldo akhir kas dan bank</td>
+              <td className="text-right cg-num font-bold">
+                {money(cf.cashSummary.closing)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
