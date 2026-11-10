@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Star } from 'lucide-react';
-import { checkStockLimit, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
+import { checkStockLimit, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -16,6 +16,7 @@ import { CustomerPicker } from './CustomerPicker';
 import { DiscountDialog } from './DiscountDialog';
 import { SideDrawer } from './SideDrawer';
 import { Sales } from './Sales';
+import { SplitBillDialog } from './SplitBillDialog';
 
 const TYPES: { v: OrderType; label: string }[] = [
   { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
@@ -50,6 +51,9 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [cat, setCat] = useState<string | 'all'>('all');
   const [q, setQ] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
+  /** true selama bagian yang dipisah sedang dibayar: keranjang (sisa pesanan) tidak dikosongkan setelahnya */
+  const [keepCart, setKeepCart] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [paying, setPaying] = useState<Order | null>(null);
   const [picking, setPicking] = useState<Extract<CatalogTile, { kind: 'group' }> | null>(null);
@@ -131,6 +135,31 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     return o;
   }
 
+  /** Pisah bayar per item: bagian terpilih disimpan sebagai pesanan baru lalu dibayar; sisanya tetap di keranjang. */
+  async function splitPay(picks: Record<string, number>) {
+    const r = splitByItem(cart.state.lines, picks, newId);
+    if (r.problem) throw new Error(r.problem);
+    const items = (ls: typeof r.paid) => ls.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras, note: l.note?.trim() || undefined }));
+    const where = cart.state.tableName ?? cart.state.label?.trim();
+    // 1) simpan bagian yang dibayar lebih dulu: bila langkah 2 gagal, tidak ada item yang hilang
+    const part = await data.saveOrder({
+      id: newId(), type: cart.state.type, customerId: cart.state.customerId, label: [where, 'pisah bayar'].filter(Boolean).join(' · ').slice(0, 60), items: items(r.paid),
+    }, session.employee.id);
+    // 2) perbarui pesanan asal dengan sisanya
+    let rest: Order;
+    try {
+      rest = await data.saveOrder({
+        id: cart.state.orderId ?? newId(), type: cart.state.type, tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId,
+        label: cart.state.label?.trim() || undefined, guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined, items: items(r.remain),
+      }, session.employee.id);
+    } catch (e) {
+      throw new Error(`Bagian yang dipisah tersimpan sebagai ${part.number}, tetapi pesanan asal belum diperbarui (${e instanceof Error ? e.message : 'galat'}). Cek Daftar Order sebelum membayar.`);
+    }
+    cart.dispatch({ t: 'load', order: rest, tableName: cart.state.tableName });
+    waitingOrders.reload();
+    setSplitOpen(false); setKeepCart(true); setPaying(part);
+  }
+
   async function pay() {
     if (!cart.state.lines.length || placing) return;
     setPlacing(true); setSaveErr(''); setNotice('');
@@ -165,8 +194,13 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 
   if (paying) {
     const fromList = showOrders && paying.id !== cart.state.orderId;
-    return <Payment order={paying} ctx={ctx} onBack={() => setPaying(null)}
-      onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); waitingOrders.reload(); }} />;
+    return <Payment order={paying} ctx={ctx}
+      onBack={() => { if (keepCart) { setKeepCart(false); setNotice(`Pesanan pisah ${paying.number} belum dibayar; ada di Daftar Order.`); } setPaying(null); }}
+      onDone={() => {
+        if (keepCart) { setKeepCart(false); setPanelOpen(true); setNotice(`Bagian pisah ${paying.number} lunas. Sisa pesanan masih terbuka di keranjang.`); }
+        else if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); }
+        setPaying(null); prods.reload(); waitingOrders.reload();
+      }} />;
   }
   if (showSales) {
     return <Sales ctx={ctx} onClose={() => setShowSales(false)} />;
@@ -734,17 +768,34 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             </button>
           </div>
 
-          {/* Tombol sekunder: Kirim ke dapur */}
-          <button
-            type="button"
-            className="cg-btn cg-btn--secondary cg-btn--sm w-full flex items-center justify-center gap-6"
-            disabled={!cart.state.lines.length || placing}
-            onClick={toKitchen}
-            aria-label="Kirim ke dapur"
-          >
-            <ChefHat className="cg-icon cg-icon--xs" aria-hidden />
-            <span>Kirim ke dapur</span>
-          </button>
+          {/* Tombol sekunder: Kirim ke dapur dan Pisah bayar per item */}
+          <div className="grid grid-cols-2 gap-6">
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm w-full flex items-center justify-center gap-6"
+              disabled={!cart.state.lines.length || placing}
+              onClick={toKitchen}
+              aria-label="Kirim ke dapur"
+            >
+              <ChefHat className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Kirim ke dapur</span>
+            </button>
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm w-full flex items-center justify-center gap-6"
+              disabled={cart.state.lines.length < 1 || cart.count < 2 || placing}
+              onClick={() => {
+                if (cart.discounts.entries.length || cart.discounts.total > 0) { setSaveErr(''); setNotice('Hapus diskon pesanan dulu untuk memisah bayar per item.'); return; }
+                setSplitOpen(true);
+              }}
+              title={cart.count < 2 ? 'Butuh minimal 2 item' : 'Bayar sebagian item lebih dulu'}
+              aria-label="Pisah bayar per item"
+              data-testid="split-open"
+            >
+              <Split className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Pisah item</span>
+            </button>
+          </div>
 
           {/* Batang hijau penuh lebar Bayar dengan lencana jumlah item di kiri dan total di kanan */}
           <button
@@ -796,6 +847,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
           onAdd={(extras) => { cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
       )}
+      {splitOpen && <SplitBillDialog lines={cart.state.lines} ctx={ctx} orderType={cart.state.type} onClose={() => setSplitOpen(false)} onConfirm={splitPay} />}
       {customOpen && (
         <CustomItemDialog onClose={() => setCustomOpen(false)}
           onAdd={async (name, price, qty) => {
