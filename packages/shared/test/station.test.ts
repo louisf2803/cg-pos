@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkerPieces, defaultTemplate, groupByStation, labelPieceSets, normalizeTemplate, printPlan, sampleTicket, stationBytes, stationProblem,
+  printModeLabel, stationKindLabel, PRINT_MODE_OPTIONS, STATION_KIND_OPTIONS,
   type PrintStation, type SentLine,
 } from '../src';
 
@@ -132,5 +133,21 @@ describe('tema huruf tiket', () => {
     const big = checkerPieces({ station: st('large'), meta, lines, cols: 32 });
     expect(big.every((p) => p.size === 'large' && p.text.length <= 16)).toBe(true);
     expect(checkerPieces({ station: st('normal'), meta, lines, cols: 32 }).some((p) => p.size)).toBe(false);
+  });
+});
+
+describe('printModeLabel dan stationKindLabel', () => {
+  it('mengembalikan label bahasa Indonesia yang benar', () => {
+    expect(printModeLabel('auto')).toBe('Otomatis');
+    expect(printModeLabel('ask')).toBe('Tanyakan');
+    expect(printModeLabel('off')).toBe('Mati');
+    expect(stationKindLabel('checker')).toBe('Checker (Dapur / Bar)');
+    expect(stationKindLabel('label')).toBe('Label (Cup / Kemasan)');
+  });
+  it('punya deskripsi untuk semua opsi', () => {
+    expect(PRINT_MODE_OPTIONS).toHaveLength(3);
+    expect(PRINT_MODE_OPTIONS.every((o) => o.description.length > 0)).toBe(true);
+    expect(STATION_KIND_OPTIONS).toHaveLength(2);
+    expect(STATION_KIND_OPTIONS.every((o) => o.description.length > 0)).toBe(true);
   });
 });

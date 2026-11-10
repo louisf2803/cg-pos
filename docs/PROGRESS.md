@@ -349,3 +349,21 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+
+- Selesai (tugas A45): Penetapan Produk ke Stasiun Cetak (`apps/dashboard`):
+  1. Halaman `/pengaturan/stasiun-cetak/penetapan`:
+     - Kartu Ringkasan Metrik: Total Produk, Produk Belum Ditetapkan, dan jumlah produk terpetakan per stasiun aktif.
+     - Pintasan Pemetaan Per Kategori: memilih kategori dan stasiun tujuan, lalu memetakan seluruh produk dalam kategori tersebut sekaligus lewat `data.assignProductsToStation({ categoryId, stationId })`.
+     - Tabel Produk Terfilter: pencarian instan nama atau SKU, filter per kategori, filter per stasiun (termasuk "Belum punya stasiun"), checkbox per baris, dan master checkbox "Pilih semua yang tampil".
+     - Pengubahan Instan Per Produk: dropdown langsung di tiap baris tabel untuk memindahkan stasiun satu produk secara cepat.
+     - Bilah Aksi Massal (Floating Bulk Action Bar): muncul otomatis saat ada 1 atau lebih produk yang dipilih. Dilengkapi pilihan stasiun tujuan, tombol "Tetapkan", tombol "Lepas Stasiun", dan "Batalkan". Diuji pada 390px responsif dan tabel diberi padding bawah `pb-80` sehingga baris terbawah tidak tertutup.
+     - Notifikasi Hasil: banner pesan sukses hijau setelah pemindahan produk berhasil dan penanganan galat via `cg-banner`.
+     - Tautan Terintegrasi: tombol cepat "Penetapan Produk" dari `/pengaturan/stasiun-cetak` dan tombol "Stasiun cetak" dari `/produk`.
+  2. Kepatuhan Tailwind Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+  3. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (55 file, 348 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (117 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a45/`).
+
