@@ -65,14 +65,14 @@ function IncomeStatement() {
       <Wait state={state}>{(rows) => (rows.filter((r) => r.code).length === 0 ? (
         <div className="cg-empty"><p><strong>Belum ada pendapatan atau beban di rentang ini.</strong></p><p className="text-text-muted">Laporan terisi dari penjualan lunas, pembelian, dan jurnal manual.</p></div>
       ) : (
-        <div className="cg-data-wrap"><table className="cg-data" aria-label="Laba rugi">
-          <thead><tr><th>Akun</th><th className="text-right">Jumlah</th></tr></thead>
+        <div className="cg-data-wrap min-w-0"><table className="cg-data w-full" style={{ minWidth: 0 }} aria-label="Laba rugi">
+          <thead><tr><th>Akun</th><th className="text-right whitespace-nowrap">Jumlah</th></tr></thead>
           <tbody>
             {PL_SECTIONS.map((s) => {
               const items = rows.filter((r) => r.section === s.id);
-              if (s.total) return items.map((r) => <tr key={s.id} data-testid={`lr-${s.id}`}><td><strong>{s.total}</strong></td><td className="text-right cg-num"><strong>{money(r.amount)}</strong></td></tr>);
+              if (s.total) return items.map((r) => <tr key={s.id} data-testid={`lr-${s.id}`}><td><strong>{s.total}</strong></td><td className="text-right cg-num whitespace-nowrap"><strong>{money(r.amount)}</strong></td></tr>);
               if (items.length === 0) return null;
-              return [<tr key={`${s.id}-h`}><td colSpan={2} className="text-text-muted text-sm">{s.title}</td></tr>, ...items.map((r) => <tr key={`${s.id}-${r.code}`}><td className="break-words max-w-[360px]"><span className="cg-num">{r.code}</span> {r.name}</td><td className="text-right cg-num">{money(r.amount)}</td></tr>)];
+              return [<tr key={`${s.id}-h`}><td colSpan={2} className="text-text-muted text-sm">{s.title}</td></tr>, ...items.map((r) => <tr key={`${s.id}-${r.code}`}><td className="break-words"><span className="cg-num">{r.code}</span> {r.name}</td><td className="text-right cg-num whitespace-nowrap">{money(r.amount)}</td></tr>)];
             })}
           </tbody></table></div>
       ))}</Wait>
@@ -92,8 +92,8 @@ function BalanceSheet() {
         const part = (section: string, title: string, total: number, rs: StatementRow[]) => (
           <>
             <tr><td colSpan={2} className="text-text-muted text-sm">{title}</td></tr>
-            {rs.map((r) => <tr key={`${section}-${r.code}`}><td className="break-words max-w-[360px]"><span className="cg-num">{r.code}</span> {r.name}</td><td className="text-right cg-num">{money(r.amount)}</td></tr>)}
-            <tr data-testid={`nr-${section}`}><td><strong>Total {title.toLowerCase()}</strong></td><td className="text-right cg-num"><strong>{money(total)}</strong></td></tr>
+            {rs.map((r) => <tr key={`${section}-${r.code}`}><td className="break-words"><span className="cg-num">{r.code}</span> {r.name}</td><td className="text-right cg-num whitespace-nowrap">{money(r.amount)}</td></tr>)}
+            <tr data-testid={`nr-${section}`}><td><strong>Total {title.toLowerCase()}</strong></td><td className="text-right cg-num whitespace-nowrap"><strong>{money(total)}</strong></td></tr>
           </>
         );
         const assets = rows.filter((r) => r.section === 'asset'), liab = rows.filter((r) => r.section === 'liability'), eq = rows.filter((r) => r.section === 'equity');
@@ -101,7 +101,7 @@ function BalanceSheet() {
         return (
           <>
             {!totals.balanced && <p role="alert" className="cg-banner cg-banner--danger mb-12">Neraca tidak seimbang (aset {formatRp(totals.assets)}, kewajiban + ekuitas {formatRp(totals.liabilities + totals.equity)}). Periksa jurnal terbaru.</p>}
-            <div className="cg-data-wrap"><table className="cg-data" aria-label="Neraca"><thead><tr><th>Akun</th><th className="text-right">Saldo</th></tr></thead>
+            <div className="cg-data-wrap min-w-0"><table className="cg-data w-full" style={{ minWidth: 0 }} aria-label="Neraca"><thead><tr><th>Akun</th><th className="text-right whitespace-nowrap">Saldo</th></tr></thead>
               <tbody>{part('asset', 'Aset', totals.assets, assets)}{part('liability', 'Kewajiban', totals.liabilities, liab)}{part('equity', 'Ekuitas', totals.equity, eq)}</tbody></table></div>
             <p className="mt-12" data-testid="nr-status">{totals.balanced ? <span className="cg-badge cg-badge--success">Seimbang</span> : <span className="cg-badge cg-badge--danger">Tidak seimbang</span>} Aset = Kewajiban + Ekuitas. Laba berjalan dihitung kumulatif sampai tanggal ini.</p>
           </>
