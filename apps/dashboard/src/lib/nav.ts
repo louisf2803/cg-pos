@@ -80,7 +80,7 @@ export const NAV: NavGroup[] = [
   },
   {
     label: 'Keuangan', icon: Coins, items: [
-      { href: '/keuangan', label: 'Dashboard keuangan', screen: 'S70', tier: 2 },
+      { href: '/keuangan', label: 'Dashboard keuangan', screen: 'S70', tier: 2, built: true },
       { section: 'Laporan', href: '/keuangan/laporan', label: 'Laporan keuangan', screen: 'S71', tier: 2, built: true },
       { section: 'Akun dan jurnal', href: '/keuangan/akun', label: 'Daftar akun', screen: 'S72', tier: 2, built: true },
       { section: 'Akun dan jurnal', href: '/keuangan/jurnal', label: 'Jurnal umum', screen: 'S72', tier: 2, built: true },
