@@ -100,3 +100,4 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   4. Pendaftaran Menu: Ditandai `built: true` di `apps/dashboard/src/lib/nav.ts` untuk rute `/laporan/karyawan` dan `/laporan/dapur`.
   5. Lolos uji: `pnpm -r typecheck`, 246 tes shared vitest, build dashboard 112 halaman statis, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a17/`).
 
+- Review A17 (Laporan karyawan + Laporan dapur, helper murni staff-report/kitchen-report + tes): review.sh lulus (typecheck, tes shared, build), Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol, lingkup hanya dashboard/shared/docs. Digabung ke main. Temuan kecil (peran berbahasa Inggris, placeholder cari, teks terpotong di mobile) -> A27.
