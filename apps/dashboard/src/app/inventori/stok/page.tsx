@@ -1,0 +1,207 @@
+'use client';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ArrowDownToLine, ArrowUpFromLine, BookOpen, Search } from 'lucide-react';
+import {
+  formatRp, newId, STOCK_KIND_LABEL, STOCK_STATUS_LABEL, stockPostProblem,
+  type ManualStockKind, type StockFilter, type StockItem, type StockStatus,
+} from '@cgpos/shared';
+import { useData } from '@/lib/data';
+import { useAsync } from '@/lib/use-async';
+import { ErrorBox, PageHeader } from '@/components/page';
+
+const fmtQty = (n: number) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(n);
+const fmtWhen = (iso: string) => new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+const KIND_LABEL = { goods: 'Barang', ingredient: 'Bahan baku' } as const;
+const BADGE: Record<StockStatus, string> = { ok: '', low: 'cg-badge--warning', out: 'cg-badge--danger', negative: 'cg-badge--danger' };
+const MODE_LABEL: Record<ManualStockKind, string> = { adjust_in: 'Stok masuk', adjust_out: 'Stok keluar', waste: 'Terbuang' };
+
+type Dlg = { kind: 'post'; item: StockItem; mode: ManualStockKind } | { kind: 'card'; item: StockItem };
+
+function useDialog(onClose: () => void) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { ref.current?.showModal(); }, []);
+  return { ref, props: { ref, className: 'cg-modal', style: { margin: 'auto' }, onClose } as const };
+}
+
+export default function StockPage() {
+  const data = useData();
+  const [search, setSearch] = useState('');
+  const [kind, setKind] = useState<'' | StockItem['kind']>('');
+  const [status, setStatus] = useState<'' | StockFilter>('');
+  const state = useAsync(() => data.listStock(), [data]);
+  const [dlg, setDlg] = useState<Dlg | null>(null);
+  const [notice, setNotice] = useState('');
+  const rows = useMemo(() => {
+    if (state.status !== 'ready') return [];
+    const q = search.trim().toLowerCase();
+    return state.data.filter((i) => (!kind || i.kind === kind) && (!status || (status === 'alert' ? i.status !== 'ok' : i.status === status)) && (!q || i.name.toLowerCase().includes(q)));
+  }, [state, search, kind, status]);
+  const all = state.status === 'ready' ? state.data : [];
+  const totalValue = all.reduce((n, i) => n + i.value, 0);
+  const alerts = all.filter((i) => i.status !== 'ok').length;
+
+  return (
+    <>
+      <PageHeader title="Daftar stok" subtitle="Stok bahan baku dan barang di outlet ini, dengan nilai persediaan dan peringatan" />
+      {notice && <p role="status" className="cg-banner cg-banner--info mb-16">{notice}</p>}
+      {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
+      {state.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2, 3].map((i) => <div key={i} className="cg-skeleton" style={{ height: 56 }} />)}</div>}
+      {state.status === 'ready' && (
+        <>
+          <dl className="grid gap-12 mb-16" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }} aria-label="Ringkasan stok">
+            <div className="border border-border rounded-md p-12 bg-surface"><dt className="text-text-muted text-sm m-0">Nilai persediaan</dt><dd className="cg-num text-lg font-semibold m-0" data-testid="nilai-persediaan">{formatRp(totalValue)}</dd></div>
+            <div className="border border-border rounded-md p-12 bg-surface"><dt className="text-text-muted text-sm m-0">Jumlah item</dt><dd className="cg-num text-lg font-semibold m-0">{all.length}</dd></div>
+            <div className="border border-border rounded-md p-12 bg-surface"><dt className="text-text-muted text-sm m-0">Perlu perhatian</dt>
+              <dd className="text-lg font-semibold m-0"><button className="cg-num underline" onClick={() => setStatus(status === 'alert' ? '' : 'alert')} aria-pressed={status === 'alert'} data-testid="jumlah-perhatian">{alerts}</button></dd></div>
+          </dl>
+          <div className="flex flex-wrap gap-8 mb-12 items-end">
+            <div className="cg-field grow" style={{ minWidth: 180 }}><label className="cg-label" htmlFor="stok-cari">Cari</label>
+              <div className="relative"><Search className="cg-icon absolute" style={{ left: 10, top: 12 }} aria-hidden />
+                <input id="stok-cari" className="cg-input" style={{ paddingLeft: 34 }} placeholder="Nama barang" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div>
+            <div className="cg-field"><label className="cg-label" htmlFor="stok-jenis">Jenis</label>
+              <select id="stok-jenis" className="cg-input" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="">Semua</option><option value="ingredient">Bahan baku</option><option value="goods">Barang</option></select></div>
+            <div className="cg-field"><label className="cg-label" htmlFor="stok-status">Status</label>
+              <select id="stok-status" className="cg-input" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+                <option value="">Semua</option><option value="alert">Perlu perhatian</option><option value="out">Habis</option><option value="negative">Minus</option><option value="low">Menipis</option><option value="ok">Aman</option></select></div>
+          </div>
+          {all.length === 0 ? (
+            <div className="cg-empty"><p><strong>Belum ada barang yang stoknya dilacak.</strong></p><p className="text-text-muted">Nyalakan pelacakan stok di form produk, atau tambahkan bahan baku lewat resep.</p></div>
+          ) : rows.length === 0 ? (
+            <div className="cg-empty"><p><strong>Tidak ada yang cocok.</strong></p><p className="text-text-muted">Ubah kata kunci atau filter.</p></div>
+          ) : (
+            <div className="cg-data-wrap">
+              <table className="cg-data">
+                <thead><tr><th>Nama</th><th>Jenis</th><th className="text-right">Stok</th><th className="text-right">Biaya rata-rata</th><th className="text-right">Nilai</th><th>Status</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
+                <tbody>
+                  {rows.map((i) => (
+                    <tr key={i.productId}>
+                      <td className="break-words max-w-[260px]"><strong>{i.name}</strong>{i.minQty !== undefined && <span className="block text-sm text-text-muted">Minimum {fmtQty(i.minQty)} {i.unit}</span>}</td>
+                      <td className="text-sm">{KIND_LABEL[i.kind]}</td>
+                      <td className="text-right cg-num whitespace-nowrap">{fmtQty(i.qty)} <span className="text-text-muted text-sm">{i.unit}</span></td>
+                      <td className="text-right cg-num">{formatRp(i.avgCost)}</td>
+                      <td className="text-right cg-num">{formatRp(i.value)}</td>
+                      <td><span className={`cg-badge ${BADGE[i.status]}`}>{STOCK_STATUS_LABEL[i.status]}</span></td>
+                      <td className="text-right whitespace-nowrap">
+                        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'post', item: i, mode: 'adjust_in' })} aria-label={`Stok masuk ${i.name}`}><ArrowDownToLine className="cg-icon cg-icon--sm" aria-hidden /> Masuk</button>
+                        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'post', item: i, mode: 'adjust_out' })} aria-label={`Stok keluar ${i.name}`}><ArrowUpFromLine className="cg-icon cg-icon--sm" aria-hidden /> Keluar</button>
+                        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'card', item: i })} aria-label={`Kartu stok ${i.name}`}><BookOpen className="cg-icon cg-icon--sm" aria-hidden /> Kartu</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+      {dlg?.kind === 'post' && <PostDialog item={dlg.item} mode={dlg.mode} onClose={() => setDlg(null)} onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }} />}
+      {dlg?.kind === 'card' && <CardDialog item={dlg.item} onClose={() => { setDlg(null); }} onChanged={state.reload} />}
+    </>
+  );
+}
+
+function PostDialog({ item, mode: first, onClose, onDone }: { item: StockItem; mode: ManualStockKind; onClose: () => void; onDone: (msg: string) => void }) {
+  const data = useData();
+  const d = useDialog(onClose);
+  const [mode, setMode] = useState<ManualStockKind>(first);
+  const [qty, setQty] = useState('');
+  const [cost, setCost] = useState('');
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const key = useRef(newId());          // satu kunci per pembukaan dialog: kirim ulang karena jaringan tidak menggandakan
+  const n = Number(qty.replace(',', '.'));
+  const willBe = mode === 'adjust_in' ? item.qty + n : item.qty - n;
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    const input = { id: key.current, productId: item.productId, kind: mode, qty: n, ...(mode === 'adjust_in' && cost.trim() !== '' ? { unitCost: Number(cost.replace(/\D/g, '')) } : {}), reason: reason.trim() || undefined };
+    const problem = stockPostProblem(input);
+    if (problem) return setErr(problem);
+    setBusy(true); setErr('');
+    try { const r = await data.postStock(input); onDone(`${MODE_LABEL[mode]} ${item.name}: ${fmtQty(n)} ${item.unit}. Stok sekarang ${fmtQty(r.qty)} ${item.unit}.`); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Stok gagal disimpan.'); setBusy(false); }
+  }
+  return (
+    <dialog {...d.props} aria-labelledby="judul-stok">
+      <form onSubmit={submit} className="grid gap-12" noValidate>
+        <h2 id="judul-stok" className="cg-modal__title break-words">{item.name}</h2>
+        <p className="text-sm text-text-muted">Stok sekarang <strong className="cg-num">{fmtQty(item.qty)} {item.unit}</strong> · biaya rata-rata {formatRp(item.avgCost)}</p>
+        <div className="cg-tabs" role="tablist" aria-label="Jenis gerakan">
+          {(['adjust_in', 'adjust_out', 'waste'] as const).map((m) => <button key={m} type="button" role="tab" className="cg-tab" aria-selected={mode === m} onClick={() => { setMode(m); setErr(''); }}>{MODE_LABEL[m]}</button>)}
+        </div>
+        <div className="cg-field"><label className="cg-label" htmlFor="stok-jumlah">Jumlah ({item.unit})</label>
+          <input id="stok-jumlah" className="cg-input" inputMode="decimal" autoFocus maxLength={16} value={qty} onChange={(e) => { setQty(e.target.value.replace(/[^\d.,]/g, '')); setErr(''); }} /></div>
+        {mode === 'adjust_in' && (
+          <div className="cg-field"><label className="cg-label" htmlFor="stok-harga">Harga beli per {item.unit} (Rp)</label>
+            <input id="stok-harga" className="cg-input" inputMode="numeric" maxLength={12} value={cost} onChange={(e) => { setCost(e.target.value.replace(/\D/g, '')); setErr(''); }} />
+            <span className="text-sm text-text-muted">Kosongkan untuk memakai biaya rata-rata saat ini, sehingga HPP tidak bergeser.</span></div>
+        )}
+        <div className="cg-field"><label className="cg-label" htmlFor="stok-alasan">Alasan (opsional)</label>
+          <input id="stok-alasan" className="cg-input" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} /></div>
+        {Number.isFinite(n) && n > 0 && willBe < 0 && <p role="status" className="cg-banner cg-banner--warning" data-testid="peringatan-minus">Stok akan menjadi minus ({fmtQty(willBe)} {item.unit}). Tetap boleh disimpan.</p>}
+        <p role="alert" className="min-h-[24px] text-danger-strong">{err}</p>
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Batal</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy} aria-busy={busy}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+function CardDialog({ item, onClose, onChanged }: { item: StockItem; onClose: () => void; onChanged: () => void }) {
+  const data = useData();
+  const d = useDialog(onClose);
+  const moves = useAsync(() => data.listStockMoves(item.productId, { limit: 100 }), [data, item.productId]);
+  const [min, setMin] = useState(item.minQty !== undefined ? String(item.minQty) : '');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function saveMin(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    const v = min.trim() === '' ? null : Number(min.replace(',', '.'));
+    if (v !== null && (!Number.isFinite(v) || v < 0)) return setErr('Batas minimum harus angka 0 atau lebih.');
+    setBusy(true); setErr(''); setMsg('');
+    try { await data.setStockMin(item.productId, v); setMsg(v === null ? 'Peringatan minimum dimatikan.' : 'Batas minimum disimpan.'); onChanged(); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Gagal menyimpan batas minimum.'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <dialog {...d.props} aria-labelledby="judul-kartu" style={{ margin: 'auto', maxWidth: 'min(720px, calc(100vw - 16px))' }}>
+      <div className="grid gap-12">
+        <h2 id="judul-kartu" className="cg-modal__title break-words">Kartu stok · {item.name}</h2>
+        <p className="text-sm text-text-muted">Saldo <strong className="cg-num">{fmtQty(item.qty)} {item.unit}</strong> · biaya rata-rata {formatRp(item.avgCost)} · nilai {formatRp(item.value)}</p>
+        <form onSubmit={saveMin} className="flex flex-wrap gap-8 items-end" noValidate aria-label="Peringatan stok minimum">
+          <div className="cg-field"><label className="cg-label" htmlFor="stok-min">Batas minimum ({item.unit})</label>
+            <input id="stok-min" className="cg-input" inputMode="decimal" maxLength={16} value={min} onChange={(e) => { setMin(e.target.value.replace(/[^\d.,]/g, '')); setErr(''); setMsg(''); }} /></div>
+          <button type="submit" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={busy}>Simpan batas</button>
+        </form>
+        {msg && <p role="status" className="text-sm">{msg}</p>}
+        {err && <p role="alert" className="text-danger-strong text-sm">{err}</p>}
+        {moves.status === 'loading' && <div className="cg-skeleton" style={{ height: 80 }} aria-busy="true" aria-label="Memuat" />}
+        {moves.status === 'error' && <ErrorBox message={moves.message} onRetry={moves.reload} />}
+        {moves.status === 'ready' && (moves.data.length === 0 ? <p className="text-text-muted">Belum ada gerakan stok.</p> : (
+          <div className="cg-data-wrap" style={{ maxHeight: 320, overflow: 'auto' }}>
+            <table className="cg-data" aria-label="Gerakan stok">
+              <thead><tr><th>Waktu</th><th>Jenis</th><th className="text-right">Jumlah</th><th className="text-right">Saldo</th><th className="text-right">Biaya/satuan</th></tr></thead>
+              <tbody>
+                {moves.data.map((m) => (
+                  <tr key={m.id}>
+                    <td className="text-sm whitespace-nowrap">{fmtWhen(m.occurredAt)}</td>
+                    <td className="break-words max-w-[200px]">{STOCK_KIND_LABEL[m.kind]}{m.reason && <span className="block text-sm text-text-muted">{m.reason}</span>}</td>
+                    <td className="text-right cg-num">{m.qtyDelta > 0 ? '+' : ''}{fmtQty(m.qtyDelta)}</td>
+                    <td className="text-right cg-num">{fmtQty(m.qtyAfter)}</td>
+                    <td className="text-right cg-num">{formatRp(m.unitCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        <div className="cg-modal__actions"><button type="button" className="cg-btn cg-btn--primary" onClick={() => d.ref.current?.close()}>Tutup</button></div>
+      </div>
+    </dialog>
+  );
+}

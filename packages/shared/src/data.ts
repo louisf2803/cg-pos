@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
+import type { StockFilter, StockItem, StockMove, StockPostInput } from './stock';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -100,6 +101,15 @@ export interface DataLayer {
   listLoyaltyLedger(customerId: string, limit?: number): Promise<LoyaltyEntry[]>;
   /** Koreksi poin manual (+ atau -); saldo tidak boleh negatif. Pemilik dan manajer. Mengembalikan saldo baru. */
   adjustPoints(customerId: string, delta: number, note?: string): Promise<number>;
+
+  /** Stok di outlet ini: bahan baku dan barang yang stoknya dilacak. Urut nama. */
+  listStock(q?: { search?: string; kind?: StockItem['kind']; status?: StockFilter }): Promise<StockItem[]>;
+  /** Catat stok masuk, keluar, atau terbuang (pemilik dan manajer). Idempoten menurut `id`. Stok boleh minus. Mengembalikan keadaan terbaru. */
+  postStock(input: StockPostInput): Promise<StockItem>;
+  /** Kartu stok: gerakan satu item, terbaru dulu. */
+  listStockMoves(productId: string, q?: { limit?: number }): Promise<StockMove[]>;
+  /** Batas stok minimum untuk peringatan (kosong = tanpa peringatan). Pemilik dan manajer. */
+  setStockMin(productId: string, min: number | null): Promise<void>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;

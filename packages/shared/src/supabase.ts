@@ -3,6 +3,7 @@ import { createTableOps } from './table-ops';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { photoPath, photoProblem } from './photo';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
+import { makeStockItem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind } from './stock';
 
 const PHOTO_BUCKET = 'menu-images';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
@@ -90,6 +91,23 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     resolved ??= load().catch((e) => { resolved = null; throw e; });
     return resolved;
   };
+
+  /** Lokasi stok outlet (satu per outlet; dibuat saat outlet dibuat). */
+  const locCache = new Map<string, string>();
+  async function stockLocation(outletId: string): Promise<string> {
+    const hit = locCache.get(outletId);
+    if (hit) return hit;
+    const row = must(await db().from('locations').select('id').eq('outlet_id', outletId).eq('kind', 'outlet').eq('is_active', true).limit(1).maybeSingle()) as Row | null;
+    if (!row) throw new DataError('not_found', 'Lokasi stok outlet ini belum ada.');
+    locCache.set(outletId, row.id as string);
+    return row.id as string;
+  }
+  function toStockItem(p: Row, unitName: Map<string, string>, b: Row | undefined): StockItem {
+    return makeStockItem({
+      productId: p.id as string, name: p.name as string, kind: p.kind === 'ingredient' ? 'ingredient' : 'goods', unit: (p.base_unit_id && unitName.get(p.base_unit_id as string)) || 'unit',
+      qty: Number(b?.qty ?? 0), avgCost: Number(b?.avg_cost ?? 0), ...(p.stock_alert_min !== null && p.stock_alert_min !== undefined ? { minQty: Number(p.stock_alert_min) } : {}),
+    });
+  }
 
   async function load(): Promise<Resolved> {
     const { data: u } = await client.auth.getUser();
@@ -834,6 +852,61 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         throw mapDbError(error);
       }
       return Number(data);
+    },
+
+    // ---------- stok ----------
+    async listStock(q) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const [prods, units, bals] = await Promise.all([
+        fetchAll<Row>((f, t) => db().from('products').select('id,name,kind,base_unit_id,stock_alert_min').in('kind', ['goods', 'ingredient']).eq('track_stock', true).is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('units').select('id,name').is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('stock_balances').select('product_id,qty,avg_cost').eq('location_id', loc).order('product_id').range(f, t)),
+      ]);
+      const unitName = new Map(units.map((u) => [u.id as string, u.name as string]));
+      const bal = new Map(bals.map((b) => [b.product_id as string, b]));
+      return prods.map((p) => toStockItem(p, unitName, bal.get(p.id as string)))
+        .filter((i) => (!q?.kind || i.kind === q.kind) && stockFilterMatches(i, q?.status) && stockSearchMatches(i, q?.search))
+        .sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async postStock(input) {
+      const problem = stockPostProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const { error } = await db().rpc('stock_post', {
+        p_location: loc, p_product: input.productId, p_kind: input.kind, p_qty: input.qty,
+        p_unit_cost: input.kind === 'adjust_in' ? input.unitCost ?? null : null, p_reason: input.reason?.trim() || null, p_key: input.id,
+      });
+      if (error) {
+        if (/not allowed/i.test(error.message)) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengubah stok.');
+        if (/product not found|does not track stock/i.test(error.message)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
+        if (/qty must be|unit cost|reason too long|kind must be/i.test(error.message)) throw new DataError('invalid', 'Isian stok ditolak server. Periksa jumlah, harga, dan alasan.');
+        throw mapDbError(error);
+      }
+      const [p, units, b] = await Promise.all([
+        db().from('products').select('id,name,kind,base_unit_id,stock_alert_min').eq('id', input.productId).single(),
+        db().from('units').select('id,name').is('deleted_at', null),
+        db().from('stock_balances').select('product_id,qty,avg_cost').eq('location_id', loc).eq('product_id', input.productId).maybeSingle(),
+      ]);
+      const unitName = new Map((must(units) as Row[]).map((u) => [u.id as string, u.name as string]));
+      return toStockItem(must(p) as Row, unitName, (must(b) as Row | null) ?? undefined);
+    },
+    async listStockMoves(productId, q) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const rows = must(await db().from('stock_movements').select('id,kind,qty_delta,unit_cost,total_cost,qty_after,avg_cost_after,reason,ref_type,occurred_at')
+        .eq('location_id', loc).eq('product_id', productId).order('occurred_at', { ascending: false }).order('created_at', { ascending: false }).limit(q?.limit ?? 100)) as Row[] | null;
+      return (rows ?? []).map((r): StockMove => ({
+        id: r.id, productId, kind: r.kind as StockMoveKind, qtyDelta: Number(r.qty_delta), unitCost: Number(r.unit_cost), totalCost: Number(r.total_cost),
+        qtyAfter: Number(r.qty_after ?? 0), avgCostAfter: Number(r.avg_cost_after ?? 0), occurredAt: r.occurred_at,
+        ...(r.reason ? { reason: r.reason } : {}), ...(r.ref_type ? { refType: r.ref_type } : {}),
+      }));
+    },
+    async setStockMin(productId, min) {
+      if (min !== null && (!Number.isFinite(min) || min < 0)) throw new DataError('invalid', 'Batas minimum tidak boleh negatif.');
+      const row = must(await db().from('products').update({ stock_alert_min: min }).eq('id', productId).select('id').maybeSingle()) as Row | null;
+      if (!row) throw new DataError('forbidden', 'Barang tidak ditemukan, atau akunmu tidak boleh mengubahnya.');
     },
 
     // ---------- karyawan dan metode bayar ----------

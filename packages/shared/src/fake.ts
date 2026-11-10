@@ -19,6 +19,7 @@ import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
+import { applyStockMove, makeStockItem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockPostInput } from './stock';
 
 const CTX: OutletContext = {
   orgName: 'Kopi Contoh', outletId: 'outlet-1', outletCode: 'OUT1', outletName: 'Outlet Contoh', timezone: 'Asia/Jakarta', deviceCode: 'A',
@@ -101,6 +102,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let coupons: Coupon[] = [];
   let loyaltyRules: LoyaltyRules = { ...DEFAULT_LOYALTY };
   let ledger: LoyaltyEntry[] = [];
+  let ingredients: { id: string; name: string; unit: string; qty: number }[] = [];
+  let costs = new Map<string, number>();
+  let mins = new Map<string, number>();
+  let moves: StockMove[] = [];
+  let stockKeys = new Set<string>();
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -126,11 +132,50 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   }
 
   /** Gerakan stok untuk satu produk terjual; paket menggerakkan stok komponennya. */
-  function stockMove(productId: string, qty: number) {
+  function stockMove(productId: string, qty: number, kind?: StockMoveKind) {
     const p = products.find((x) => x.id === productId);
     if (!p) return;
-    if (p.kind === 'bundle') { for (const c of bundleItems.get(p.id) ?? []) stockMove(c.productId, qty * c.qty); return; }
-    if (p.trackStock && p.stock !== undefined) p.stock += qty;
+    if (p.kind === 'bundle') { for (const c of bundleItems.get(p.id) ?? []) stockMove(c.productId, qty * c.qty, kind); return; }
+    if (p.trackStock && p.stock !== undefined) recordStock(p.id, qty, kind ?? (qty < 0 ? 'sale' : 'refund_return'), {});
+  }
+
+  /** Stok yang dilacak: barang jual (qty di Product.stock) dan bahan baku (daftar terpisah). */
+  function stockBal(id: string): { name: string; kind: 'goods' | 'ingredient'; unit: string; qty: number } | null {
+    const ing = ingredients.find((i) => i.id === id);
+    if (ing) return { name: ing.name, kind: 'ingredient', unit: ing.unit, qty: ing.qty };
+    const p = products.find((x) => x.id === id);
+    return p && p.trackStock && p.kind !== 'bundle' && p.stock !== undefined ? { name: p.name, kind: 'goods', unit: 'pcs', qty: p.stock } : null;
+  }
+  function recordStock(id: string, delta: number, kind: StockMoveKind, o: { unitCost?: number; reason?: string; refType?: string }) {
+    const b = stockBal(id)!;
+    const avg = costs.get(id) ?? 0;
+    const r = applyStockMove({ qty: b.qty, avgCost: avg }, delta, o.unitCost ?? avg);
+    const ing = ingredients.find((i) => i.id === id);
+    if (ing) ing.qty = r.qty; else products.find((x) => x.id === id)!.stock = r.qty;
+    costs.set(id, r.avgCost);
+    moves.unshift({ id: newId(), productId: id, kind, qtyDelta: delta, unitCost: r.unitCost, totalCost: r.totalCost, qtyAfter: r.qty, avgCostAfter: r.avgCost, reason: o.reason, refType: o.refType, occurredAt: now().toISOString() });
+  }
+  function stockItem(id: string): StockItem {
+    const b = stockBal(id)!;
+    return makeStockItem({ productId: id, name: b.name, kind: b.kind, unit: b.unit, qty: b.qty, avgCost: costs.get(id) ?? 0, minQty: mins.get(id) });
+  }
+  function seedStock() {
+    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set();
+    if (opts.seed === false) return;
+    const opening: [string, number, number][] = [];
+    for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
+    const ing: [string, string, string, number, number, number | undefined][] = [
+      ['ing-kopi', 'Biji kopi arabika', 'gram', 5000, 320, 1000], ['ing-susu', 'Susu segar', 'ml', 12000, 18, 3000],
+      ['ing-gula', 'Gula aren cair', 'ml', 800, 40, 1000], ['ing-gelas', 'Gelas 16 oz', 'pcs', 0, 700, undefined],
+    ];
+    for (const [id, name, unit, qty, cost, min] of ing) { ingredients.push({ id, name, unit, qty: 0 }); if (min !== undefined) mins.set(id, min); if (qty > 0) opening.push([id, qty, cost]); }
+    mins.set('p8', 5);
+    for (const [id, qty, cost] of opening) {
+      if (qty <= 0) continue;
+      const p = products.find((x) => x.id === id);
+      if (p) p.stock = 0;                                  // saldo dibangun dari gerakan 'Stok awal', bukan ditambah dua kali
+      costs.set(id, 0); recordStock(id, qty, 'opening', { unitCost: cost });
+    }
   }
 
   function recompute(draft: OrderDraft, step: number) {
@@ -163,6 +208,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     loyaltyRules = opts.seed === false ? { ...DEFAULT_LOYALTY } : { ...DEFAULT_LOYALTY, isActive: true };
     ledger = [];
     if (opts.seed !== false) pushPoints('cu-ani', 120, 'adjust', 'Saldo awal');
+    seedStock();
     if (opts.seed !== false) seedHistory();
   }
 
@@ -610,6 +656,27 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return c.pointsBalance;
     },
 
+    async listStock(q) {
+      const ids = [...ingredients.map((i) => i.id), ...products.filter((p) => stockBal(p.id)).map((p) => p.id)];
+      return ids.map(stockItem).filter((i) => (!q?.kind || i.kind === q.kind) && stockFilterMatches(i, q?.status) && stockSearchMatches(i, q?.search))
+        .sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async postStock(input: StockPostInput) {
+      const problem = stockPostProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!stockBal(input.productId)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
+      if (!stockKeys.has(input.id)) {
+        stockKeys.add(input.id);
+        recordStock(input.productId, input.kind === 'adjust_in' ? input.qty : -input.qty, input.kind, { unitCost: input.kind === 'adjust_in' ? input.unitCost : undefined, reason: input.reason?.trim() || undefined, refType: 'manual' });
+      }
+      return stockItem(input.productId);
+    },
+    async listStockMoves(productId, q) { return clone(moves.filter((m) => m.productId === productId).slice(0, q?.limit ?? 100)); },
+    async setStockMin(productId, min) {
+      if (!stockBal(productId)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
+      if (min !== null && (!Number.isFinite(min) || min < 0)) throw new DataError('invalid', 'Batas minimum tidak boleh negatif.');
+      if (min === null) mins.delete(productId); else mins.set(productId, min);
+    },
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
     async saveEmployee(input: EmployeeInput) {

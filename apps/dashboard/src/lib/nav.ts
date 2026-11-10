@@ -33,7 +33,7 @@ export const NAV: NavGroup[] = [
   },
   {
     label: 'Inventori', icon: Boxes, items: [
-      { href: '/inventori/stok', label: 'Daftar stok', screen: 'S54', tier: 2 },
+      { href: '/inventori/stok', label: 'Daftar stok', screen: 'S54', tier: 2, built: true },
       { href: '/inventori/opname', label: 'Stok opname', screen: 'S55', tier: 2 },
       { href: '/inventori/pemasok', label: 'Pemasok', screen: 'S58', tier: 2 },
       { href: '/inventori/pembelian', label: 'Pemesanan stok', screen: 'S51', tier: 2 },
