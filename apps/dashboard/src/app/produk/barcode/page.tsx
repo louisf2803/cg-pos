@@ -259,7 +259,7 @@ export default function BarcodePrintPage() {
           actions={
             <button
               type="button"
-              className="cg-btn cg-btn--primary flex items-center gap-6"
+              className="cg-btn cg-btn--primary flex items-center gap-[6px]"
               onClick={handlePrint}
               disabled={totalLabels === 0}
               title={
@@ -283,7 +283,7 @@ export default function BarcodePrintPage() {
 
       {productsAsync.status === 'loading' && (
         <div className="no-print grid gap-16" aria-busy="true" aria-label="Memuat produk">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12">
             {[0, 1, 2].map((i) => (
               <div key={i} className="cg-skeleton h-[90px] rounded-xl" />
             ))}
@@ -312,7 +312,7 @@ export default function BarcodePrintPage() {
               <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-8">
                 1. Ukuran Kertas & Format Label
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-10">
+              <div className="grid grid-cols-1 tablet:grid-cols-3 gap-[10px]">
                 {PRESETS.map((p) => {
                   const isSelected = preset === p.id;
                   return (
@@ -387,20 +387,20 @@ export default function BarcodePrintPage() {
                 </span>
                 <button
                   type="button"
-                  className="cg-btn cg-btn--primary cg-btn--sm flex items-center gap-6"
+                  className="cg-btn cg-btn--primary cg-btn--sm flex items-center gap-[6px]"
                   onClick={handlePrint}
                   disabled={totalLabels === 0}
                 >
-                  <Printer className="w-14 h-14" aria-hidden /> Cetak
+                  <Printer className="w-[14px] h-[14px]" aria-hidden /> Cetak
                 </button>
               </div>
             </div>
           </div>
 
           {/* Two-Column Area: Selection (Left) and Preview (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 min-w-0">
+          <div className="grid grid-cols-1 laptop:grid-cols-12 gap-16 min-w-0">
             {/* Left: Product Selection List (no-print) */}
-            <div className="no-print lg:col-span-6 space-y-12 min-w-0">
+            <div className="no-print laptop:col-span-6 space-y-12 min-w-0">
               <div className="p-12 rounded-xl border border-border bg-surface-raised space-y-12">
                 <div className="flex items-center justify-between gap-8 flex-wrap">
                   <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
@@ -412,7 +412,7 @@ export default function BarcodePrintPage() {
                       onClick={selectAllPrintable}
                       className="text-accent-strong font-semibold hover:underline flex items-center gap-4"
                     >
-                      <CheckSquare className="w-14 h-14" aria-hidden /> Pilih semua ber-SKU
+                      <CheckSquare className="w-[14px] h-[14px]" aria-hidden /> Pilih semua ber-SKU
                     </button>
                     <span>·</span>
                     <button
@@ -428,7 +428,7 @@ export default function BarcodePrintPage() {
                 {/* Search Box */}
                 <div className="relative">
                   <Search
-                    className="w-16 h-16 text-text-muted absolute left-10 top-1/2 -translate-y-1/2 pointer-events-none"
+                    className="w-16 h-16 text-text-muted absolute left-[10px] top-1/2 -translate-y-1/2 pointer-events-none"
                     aria-hidden
                   />
                   <input
@@ -445,10 +445,10 @@ export default function BarcodePrintPage() {
                   <table className="w-full text-left text-sm" aria-label="Daftar produk untuk cetak barcode">
                     <thead className="bg-surface border-b border-border text-xs text-text-muted uppercase tracking-wider sticky top-0 z-10">
                       <tr>
-                        <th className="py-8 px-10 w-36 text-center">Pilih</th>
-                        <th className="py-8 px-10">Produk</th>
-                        <th className="py-8 px-10 text-right">Harga</th>
-                        <th className="py-8 px-10 text-center w-32">Jumlah</th>
+                        <th className="py-8 px-[10px] w-[36px] text-center">Pilih</th>
+                        <th className="py-8 px-[10px]">Produk</th>
+                        <th className="py-8 px-[10px] text-right">Harga</th>
+                        <th className="py-8 px-[10px] text-center w-32">Jumlah</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -468,7 +468,7 @@ export default function BarcodePrintPage() {
                                 : 'hover:bg-surface-muted'
                             }`}
                           >
-                            <td className="py-8 px-10 text-center">
+                            <td className="py-8 px-[10px] text-center">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -478,31 +478,31 @@ export default function BarcodePrintPage() {
                                 aria-label={`Pilih ${p.name}`}
                               />
                             </td>
-                            <td className="py-8 px-10 min-w-0">
+                            <td className="py-8 px-[10px] min-w-0">
                               <strong
                                 className="font-semibold text-text block line-clamp-2 leading-snug"
                                 title={p.name}
                               >
                                 {p.name}
                               </strong>
-                              <div className="flex items-center gap-6 mt-2">
+                              <div className="flex items-center gap-[6px] mt-[2px]">
                                 {hasSku ? (
-                                  <span className="font-mono text-[11px] px-6 py-1 bg-surface-raised border border-border rounded-sm text-text-muted cg-num font-semibold">
+                                  <span className="font-mono text-[11px] px-[6px] py-[1px] bg-surface-raised border border-border rounded-sm text-text-muted cg-num font-semibold">
                                     {p.sku}
                                   </span>
                                 ) : (
-                                  <span className="text-[11px] text-danger font-medium flex items-center gap-2">
+                                  <span className="text-[11px] text-danger font-medium flex items-center gap-[2px]">
                                     <AlertCircle className="w-12 h-12" aria-hidden /> Tanpa SKU
                                   </span>
                                 )}
                               </div>
                             </td>
-                            <td className="py-8 px-10 text-right font-medium text-text cg-num whitespace-nowrap">
+                            <td className="py-8 px-[10px] text-right font-medium text-text cg-num whitespace-nowrap">
                               {formatRp(p.price)}
                             </td>
-                            <td className="py-8 px-10 text-center">
+                            <td className="py-8 px-[10px] text-center">
                               {isSelected ? (
-                                <div className="flex items-center justify-center gap-2">
+                                <div className="flex items-center justify-center gap-[2px]">
                                   <button
                                     type="button"
                                     onClick={() => updateQuantity(p.id, qty - 1)}
@@ -519,7 +519,7 @@ export default function BarcodePrintPage() {
                                       const n = parseInt(e.target.value.replace(/[^\d]/g, ''), 10);
                                       updateQuantity(p.id, isNaN(n) ? 1 : n);
                                     }}
-                                    className="w-10 text-center text-xs font-bold cg-num border border-border rounded-sm py-2 bg-surface text-text"
+                                    className="w-10 text-center text-xs font-bold cg-num border border-border rounded-sm py-[2px] bg-surface text-text"
                                     aria-label={`Jumlah label untuk ${p.name}`}
                                   />
                                   <button
@@ -545,7 +545,7 @@ export default function BarcodePrintPage() {
             </div>
 
             {/* Right: Barcode Preview Area & Print Canvas */}
-            <div className="lg:col-span-6 space-y-12 min-w-0">
+            <div className="laptop:col-span-6 space-y-12 min-w-0">
               <div className="no-print p-12 rounded-xl border border-border bg-surface-raised flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block">
@@ -557,11 +557,11 @@ export default function BarcodePrintPage() {
                 </div>
                 <button
                   type="button"
-                  className="cg-btn cg-btn--primary cg-btn--sm flex items-center gap-6"
+                  className="cg-btn cg-btn--primary cg-btn--sm flex items-center gap-[6px]"
                   onClick={handlePrint}
                   disabled={totalLabels === 0}
                 >
-                  <Printer className="w-14 h-14" aria-hidden /> Cetak Sekarang
+                  <Printer className="w-[14px] h-[14px]" aria-hidden /> Cetak Sekarang
                 </button>
               </div>
 
@@ -592,7 +592,7 @@ export default function BarcodePrintPage() {
                       {/* Product Name (truncated to max 2 lines) */}
                       {showName && (
                         <div
-                          className="text-[9px] font-bold leading-tight line-clamp-2 w-full break-words text-black mb-1"
+                          className="text-[9px] font-bold leading-tight line-clamp-2 w-full break-words text-black mb-[1px]"
                           title={product.name}
                         >
                           {product.name}
