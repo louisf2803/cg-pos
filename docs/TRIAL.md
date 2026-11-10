@@ -19,19 +19,21 @@ Pengembangan: `pnpm -F @cgpos/pos dev`, `pnpm -F @cgpos/dashboard dev`.
 | Budi | manajer | 333333 |
 
 ## Alur yang sudah bisa dicoba
-**Kasir (apps/pos):** pilih karyawan + PIN → buka kasir (modal awal) → cari produk / ketik SKU lalu Enter (contoh `nk-001`) → pilih ekstra/ukuran → **Item bebas** (nama + harga sendiri) → pilih jenis order/meja → Bayar (tunai, kartu, QRIS tampil "belum diaktifkan") → struk (cetak lewat peramban) → Ringkasan Shift (kas masuk/keluar) → Tutup kasir (hitung uang + PIN).
+**Kasir (apps/pos):** pilih karyawan + PIN → buka kasir (modal awal) → cari produk / ketik SKU lalu Enter (contoh `nk-001`) → pilih ekstra/ukuran → **Item bebas** (nama + harga sendiri) → pilih jenis order/meja → **Pisah item** (bayar sebagian item lebih dulu) atau Bayar (tunai, kartu, QRIS tampil "belum diaktifkan") → struk (cetak lewat peramban) → Ringkasan Shift (kas masuk/keluar) → Tutup kasir (hitung uang + PIN).
+Pengaturan perangkat (ikon gir) memilih tampilan produk: kartu, daftar ringkas, atau mode SKU ritel. Dashboard > Pengaturan > Bisnis dan outlet mengatur teks dan isi struk.
 **Dashboard (apps/dashboard):** tab modul Penjualan, Order Online, Karyawan, Keuangan (+ Appointment/Whatsapp terkunci); beranda ringkasan; laporan penjualan/produk/kasir/pajak/void/refund/meja/promo/persediaan/pelanggan/jam ramai; produk, kategori, ekstra, paket, impor CSV, satuan ganda, stok, opname, transfer stok, pembelian, faktur, pemasok; promo, loyalty; keuangan (akun, jurnal, buku besar, kas, laporan); pengaturan outlet, denah meja, pajak, biaya, karyawan + PIN.
 
 ## Uji otomatis alur kasir
 ```bash
+NODE_PATH=$(npm root -g) node scripts/split-e2e.js     # pisah bayar per item; juga scripts/viewmode-e2e.js (mode tampilan)
 NODE_PATH=$(npm root -g) node scripts/trial-e2e.js     # buka shift → pesan → item bebas → bayar → kas keluar → tutup shift (1280 & 390 px)
 bash scripts/review.sh                                   # typecheck + tes shared + build dashboard
 export PGHOST=/tmp/pgsock PGPORT=54329 PGUSER=postgres; bash packages/db/tests/run.sh   # tes database lokal
 ```
 
 ## Batasan yang diketahui
-- Belum menyentuh database produksi: migrasi baru (0011, 0025, dan yang menyusul) **ditulis dan diuji lokal saja**; fitur yang butuhnya ditandai "partial / menunggu diterapkan" di `replica/features.csv`.
+- Belum menyentuh database produksi: migrasi baru (0011, 0025, 0026, 0027, dan yang menyusul) **ditulis dan diuji lokal saja**; fitur yang butuhnya ditandai "partial / menunggu diterapkan" di `replica/features.csv`.
 - QRIS DOKU sengaja belum aktif. Printer thermal Bluetooth teruji dengan perangkat tiruan, belum dengan printer fisik; belum ada printer jaringan/iPhone.
 - Offline: penjualan dan pembayaran tertunda bisa dikirim ulang; belum untuk refund/void/shift offline dan login PIN offline.
-- Belum ada: foto bukti kas, mode tampilan kasir lain (SKU/jasa/reservasi), split bill per produk, denah meja gambar bebas, multi-outlet penuh, layar pelanggan, aplikasi konsumen, reservasi, payroll.
+- Belum ada: foto bukti kas, mode tampilan kasir reservasi dan buku menu, split bill dengan hitung ulang promo/harga grosir, denah meja gambar bebas, multi-outlet penuh, layar pelanggan, aplikasi konsumen, reservasi, payroll.
 - Isi Appointment dan Whatsapp memang terkunci (tidak ada fiturnya).
