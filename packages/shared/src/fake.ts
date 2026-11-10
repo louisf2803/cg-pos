@@ -5,6 +5,7 @@ import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, 
 import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
+import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
@@ -138,6 +139,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let loyaltyRules: LoyaltyRules = { ...DEFAULT_LOYALTY };
   let ledger: LoyaltyEntry[] = [];
   let ingredients: { id: string; name: string; unit: string; qty: number }[] = [];
+  let recipes = new Map<string, RecipeLine[]>();
   let costs = new Map<string, number>();
   let mins = new Map<string, number>();
   let moves: StockMove[] = [];
@@ -330,7 +332,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
   function seedStock() {
-    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = [];
+    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = []; recipes = new Map();
     suppliers = opts.seed === false ? [] : [
       { id: 'sp-kopi', code: 'SUP-01', name: 'CV Sumber Kopi Nusantara', phone: '081234500001', termDays: 14, isActive: true },
       { id: 'sp-susu', code: 'SUP-02', name: 'UD Susu Segar Jaya', phone: '081234500002', termDays: 7, isActive: true },
@@ -345,8 +347,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       ['ing-kopi', 'Biji kopi arabika', 'gram', 5000, 320, 1000], ['ing-susu', 'Susu segar', 'ml', 12000, 18, 3000],
       ['ing-gula', 'Gula aren cair', 'ml', 800, 40, 1000], ['ing-gelas', 'Gelas 16 oz', 'pcs', 0, 700, undefined],
     ];
-    for (const [id, name, unit, qty, cost, min] of ing) { ingredients.push({ id, name, unit, qty: 0 }); if (min !== undefined) mins.set(id, min); if (qty > 0) opening.push([id, qty, cost]); }
+    for (const [id, name, unit, qty, cost, min] of ing) { ingredients.push({ id, name, unit, qty: 0 }); if (min !== undefined) mins.set(id, min); if (qty > 0) opening.push([id, qty, cost]); else costs.set(id, cost); }
     mins.set('p8', 5);
+    recipes.set('p1', [{ ingredientId: 'ing-kopi', qty: 18, unitId: 'gram' }, { ingredientId: 'ing-susu', qty: 120, unitId: 'ml' }, { ingredientId: 'ing-gula', qty: 20, unitId: 'ml' }, { ingredientId: 'ing-gelas', qty: 1, unitId: 'pcs' }]);
+    recipes.set('p2', [{ ingredientId: 'ing-kopi', qty: 18, unitId: 'gram' }, { ingredientId: 'ing-gelas', qty: 1, unitId: 'pcs' }]);
+    recipes.set('p3', [{ ingredientId: 'ing-kopi', qty: 18, unitId: 'gram' }, { ingredientId: 'ing-susu', qty: 0.15, unitId: 'liter' }, { ingredientId: 'ing-gelas', qty: 1, unitId: 'pcs' }]);
     for (const [id, qty, cost] of opening) {
       if (qty <= 0) continue;
       const p = products.find((x) => x.id === id);
@@ -1097,6 +1102,28 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (!c) { authCodeFails.push(t.getTime()); return null; }
       c.usedAt = t.toISOString(); authCodeFails = [];
       return 'e-owner';
+    },
+    async listRecipeIngredients() {
+      const alt: Record<string, { unitId: string; name: string; factor: number }> = { 'ing-kopi': { unitId: 'kg', name: 'kg', factor: 1000 }, 'ing-susu': { unitId: 'liter', name: 'liter', factor: 1000 }, 'ing-gula': { unitId: 'liter', name: 'liter', factor: 1000 } };
+      return ingredients.map((i): RecipeIngredient => {
+        const cost = costs.get(i.id) ?? 0;
+        return { id: i.id, name: i.name, baseUnit: i.unit, unitCost: cost, costSource: cost > 0 ? 'average' : 'none', units: [{ unitId: i.unit, name: i.unit, factor: 1 }, ...(alt[i.id] ? [alt[i.id]!] : [])] };
+      }).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async listRecipes() {
+      return products.filter((p) => p.kind === 'goods' && p.isSellable !== false).map((p): RecipeProduct => ({ id: p.id, name: p.name, price: p.price, isActive: p.isActive, lines: clone(recipes.get(p.id) ?? []) }));
+    },
+    async saveRecipe(productId, lines) {
+      const p = products.find((x) => x.id === productId);
+      if (!p) throw new DataError('not_found', 'Produk tidak ditemukan.');
+      const ings = await this.listRecipeIngredients();
+      const problem = recipeProblem(lines, new Map(ings.map((i) => [i.id, i])));
+      if (problem) throw new DataError('invalid', problem);
+      const describe = (ls: RecipeLine[]) => ls.map((l) => `${ings.find((i) => i.id === l.ingredientId)?.name ?? l.ingredientId} ${l.qty} ${l.unitId}`).join(', ');
+      const before = describe(recipes.get(productId) ?? []), after = describe(lines);
+      if (lines.length) recipes.set(productId, clone(lines)); else recipes.delete(productId);
+      if (before !== after) activityLog.unshift({ id: newId(), at: now().toISOString(), action: 'recipe.updated', entity: 'recipe', entityId: productId, name: p.name, actorUserId: 'u-owner', actorEmail: 'pemilik@contoh.id', changes: [{ column: 'lines', from: before.slice(0, 200) || null, to: after.slice(0, 200) || null }] });
+      return lines.length;
     },
     async listActivity(q: ActivityQuery = {}) {
       const to = q.to ? new Date(q.to).getTime() : now().getTime() + 86400000;

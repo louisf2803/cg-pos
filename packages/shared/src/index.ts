@@ -30,3 +30,4 @@ export * from './finance';
 export * from './kitchen';
 export * from './auth-code';
 export * from './activity';
+export * from './recipe';

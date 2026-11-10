@@ -33,6 +33,7 @@ export const NAV: NavGroup[] = [
     label: 'Inventori', icon: Boxes, items: [
       { section: 'Kelola stok', href: '/inventori/stok', label: 'Daftar stok', screen: 'S54', tier: 2, built: true },
       { section: 'Kelola stok', href: '/inventori/opname', label: 'Stok opname', screen: 'S55', tier: 2, built: true },
+      { section: 'Kelola stok', href: '/inventori/resep', label: 'Resep dan HPP', screen: 'S54', tier: 2, built: true },
       { section: 'Kelola stok', href: '/inventori/terbuang', label: 'Stok terbuang', screen: 'S56', tier: 2 },
       { section: 'Kelola stok', href: '/inventori/produksi', label: 'Produksi stok', screen: 'S57', tier: 3 },
       { section: 'Kelola stok', href: '/inventori/transfer', label: 'Transfer stok', screen: 'S54', tier: 2 },

@@ -15,7 +15,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   payment_method: 'Metode pembayaran', outlet: 'Outlet', outlet_settings: 'Pengaturan outlet', employee: 'Karyawan', tax: 'Pajak',
   promotion: 'Promo', coupon: 'Kupon', extra_group: 'Produk ekstra', floor: 'Lantai', table: 'Meja', supplier: 'Pemasok',
   account: 'Akun keuangan', loyalty_rules: 'Aturan loyalti', price_schedule: 'Jadwal harga', customer_group: 'Grup pelanggan',
-  member: 'Akses pengguna', order: 'Pesanan', gateway: 'Pembayaran online', loyalty: 'Loyalti',
+  member: 'Akses pengguna', recipe: 'Resep', order: 'Pesanan', gateway: 'Pembayaran online', loyalty: 'Loyalti',
 };
 /** Pilihan penyaring di layar: hanya benda yang dicatat oleh pemicu database. */
 export const ACTIVITY_FILTERS: { id: string; label: string }[] = Object.entries(ENTITY_LABEL)
@@ -39,7 +39,7 @@ export const COLUMN_LABEL: Record<string, string> = {
   min_spend: 'Belanja minimum', starts_at: 'Mulai', ends_at: 'Berakhir', usage_limit: 'Batas pemakaian', valid_from: 'Berlaku dari', valid_to: 'Berlaku sampai',
   address: 'Alamat', city: 'Kota', service_charge_rate: 'Biaya layanan (%)', rounding_step: 'Pembulatan', timezone: 'Zona waktu',
   is_default: 'Bawaan', sort_order: 'Urutan', capacity: 'Kapasitas', permissions: 'Hak akses', is_enabled: 'Aktif', points_per_amount: 'Poin per belanja',
-  redeem_value: 'Nilai tukar poin', min_redeem_points: 'Minimum tukar poin', category: 'Kelompok', systemKey: 'Kunci sistem',
+  lines: 'Bahan', redeem_value: 'Nilai tukar poin', min_redeem_points: 'Minimum tukar poin', category: 'Kelompok', systemKey: 'Kunci sistem',
 };
 const labelize = (col: string) => COLUMN_LABEL[col] ?? col.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 export const columnLabel = labelize;

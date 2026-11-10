@@ -7,6 +7,7 @@ import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, 
 import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
+import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -222,5 +223,13 @@ export interface DataLayer {
   // ---------- log aktivitas ----------
   /** Dashboard (pemilik/admin/manajer): perubahan pengaturan dan kejadian sistem, terbaru dulu. Bawaan 30 hari terakhir, paling banyak 200. */
   listActivity(q?: ActivityQuery): Promise<ActivityRow[]>;
+
+  // ---------- resep dan HPP ----------
+  /** Bahan yang bisa dipakai di resep, dengan satuan, konversi, dan biaya per satuan dasar (biaya rata-rata stok, atau harga beli bila stok belum dicatat). */
+  listRecipeIngredients(): Promise<RecipeIngredient[]>;
+  /** Semua produk jual (termasuk yang belum punya resep) dengan baris resepnya. */
+  listRecipes(): Promise<RecipeProduct[]>;
+  /** Ganti seluruh resep satu produk secara atomik (pemilik/admin/manajer). Mengembalikan jumlah baris tersimpan. */
+  saveRecipe(productId: string, lines: RecipeLine[]): Promise<number>;
 }
 

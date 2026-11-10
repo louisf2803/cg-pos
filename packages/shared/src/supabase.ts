@@ -10,6 +10,7 @@ import {
 } from './purchasing';
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
 import {
@@ -1301,6 +1302,58 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { data, error } = await db().rpc('auth_code_use', { p_device: r.device!.id, p_code: normalizeAuthCode(code), p_permission: permission, p_order: orderId ?? null });
       if (error) throw mapAuthCodeError(error);
       return typeof data === 'string' ? data : null;
+    },
+
+    // ---------- resep dan HPP ----------
+    async listRecipeIngredients() {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const [prods, units, pus, bals] = await Promise.all([
+        fetchAll<Row>((f, t) => db().from('products').select('id,name,base_unit_id').in('kind', ['ingredient', 'goods']).eq('track_stock', true).is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('units').select('id,name').is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('product_units').select('id,product_id,unit_id,conversion,buy_price,is_base').is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('stock_balances').select('product_id,avg_cost').eq('location_id', loc).order('product_id').range(f, t)),
+      ]);
+      const unitName = new Map(units.map((u) => [u.id as string, u.name as string]));
+      const avg = new Map(bals.map((b) => [b.product_id as string, Number(b.avg_cost ?? 0)]));
+      const byProduct = new Map<string, Row[]>();
+      for (const pu of pus) { const k = pu.product_id as string; (byProduct.get(k) ?? byProduct.set(k, []).get(k)!).push(pu); }
+      return prods.map((p): RecipeIngredient => {
+        const list = byProduct.get(p.id as string) ?? [];
+        const base = list.find((x) => x.is_base) ?? list.find((x) => x.unit_id === p.base_unit_id);
+        const baseUnit = unitName.get(p.base_unit_id as string) ?? 'unit';
+        const units = list.map((x) => ({ unitId: x.unit_id as string, name: unitName.get(x.unit_id as string) ?? '?', factor: Number(x.conversion) }));
+        if (!units.some((u) => u.unitId === p.base_unit_id)) units.unshift({ unitId: p.base_unit_id as string, name: baseUnit, factor: 1 });
+        const average = avg.get(p.id as string) ?? 0;
+        const buy = base ? Number(base.buy_price ?? 0) / (Number(base.conversion) || 1) : 0;
+        const costSource: CostSource = average > 0 ? 'average' : buy > 0 ? 'buy_price' : 'none';
+        return { id: p.id, name: p.name, baseUnit, units, unitCost: average > 0 ? average : buy, costSource };
+      }).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async listRecipes() {
+      const [prods, lines] = await Promise.all([
+        self.listProducts({ includeInactive: true }),
+        fetchAll<Row>((f, t) => db().from('recipe_lines').select('id,product_id,ingredient_id,qty,unit_id').order('id').range(f, t)),
+      ]);
+      const by = new Map<string, RecipeLine[]>();
+      for (const l of lines) { const k = l.product_id as string; (by.get(k) ?? by.set(k, []).get(k)!).push({ ingredientId: l.ingredient_id as string, qty: Number(l.qty), unitId: l.unit_id as string }); }
+      return prods.filter((p) => p.kind === 'goods' && p.isSellable !== false).map((p): RecipeProduct => ({ id: p.id, name: p.name, price: p.price, isActive: p.isActive, lines: by.get(p.id) ?? [] }));
+    },
+    async saveRecipe(productId, lines) {
+      const ings = await self.listRecipeIngredients();
+      const problem = recipeProblem(lines, new Map(ings.map((i) => [i.id, i])));
+      if (problem) throw new DataError('invalid', problem);
+      const { data, error } = await db().rpc('recipe_save', { p_product: productId, p_lines: lines.map((l) => ({ ingredient_id: l.ingredientId, qty: l.qty, unit_id: l.unitId })) });
+      if (error) {
+        const m = error.message ?? '';
+        if (/not allowed|no access/i.test(m)) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh mengubah resep.');
+        if (/product not found/i.test(m)) throw new DataError('not_found', 'Produk tidak ditemukan.');
+        if (/no conversion/i.test(m)) throw new DataError('invalid', 'Salah satu satuan belum punya konversi ke satuan dasar bahan.');
+        if (/duplicate key|recipe_lines_product_id_ingredient_id/i.test(m)) throw new DataError('invalid', 'Ada bahan yang muncul dua kali dalam resep.');
+        if (/recipe /i.test(m)) throw new DataError('invalid', 'Resep ditolak server. Periksa bahan, satuan, dan jumlah.');
+        throw mapDbError(error);
+      }
+      return Number(data ?? lines.length);
     },
 
     // ---------- log aktivitas ----------
