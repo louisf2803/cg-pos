@@ -109,3 +109,14 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 
 - Review A17 (Laporan karyawan + Laporan dapur, helper murni staff-report/kitchen-report + tes): review.sh lulus (typecheck, tes shared, build), Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol, lingkup hanya dashboard/shared/docs. Digabung ke main. Temuan kecil (peran berbahasa Inggris, placeholder cari, teks terpotong di mobile) -> A27.
 - Review A18 (Analisa: waktu teramai penjualan, waktu teramai produk, perputaran stok; shared analysis.ts + tes): review.sh lulus, tanpa overflow/galat konsol, data cocok dengan demo. Digabung ke main. Kekurangan tampilan (heatmap terpotong dan baris terlalu tinggi, chip filter kontras rendah) -> A28.
+- Selesai (tugas A20): Rekonsiliasi Penerimaan Non-Tunai (/keuangan/rekonsiliasi):
+  1. Ringkasan Penerimaan Non-Tunai: Membaca seluruh transaksi non-tunai lunas (`paid`/`partially_paid` dengan metode gateway, noncash, deposit) dari pesanan yang ada dalam rentang tanggal terpilih (`useReport` + `RangePicker`).
+  2. Dua Mode Pengelompokan: Pilihan toggle "Per Metode Bayar" (agregat total metode) dan "Per Hari & Metode" (agregat harian per metode pembayaran).
+  3. Input Manual Bank & State Lokal: Kolom "Diterima di Bank / EDC" yang dapat diisi mandiri oleh pengguna dan disimpan murni di state lokal halaman tanpa mengubah DataLayer. Dilengkapi tombol praktis "Samakan dgn sistem" dan "Reset isian".
+  4. Perhitungan Selisih & Status Otomatis: Kolom selisih berwarna hijau (bila seimbang atau surplus bank) atau merah (bila kurang dari sistem), beserta lencana penanda status "Sudah cocok", "Selisih", atau "Belum diisi".
+  5. 4 Kartu KPI: Menampilkan Total Dicatat Sistem POS, Total Diterima di Bank/Penyedia, Total Selisih, dan Status Rekonsiliasi (jumlah cocok vs selisih).
+  6. Banner Catatan: Penjelasan transparan bahwa angka penerimaan saat ini disimpan di sesi peramban dan penyimpanan permanen berkas rekonsiliasi ke server menyusul.
+  7. Tampilan Responsif & Ekspor CSV: Tabel desktop dengan kolom terstruktur dan tampilan kartu mobile mandiri (`md:hidden`), serta tombol unduh CSV rekonsiliasi lengkap.
+  8. Helper Murni & Tes: `packages/shared/src/reconcile.ts` (`isNonCashPayment`, `computeReconcileDiff`, `buildNonCashReconciliation`, `buildReconcileCsv`) beserta 4 uji unit di `packages/shared/test/reconcile.test.ts`. Diekspor di `packages/shared/src/index.ts`.
+  9. Pendaftaran Menu: Ditandai `built: true` di `apps/dashboard/src/lib/nav.ts` untuk rute `/keuangan/rekonsiliasi`.
+  10. Lolos uji: `pnpm -r typecheck`, 262 tes shared vitest, build dashboard 114 halaman statis, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a20/`).

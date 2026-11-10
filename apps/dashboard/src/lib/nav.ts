@@ -294,7 +294,7 @@ export const MODUL: NavModule[] = [
           { href: '/keuangan/kas', label: 'Buku kas dan bank', screen: 'S73', tier: 2, built: true },
           { href: '/keuangan/transfer', label: 'Daftar transfer', screen: 'S73', tier: 2, built: true },
           { href: '/keuangan/biaya', label: 'Penerimaan dan pengeluaran', screen: 'S76', tier: 2 },
-          { href: '/keuangan/rekonsiliasi', label: 'Rekonsiliasi non-tunai', screen: 'S75', tier: 2 },
+          { href: '/keuangan/rekonsiliasi', label: 'Rekonsiliasi non-tunai', screen: 'S75', tier: 2, built: true },
         ],
       },
       {
