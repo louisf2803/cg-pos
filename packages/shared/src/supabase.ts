@@ -704,6 +704,15 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const s = q.search?.trim().toLowerCase();
       return rows.map(toProduct).filter((p) => !s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s));
     },
+    async getCustomItemProductId() {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('custom_item_product', { p_org: orgId });
+      if (error) {
+        if (/not allowed|no access/i.test(error.message ?? '')) throw new DataError('forbidden', 'Akun ini tidak boleh menjual item bebas.');
+        throw new DataError('invalid', error.message ?? 'Item bebas gagal disiapkan');
+      }
+      return data as string;
+    },
     async getProduct(id) {
       const row = must(await db().from('products').select(PRODUCT_SELECT).eq('id', id).maybeSingle()) as Row | null;
       return row ? toProduct(row) : null;

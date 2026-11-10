@@ -6,6 +6,7 @@ export interface CartLine { id: string; productId: string; name: string; qty: nu
 export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string; discounts: AppliedDiscount[] }
 type Action =
   | { t: 'add'; product: Product; extras?: ItemExtra[] }
+  | { t: 'custom'; productId: string; name: string; unitPrice: number; qty: number; note?: string }
   | { t: 'qty'; lineId: string; qty: number }
   | { t: 'note'; lineId: string; note: string }
   | { t: 'price'; lineId: string; unitPrice: number }
@@ -29,6 +30,8 @@ function reduce(s: CartState, a: Action): CartState {
       if (ex) return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: l.qty + 1 } : l)) };
       return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, basePrice: a.product.price, ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}), ...(a.extras?.length ? { extras: a.extras } : {}) }] };
     }
+    // Item bebas: selalu baris baru (nama dan harga diketik kasir), tidak digabung dengan baris lain
+    case 'custom': return { ...s, lines: [...s.lines, { id: newId(), productId: a.productId, name: a.name, qty: a.qty, unitPrice: a.unitPrice, ...(a.note ? { note: a.note } : {}) }] };
     case 'qty':
       return { ...s, lines: a.qty <= 0 ? s.lines.filter((l) => l.id !== a.lineId) : s.lines.map((l) => (l.id === a.lineId ? { ...l, qty: a.qty } : l)) };
     case 'note': return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, note: a.note.slice(0, 120) || undefined } : l)) };

@@ -70,6 +70,8 @@ export interface DataLayer {
   deleteExtraGroup(id: string): Promise<void>;
   listProducts(q?: { categoryId?: string | null; search?: string; includeInactive?: boolean }): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
+  /** Id produk sistem "Item bebas" (jual barang tak terdaftar). Nama dan harga tiap baris diisi kasir. Dibuat otomatis bila belum ada. */
+  getCustomItemProductId(): Promise<string>;
   saveProduct(input: ProductInput): Promise<Product>;
   setProductActive(id: string, active: boolean): Promise<void>;
 

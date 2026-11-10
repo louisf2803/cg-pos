@@ -697,6 +697,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         (!s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s))));
     },
     async getProduct(id) { return clone(products.find((p) => p.id === id) ?? null); },
+    async getCustomItemProductId() { return 'custom-item-fake'; },
     async saveProduct(input: ProductInput) {
       const name = input.name.trim();
       if (!name) throw new DataError('invalid', 'Nama produk wajib diisi');

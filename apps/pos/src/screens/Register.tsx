@@ -35,6 +35,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [extraFor, setExtraFor] = useState<Product | null>(null);
   const [cat, setCat] = useState<string | 'all'>('all');
   const [q, setQ] = useState('');
+  const [customOpen, setCustomOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [paying, setPaying] = useState<Order | null>(null);
   const [picking, setPicking] = useState<Extract<CatalogTile, { kind: 'group' }> | null>(null);
@@ -191,6 +192,9 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           <input className="cg-input" type="search" placeholder="Cari produk, atau ketik/scan SKU lalu Enter" value={q} onChange={(e) => { setQ(e.target.value); setScanMsg(null); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSearchEnter(); } }} />
         </label>
+        <div className="flex justify-end">
+          <button className="cg-btn cg-btn--secondary cg-btn--sm" data-testid="custom-open" onClick={() => setCustomOpen(true)} aria-haspopup="dialog">Item bebas</button>
+        </div>
         {scanMsg && <p role="status" className={`text-sm ${scanMsg.ok ? 'text-text-muted' : 'text-danger-strong'}`} data-testid="scan-msg">{scanMsg.text}</p>}
         <div className="cg-shell__grid">
           {prods.status === 'loading' && Array.from({ length: 8 }, (_, i) => <div key={i} className="cg-skeleton" style={{ height: 170 }} aria-hidden />)}
@@ -356,6 +360,14 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
           onAdd={(extras) => { cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
       )}
+      {customOpen && (
+        <CustomItemDialog onClose={() => setCustomOpen(false)}
+          onAdd={async (name, price, qty) => {
+            const productId = await data.getCustomItemProductId();
+            cart.dispatch({ t: 'custom', productId, name, unitPrice: price, qty });
+            setCustomOpen(false); setPanelOpen(true);
+          }} />
+      )}
       {picking && (
         <Modal title={`Pilih ukuran: ${picking.name}`} onClose={() => setPicking(null)}>
           <ul className="grid gap-8" aria-label="Ukuran">
@@ -444,6 +456,42 @@ function ExtraPicker({ product, groups, onClose, onAdd }: { product: Product; gr
           <button type="button" className="cg-btn cg-btn--primary" onClick={add}>Tambah {formatRp(product.price + extrasPerUnit(extras))}</button>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/** Jual barang atau jasa yang tidak ada di menu: nama dan harga diketik kasir, tercatat sebagai baris biasa di pesanan dan laporan. */
+function CustomItemDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (name: string, price: number, qty: number) => Promise<void> }) {
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [qty, setQty] = useState('1');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = name.trim(); const pr = Number(price.replace(/[^\d]/g, '')); const q = Number(qty.replace(',', '.'));
+    if (!n) { setErr('Nama item wajib diisi.'); return; }
+    if (!Number.isFinite(pr) || pr <= 0) { setErr('Harga harus lebih dari 0.'); return; }
+    if (!Number.isFinite(q) || q <= 0) { setErr('Jumlah harus lebih dari 0.'); return; }
+    setBusy(true); setErr('');
+    try { await onAdd(n.slice(0, 80), Math.round(pr), q); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Item gagal ditambahkan.'); setBusy(false); }
+  }
+  return (
+    <Modal title="Item bebas" onClose={onClose}>
+      <form onSubmit={submit} className="grid gap-12" noValidate>
+        <label className="grid gap-4"><span className="text-sm">Nama item</span>
+          <input className="cg-input" data-autofocus data-testid="custom-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="grid gap-4"><span className="text-sm">Harga satuan (Rp)</span>
+          <input className="cg-input" inputMode="numeric" data-testid="custom-price" value={price} onChange={(e) => setPrice(e.target.value)} /></label>
+        <label className="grid gap-4"><span className="text-sm">Jumlah</span>
+          <input className="cg-input" inputMode="decimal" data-testid="custom-qty" value={qty} onChange={(e) => setQty(e.target.value)} /></label>
+        {err && <p role="alert" className="text-sm text-danger-strong" data-testid="custom-err">{err}</p>}
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>Batal</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy} data-testid="custom-add">Tambah ke pesanan</button>
+        </div>
+      </form>
     </Modal>
   );
 }
