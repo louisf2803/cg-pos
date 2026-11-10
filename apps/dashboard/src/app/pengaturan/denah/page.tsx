@@ -251,12 +251,12 @@ export default function DenahDanMeja() {
           {viewTab === 'denah' && (
             <button
               type="button"
-              className="cg-btn cg-btn--secondary cg-btn--sm flex items-center gap-6"
+              className="cg-btn cg-btn--secondary cg-btn--sm flex items-center gap-[6px]"
               onClick={handleRefresh}
               disabled={isRefreshing}
               title="Segarkan status meja (otomatis tiap 30 detik)"
             >
-              <RotateCw className={`w-14 h-14 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden />
+              <RotateCw className={`w-[14px] h-[14px] shrink-0 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden />
               Muat ulang
             </button>
           )}
@@ -269,12 +269,12 @@ export default function DenahDanMeja() {
 
       {st.status === 'loading' && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat denah">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-8">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton h-[72px]" />
             ))}
           </div>
-          <div className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-10 tablet:gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-[10px] tablet:gap-12">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="cg-skeleton h-[120px] rounded-xl" />
             ))}
@@ -313,9 +313,9 @@ export default function DenahDanMeja() {
                   type="button"
                   role="tab"
                   aria-selected={selectedFloorId === 'all'}
-                  className={`px-12 py-6 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                  className={`px-12 py-[6px] rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                     selectedFloorId === 'all'
-                      ? 'bg-accent text-accent-contrast shadow-xs font-bold'
+                      ? 'bg-accent text-on-accent shadow-xs font-bold'
                       : 'bg-surface-raised border border-border text-text hover:bg-surface-muted'
                   }`}
                   onClick={() => setSelectedFloorId('all')}
@@ -331,9 +331,9 @@ export default function DenahDanMeja() {
                       type="button"
                       role="tab"
                       aria-selected={isSel}
-                      className={`px-12 py-6 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                      className={`px-12 py-[6px] rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                         isSel
-                          ? 'bg-accent text-accent-contrast shadow-xs font-bold'
+                          ? 'bg-accent text-on-accent shadow-xs font-bold'
                           : 'bg-surface-raised border border-border text-text hover:bg-surface-muted'
                       }`}
                       onClick={() => setSelectedFloorId(f.id)}
@@ -345,63 +345,63 @@ export default function DenahDanMeja() {
               </div>
 
               {/* Summary KPIs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 min-w-0">
-                <div className="p-10 rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
+              <div className="grid grid-cols-2 tablet:grid-cols-4 gap-8 min-w-0">
+                <div className="p-[10px] rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
                   <span className="text-xs text-text-muted font-medium">Total Meja</span>
-                  <strong className="text-lg font-bold cg-num text-text mt-2">
+                  <strong className="text-lg font-bold cg-num text-text mt-[2px]">
                     {displayedTables.length}{' '}
                     <span className="text-xs font-normal text-text-muted">meja</span>
                   </strong>
                   {selectedFloorId !== 'all' && (
-                    <span className="text-[11px] text-text-muted mt-2 truncate">
+                    <span className="text-[11px] text-text-muted mt-[2px] truncate">
                       Keseluruhan: {allTables.length} meja
                     </span>
                   )}
                 </div>
 
-                <div className="p-10 rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
+                <div className="p-[10px] rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
                   <span className="text-xs text-text-muted font-medium flex items-center gap-4">
                     <span className="w-8 h-8 rounded-full bg-accent inline-block shrink-0" />
                     Kosong
                   </span>
-                  <strong className="text-lg font-bold cg-num text-accent-strong mt-2">
+                  <strong className="text-lg font-bold cg-num text-accent-strong mt-[2px]">
                     {displayedKosong}{' '}
                     <span className="text-xs font-normal text-text-muted">meja</span>
                   </strong>
                   {selectedFloorId !== 'all' && (
-                    <span className="text-[11px] text-text-muted mt-2 truncate">
+                    <span className="text-[11px] text-text-muted mt-[2px] truncate">
                       Keseluruhan: {totalKosong}
                     </span>
                   )}
                 </div>
 
-                <div className="p-10 rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
+                <div className="p-[10px] rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
                   <span className="text-xs text-text-muted font-medium flex items-center gap-4">
                     <span className="w-8 h-8 rounded-full bg-warning-strong inline-block shrink-0" />
                     Terisi
                   </span>
-                  <strong className="text-lg font-bold cg-num text-warning-strong mt-2">
+                  <strong className="text-lg font-bold cg-num text-warning-strong mt-[2px]">
                     {displayedTerisi}{' '}
                     <span className="text-xs font-normal text-text-muted">meja</span>
                   </strong>
                   {selectedFloorId !== 'all' && (
-                    <span className="text-[11px] text-text-muted mt-2 truncate">
+                    <span className="text-[11px] text-text-muted mt-[2px] truncate">
                       Keseluruhan: {totalTerisi}
                     </span>
                   )}
                 </div>
 
-                <div className="p-10 rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
+                <div className="p-[10px] rounded-lg border border-border bg-surface-raised flex flex-col justify-between">
                   <span className="text-xs text-text-muted font-medium flex items-center gap-4">
                     <span className="w-8 h-8 rounded-full bg-border inline-block shrink-0" />
                     Nonaktif
                   </span>
-                  <strong className="text-lg font-bold cg-num text-text-muted mt-2">
+                  <strong className="text-lg font-bold cg-num text-text-muted mt-[2px]">
                     {displayedNonaktif}{' '}
                     <span className="text-xs font-normal text-text-muted">meja</span>
                   </strong>
                   {selectedFloorId !== 'all' && (
-                    <span className="text-[11px] text-text-muted mt-2 truncate">
+                    <span className="text-[11px] text-text-muted mt-[2px] truncate">
                       Keseluruhan: {totalNonaktif}
                     </span>
                   )}
@@ -435,7 +435,7 @@ export default function DenahDanMeja() {
                 </div>
               ) : (
                 <div
-                  className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-10 tablet:gap-12 min-w-0"
+                  className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-[10px] tablet:gap-12 min-w-0"
                   aria-label="Grid Meja Denah"
                 >
                   {displayedTables.map((t) => {
@@ -445,7 +445,7 @@ export default function DenahDanMeja() {
                         key={t.id}
                         type="button"
                         onClick={(e) => openDrawer(t, e.currentTarget)}
-                        className={`p-12 rounded-xl border text-left flex flex-col justify-between min-h-[110px] sm:min-h-[120px] transition-all hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                        className={`p-12 rounded-xl border text-left flex flex-col justify-between min-h-[110px] tablet:min-h-[120px] transition-all hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
                           status === 'terisi'
                             ? 'bg-warning/5 border-warning/40 hover:border-warning'
                             : status === 'nonaktif'
@@ -458,13 +458,13 @@ export default function DenahDanMeja() {
                       >
                         <div className="min-w-0">
                           <strong
-                            className="text-sm sm:text-base font-bold text-text block truncate mb-4"
+                            className="text-sm tablet:text-base font-bold text-text block truncate mb-4"
                             title={t.name}
                           >
                             {t.name}
                           </strong>
                           <div className="flex items-center gap-4 text-xs text-text-muted mb-8">
-                            <Users className="w-14 h-14 shrink-0" aria-hidden />
+                            <Users className="w-[14px] h-[14px] shrink-0" aria-hidden />
                             <span className="cg-num">
                               {(t as unknown as { capacity?: number }).capacity ?? 4} kursi
                             </span>
@@ -479,7 +479,7 @@ export default function DenahDanMeja() {
                           )}
                           {status === 'terisi' && (
                             <div className="min-w-0">
-                              <span className="cg-badge cg-badge--warning text-[11px] font-semibold mb-2 block w-fit">
+                              <span className="cg-badge cg-badge--warning text-[11px] font-semibold mb-[2px] block w-fit">
                                 Terisi
                               </span>
                               <div
@@ -605,7 +605,7 @@ export default function DenahDanMeja() {
             role="dialog"
             aria-modal="true"
             aria-label={`Detail Meja ${selectedTable.name}`}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-sm sm:max-w-md bg-surface-raised border-l border-border z-50 p-20 shadow-xl overflow-y-auto flex flex-col justify-between"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-sm tablet:max-w-md bg-surface-raised border-l border-border z-50 p-20 shadow-xl overflow-y-auto flex flex-col justify-between"
             tabIndex={-1}
           >
             <div>
@@ -623,10 +623,10 @@ export default function DenahDanMeja() {
                   type="button"
                   data-close
                   onClick={closeDrawer}
-                  className="cg-btn cg-btn--ghost cg-btn--sm p-6"
+                  className="cg-btn cg-btn--ghost cg-btn--sm p-[6px]"
                   aria-label="Tutup detail meja"
                 >
-                  <X className="w-18 h-18 text-text-muted" aria-hidden />
+                  <X className="w-[18px] h-[18px] text-text-muted" aria-hidden />
                 </button>
               </div>
 
@@ -642,7 +642,7 @@ export default function DenahDanMeja() {
                 <div className="flex items-center justify-between text-sm py-4 border-b border-border/60">
                   <span className="text-text-muted">Kapasitas</span>
                   <span className="font-semibold text-text flex items-center gap-4 cg-num">
-                    <Users className="w-14 h-14 text-text-muted" aria-hidden />
+                    <Users className="w-[14px] h-[14px] text-text-muted" aria-hidden />
                     {(selectedTable as unknown as { capacity?: number }).capacity ?? 4} kursi
                   </span>
                 </div>
@@ -673,8 +673,8 @@ export default function DenahDanMeja() {
               {selectedTable.order ? (
                 <div className="p-16 rounded-xl border border-warning/40 bg-warning/5 space-y-10 mb-20">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-warning-strong flex items-center gap-6">
-                      <Clock className="w-14 h-14" aria-hidden /> Pesanan Aktif
+                    <span className="text-xs font-bold uppercase tracking-wider text-warning-strong flex items-center gap-[6px]">
+                      <Clock className="w-[14px] h-[14px]" aria-hidden /> Pesanan Aktif
                     </span>
                     <span className="text-xs font-semibold cg-num text-text-muted">
                       {fmtOrderTime(selectedTable.order.openedAt)}
@@ -716,7 +716,7 @@ export default function DenahDanMeja() {
                   </div>
                 </div>
               ) : (
-                <div className="p-14 rounded-xl border border-border bg-surface text-sm text-text-muted mb-20">
+                <div className="p-[14px] rounded-xl border border-border bg-surface text-sm text-text-muted mb-20">
                   {getTableEffectiveStatus(selectedTable) === 'nonaktif' ? (
                     <p>Meja ini sedang dinonaktifkan sehingga tidak dapat dipilih kasir.</p>
                   ) : (
@@ -730,7 +730,7 @@ export default function DenahDanMeja() {
             <div className="pt-16 border-t border-border flex flex-col gap-8">
               <button
                 type="button"
-                className="cg-btn cg-btn--primary w-full flex items-center justify-center gap-6"
+                className="cg-btn cg-btn--primary w-full flex items-center justify-center gap-[6px]"
                 onClick={() => {
                   setDlg({
                     kind: 'table',

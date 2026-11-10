@@ -192,42 +192,42 @@ export default function NonCashReconciliationPage() {
       )}
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16 min-w-0">
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+      <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-4 gap-12 mb-16 min-w-0">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Dicatat Sistem POS
             </span>
-            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
+            <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
               {formatRp(reconciliation?.totalSystemAmount ?? 0)}
             </strong>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             {reconciliation?.totalTransactions ?? 0} transaksi non-tunai
           </span>
         </div>
 
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Diterima di Bank / Penyedia
             </span>
-            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-text cg-num">
+            <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-text cg-num">
               {filledCount > 0 ? formatRp(totalFilledActual) : '—'}
             </strong>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             {filledCount > 0 ? `${filledCount} metode telah diisi` : 'Belum ada input aktual'}
           </span>
         </div>
 
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Total Selisih
             </span>
             <strong
-              className={`text-xl sm:text-2xl font-bold block truncate text-left cg-num ${
+              className={`text-xl tablet:text-2xl font-bold block truncate text-left cg-num ${
                 filledCount === 0
                   ? 'text-text'
                   : filledDiff === 0
@@ -242,7 +242,7 @@ export default function NonCashReconciliationPage() {
                 : `${filledDiff > 0 ? '+' : ''}${formatRp(filledDiff)}`}
             </strong>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             {filledCount === 0
               ? 'Belum ada nominal bank diisi'
               : filledDiff === 0
@@ -253,40 +253,40 @@ export default function NonCashReconciliationPage() {
           </span>
         </div>
 
-        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Status Rekonsiliasi
             </span>
-            <div className="flex items-center gap-6 my-2">
+            <div className="flex items-center gap-[6px] my-[2px]">
               {filledCount === 0 ? (
                 <span className="cg-badge text-text-muted text-xs font-semibold">
                   Belum diisi
                 </span>
               ) : allFilledMatched ? (
                 <span className="cg-badge cg-badge--success flex items-center gap-4 text-xs font-semibold">
-                  <CheckCircle2 className="w-14 h-14" aria-hidden /> Sudah cocok semua
+                  <CheckCircle2 className="w-[14px] h-[14px]" aria-hidden /> Sudah cocok semua
                 </span>
               ) : (
                 <span className="cg-badge cg-badge--danger flex items-center gap-4 text-xs font-semibold">
-                  <AlertCircle className="w-14 h-14" aria-hidden /> Ada selisih
+                  <AlertCircle className="w-[14px] h-[14px]" aria-hidden /> Ada selisih
                 </span>
               )}
             </div>
           </div>
-          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+          <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
             {reconciliation?.matchedCount ?? 0} cocok · {reconciliation?.mismatchCount ?? 0} selisih
           </span>
         </div>
       </div>
 
       {/* Filter and Control Bar */}
-      <div className="flex flex-col sm:flex-row gap-12 mb-16 justify-between items-stretch sm:items-center">
+      <div className="flex flex-col tablet:flex-row gap-12 mb-16 justify-between items-stretch tablet:items-center">
         {/* Toggle Grouping */}
-        <div className="flex items-center gap-6 bg-[var(--color-surface-raised)] p-4 rounded-[var(--radius-md)] border border-[var(--color-border)]">
+        <div className="flex items-center gap-[6px] bg-[var(--color-surface-raised)] p-4 rounded-[var(--radius-md)] border border-[var(--color-border)]">
           <button
             type="button"
-            className={`px-12 py-6 text-xs font-medium rounded transition-colors ${
+            className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
               groupBy === 'method'
                 ? 'bg-[var(--color-surface)] text-[var(--color-accent)] font-bold shadow-sm'
                 : 'text-text-muted hover:text-text'
@@ -297,7 +297,7 @@ export default function NonCashReconciliationPage() {
           </button>
           <button
             type="button"
-            className={`px-12 py-6 text-xs font-medium rounded transition-colors ${
+            className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
               groupBy === 'date_method'
                 ? 'bg-[var(--color-surface)] text-[var(--color-accent)] font-bold shadow-sm'
                 : 'text-text-muted hover:text-text'
@@ -454,7 +454,7 @@ export default function NonCashReconciliationPage() {
                 <div className="flex justify-between items-start gap-8 mb-8">
                   <div>
                     {groupBy === 'date_method' && row.date && (
-                      <span className="text-xs text-text-muted block mb-2">
+                      <span className="text-xs text-text-muted block mb-[2px]">
                         {fmtDate(row.date)}
                       </span>
                     )}

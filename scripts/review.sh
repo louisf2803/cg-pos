@@ -7,5 +7,6 @@ run(){ n="$1"; shift; out=$("$@" 2>&1); if [ $? -eq 0 ]; then echo "LULUS  $n"; 
 run typecheck pnpm -r typecheck
 run tes-shared pnpm -F @cgpos/shared test
 run build-dashboard pnpm -F @cgpos/dashboard build
+run tailwind-guard bash scripts/lint-tailwind.sh
 git checkout -q packages/db/tests/fixtures/payloads.json 2>/dev/null
 [ $ok -eq 1 ] && echo "SEMUA LULUS" || echo "ADA YANG GAGAL"
