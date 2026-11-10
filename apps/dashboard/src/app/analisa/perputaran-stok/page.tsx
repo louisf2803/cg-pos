@@ -140,7 +140,7 @@ export default function StockTurnoverPage() {
       {report && report.rows.length > 0 && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Perputaran Stok */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-12" aria-label="Ringkasan perputaran persediaan">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan perputaran persediaan">
             <StatCard
               label="Perputaran cepat (Fast)"
               value={`${num(report.summary.fastMovingCount)} barang`}
@@ -396,17 +396,17 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+    <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
       <div>
-        <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left">{label}</span>
+        <span className="text-xs text-text-muted font-medium block mb-4 text-left leading-normal">{label}</span>
         <strong
-          className={`text-xl sm:text-2xl font-bold block truncate text-left ${primary ? 'text-accent-strong' : 'text-text'}`}
+          className={`text-base tablet:text-xl desktop:text-2xl font-bold block text-left break-words leading-tight ${primary ? 'text-accent-strong' : 'text-text'}`}
           data-testid={testId}
         >
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 truncate text-left">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }

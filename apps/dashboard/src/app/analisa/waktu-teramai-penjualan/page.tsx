@@ -128,7 +128,7 @@ export default function SalesPeakHoursHeatmapPage() {
       {report && report.overallTotals.count > 0 && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Heatmap */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-12" aria-label="Ringkasan waktu teramai">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan waktu teramai">
             <StatCard
               label="Titik waktu puncak"
               value={
@@ -185,25 +185,25 @@ export default function SalesPeakHoursHeatmapPage() {
 
           {/* Matriks Heatmap Hari x Jam */}
           <div className="border border-border rounded-xl bg-surface-raised overflow-hidden min-w-0">
-            <div className="p-16 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-12">
+            <div className="p-16 border-b border-border flex flex-col tablet:flex-row tablet:items-center justify-between gap-12">
               <div>
                 <h2 className="text-base font-semibold flex items-center gap-8">
-                  <Flame className="w-18 h-18 text-accent-strong" aria-hidden /> Heatmap aktivitas penjualan (Hari × Jam)
+                  <Flame className="w-[18px] h-[18px] text-accent-strong" aria-hidden /> Heatmap aktivitas penjualan (Hari × Jam)
                 </h2>
                 <p className="text-xs text-text-muted mt-2">
-                  Dapat dinavigasi dengan keyboard (Tab / Enter / Space) dan dibaca pembaca layar.
+                  Makin hijau makin ramai.
                 </p>
               </div>
 
               {/* Segmented Control Metrik (Transaksi vs Nominal) */}
-              <div className="flex items-center gap-8 self-end sm:self-auto">
-                <div className="inline-flex p-2 bg-surface border border-border rounded-lg text-xs" role="tablist" aria-label="Metrik heatmap">
+              <div className="flex items-center gap-8 self-start tablet:self-auto">
+                <div className="inline-flex p-2 bg-surface border border-border rounded-lg text-xs" role="tablist" aria-label="Metrik heatmap. Navigasi keyboard dengan Tab, Enter, atau Spasi.">
                   <button
                     type="button"
                     role="tab"
                     aria-selected={metric === 'count'}
                     onClick={() => setMetric('count')}
-                    className={`px-12 py-5 rounded-md font-medium transition-colors ${
+                    className={`px-12 py-[5px] rounded-md font-medium transition-colors ${
                       metric === 'count' ? 'bg-accent text-on-accent font-semibold shadow-xs' : 'text-text-muted hover:text-text'
                     }`}
                   >
@@ -214,7 +214,7 @@ export default function SalesPeakHoursHeatmapPage() {
                     role="tab"
                     aria-selected={metric === 'sales'}
                     onClick={() => setMetric('sales')}
-                    className={`px-12 py-5 rounded-md font-medium transition-colors ${
+                    className={`px-12 py-[5px] rounded-md font-medium transition-colors ${
                       metric === 'sales' ? 'bg-accent text-on-accent font-semibold shadow-xs' : 'text-text-muted hover:text-text'
                     }`}
                   >
@@ -387,17 +387,17 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+    <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
       <div>
-        <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left">{label}</span>
+        <span className="text-xs text-text-muted font-medium block mb-4 text-left leading-normal">{label}</span>
         <strong
-          className={`text-xl sm:text-2xl font-bold block truncate text-left ${primary ? 'text-accent-strong' : 'text-text'}`}
+          className={`text-base tablet:text-xl desktop:text-2xl font-bold block text-left break-words leading-tight ${primary ? 'text-accent-strong' : 'text-text'}`}
           data-testid={testId}
         >
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 truncate text-left">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }

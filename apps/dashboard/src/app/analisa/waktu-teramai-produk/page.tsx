@@ -130,7 +130,7 @@ export default function ProductPeakHoursPage() {
       {report && report.topProducts.length > 0 && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Analisa Produk */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-12" aria-label="Ringkasan 10 produk teratas">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan 10 produk teratas">
             <StatCard
               label="Produk #1 terlaris"
               value={overallTopProduct ? overallTopProduct.productName : '—'}
@@ -178,16 +178,16 @@ export default function ProductPeakHoursPage() {
 
           {/* Matriks Produk x Jam (Desktop & Tablet) */}
           <div className="border border-border rounded-xl bg-surface-raised overflow-hidden min-w-0">
-            <div className="p-16 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+            <div className="p-16 border-b border-border flex flex-col tablet:flex-row tablet:items-center justify-between gap-8">
               <div>
                 <h2 className="text-base font-semibold flex items-center gap-8">
-                  <Package className="w-18 h-18 text-accent-strong" aria-hidden /> Matriks intensitas penjualan (Produk × Jam)
+                  <Package className="w-[18px] h-[18px] text-accent-strong" aria-hidden /> Matriks intensitas penjualan (Produk × Jam)
                 </h2>
                 <p className="text-xs text-text-muted mt-2">
-                  Warna hijau semakin pekat menandakan volume penjualan lebih tinggi di jam tersebut. Klik atau fokus pada sel untuk rincian.
+                  Makin hijau makin ramai (volume penjualan lebih tinggi).
                 </p>
               </div>
-              <div className="flex items-center gap-6 text-xs text-text-muted self-end sm:self-auto">
+              <div className="flex items-center gap-6 text-xs text-text-muted self-start tablet:self-auto">
                 <span>Rendah</span>
                 <span className="inline-block w-16 h-16 rounded bg-accent-soft border border-accent/20" />
                 <span className="inline-block w-16 h-16 rounded bg-accent/40" />
@@ -363,17 +363,17 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+    <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
       <div>
-        <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left">{label}</span>
+        <span className="text-xs text-text-muted font-medium block mb-4 text-left leading-normal">{label}</span>
         <strong
-          className={`text-xl sm:text-2xl font-bold block truncate text-left ${primary ? 'text-accent-strong' : 'text-text'}`}
+          className={`text-base tablet:text-xl desktop:text-2xl font-bold block text-left break-words leading-tight ${primary ? 'text-accent-strong' : 'text-text'}`}
           data-testid={testId}
         >
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 truncate text-left">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }
