@@ -10,6 +10,7 @@ import { Modal, ProductPhoto } from '../ui';
 import { Orders } from './Orders';
 import { TablePicker } from './TablePicker';
 import { DeviceSettings } from './DeviceSettings';
+import { ShiftSummary } from './ShiftSummary';
 import { Payment } from './Payment';
 
 const TYPES: { v: OrderType; label: string }[] = [
@@ -40,6 +41,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
   const cart = useCart(ctx);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
@@ -125,7 +127,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           </button>
         )}
         <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label="Daftar Order" onClick={() => { setOrdersTab('waiting'); setShowOrders(true); }}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> <span className="hidden tablet:inline">Daftar Order</span></button>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm whitespace-nowrap" onClick={onCloseShift}>Tutup kasir</button>
+        <button className="cg-btn cg-btn--ghost cg-btn--sm whitespace-nowrap" onClick={() => setShiftOpen(true)}>Shift</button>
         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setSettings(true)} aria-label="Pengaturan perangkat"><Settings className="cg-icon" aria-hidden /></button>
         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onLock} aria-label="Kunci layar"><Lock className="cg-icon" aria-hidden /></button>
       </header>
@@ -241,6 +243,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
         </button>
       </footer>
+      {shiftOpen && <ShiftSummary onClose={() => setShiftOpen(false)} onCloseShift={() => { setShiftOpen(false); onCloseShift(); }} />}
       {settings && <DeviceSettings onClose={() => setSettings(false)} />}
       {tablePick && (
         <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}

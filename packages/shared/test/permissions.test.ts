@@ -14,6 +14,7 @@ describe('hak akses per peran', () => {
     expect(accessFor('cashier', 'close_shift')).toBe('allow');
     for (const p of ['void_order', 'refund', 'merge_tables', 'discard_pending'] as const) expect(accessFor('cashier', p)).toBe('approve');
     expect(accessFor('cashier', 'device_settings')).toBe('deny');
+    expect(accessFor('cashier', 'see_expected_cash')).toBe('deny');
   });
   it('jeda kunci layar: nilai sah dipertahankan, selain itu kembali ke bawaan', () => {
     for (const m of IDLE_LOCK_CHOICES) expect(normalizeIdleLock(m)).toBe(m);

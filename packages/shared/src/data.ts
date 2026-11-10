@@ -80,6 +80,8 @@ export interface DataLayer {
   currentShift(): Promise<Shift | null>;
   openShift(input: { id: string; cashierId: string; openingCash: number }): Promise<Shift>;
   closeShift(input: { shiftId: string; counted: number; closedBy: string }): Promise<ShiftReport>;
+  /** Ringkasan shift tanpa menutupnya: penerimaan per metode, kas, produk terjual. Bisa dipanggil berulang. */
+  shiftSummary(shiftId: string): Promise<ShiftReport>;
 
   /** setara op order.upsert: simpan pesanan (status open), menghitung ulang angka dengan computeOrder */
   saveOrder(draft: OrderDraft, cashierId: string): Promise<Order>;

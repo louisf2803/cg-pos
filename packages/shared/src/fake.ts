@@ -1,5 +1,6 @@
 import type { DataLayer } from './data';
 import { createTableOps } from './table-ops';
+import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { DataError } from './types';
 import type {
   Bundle, BundleInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
@@ -168,6 +169,19 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     });
   }
   reset();
+
+  function shiftInputs(s: Shift): ShiftInputs {
+    const mine = orders.filter((o) => o.shiftId === s.id);
+    return {
+      shift: s,
+      payments: mine.flatMap((o) => o.payments).map((p) => ({ methodName: p.methodName, kind: p.kind, amount: p.amount })),
+      cashIn: cashMoves.filter((m) => m.shiftId === s.id && m.kind === 'in').reduce((a, m) => a + m.amount, 0),
+      cashOut: cashMoves.filter((m) => m.shiftId === s.id && m.kind === 'out').reduce((a, m) => a + m.amount, 0),
+      cashRefunds: refunds.filter((r) => r.shiftId === s.id && r.methodKind === 'cash').reduce((a, r) => a + r.total, 0),
+      paidOrderCount: mine.filter((o) => o.status === 'paid').length,
+      soldLines: mine.filter((o) => o.status === 'paid').flatMap((o) => o.items).map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, amount: i.lineTotal })),
+    };
+  }
 
   const self: DataLayer & { reset(): void } = {
     reset,
@@ -453,27 +467,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const s = shifts.find((x) => x.id === shiftId);
       if (!s) throw new DataError('not_found', 'Shift tidak ditemukan');
       if (s.status === 'closed') throw new DataError('invalid', 'Shift sudah ditutup');
-      const pays = orders.filter((o) => o.shiftId === s.id).flatMap((o) => o.payments);
-      const cashSales = pays.filter((p) => p.kind === 'cash').reduce((a, p) => a + p.amount, 0);
-      const otherSales = pays.filter((p) => p.kind !== 'cash').reduce((a, p) => a + p.amount, 0);
-      const cashIn = cashMoves.filter((m) => m.shiftId === s.id && m.kind === 'in').reduce((a, m) => a + m.amount, 0);
-      const cashOut = cashMoves.filter((m) => m.shiftId === s.id && m.kind === 'out').reduce((a, m) => a + m.amount, 0);
-      const cashRefunds = refunds.filter((r) => r.shiftId === s.id && r.methodKind === 'cash').reduce((a, r) => a + r.total, 0);
-      const expected = s.openingCash + cashSales + cashIn - cashOut - cashRefunds;
-      Object.assign(s, { status: 'closed', closedAt: now().toISOString(), counted: Math.round(counted), expectedCash: expected, variance: Math.round(counted) - expected });
-      const sold = new Map<string, { productId: string; name: string; qty: number; amount: number }>();
-      for (const o of orders.filter((x) => x.shiftId === s.id && x.status === 'paid')) {
-        for (const i of o.items) {
-          const cur = sold.get(i.productId) ?? { productId: i.productId, name: i.name, qty: 0, amount: 0 };
-          cur.qty += i.qty; cur.amount += i.lineTotal; sold.set(i.productId, cur);
-        }
-      }
-      return {
-        shift: clone(s), expectedCash: expected, counted: s.counted!, variance: s.variance!, cashSales, otherSales, cashIn, cashOut, cashRefunds,
-        byMethod: [...pays.reduce((m, p) => { const c = m.get(p.methodName) ?? { methodName: p.methodName, kind: p.kind, count: 0, amount: 0 }; c.count += 1; c.amount += p.amount; return m.set(p.methodName, c); }, new Map<string, { methodName: string; kind: PaymentMethod['kind']; count: number; amount: number }>()).values()].sort((a, b) => b.amount - a.amount),
-        orderCount: orders.filter((o) => o.shiftId === s.id && o.status === 'paid').length,
-        productsSold: [...sold.values()].sort((a, b) => b.amount - a.amount),
-      } satisfies ShiftReport;
+      const before = shiftInputs(s);
+      const r = buildShiftReport(before, Math.round(counted));
+      Object.assign(s, { status: 'closed', closedAt: now().toISOString(), counted: r.counted, expectedCash: r.expectedCash, variance: r.variance });
+      return { ...r, shift: clone(s) } satisfies ShiftReport;
+    },
+    async shiftSummary(shiftId) {
+      const s = shifts.find((x) => x.id === shiftId);
+      if (!s) throw new DataError('not_found', 'Shift tidak ditemukan');
+      return clone(buildShiftReport(shiftInputs(s)));
     },
 
     async nextOrderNumber() {
