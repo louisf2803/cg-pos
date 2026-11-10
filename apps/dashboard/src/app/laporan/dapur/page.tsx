@@ -336,12 +336,14 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0">
-      <span className="text-xs text-text-muted font-medium block mb-4 truncate">{label}</span>
-      <strong className={`text-lg block cg-num truncate ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
-        {value}
-      </strong>
-      {subtext && <span className="text-xs text-text-muted block mt-2 truncate">{subtext}</span>}
+    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
+      <div>
+        <span className="text-xs text-text-muted font-medium block mb-4 leading-tight break-words">{label}</span>
+        <strong className={`text-xl sm:text-2xl font-bold block text-left leading-tight tracking-tight ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
+          {value}
+        </strong>
+      </div>
+      {subtext && <span className="text-xs text-text-muted block mt-4 leading-tight break-words">{subtext}</span>}
     </div>
   );
 }

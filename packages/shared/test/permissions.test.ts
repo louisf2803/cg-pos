@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { accessFor, DEFAULT_IDLE_LOCK_MINUTES, IDLE_LOCK_CHOICES, normalizeIdleLock, PERMISSIONS, ROLE_ACCESS } from '../src';
+import { accessFor, DEFAULT_IDLE_LOCK_MINUTES, formatRole, IDLE_LOCK_CHOICES, normalizeIdleLock, PERMISSIONS, ROLE_ACCESS } from '../src';
 
 describe('hak akses per peran', () => {
+  it('formatRole memetakan peran bahasa Inggris ke Bahasa Indonesia', () => {
+    expect(formatRole('owner')).toBe('Pemilik');
+    expect(formatRole('Owner')).toBe('Pemilik');
+    expect(formatRole('manager')).toBe('Manajer');
+    expect(formatRole('Manager')).toBe('Manajer');
+    expect(formatRole('cashier')).toBe('Kasir');
+    expect(formatRole('Cashier')).toBe('Kasir');
+    expect(formatRole('pemilik')).toBe('Pemilik');
+    expect(formatRole('manajer')).toBe('Manajer');
+    expect(formatRole('kasir')).toBe('Kasir');
+    expect(formatRole(undefined)).toBe('Kasir');
+    expect(formatRole(null)).toBe('Kasir');
+    expect(formatRole('')).toBe('Kasir');
+  });
+
   it('setiap peran punya jawaban untuk setiap izin', () => {
     for (const role of ['owner', 'manager', 'cashier'] as const) {
       for (const p of PERMISSIONS) expect(['allow', 'approve', 'deny']).toContain(ROLE_ACCESS[role][p.id]);

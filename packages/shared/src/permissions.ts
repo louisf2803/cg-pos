@@ -37,6 +37,23 @@ export const accessFor = (role: Role, permission: Permission): Access => ROLE_AC
 
 export const ROLE_LABEL: Record<Role, string> = { owner: 'Pemilik', manager: 'Manajer', cashier: 'Kasir' };
 
+/**
+ * Pemetaan peran karyawan ke label Bahasa Indonesia:
+ * 'owner' / 'Owner' -> 'Pemilik'
+ * 'manager' / 'Manager' -> 'Manajer'
+ * 'cashier' / 'Cashier' -> 'Kasir'
+ * Nilai kosong / tak dikenal kembali ke 'Kasir' (atau nilai aslinya jika sudah Indonesia).
+ */
+export function formatRole(role?: string | null): string {
+  if (!role) return 'Kasir';
+  const r = role.toLowerCase().trim();
+  if (r === 'owner' || r === 'pemilik') return 'Pemilik';
+  if (r === 'manager' || r === 'manajer') return 'Manajer';
+  if (r === 'cashier' || r === 'kasir') return 'Kasir';
+  return role;
+}
+
+
 /** Pilihan jeda kunci layar otomatis (menit); 0 = mati. */
 export const IDLE_LOCK_CHOICES = [0, 1, 2, 5, 10, 15, 30] as const;
 export const DEFAULT_IDLE_LOCK_MINUTES = 5;
