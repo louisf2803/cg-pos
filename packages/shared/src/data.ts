@@ -1,7 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type {
-  Bundle, BundleInput, Category, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, Category, Customer, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -70,6 +70,14 @@ export interface DataLayer {
   /** Pasang foto produk (null = hapus, termasuk foto varian). Pemilik dan manajer. Foto lama di penyimpanan tidak dihapus. */
   setProductPhoto(productId: string, photo: ProductPhotoInput | null): Promise<CatalogProduct>;
 
+  /** Pelanggan (tanpa yang sudah dihapus), urut nama. `search` mencocokkan nama, nomor telepon, atau kode. */
+  listCustomers(q?: { search?: string; limit?: number }): Promise<Customer[]>;
+  getCustomer(id: string): Promise<Customer | null>;
+  /** Tambah atau ubah. Nomor telepon yang sama dengan pelanggan lain ditolak. */
+  saveCustomer(input: CustomerInput): Promise<Customer>;
+  /** Hapus lembut: hilang dari daftar, tetapi pesanan lama tetap menyebut namanya. */
+  deleteCustomer(id: string): Promise<void>;
+
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;
   /** Atur PIN 6 digit karyawan (khusus owner/manajer). PIN tidak pernah dibaca kembali; hanya hash-nya disimpan di server. */
@@ -98,7 +106,7 @@ export interface DataLayer {
   voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string): Promise<Order>;
   getOrder(id: string): Promise<Order | null>;
   /** `by: 'closed'` memfilter dengan tanggal tutup (untuk laporan); `all` mengambil semua, tanpa batas 200. */
-  listOrders(q?: { status?: Order['status']; from?: string; to?: string; limit?: number; by?: 'opened' | 'closed'; all?: boolean }): Promise<Order[]>;
+  listOrders(q?: { status?: Order['status']; customerId?: string; from?: string; to?: string; limit?: number; by?: 'opened' | 'closed'; all?: boolean }): Promise<Order[]>;
   nextOrderNumber(): Promise<string>;
 
   salesSummary(range: SalesRange): Promise<SalesSummary>;

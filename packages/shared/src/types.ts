@@ -61,15 +61,23 @@ export interface ExtraGroupInput {
   options: { id?: string; name: string; price: number }[]; productIds: string[];
 }
 export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string }
+/** Pelanggan. pointsBalance = saldo poin loyalti (diisi server). */
+export interface Customer {
+  id: string; code?: string; name: string; phone?: string; email?: string; gender?: 'female' | 'male' | 'other'; birthDate?: string;
+  city?: string; address?: string; note?: string; pointsBalance: number; createdAt: string;
+}
+export interface CustomerInput {
+  id?: string; name: string; phone?: string; email?: string; gender?: 'female' | 'male' | 'other'; birthDate?: string; city?: string; address?: string; note?: string;
+}
 export interface Order {
-  id: string; number: string; type: OrderType; tableId?: string; label?: string; guestCount?: number; shiftId?: string; cashierId: string;
+  id: string; number: string; type: OrderType; tableId?: string; customerId?: string; customerName?: string; label?: string; guestCount?: number; shiftId?: string; cashierId: string;
   status: 'open' | 'partially_paid' | 'paid' | 'void';
   items: OrderItem[];
   subtotal: number; discountTotal: number; serviceCharge: number; taxTotal: number; rounding: number; total: number; paidTotal: number;
   payments: Payment[]; openedAt: string; closedAt?: string;
 }
 export interface OrderDraft {
-  id: string; type: OrderType; tableId?: string; label?: string; guestCount?: number;
+  id: string; type: OrderType; tableId?: string; customerId?: string; customerName?: string; label?: string; guestCount?: number;
   items: { id: string; productId: string; name: string; qty: number; unitPrice: number; note?: string; extras?: ItemExtra[] }[];
   orderDiscount?: number;
 }

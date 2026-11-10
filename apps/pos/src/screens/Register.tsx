@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { ClipboardList, Lock, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -12,6 +12,7 @@ import { TablePicker } from './TablePicker';
 import { DeviceSettings } from './DeviceSettings';
 import { ShiftSummary } from './ShiftSummary';
 import { Payment } from './Payment';
+import { CustomerPicker } from './CustomerPicker';
 
 const TYPES: { v: OrderType; label: string }[] = [
   { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
@@ -42,6 +43,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [tablePick, setTablePick] = useState(false);
   const [settings, setSettings] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
+  const [custPick, setCustPick] = useState(false);
   const cart = useCart(ctx);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
@@ -70,7 +72,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   async function persist(): Promise<Order> {
     const o = await data.saveOrder({
       id: cart.state.orderId ?? newId(), type: cart.state.type,
-      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, label: cart.state.label?.trim() || undefined,
+      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, label: cart.state.label?.trim() || undefined,
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
       items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras })),
     }, session.employee.id);
@@ -191,6 +193,14 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           <div className="cg-tabs" role="tablist" aria-label="Jenis pesanan">
             {TYPES.map((t) => <button key={t.v} role="tab" className="cg-tab" aria-selected={cart.state.type === t.v} onClick={() => cart.dispatch({ t: 'type', type: t.v })}>{t.label}</button>)}
           </div>
+          <div className="flex gap-8">
+            <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setCustPick(true)}
+              aria-label={cart.state.customerId ? `Pelanggan ${cart.state.customerName ?? ''}, ganti pelanggan` : 'Pilih pelanggan'}>
+              <span className="flex items-center gap-8 min-w-0"><UserRound className="cg-icon cg-icon--sm" aria-hidden /><span className="truncate">{cart.state.customerId ? cart.state.customerName : 'Pelanggan'}</span></span>
+              {!cart.state.customerId && <span className="text-text-muted text-sm">Opsional</span>}
+            </button>
+            {cart.state.customerId && <button className="cg-btn cg-btn--ghost" aria-label="Lepas pelanggan" onClick={() => cart.dispatch({ t: 'customer' })}><X className="cg-icon cg-icon--sm" aria-hidden /></button>}
+          </div>
           {cart.state.type !== 'dine_in' && (
             <label className="cg-field"><span className="cg-sr">{LABEL_HINT[cart.state.type]}</span>
               <input className="cg-input" placeholder={LABEL_HINT[cart.state.type]} maxLength={60} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: undefined })} />
@@ -245,6 +255,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       </footer>
       {shiftOpen && <ShiftSummary onClose={() => setShiftOpen(false)} onCloseShift={() => { setShiftOpen(false); onCloseShift(); }} />}
       {settings && <DeviceSettings onClose={() => setSettings(false)} />}
+      {custPick && <CustomerPicker currentId={cart.state.customerId} onClose={() => setCustPick(false)} onPick={(c) => { cart.dispatch({ t: 'customer', customerId: c?.id, customerName: c?.name }); setCustPick(false); }} />}
       {tablePick && (
         <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}
           onClose={() => setTablePick(false)}

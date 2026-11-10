@@ -20,3 +20,4 @@ export * from './table-ops';
 export * from './permissions';
 export * from './shift-report';
 export * from './photo';
+export * from './customer';

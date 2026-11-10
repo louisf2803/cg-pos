@@ -3,13 +3,14 @@ import { computeOrder, extrasKey, extrasLineTotal, newId, type CalcResult, type 
 
 export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[] }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
-export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number }
+export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string }
 type Action =
   | { t: 'add'; product: Product; extras?: ItemExtra[] }
   | { t: 'qty'; lineId: string; qty: number }
   | { t: 'type'; type: OrderType }
   | { t: 'table'; tableId?: string; tableName?: string }
   | { t: 'meta'; label?: string; guestCount?: number }
+  | { t: 'customer'; customerId?: string; customerName?: string }
   | { t: 'load'; order: Order; tableName?: string }
   | { t: 'saved'; orderId: string }
   | { t: 'clear' };
@@ -29,8 +30,9 @@ function reduce(s: CartState, a: Action): CartState {
     case 'type': return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
     case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };
+    case 'customer': return { ...s, customerId: a.customerId, customerName: a.customerName };
     case 'load':
-      return { type: a.order.type, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}) })) };
+      return { type: a.order.type, customerId: a.order.customerId, customerName: a.order.customerName, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}) })) };
     case 'saved': return { ...s, orderId: a.orderId };
     case 'clear': return initial;
   }

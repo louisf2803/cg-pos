@@ -26,6 +26,7 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper }: { order: O
       <hr />
       <div className="receipt__row"><span>{kind === 'bill' ? 'TAGIHAN (belum lunas)' : 'STRUK'}</span><span>{orderTypeLabel(order.type)}</span></div>
       <div>{order.number}</div>
+      {order.customerName && <div>Pelanggan: {order.customerName}</div>}
       {(order.label || order.guestCount) && <div>{[order.label, order.guestCount ? `${order.guestCount} tamu` : ''].filter(Boolean).join(' · ')}</div>}
       <div>{fmt(order.closedAt ?? order.openedAt, ctx.timezone)}</div>
       <div>Kasir: {cashierName}</div>

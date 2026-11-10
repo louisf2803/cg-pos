@@ -99,7 +99,7 @@ export function createOfflineData(inner: DataLayer, opts: Options): OfflineData 
       orderTaxes: ctx.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate })),
     });
     return {
-      id: draft.id, number: existing?.number ?? localNumber(ctx), type: draft.type, tableId: draft.tableId, label: draft.label, guestCount: draft.guestCount,
+      id: draft.id, number: existing?.number ?? localNumber(ctx), type: draft.type, tableId: draft.tableId, customerId: draft.customerId, customerName: draft.customerName, label: draft.label, guestCount: draft.guestCount,
       cashierId, status: 'open', items: draft.items.map((d, k) => ({ ...d, lineTotal: calc.lines[k]!.lineTotal })),
       subtotal: calc.subtotal, discountTotal: calc.discountTotal, serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal, rounding: 0, total: calc.total, paidTotal: 0,
       payments: [], openedAt: existing?.openedAt ?? now().toISOString(),

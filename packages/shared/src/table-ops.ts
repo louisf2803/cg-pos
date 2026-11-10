@@ -9,7 +9,7 @@ import { DataError, type Order, type OrderDraft, type TableStatus } from './type
 /** Pesanan tersimpan menjadi draf yang bisa disimpan ulang (angka dihitung ulang oleh penyimpan). */
 export function orderToDraft(o: Order): OrderDraft {
   return {
-    id: o.id, type: o.type, tableId: o.tableId, label: o.label, guestCount: o.guestCount,
+    id: o.id, type: o.type, tableId: o.tableId, customerId: o.customerId, customerName: o.customerName, label: o.label, guestCount: o.guestCount,
     items: o.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, extras: i.extras })),
     orderDiscount: o.discountTotal > 0 ? o.discountTotal : undefined,
   };
@@ -33,6 +33,7 @@ export function mergeDrafts(into: Order, from: Order): OrderDraft {
     ...base,
     items: [...base.items, ...moved],
     guestCount: guests > 0 ? guests : undefined,
+    customerId: into.customerId ?? from.customerId, customerName: into.customerId ? into.customerName : from.customerName,
     label: into.label ?? from.label,
     orderDiscount: discount > 0 ? discount : undefined,
   };

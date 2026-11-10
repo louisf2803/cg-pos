@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
 import { photoPath, photoProblem } from './photo';
+import { customerProblem, normalizePhone, searchTerm } from './customer';
 
 const PHOTO_BUCKET = 'menu-images';
+const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import type { DataLayer } from './data';
 import { DataError } from './types';
@@ -21,7 +23,7 @@ import { extraGroupProblem, extrasLineTotal } from './extras';
 import { bundleProblem } from './bundle';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
-  buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift,
+  buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift, toCustomer,
 } from './supabase-map';
 import type { Row } from './supabase-map';
 
@@ -159,11 +161,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
   async function fetchOrders(f: (qb: any) => any, limit?: number): Promise<Order[]> { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (limit !== undefined) {
       const rows = must(await f(db().from('orders').select(ORDER_SELECT)).order('opened_at', { ascending: false }).limit(limit)) as Row[] | null;
-      return (rows ?? []).map(toOrder);
+      return withCustomerNames((rows ?? []).map(toOrder));
     }
     const rows = await fetchAll<Row>((from, to) =>
       f(db().from('orders').select(ORDER_SELECT)).order('opened_at', { ascending: false }).order('id').range(from, to));
-    return rows.map(toOrder);
+    return withCustomerNames(rows.map(toOrder));
   }
 
   function shiftQuery(deviceId: string) {
@@ -201,6 +203,18 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       paidOrderCount: paidCount.count ?? 0,
       soldLines: items.map((i) => ({ productId: i.product_id as string, name: i.name as string, qty: Number(i.qty), amount: Number(i.line_total) })),
     };
+  }
+
+  /** Nama pelanggan untuk daftar pesanan (satu permintaan tambahan per 50 pelanggan berbeda). */
+  async function withCustomerNames(orders: Order[]): Promise<Order[]> {
+    const ids = [...new Set(orders.map((o) => o.customerId).filter((x): x is string => !!x))];
+    if (ids.length === 0) return orders;
+    const names = new Map<string, string>();
+    for (let i = 0; i < ids.length; i += 50) {
+      const rows = (must(await db().from('customers').select('id,name').in('id', ids.slice(i, i + 50))) as Row[] | null) ?? [];
+      for (const r of rows) names.set(r.id as string, r.name as string);
+    }
+    return orders.map((o) => (o.customerId && names.has(o.customerId) ? { ...o, customerName: names.get(o.customerId) } : o));
   }
 
   const self: DataLayer = {
@@ -663,6 +677,48 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return (await self.getCatalogProduct(productId))!;
     },
 
+    // ---------- pelanggan ----------
+    async listCustomers(q = {}) {
+      let qb = db().from('customers').select(CUSTOMER_COLUMNS).is('deleted_at', null).order('name').limit(Math.min(q.limit ?? 50, 500));
+      const term = searchTerm(q.search ?? '');
+      if (term) {
+        const digits = term.replace(/\D/g, '');
+        qb = qb.or([`name.ilike.%${term}%`, `code.ilike.%${term}%`, ...(digits.length >= 3 ? [`phone.ilike.%${digits}%`] : [])].join(','));
+      }
+      return ((must(await qb) as Row[] | null) ?? []).map(toCustomer);
+    },
+    async getCustomer(id) {
+      const row = must(await db().from('customers').select(CUSTOMER_COLUMNS).eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      return row ? toCustomer(row) : null;
+    },
+    async saveCustomer(input) {
+      const problem = customerProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const phone = input.phone?.trim() ? normalizePhone(input.phone) : null;
+      if (phone) {
+        let dup = db().from('customers').select('id,name').eq('phone', phone).is('deleted_at', null).limit(1);
+        if (input.id) dup = dup.neq('id', input.id);
+        const hit = ((must(await dup) as Row[] | null) ?? [])[0];
+        if (hit) throw new DataError('invalid', `Nomor ini sudah dipakai pelanggan ${hit.name}.`);
+      }
+      const fields = {
+        name: input.name.trim(), phone, email: input.email?.trim() || null, gender: input.gender ?? null, birth_date: input.birthDate || null,
+        city: input.city?.trim() || null, address: input.address?.trim() || null, note: input.note?.trim() || null,
+      };
+      if (input.id) {
+        const rows = (must(await db().from('customers').update(fields).eq('id', input.id).is('deleted_at', null).select(CUSTOMER_COLUMNS)) as Row[] | null) ?? [];
+        if (!rows[0]) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
+        return toCustomer(rows[0]);
+      }
+      const { orgId } = await resolve();
+      const rows = must(await db().from('customers').insert({ ...fields, org_id: orgId }).select(CUSTOMER_COLUMNS)) as Row[] | null;
+      return toCustomer(rows![0]!);
+    },
+    async deleteCustomer(id) {
+      const rows = (must(await db().from('customers').update({ deleted_at: now().toISOString() }).eq('id', id).is('deleted_at', null).select('id')) as Row[] | null) ?? [];
+      if (rows.length === 0) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
+    },
+
     // ---------- karyawan dan metode bayar ----------
     async listEmployees() {
       const { ctx } = await resolve();
@@ -786,7 +842,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       for (let attempt = 0; ; attempt++) {
         const number = existing ? (existing.number as string) : await reserveNumber(r, false);
         const payload = buildOrderPayload({
-          id: draft.id, number, orderType: draft.type, tableId: draft.tableId, label: draft.label, guestCount: draft.guestCount, shiftId: shift?.id,
+          id: draft.id, number, orderType: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, shiftId: shift?.id,
           cashierId, openedAt: existing ? (existing.opened_at as string) : now().toISOString(),
           baseVersion: existing ? Number(existing.version) : undefined, calc, orderDiscount: draft.orderDiscount ?? 0,
           authorizedBy: cashierId, items,
@@ -885,12 +941,13 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async getOrder(id) {
       const row = must(await db().from('orders').select(ORDER_SELECT).eq('id', id).maybeSingle()) as Row | null;
-      return row ? toOrder(row) : null;
+      return row ? (await withCustomerNames([toOrder(row)]))[0]! : null;
     },
     async listOrders(q = {}) {
       return fetchOrders((qb) => {
         let x = qb;
         if (q.status) x = x.eq('status', q.status);
+        if (q.customerId) x = x.eq('customer_id', q.customerId);
         const col = q.by === 'closed' ? 'closed_at' : 'opened_at';
         if (q.from) x = x.gte(col, q.from);
         if (q.to) x = x.lt(col, q.to);

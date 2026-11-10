@@ -1,10 +1,11 @@
 import type { DataLayer } from './data';
 import { createTableOps } from './table-ops';
+import { customerMatches, customerProblem, normalizePhone } from './customer';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { DataError } from './types';
 import type {
-  Bundle, BundleInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, Customer, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
@@ -58,6 +59,12 @@ const PRODUCTS: Product[] = [
   P('p13', 'Pisang goreng', 'c-camil', 14000, { sku: 'CM-002', stock: 0 }),
   P('p14', 'Singkong keju', 'c-camil', 16000, { sku: 'CM-003' }),
 ];
+const SEED_CUSTOMERS: Customer[] = [
+  { id: 'cu-budi', name: 'Pak Budi', phone: '081234567801', pointsBalance: 0, createdAt: '2026-10-01T03:00:00Z' },
+  { id: 'cu-ani', name: 'Bu Ani', phone: '081234567802', email: 'ani@example.com', gender: 'female', pointsBalance: 0, createdAt: '2026-10-05T03:00:00Z' },
+  { id: 'cu-dewi', name: 'Kak Dewi', phone: '081234567803', birthDate: '1996-03-14', pointsBalance: 0, createdAt: '2026-10-20T03:00:00Z' },
+];
+
 const EMPLOYEES: (Employee & { pin: string })[] = [
   { id: 'e-owner', name: 'Pemilik', role: 'owner', pin: '111111' },
   { id: 'e-sari', name: 'Sari', role: 'cashier', pin: '222222' },
@@ -80,6 +87,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let floors: Floor[] = [];
   let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
+  let customers: (Customer & { deleted?: boolean })[] = [];
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -136,6 +144,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
     bundleItems = new Map();
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
+    customers = opts.seed === false ? [] : SEED_CUSTOMERS.map((c) => ({ ...c }));
     if (opts.seed !== false) seedHistory();
   }
 
@@ -170,6 +179,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     });
   }
   reset();
+
+  /** Salinan pesanan dengan nama pelanggan terkini (pelanggan yang dihapus lembut tetap terbaca). */
+  const named = <T extends Order | null>(o: T): T => {
+    if (!o || !o.customerId) return o;
+    const c = customers.find((x) => x.id === o.customerId);
+    return { ...o, customerName: c?.name ?? o.customerName };
+  };
 
   function shiftInputs(s: Shift): ShiftInputs {
     const mine = orders.filter((o) => o.shiftId === s.id);
@@ -444,6 +460,41 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return (await self.getCatalogProduct(productId))!;
     },
 
+    async listCustomers(q = {}) {
+      const list = customers.filter((c) => !c.deleted && customerMatches(c, q.search ?? '')).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+      return clone(list.slice(0, q.limit ?? 50).map(({ deleted: _d, ...c }) => c));
+    },
+    async getCustomer(id) {
+      const c = customers.find((x) => x.id === id && !x.deleted);
+      if (!c) return null;
+      const { deleted: _d, ...rest } = c; return clone(rest);
+    },
+    async saveCustomer(input) {
+      const problem = customerProblem(input, now().toISOString().slice(0, 10));
+      if (problem) throw new DataError('invalid', problem);
+      const phone = input.phone?.trim() ? normalizePhone(input.phone) : undefined;
+      const dup = phone ? customers.find((c) => !c.deleted && c.phone === phone && c.id !== input.id) : undefined;
+      if (dup) throw new DataError('invalid', `Nomor ini sudah dipakai pelanggan ${dup.name}.`);
+      const fields = {
+        name: input.name.trim(), phone, email: input.email?.trim() || undefined, gender: input.gender, birthDate: input.birthDate || undefined,
+        city: input.city?.trim() || undefined, address: input.address?.trim() || undefined, note: input.note?.trim() || undefined,
+      };
+      if (input.id) {
+        const c = customers.find((x) => x.id === input.id && !x.deleted);
+        if (!c) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
+        Object.assign(c, fields);
+        const { deleted: _d, ...rest } = c; return clone(rest);
+      }
+      const c = { id: newId(), pointsBalance: 0, createdAt: now().toISOString(), ...fields };
+      customers.push(c);
+      return clone(c);
+    },
+    async deleteCustomer(id) {
+      const c = customers.find((x) => x.id === id && !x.deleted);
+      if (!c) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
+      c.deleted = true;
+    },
+
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
     async saveEmployee(input: EmployeeInput) {
@@ -510,6 +561,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         const busy = orders.find((x) => x.tableId === draft.tableId && x.id !== draft.id && (x.status === 'open' || x.status === 'partially_paid'));
         if (busy) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${busy.number}`);
       }
+      if (draft.customerId && !customers.some((c) => c.id === draft.customerId)) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
       const calc = recompute(draft, 0);
       const items: OrderItem[] = draft.items.map((d, k) => ({ ...d, lineTotal: calc.lines[k]!.lineTotal }));
       const at = now();
@@ -518,16 +570,16 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         shiftId: shift?.id, cashierId, status: 'open', items, subtotal: 0, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0, total: 0, paidTotal: 0,
         payments: [], openedAt: at.toISOString(),
       };
-      Object.assign(o, { type: draft.type, tableId: draft.tableId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
+      Object.assign(o, { type: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
         serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal, rounding: 0, total: calc.total });
       if (!existing) orders.push(o);
-      return clone(o);
+      return clone(named(o));
     },
     async addPayment(orderId, pay) {
       const o = orders.find((x) => x.id === orderId);
       if (!o) throw new DataError('not_found', 'Pesanan tidak ditemukan');
       if (o.status === 'void') throw new DataError('order_locked', 'Pesanan sudah dibatalkan');
-      if (o.payments.some((p) => p.id === pay.id)) return clone(o);                // idempoten
+      if (o.payments.some((p) => p.id === pay.id)) return clone(named(o));                // idempoten
       const m = method(pay.methodId);
       // pembulatan mengikuti metode; dihitung pada pembayaran yang melunasi
       const step = m.kind === 'cash' ? CTX.settings.roundingCashStep : CTX.settings.roundingNoncashStep;
@@ -545,7 +597,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         o.closedAt = at;
         for (const it of o.items) stockMove(it.productId, -it.qty);
       }
-      return clone(o);
+      return clone(named(o));
     },
     async listRefundsBetween(range: SalesRange) {
       return clone(refunds.filter((r) => r.createdAt >= range.from && r.createdAt < range.to).map(({ shiftId: _s, methodKind: _k, ...r }) => r));
@@ -573,11 +625,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const o = orders.find((x) => x.id === orderId);
       if (!o) throw new DataError('not_found', 'Pesanan tidak ditemukan');
       if (o.paidTotal > 0 || o.status !== 'open') throw new DataError('order_locked', 'Hanya pesanan yang belum dibayar yang bisa dibatalkan; pesanan lunas lewat refund');
-      o.status = 'void'; o.closedAt = now().toISOString(); return clone(o);
+      o.status = 'void'; o.closedAt = now().toISOString(); return clone(named(o));
     },
-    async getOrder(id) { return clone(orders.find((o) => o.id === id) ?? null); },
+    async getOrder(id) { return clone(named(orders.find((o) => o.id === id) ?? null)); },
     async listOrders(q = {}) {
-      return clone(orders
+      return clone(orders.map((o) => named(o))
+        .filter((o) => !q.customerId || o.customerId === q.customerId)
         .filter((o) => { const t = q.by === 'closed' ? o.closedAt ?? o.openedAt : o.openedAt; return (!q.status || o.status === q.status) && (!q.from || t >= q.from) && (!q.to || t < q.to); })
         .sort((a, b) => b.openedAt.localeCompare(a.openedAt)).slice(0, q.all ? undefined : q.limit ?? 200));
     },

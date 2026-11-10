@@ -71,6 +71,7 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
   if (meta) text(meta);
   text(fmtTime(order.closedAt ?? order.openedAt, ctx.timezone));
   text(`Kasir: ${cashierName}`);
+  if (order.customerName) text(`Pelanggan: ${order.customerName}`);
   p.push({ text: dash });
   for (const i of order.items) {
     text(i.name);
