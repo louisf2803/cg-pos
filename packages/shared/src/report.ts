@@ -4,12 +4,16 @@ import { summarizeSales } from './supabase-map';
 import type { SalesSummary } from './types';
 
 export interface ReportRow { key: string; label: string; count: number; amount: number }
+/** Satu pembayaran gratis (komplimen); reason = keterangan yang dicatat kasir, termasuk nama pemberi izin bila ada. */
+export interface ComplimentaryRow { orderId: string; number: string; at: string; amount: number; reason: string }
 export interface SalesReport {
   summary: SalesSummary;
   byDay: ReportRow[];        // urut tanggal naik
   byCategory: ReportRow[];   // nilai terbesar dulu; count = jumlah barang terjual
   byType: ReportRow[];
   byCashier: ReportRow[];
+  /** Pembayaran gratis dalam rentang (pesanan lunas), terbaru dulu. Bukan bagian dari penjualan bersih; hanya kontrol. */
+  complimentary: { count: number; total: number; rows: ComplimentaryRow[] };
   /** Kontrol: refund dan pesanan dibatalkan dalam rentang. net = penjualan - refund. */
   control: { refundCount: number; refundTotal: number; byReason: ReportRow[]; voidCount: number; voidTotal: number; net: number };
 }
@@ -38,6 +42,9 @@ export function buildSalesReport(input: { orders: Order[]; products: Product[]; 
       add(cat, cid ?? '-', cid ? catName.get(cid) ?? 'Tanpa kategori' : 'Tanpa kategori', i.qty, i.lineTotal);
     }
   }
+  const free: ComplimentaryRow[] = [];
+  for (const o of paid) for (const p of o.payments) if (p.kind === 'complimentary') free.push({ orderId: o.id, number: o.number, at: p.paidAt || o.closedAt || o.openedAt, amount: p.amount, reason: (p.reference ?? '').trim() || '(tanpa alasan)' });
+  free.sort((a, b) => b.at.localeCompare(a.at));
   const byAmount = (a: ReportRow, b: ReportRow) => b.amount - a.amount;
   const refunds = input.refunds ?? [], voided = (input.voided ?? []).filter((o) => o.status === 'void');
   const reason = new Map<string, ReportRow>();
@@ -47,6 +54,7 @@ export function buildSalesReport(input: { orders: Order[]; products: Product[]; 
   return {
     summary,
     control: { refundCount: refunds.length, refundTotal, byReason: [...reason.values()].sort(byAmount), voidCount: voided.length, voidTotal: voided.reduce((a, o) => a + o.total, 0), net: summary.total - refundTotal },
+    complimentary: { count: free.length, total: free.reduce((a, f) => a + f.amount, 0), rows: free },
     byDay: [...day.values()].sort((a, b) => a.key.localeCompare(b.key)),
     byCategory: [...cat.values()].sort(byAmount),
     byType: [...type.values()].sort(byAmount),

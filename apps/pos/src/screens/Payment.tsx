@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Banknote, Printer, CheckCircle2, CreditCard, Landmark, QrCode } from 'lucide-react';
-import { DataError, formatRp, newId, parseRp, quickCashAmounts, roundToStep, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
+import { DataError, PAYMENT_REF_MAX, formatRp, newId, parseRp, paymentRefField, paymentRefProblem, quickCashAmounts, roundToStep, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { ReceiptDialog } from './Receipt';
 import { useAsync } from '../lib/use-async';
+import { ApproverFields, useApprover } from '../lib/approver';
+import { useSession } from '../lib/session';
 
 const ICON: Record<PaymentMethod['kind'], typeof Banknote> = { cash: Banknote, noncash: CreditCard, gateway: QrCode, complimentary: Landmark, deposit: Landmark };
 
@@ -13,6 +15,9 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   const [methodId, setMethodId] = useState<string | null>(null);
   const [raw, setRaw] = useState('');
   const [amountRaw, setAmountRaw] = useState('');
+  const [reference, setReference] = useState('');
+  const approver = useApprover('complimentary');
+  const { session } = useSession();
   const [current, setCurrent] = useState<Order>(order);
   const [partial, setPartial] = useState<Order | null>(null);
   const [err, setErr] = useState('');
@@ -31,6 +36,7 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   const due = target - current.paidTotal;
   const rounding = target - current.total;
   const isCash = method?.kind === 'cash';
+  const refField = method ? paymentRefField(method.kind) : null;
   // jumlah yang dibayar dengan metode ini (boleh kurang dari sisa: bayar campuran)
   const amount = amountRaw === '' ? due : parseRp(amountRaw);
   const tendered = raw === '' ? amount : parseRp(raw);
@@ -43,11 +49,21 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
     if (amount <= 0) { setErr('Jumlah bayar harus lebih dari 0.'); return; }
     if (amount > due) { setErr(`Jumlah melebihi sisa tagihan ${formatRp(due)}.`); return; }
     if (isCash && tendered < amount) { setErr(`Uang diterima kurang ${formatRp(amount - tendered)}.`); return; }
+    const refProblem = paymentRefProblem(method.kind, reference);
+    if (refProblem) { setErr(refProblem); return; }
     setBusy(true); setErr('');
     try {
-      const res = await data.addPayment(order.id, { id: attemptId.current, methodId: method.id, amount, tendered: isCash ? tendered : undefined });
+      let ref = reference.trim() || undefined;
+      if (method.kind === 'complimentary') {
+        // gratis butuh persetujuan manajer/pemilik; namanya ikut dicatat supaya bisa ditelusuri di laporan
+        const approvedBy = await approver.authorize();
+        if (!approvedBy) { setErr(approver.mode === 'deny' ? 'Peran kamu tidak boleh memberi gratis. Minta manajer atau pemilik.' : 'Persetujuan gagal: PIN salah.'); return; }
+        const name = approver.approvers.find((x) => x.id === approvedBy)?.name ?? session.employee.name;
+        ref = `${reference.trim()} · disetujui ${name}`.slice(0, PAYMENT_REF_MAX);
+      }
+      const res = await data.addPayment(order.id, { id: attemptId.current, methodId: method.id, amount, tendered: isCash ? tendered : undefined, reference: ref });
       if (res.status === 'paid') setDone(res);
-      else { setPartial(res); setCurrent(res); setMethodId(null); setRaw(''); setAmountRaw(''); attemptId.current = newId(); }
+      else { setPartial(res); setCurrent(res); setMethodId(null); setRaw(''); setAmountRaw(''); setReference(''); attemptId.current = newId(); }
     } catch (e) {
       setErr(e instanceof DataError || e instanceof Error ? e.message : 'Pembayaran gagal. Periksa pesanan lalu coba lagi.');
     } finally { setBusy(false); }
@@ -96,7 +112,7 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
             const off = m.kind === 'gateway';
             return (
               <button key={m.id} role="radio" aria-checked={methodId === m.id} aria-disabled={off} className="cg-method"
-                onClick={() => { if (off) return; setMethodId(m.id); setRaw(''); setAmountRaw(''); setErr(''); attemptId.current = newId(); }}>
+                onClick={() => { if (off) return; setMethodId(m.id); setRaw(''); setAmountRaw(''); setReference(''); setErr(''); attemptId.current = newId(); }}>
                 <Icon className="cg-icon" aria-hidden /> {m.name}
                 {off && <small>Segera hadir</small>}
               </button>
@@ -151,9 +167,21 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
           </>
         )}
 
-        {method && !isCash && (
+        {method && !isCash && method.kind !== 'complimentary' && (
           <div className="cg-banner cg-banner--info"><span>Selesaikan pembayaran di perangkat {method.name}, lalu catat di sini sebesar {formatRp(amount)}.</span></div>
         )}
+        {method && method.kind === 'complimentary' && (
+          <div className="cg-banner cg-banner--warning"><span>Pesanan ini tidak ditagih. Alasan wajib diisi dan tercatat di laporan.</span></div>
+        )}
+        {method && refField && (
+          <div className="cg-field">
+            <label className="cg-label" htmlFor="referensi">{refField.label}{refField.required ? '' : ' (boleh kosong)'}</label>
+            <input id="referensi" className="cg-input" value={reference} maxLength={PAYMENT_REF_MAX} placeholder={refField.hint}
+              onChange={(e) => { setReference(e.target.value); setErr(''); }} aria-required={refField.required}
+              aria-invalid={!!err && refField.required} aria-describedby={err ? 'e-bayar' : undefined} />
+          </div>
+        )}
+        {method && method.kind === 'complimentary' && <ApproverFields a={approver} idPrefix="komplimen" what="pembayaran gratis" />}
 
         {err && <p id="e-bayar" role="alert" className="cg-error">{err}</p>}
         <button className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block" disabled={!method || busy || due <= 0 || amount <= 0} aria-busy={busy} onClick={() => void confirm()}>

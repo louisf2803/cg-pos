@@ -39,3 +39,23 @@ describe('laporan: refund dan pembatalan', () => {
     expect(r.control.byReason).toEqual([{ key: 'pesanan salah', label: 'Pesanan salah', count: 2, amount: 15000 }]);
   });
 });
+
+describe('laporan: komplimen', () => {
+  it('mengumpulkan pembayaran gratis dengan alasan, terbaru dulu; tanpa alasan diberi penanda', () => {
+    const order = (id: string, at: string, payments: unknown[]) => ({ id, number: id, type: 'takeaway', status: 'paid', items: [], subtotal: 25000, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0, total: 25000, paidTotal: 25000, payments, openedAt: at, closedAt: at, cashierId: 'e1' }) as never;
+    const pay = (kind: string, amount: number, paidAt: string, reference?: string) => ({ id: 'p' + paidAt, methodId: 'm', methodName: kind, kind, amount, change: 0, paidAt, reference });
+    const r = buildSalesReport({
+      orders: [
+        order('a', '2026-11-10T03:00:00Z', [pay('complimentary', 25000, '2026-11-10T03:00:00Z', 'Uji rasa · disetujui Sari')]),
+        order('b', '2026-11-10T05:00:00Z', [pay('cash', 25000, '2026-11-10T05:00:00Z')]),
+        order('c', '2026-11-10T06:00:00Z', [pay('complimentary', 10000, '2026-11-10T06:00:00Z')]),
+      ],
+      products: [], categories: [], employees: [], timezone: 'Asia/Jakarta',
+    });
+    expect(r.complimentary.count).toBe(2);
+    expect(r.complimentary.total).toBe(35000);
+    expect(r.complimentary.rows.map((x) => x.number)).toEqual(['c', 'a']);
+    expect(r.complimentary.rows[0].reason).toBe('(tanpa alasan)');
+    expect(r.complimentary.rows[1].reason).toBe('Uji rasa · disetujui Sari');
+  });
+});

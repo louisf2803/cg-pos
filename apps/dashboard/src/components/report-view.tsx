@@ -64,6 +64,22 @@ export function ReportView({ report: r, showHours = false }: { report: SalesRepo
             </div>
           )}
         </Panel>
+        <Panel id="h-komplimen" title="Kontrol: pembayaran gratis dan pemberi izin">
+          {r.complimentary.count === 0 ? <p className="text-text-muted">Tidak ada pembayaran gratis pada rentang ini.</p> : (
+            <div className="grid gap-12">
+              <p className="flex justify-between gap-12"><span>Gratis · {r.complimentary.count}x</span><span className="cg-num">{formatRp(r.complimentary.total)}</span></p>
+              <ul className="grid gap-12" aria-label="Daftar pembayaran gratis">
+                {r.complimentary.rows.slice(0, 20).map((f) => (
+                  <li key={f.orderId + f.at} className="grid gap-4">
+                    <p className="flex justify-between gap-12"><span className="break-words min-w-0">{f.number}</span><span className="cg-num whitespace-nowrap">{formatRp(f.amount)}</span></p>
+                    <p className="text-text-muted text-sm break-words">{f.reason}</p>
+                  </li>
+                ))}
+              </ul>
+              {r.complimentary.rows.length > 20 && <p className="text-text-muted text-sm">Menampilkan 20 terbaru dari {r.complimentary.rows.length}.</p>}
+            </div>
+          )}
+        </Panel>
         <Panel id="h-top" title="Produk terlaris">
           <div className="cg-data-wrap">
             <table className="cg-data" style={{ minWidth: 0 }}>

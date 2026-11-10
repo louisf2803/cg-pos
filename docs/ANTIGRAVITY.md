@@ -17,7 +17,7 @@ Aturan lengkap untuk agen ada di `AGENTS.md` (repo root) — Antigravity otomati
 | Tinjauan PR, perbaikan keamanan, penggabungan | **Claude** | Satu pintu mutu |
 
 ### Daftar yang Claude pegang (jangan diberikan ke Antigravity)
-Laporan kasir dan tutup toko (butuh daftar shift dari server) · pembayaran komplimen · resep/BOM, HPP per bahan, satuan ganda,
+Laporan kasir dan tutup toko (butuh daftar shift dari server) · resep/BOM, HPP per bahan, satuan ganda,
 batasi penjualan saat stok habis · transfer stok · log aktivitas · rekonsiliasi non-tunai · reservasi · jual item bebas (custom amount) dan produk layanan di sisi server ·
 kirim ke dapur per baris terpilih · kode otorisasi void · rekening outlet · riwayat refund per transaksi di server (bila perlu fungsi baru) · penerapan migrasi 0011 dan hal keamanan lain.
 
@@ -37,7 +37,7 @@ kirim ke dapur per baris terpilih · kode otorisasi void · rekening outlet · r
 | A11 | Laporan lain yang cukup dari data penjualan: Meja, Produk, Persediaan, Promo dan loyalti, Pelanggan | +2–3 |
 
 Hitungan: skor sekarang 47,2; target ≥ 60 butuh sekitar +39 bobot. A1–A11 menyumbang kira-kira +22–27 bobot sendirian;
-sisanya dari pekerjaan Claude (komplimen, resep/BOM, batasi stok, log aktivitas, reservasi, laporan kasir dan tutup toko).
+sisanya dari pekerjaan Claude (resep/BOM, batasi stok, log aktivitas, reservasi).
 
 ## 2. Alur kerja
 
