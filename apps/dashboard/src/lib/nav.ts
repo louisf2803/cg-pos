@@ -47,7 +47,7 @@ export const NAV: NavGroup[] = [
       { href: '/keuangan/akun', label: 'Daftar akun', screen: 'S72', tier: 2, built: true },
       { href: '/keuangan/jurnal', label: 'Jurnal', screen: 'S74', tier: 2, built: true },
       { href: '/keuangan/buku-besar', label: 'Buku besar', screen: 'S75', tier: 2, built: true },
-      { href: '/keuangan/kas', label: 'Buku kas dan bank', screen: 'S73', tier: 2 },
+      { href: '/keuangan/kas', label: 'Buku kas dan bank', screen: 'S73', tier: 2, built: true },
     ],
   },
   {
