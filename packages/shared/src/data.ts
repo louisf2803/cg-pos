@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
+import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type {
@@ -142,6 +143,25 @@ export interface DataLayer {
   receivePurchase(input: PurchaseReceiveInput): Promise<PurchaseInvoice>;
   /** Bayar faktur (sebagian atau lunas). Idempoten menurut id. */
   payPurchase(input: PurchasePayInput): Promise<PurchaseInvoice>;
+
+  /** Daftar akun (chart of accounts) org ini, urut kode. Nonaktif ikut. */
+  listAccounts(): Promise<Account[]>;
+  /** Tambah atau ubah akun (pemilik dan manajer). Akun sistem: hanya nama yang boleh diubah. */
+  saveAccount(input: AccountInput): Promise<Account>;
+  /** Jurnal dalam rentang tanggal (YYYY-MM-DD, kedua ujung termasuk), terbaru dulu. */
+  listJournal(q: { from: string; to: string; sourceType?: string; search?: string }): Promise<JournalSummary[]>;
+  getJournal(id: string): Promise<Journal | null>;
+  /** Jurnal manual atau saldo awal (pemilik dan admin). Harus seimbang. Idempoten menurut id. */
+  postJournal(input: JournalInput): Promise<Journal>;
+  /** Pembalik untuk jurnal manual atau saldo awal. Jurnal asli menjadi voided. */
+  reverseJournal(id: string, reason?: string, date?: string): Promise<Journal>;
+  ledger(accountId: string, range: { from: string; to: string }): Promise<Ledger>;
+  trialBalance(range: { from: string; to: string }): Promise<TrialRow[]>;
+  incomeStatement(range: { from: string; to: string }): Promise<StatementRow[]>;
+  balanceSheet(asOf: string): Promise<{ rows: StatementRow[]; totals: BalanceSheetTotals }>;
+  cashFlow(range: { from: string; to: string }): Promise<CashFlow>;
+  /** Hutang usaha yang belum lunas per faktur pembelian. */
+  payablesAging(asOf: string): Promise<PayableRow[]>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;

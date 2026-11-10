@@ -25,3 +25,4 @@ export * from './promo';
 export * from './loyalty';
 export * from './stock';
 export * from './purchasing';
+export * from './finance';

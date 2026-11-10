@@ -20,6 +20,10 @@ import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
 import {
+  accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf, trialBalanceOf,
+  type Account, type AccountInput, type FinLine, type Journal, type JournalInput, type JournalSummary,
+} from './finance';
+import {
   addDays, invoiceOutstanding, invoiceStatusFor, purchaseInvoiceProblem, purchaseLineTotal, purchaseOrderProblem, purchasePayProblem, purchaseReceiveProblem, purchaseSubtotal, purchaseTotal, purchaseUnitCost, supplierProblem,
   type PayAccount, type PurchaseInvoice, type PurchaseInvoiceInput, type PurchaseInvoiceSummary, type PurchaseItem, type PurchaseLine, type PurchaseOrder, type PurchaseOrderInput, type PurchasePayInput, type PurchasePayment, type PurchaseReceiveInput, type PurchaseUnit, type Supplier, type SupplierInput,
 } from './purchasing';
@@ -91,6 +95,28 @@ const METHODS: PaymentMethod[] = [
   { id: 'm-trf', code: 'TRF', name: 'Transfer bank', kind: 'noncash', requiresOnline: false },
 ];
 
+
+/** Daftar akun bawaan (sama dengan data bawaan server): [kode, nama, jenis, kelompok, kunci sistem]. */
+const FAKE_COA: [string, string, 'header' | 'detail', Account['category'], string | undefined][] = [
+  ['1-1000', 'Aset Lancar', 'header', 'other_current_asset', undefined], ['1-1100', 'Kas', 'detail', 'cash_bank', 'cash_main'], ['1-1200', 'Bank', 'detail', 'cash_bank', 'bank_main'],
+  ['1-1300', 'Piutang Gateway (DOKU)', 'detail', 'receivable', 'gateway_clearing'], ['1-1310', 'Piutang Non-tunai (EDC/Transfer)', 'detail', 'receivable', 'noncash_clearing'],
+  ['1-1400', 'Piutang Usaha', 'detail', 'receivable', 'accounts_receivable'], ['1-1500', 'Persediaan', 'detail', 'inventory', 'inventory'],
+  ['1-1600', 'Uang Muka Pemasok', 'detail', 'other_current_asset', 'supplier_advance'], ['1-1700', 'Pajak Masukan', 'detail', 'other_current_asset', 'purchase_tax_input'],
+  ['1-2000', 'Aset Tetap', 'header', 'fixed_asset', undefined], ['1-2100', 'Peralatan', 'detail', 'fixed_asset', 'fixed_asset_equipment'],
+  ['1-2900', 'Akumulasi Penyusutan', 'detail', 'accumulated_depreciation', 'accumulated_depreciation'], ['2-1000', 'Kewajiban Jangka Pendek', 'header', 'short_term_liability', undefined],
+  ['2-1100', 'Utang Usaha', 'detail', 'payable', 'accounts_payable'], ['2-1200', 'Pajak Penjualan Terutang', 'detail', 'short_term_liability', 'tax_payable'],
+  ['2-1300', 'Deposit Pelanggan', 'detail', 'short_term_liability', 'customer_deposit'], ['3-1000', 'Modal Disetor', 'detail', 'equity', 'paid_in_capital'],
+  ['3-2000', 'Saldo Awal Ekuitas', 'detail', 'equity', 'opening_balance_equity'], ['4-1000', 'Penjualan', 'detail', 'revenue', 'sales_revenue'], ['4-1100', 'Biaya Layanan', 'detail', 'revenue', 'service_revenue'],
+  ['4-1900', 'Diskon Penjualan', 'detail', 'revenue', 'sales_discount'], ['4-1950', 'Retur Penjualan', 'detail', 'revenue', 'sales_returns'], ['5-1000', 'Harga Pokok Penjualan', 'detail', 'cogs', 'cogs'],
+  ['5-2000', 'Selisih Persediaan', 'detail', 'cogs', 'inventory_adjustment'], ['6-1000', 'Beban Gaji', 'detail', 'expense', undefined], ['6-1100', 'Beban Sewa', 'detail', 'expense', undefined],
+  ['6-1900', 'Beban Kas Keluar Lainnya', 'detail', 'expense', 'cash_out_expense'], ['6-2000', 'Beban Penyusutan', 'detail', 'expense', 'depreciation_expense'], ['6-2100', 'Biaya Gateway', 'detail', 'expense', 'gateway_fee_expense'],
+  ['6-2200', 'Beban Gratis/Complimentary', 'detail', 'expense', 'complimentary_expense'], ['6-2300', 'Selisih Kas', 'detail', 'expense', 'cash_over_short'], ['6-2400', 'Selisih Rekonsiliasi', 'detail', 'expense', 'reconciliation_diff'],
+  ['7-1000', 'Pendapatan Lain-lain', 'detail', 'other_income', undefined], ['7-1100', 'Pembulatan', 'detail', 'other_income', 'rounding'], ['7-1200', 'Kas Masuk Lainnya', 'detail', 'other_income', 'cash_in_other'],
+  ['8-1000', 'Beban Lain-lain', 'detail', 'other_expense', undefined],
+];
+const coaId = (code: string, key?: string) => (key === 'cash_main' ? 'acc-kas' : key === 'bank_main' ? 'acc-bank' : `acc-${code}`);
+interface FakeEntry { id: string; number: string; date: string; description: string; sourceType: string; sourceId?: string; status: 'posted' | 'voided'; reversesId?: string; lines: { accountId: string; debit: number; credit: number; memo?: string }[] }
+
 export interface FakeOptions { now?: () => Date; seed?: boolean }
 
 /** Data palsu di memori. PIN disimpan polos HANYA di sini; versi asli memakai bcrypt di server. */
@@ -120,6 +146,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let pOrders: FOrder[] = [];
   let pInvoices: FInvoice[] = [];
   let receiptKeys = new Set<string>();
+  let accounts: Account[] = [];
+  let stored: FakeEntry[] = [];
+  const seqOf = new Map<string, number>();
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -222,6 +251,56 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     }
   }
 
+  // ---------- keuangan ----------
+  const acct = (key: string) => accounts.find((a) => a.systemKey === key)!;
+  const dayOf = (iso: string) => localDateKey(new Date(iso), CTX.timezone);
+  const nextNo = (prefix: string) => { const n = (seqOf.get(prefix) ?? 0) + 1; seqOf.set(prefix, n); return `${prefix}-${String(n).padStart(6, '0')}`; };
+  const payKey = (kind: string) => (kind === 'cash' ? 'cash_main' : kind === 'gateway' ? 'gateway_clearing' : 'noncash_clearing');
+  function storeEntry(date: string, description: string, sourceType: string, sourceId: string | undefined, prefix: string, lines: FakeEntry['lines'], reversesId?: string): FakeEntry {
+    const e: FakeEntry = { id: newId(), number: nextNo(prefix), date, description, sourceType, ...(sourceId ? { sourceId } : {}), status: 'posted', ...(reversesId ? { reversesId } : {}), lines: lines.filter((l) => l.debit > 0 || l.credit > 0) };
+    stored.push(e); return e;
+  }
+  /** Jurnal penjualan dan refund diturunkan dari pesanan (server membukukannya saat lunas); sisanya disimpan. */
+  function allEntries(): FakeEntry[] {
+    const derived: FakeEntry[] = [];
+    const paid = orders.filter((o) => o.status === 'paid').sort((a, b) => (a.closedAt ?? a.openedAt).localeCompare(b.closedAt ?? b.openedAt));
+    paid.forEach((o, i) => {
+      const lines: FakeEntry['lines'] = [];
+      const by = new Map<string, number>();
+      for (const p of o.payments) by.set(acct(payKey(p.kind)).id, (by.get(acct(payKey(p.kind)).id) ?? 0) + p.amount);
+      for (const [accountId, amt] of by) lines.push({ accountId, debit: amt, credit: 0, memo: `Pembayaran ${o.number}` });
+      if (o.discountTotal > 0) lines.push({ accountId: acct('sales_discount').id, debit: o.discountTotal, credit: 0 });
+      if (o.rounding < 0) lines.push({ accountId: acct('rounding').id, debit: -o.rounding, credit: 0 });
+      if (o.subtotal > 0) lines.push({ accountId: acct('sales_revenue').id, debit: 0, credit: o.subtotal, memo: o.number });
+      if (o.serviceCharge > 0) lines.push({ accountId: acct('service_revenue').id, debit: 0, credit: o.serviceCharge });
+      if (o.taxTotal > 0) lines.push({ accountId: acct('tax_payable').id, debit: 0, credit: o.taxTotal });
+      if (o.rounding > 0) lines.push({ accountId: acct('rounding').id, debit: 0, credit: o.rounding });
+      const cogs = o.items.reduce((n, it) => n + Math.round(it.qty * (costs.get(it.productId) ?? Math.round(it.unitPrice * 0.4))), 0);
+      if (cogs > 0) { lines.push({ accountId: acct('cogs').id, debit: cogs, credit: 0, memo: `HPP ${o.number}` }, { accountId: acct('inventory').id, debit: 0, credit: cogs, memo: `HPP ${o.number}` }); }
+      derived.push({ id: `jr-sale-${o.id}`, number: `SAL-${String(i + 1).padStart(6, '0')}`, date: dayOf(o.closedAt ?? o.openedAt), description: `Penjualan ${o.number}`, sourceType: 'sale', sourceId: o.id, status: 'posted', lines });
+    });
+    refunds.forEach((r, i) => {
+      const kind = r.methodKind ?? 'cash';
+      derived.push({ id: `jr-refund-${r.id}`, number: `RFN-${String(i + 1).padStart(6, '0')}`, date: dayOf(r.createdAt), description: `Refund ${r.number}`, sourceType: 'refund', sourceId: r.id, status: 'posted',
+        lines: [{ accountId: acct('sales_returns').id, debit: r.total, credit: 0 }, { accountId: acct(payKey(kind)).id, debit: 0, credit: r.total }] });
+    });
+    return [...derived, ...stored];
+  }
+  function finLines(): FinLine[] {
+    const acc = new Map(accounts.map((a) => [a.id, a]));
+    return allEntries().flatMap((e) => e.lines.map((l): FinLine => {
+      const a = acc.get(l.accountId)!;
+      return { entryId: e.id, number: e.number, date: e.date, description: e.description, sourceType: e.sourceType, status: e.status, accountId: a.id, code: a.code, name: a.name, category: a.category, debit: l.debit, credit: l.credit, ...(l.memo ? { memo: l.memo } : {}) };
+    }));
+  }
+  function journalView(e: FakeEntry): Journal {
+    const acc = new Map(accounts.map((a) => [a.id, a]));
+    return clone({ id: e.id, number: e.number, date: e.date, description: e.description, sourceType: e.sourceType, status: e.status, total: Math.round(e.lines.reduce((n, l) => n + l.debit, 0) * 100) / 100,
+      ...(e.reversesId ? { reversesId: e.reversesId } : {}),
+      lines: e.lines.map((l) => ({ accountId: l.accountId, code: acc.get(l.accountId)?.code ?? '', name: acc.get(l.accountId)?.name ?? '', debit: l.debit, credit: l.credit, ...(l.memo ? { memo: l.memo } : {}) })) });
+  }
+  const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+
   function seedStock() {
     ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = [];
     suppliers = opts.seed === false ? [] : [
@@ -229,6 +308,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       { id: 'sp-susu', code: 'SUP-02', name: 'UD Susu Segar Jaya', phone: '081234500002', termDays: 7, isActive: true },
     ];
     pOrders = []; pInvoices = []; receiptKeys = new Set();
+    accounts = FAKE_COA.map(([code, name, kind, category, key]) => ({ id: coaId(code, key), code, name, kind, category, isActive: true, ...(key ? { systemKey: key } : {}) }));
+    stored = []; seqOf.clear();
     if (opts.seed === false) return;
     const opening: [string, number, number][] = [];
     for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
@@ -811,7 +892,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return ids.map((id): PurchaseItem => { const b = stockBal(id)!; return { productId: id, name: b.name, kind: b.kind, baseUnit: b.unit, avgCost: costs.get(id) ?? 0, units: purchaseUnits(id) }; })
         .sort((a, b) => a.name.localeCompare(b.name, 'id'));
     },
-    async listPayAccounts(): Promise<PayAccount[]> { return [{ id: 'acc-kas', code: '1-1100', name: 'Kas' }, { id: 'acc-bank', code: '1-1200', name: 'Bank' }]; },
+    async listPayAccounts(): Promise<PayAccount[]> { return accounts.filter((a) => a.category === 'cash_bank' && a.kind === 'detail' && a.isActive).map((a) => ({ id: a.id, code: a.code, name: a.name })); },
     async listPurchaseOrders() {
       return pOrders.map((o) => ({ id: o.id, number: o.number, supplierId: o.supplierId, supplierName: supplierName(o.supplierId), status: o.status, orderDate: o.orderDate, expectedDate: o.expectedDate, total: o.total, lineCount: o.lines.length }))
         .sort((a, b) => b.number.localeCompare(a.number));
@@ -857,6 +938,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       receiveInto(inv, input.lines.map((l, i) => ({ lineId: lines[i]!.id, qty: l.receivedQty ?? l.qty })));
       if (inv.total === 0) inv.status = 'paid';
       pInvoices.push(inv);
+      {
+        const stockValue = subtotal - input.discount + input.otherCost;
+        storeEntry(date, `Pembelian ${inv.number}`, 'purchase_invoice', inv.id, 'PUR', [
+          { accountId: acct('inventory').id, debit: stockValue, credit: 0, memo: `Persediaan ${inv.number}` }, { accountId: acct('purchase_tax_input').id, debit: input.tax, credit: 0, memo: 'Pajak masukan' },
+          { accountId: acct('accounts_payable').id, debit: 0, credit: inv.total, memo: `Utang ${inv.number}` }]);
+      }
       if (order) order.status = 'received';
       return invoiceView(inv);
     },
@@ -883,7 +970,70 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       inv.payments.push({ id: input.id, number: `BYR-${String(n).padStart(6, '0')}`, paidAt: input.paidAt ?? todayKey(), accountName: acc.name, amount: input.amount, note: input.note?.trim() || undefined });
       inv.paidTotal = Math.round((inv.paidTotal + input.amount) * 100) / 100;
       inv.status = invoiceStatusFor(inv.total, inv.paidTotal);
+      storeEntry(input.paidAt ?? todayKey(), `Bayar ${inv.number}`, 'purchase_payment', input.id, 'PAY', [
+        { accountId: acct('accounts_payable').id, debit: input.amount, credit: 0 }, { accountId: input.accountId, debit: 0, credit: input.amount }]);
       return invoiceView(inv);
+    },
+    async listAccounts() { return clone([...accounts].sort((a, b) => a.code.localeCompare(b.code))); },
+    async saveAccount(input: AccountInput) {
+      const problem = accountProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const code = input.code.trim(), name = input.name.trim();
+      if (accounts.some((a) => a.id !== input.id && a.code === code)) throw new DataError('invalid', `Kode ${code} sudah dipakai akun lain.`);
+      const used = (id: string) => allEntries().some((e) => e.lines.some((l) => l.accountId === id));
+      if (input.id) {
+        const a = accounts.find((x) => x.id === input.id);
+        if (!a) throw new DataError('not_found', 'Akun tidak ditemukan.');
+        if (a.systemKey && (input.isActive === false || input.category !== a.category || input.kind !== a.kind)) throw new DataError('invalid', 'Akun sistem dipakai pembukuan otomatis: hanya namanya yang boleh diubah.');
+        if (used(a.id) && (input.category !== a.category || input.kind !== a.kind)) throw new DataError('invalid', 'Akun yang sudah punya jurnal tidak bisa diganti kelompok atau jenisnya.');
+        Object.assign(a, { code, name, kind: input.kind, category: input.category, isActive: input.isActive ?? a.isActive });
+        return clone(a);
+      }
+      const a: Account = { id: newId(), code, name, kind: input.kind, category: input.category, isActive: input.isActive ?? true };
+      accounts.push(a); return clone(a);
+    },
+    async listJournal(q) {
+      const term = q.search?.trim().toLowerCase();
+      return allEntries().filter((e) => e.date >= q.from && e.date <= q.to && (!q.sourceType || e.sourceType === q.sourceType) && (!term || e.number.toLowerCase().includes(term) || e.description.toLowerCase().includes(term)))
+        .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number))
+        .map((e): JournalSummary => { const { lines: _l, ...rest } = journalView(e); return rest; });
+    },
+    async getJournal(id) { const e = allEntries().find((x) => x.id === id); return e ? journalView(e) : null; },
+    async postJournal(input: JournalInput) {
+      const prior = stored.find((e) => e.sourceId === input.id && (e.sourceType === 'manual' || e.sourceType === 'opening'));
+      if (prior) return journalView(prior);
+      const problem = journalProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const lines = input.lines.filter((l) => l.accountId);
+      for (const l of lines) { const a = accounts.find((x) => x.id === l.accountId); if (!a || a.kind !== 'detail' || !a.isActive) throw new DataError('invalid', 'Ada akun yang tidak ditemukan, nonaktif, atau berupa akun induk.'); }
+      const e = storeEntry(input.date, input.description.trim(), input.kind, input.id, input.kind === 'opening' ? 'OB' : 'JU', lines.map((l) => ({ ...l, memo: l.memo?.trim() || undefined })));
+      return journalView(e);
+    },
+    async reverseJournal(id, reason, date) {
+      const e = stored.find((x) => x.id === id);
+      if (!e) throw new DataError('invalid', 'Hanya jurnal manual dan saldo awal yang bisa dibalik.');
+      if (e.sourceType !== 'manual' && e.sourceType !== 'opening') throw new DataError('invalid', 'Hanya jurnal manual dan saldo awal yang bisa dibalik.');
+      const prior = stored.find((x) => x.reversesId === e.id);
+      if (prior) return journalView(prior);
+      if (e.status !== 'posted') throw new DataError('invalid', 'Jurnal ini belum atau tidak lagi terposting.');
+      const r = storeEntry(date ?? todayKey(), `Pembalik ${e.number}${reason?.trim() ? `: ${reason.trim()}` : ''}`.slice(0, 200), 'reversal', e.id, 'REV', e.lines.map((l) => ({ accountId: l.accountId, debit: l.credit, credit: l.debit, memo: l.memo })), e.id);
+      e.status = 'voided';
+      return journalView(r);
+    },
+    async ledger(accountId, range) {
+      const a = accounts.find((x) => x.id === accountId);
+      if (!a) throw new DataError('not_found', 'Akun tidak ditemukan.');
+      return clone(ledgerOf(finLines(), a, range.from, range.to));
+    },
+    async trialBalance(range) { return trialBalanceOf(finLines(), range.from, range.to); },
+    async incomeStatement(range) { return incomeStatementOf(finLines(), range.from, range.to); },
+    async balanceSheet(asOf) { const rows = balanceSheetOf(finLines(), asOf); return { rows, totals: balanceSheetTotals(rows) }; },
+    async cashFlow(range) { return cashFlowOf(finLines(), range.from, range.to); },
+    async payablesAging(asOf) {
+      return pInvoices.filter((i) => (i.status === 'open' || i.status === 'partially_paid') && i.invoiceDate <= asOf)
+        .map((i) => ({ ...(i.supplierId ? { supplierId: i.supplierId } : {}), supplierName: supplierName(i.supplierId), invoiceId: i.id, number: i.number, ...(i.dueDate ? { dueDate: i.dueDate } : {}),
+          outstanding: invoiceOutstanding(i.total, i.paidTotal), daysOverdue: i.dueDate ? Math.max(0, daysBetween(i.dueDate, asOf)) : 0 }))
+        .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
     },
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },

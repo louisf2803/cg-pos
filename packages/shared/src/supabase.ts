@@ -9,6 +9,11 @@ import {
   type PayAccount, type PurchaseInvoice, type PurchaseInvoiceInput, type PurchaseInvoiceSummary, type PurchaseItem, type PurchaseLine, type PurchaseOrder, type PurchaseOrderInput, type PurchaseOrderSummary, type PurchasePayInput, type PurchasePayment, type PurchaseReceiveInput, type Supplier, type SupplierInput,
 } from './purchasing';
 
+import {
+  accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf,
+  type Account, type AccountCategory, type AccountInput, type FinLine, type Journal, type JournalInput, type JournalSummary, type PayableRow, type StatementRow, type TrialRow,
+} from './finance';
+
 const PHOTO_BUCKET = 'menu-images';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
@@ -154,6 +159,53 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (/unit does not belong/i.test(m)) return new DataError('invalid', 'Satuan tidak sesuai dengan barangnya.');
     if (/invalid line|invalid received|invalid amount|invalid term|negative|too many lines|no lines|larger than/i.test(m)) return new DataError('invalid', 'Isian pembelian ditolak server. Periksa jumlah, harga, diskon, dan baris.');
     return mapDbError(error);
+  }
+
+  function mapFinanceError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur jurnal manual belum aktif di database (migrasi 0017 belum diterapkan).');
+    if (/not allowed|report access|permission denied/i.test(m) || error.code === '42501') return new DataError('forbidden', 'Hanya pemilik dan admin yang boleh melihat dan mengubah data keuangan.');
+    if (/not balanced/i.test(m)) return new DataError('invalid', 'Jurnal tidak seimbang: total debit harus sama dengan total kredit.');
+    if (/account not found or not postable/i.test(m)) return new DataError('invalid', 'Ada akun yang tidak ditemukan, nonaktif, atau berupa akun induk.');
+    if (/books are locked|locked through/i.test(m)) return new DataError('order_locked', 'Tanggal jurnal berada di periode yang sudah dikunci.');
+    if (/only manual journals/i.test(m)) return new DataError('invalid', 'Hanya jurnal manual dan saldo awal yang bisa dibalik.');
+    if (/not posted/i.test(m)) return new DataError('invalid', 'Jurnal ini belum atau tidak lagi terposting.');
+    if (/journal not found/i.test(m)) return new DataError('not_found', 'Jurnal tidak ditemukan.');
+    if (/at least 2 lines|exactly one of|invalid amount|too many lines|description required|invalid kind|date required/i.test(m)) return new DataError('invalid', 'Isian jurnal ditolak server. Periksa tanggal, uraian, akun, dan jumlah.');
+    if (error.code === '23505') return new DataError('invalid', 'Kode akun sudah dipakai akun lain.');
+    if (/system account|system_key|category of an account/i.test(m)) return new DataError('invalid', 'Akun sistem atau akun yang sudah punya jurnal tidak bisa diubah seperti itu.');
+    return mapDbError(error);
+  }
+
+  /** Semua halaman hasil query (server membatasi 1000 baris per permintaan). */
+  async function pageAll(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>): Promise<Row[]> {
+    const out: Row[] = [];
+    for (let from = 0; from < 50000; from += 1000) {
+      const rows = (must(await build(from, from + 999) as { data: Row[] | null; error: { code?: string; message?: string } | null }) ?? []);
+      out.push(...rows);
+      if (rows.length < 1000) break;
+    }
+    return out;
+  }
+
+  const toAccount = (r: Row): Account => ({
+    id: r.id, code: r.code, name: r.name, kind: r.kind === 'header' ? 'header' : 'detail', category: r.category as AccountCategory, isActive: !!r.is_active, ...(r.system_key ? { systemKey: r.system_key as string } : {}),
+  });
+
+  /** Baris jurnal terposting (dan yang di-void) sampai tanggal `to`, bentuk datar untuk rumus laporan. */
+  async function finLinesUpTo(to: string, accountIds?: string[]): Promise<FinLine[]> {
+    const accs = new Map((((must(await db().from('accounts').select('id,code,name,kind,category,system_key,is_active')) as Row[] | null) ?? []).map(toAccount)).map((a) => [a.id, a]));
+    const ids = accountIds ?? [...accs.keys()];
+    if (ids.length === 0) return [];
+    const rows = await pageAll((f, t) => db().from('journal_lines')
+      .select('entry_id,account_id,debit,credit,memo,journal_entries!inner(number,entry_date,description,source_type,status)')
+      .in('account_id', ids).in('journal_entries.status', ['posted', 'voided']).lte('journal_entries.entry_date', to)
+      .order('entry_id').order('line_no').range(f, t));
+    return rows.map((l): FinLine => {
+      const e = l.journal_entries as Row, a = accs.get(l.account_id as string)!;
+      return { entryId: l.entry_id, number: e.number, date: e.entry_date, description: e.description, sourceType: e.source_type, status: e.status, accountId: a.id, code: a.code, name: a.name, category: a.category,
+        debit: Number(l.debit), credit: Number(l.credit), ...(l.memo ? { memo: l.memo as string } : {}) };
+    });
   }
 
   async function load(): Promise<Resolved> {
@@ -1174,6 +1226,110 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw mapPurchaseError(error);
       return (await self.getPurchaseInvoice(input.invoiceId))!;
+    },
+
+    // ---------- keuangan ----------
+    async listAccounts() {
+      const rows = (must(await db().from('accounts').select('id,code,name,kind,category,system_key,is_active').order('code')) as Row[] | null) ?? [];
+      return rows.map(toAccount);
+    },
+    async saveAccount(input: AccountInput) {
+      const problem = accountProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const code = input.code.trim(), name = input.name.trim();
+      const all = await self.listAccounts();
+      if (all.some((a) => a.id !== input.id && a.code === code)) throw new DataError('invalid', `Kode ${code} sudah dipakai akun lain.`);
+      if (input.id) {
+        const cur = all.find((a) => a.id === input.id);
+        if (!cur) throw new DataError('not_found', 'Akun tidak ditemukan.');
+        if (cur.systemKey && (input.isActive === false || input.category !== cur.category || input.kind !== cur.kind)) throw new DataError('invalid', 'Akun sistem dipakai pembukuan otomatis: hanya namanya yang boleh diubah.');
+        const { error } = await db().from('accounts').update({ code, name, kind: input.kind, category: input.category, is_active: input.isActive ?? cur.isActive }).eq('id', input.id);
+        if (error) throw mapFinanceError(error);
+        return { ...cur, code, name, kind: input.kind, category: input.category, isActive: input.isActive ?? cur.isActive };
+      }
+      const { orgId } = await resolve();
+      const row = { id: newId(), org_id: orgId, code, name, kind: input.kind, category: input.category, is_active: input.isActive ?? true };
+      const { error } = await db().from('accounts').insert(row);
+      if (error) throw mapFinanceError(error);
+      return { id: row.id, code, name, kind: input.kind, category: input.category, isActive: row.is_active } as Account;
+    },
+    async listJournal(q) {
+      let query = db().from('journal_entries').select('id,number,entry_date,description,source_type,status,reverses_entry_id,journal_lines(debit)')
+        .in('status', ['posted', 'voided']).gte('entry_date', q.from).lte('entry_date', q.to);
+      if (q.sourceType) query = query.eq('source_type', q.sourceType);
+      const term = searchTerm(q.search ?? '');
+      if (term) query = query.or(`number.ilike.%${term}%,description.ilike.%${term}%`);
+      const rows = (must(await query.order('entry_date', { ascending: false }).order('number', { ascending: false }).limit(500)) as Row[] | null) ?? [];
+      return rows.map((r): JournalSummary => ({
+        id: r.id, number: r.number, date: r.entry_date, description: r.description, sourceType: r.source_type, status: r.status,
+        total: Math.round(((r.journal_lines ?? []) as Row[]).reduce((n, l) => n + Number(l.debit), 0) * 100) / 100, ...(r.reverses_entry_id ? { reversesId: r.reverses_entry_id as string } : {}),
+      }));
+    },
+    async getJournal(id) {
+      const { data, error } = await db().from('journal_entries').select('id,number,entry_date,description,source_type,status,reverses_entry_id,journal_lines(account_id,debit,credit,memo,line_no)').eq('id', id).in('status', ['posted', 'voided']).maybeSingle();
+      if (error) throw mapFinanceError(error);
+      if (!data) return null;
+      const r = data as Row;
+      const acc = new Map((await self.listAccounts()).map((a) => [a.id, a]));
+      const lines = ((r.journal_lines ?? []) as Row[]).sort((a, b) => Number(a.line_no) - Number(b.line_no)).map((l) => ({
+        accountId: l.account_id as string, code: acc.get(l.account_id as string)?.code ?? '', name: acc.get(l.account_id as string)?.name ?? '', debit: Number(l.debit), credit: Number(l.credit), ...(l.memo ? { memo: l.memo as string } : {}),
+      }));
+      return { id: r.id, number: r.number, date: r.entry_date, description: r.description, sourceType: r.source_type, status: r.status, total: Math.round(lines.reduce((n, l) => n + l.debit, 0) * 100) / 100,
+        ...(r.reverses_entry_id ? { reversesId: r.reverses_entry_id as string } : {}), lines } as Journal;
+    },
+    async postJournal(input: JournalInput) {
+      const problem = journalProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('journal_manual_post', {
+        p_id: input.id, p_org: orgId, p_date: input.date, p_desc: input.description.trim(), p_kind: input.kind,
+        p_lines: input.lines.filter((l) => l.accountId).map((l) => ({ account_id: l.accountId, debit: l.debit, credit: l.credit, memo: l.memo?.trim() || null })),
+      });
+      if (error) throw mapFinanceError(error);
+      const j = await self.getJournal((data as { id: string }).id);
+      if (!j) throw new DataError('not_found', 'Jurnal tidak ditemukan.');
+      return j;
+    },
+    async reverseJournal(id, reason, date) {
+      const { data, error } = await db().rpc('journal_reverse', { p_entry: id, p_date: date ?? null, p_reason: reason?.trim() || null });
+      if (error) throw mapFinanceError(error);
+      const j = await self.getJournal((data as { id: string }).id);
+      if (!j) throw new DataError('not_found', 'Jurnal tidak ditemukan.');
+      return j;
+    },
+    async ledger(accountId, range) {
+      const acc = (await self.listAccounts()).find((a) => a.id === accountId);
+      if (!acc) throw new DataError('not_found', 'Akun tidak ditemukan.');
+      try { return ledgerOf(await finLinesUpTo(range.to, [accountId]), acc, range.from, range.to); } catch (e) { throw e instanceof DataError ? e : mapFinanceError(e as { message?: string }); }
+    },
+    async trialBalance(range) {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('report_trial_balance', { p_org: orgId, p_from: range.from, p_to: range.to, p_outlet: null });
+      if (error) throw mapFinanceError(error);
+      return ((data ?? []) as Row[]).map((r): TrialRow => ({ accountId: r.account_id, code: r.code, name: r.name, category: r.category as AccountCategory, opening: Number(r.opening), debit: Number(r.debit), credit: Number(r.credit), closing: Number(r.closing) }));
+    },
+    async incomeStatement(range) {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('report_income_statement', { p_org: orgId, p_from: range.from, p_to: range.to, p_outlet: null });
+      if (error) throw mapFinanceError(error);
+      return ((data ?? []) as Row[]).map((r): StatementRow => ({ section: r.section, ...(r.code ? { code: r.code as string } : {}), name: r.name, amount: Number(r.amount) }));
+    },
+    async balanceSheet(asOf) {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('report_balance_sheet', { p_org: orgId, p_as_of: asOf, p_outlet: null });
+      if (error) throw mapFinanceError(error);
+      const rows = ((data ?? []) as Row[]).map((r): StatementRow => ({ section: r.section, ...(r.code ? { code: r.code as string } : {}), name: r.name, amount: Number(r.amount) }));
+      return { rows, totals: balanceSheetTotals(rows) };
+    },
+    async cashFlow(range) {
+      const ids = (await self.listAccounts()).filter((a) => a.category === 'cash_bank').map((a) => a.id);
+      try { return cashFlowOf(await finLinesUpTo(range.to, ids), range.from, range.to); } catch (e) { throw e instanceof DataError ? e : mapFinanceError(e as { message?: string }); }
+    },
+    async payablesAging(asOf) {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('report_payables_aging', { p_org: orgId, p_as_of: asOf });
+      if (error) throw mapFinanceError(error);
+      return ((data ?? []) as Row[]).map((r): PayableRow => ({ ...(r.supplier_id ? { supplierId: r.supplier_id as string } : {}), supplierName: r.supplier_name, invoiceId: r.invoice_id, number: r.number, ...(r.due_date ? { dueDate: r.due_date as string } : {}), outstanding: Number(r.outstanding), daysOverdue: Number(r.days_overdue) }));
     },
 
     // ---------- karyawan dan metode bayar ----------

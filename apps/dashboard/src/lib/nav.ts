@@ -44,7 +44,9 @@ export const NAV: NavGroup[] = [
     label: 'Keuangan', icon: Coins, items: [
       { href: '/keuangan', label: 'Dashboard keuangan', screen: 'S70', tier: 2 },
       { href: '/keuangan/laporan', label: 'Laba rugi dan neraca', screen: 'S71', tier: 2 },
-      { href: '/keuangan/akun', label: 'Akun dan jurnal', screen: 'S72', tier: 2 },
+      { href: '/keuangan/akun', label: 'Daftar akun', screen: 'S72', tier: 2, built: true },
+      { href: '/keuangan/jurnal', label: 'Jurnal', screen: 'S74', tier: 2, built: true },
+      { href: '/keuangan/buku-besar', label: 'Buku besar', screen: 'S75', tier: 2, built: true },
       { href: '/keuangan/kas', label: 'Buku kas dan bank', screen: 'S73', tier: 2 },
     ],
   },
