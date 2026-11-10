@@ -349,3 +349,29 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+- Selesai (tugas A49): 10 Laporan Teratas di Dashboard (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/top-reports.ts`:
+     - `getTopProducts`: agregasi produk terlaris dari pesanan lunas, urut kuantitas (qty) dan nilai penjualan (totalSales) menurun, kontribusi persen omzet, dan pembatasan limit (10 baris).
+     - `getTopLowestStock`: pengurutan stok dari saldo terendah (minus, nol, hingga terkecil) dengan pemetaan status stok dan lencana.
+     - `getTopMinStock`: penentuan barang yang paling mendesak terhadap batas minimum stok (berdasarkan selisih `qty - minQty`), menghitung kekurangan/sisa kuantitas.
+     - `getTopOrderTypes`: pengurutan jenis pesanan (dine_in, takeaway, delivery, service) berdasarkan nilai omzet transaksi dan jumlah nota.
+     - 7 unit test komprehensif di `packages/shared/test/top-reports.test.ts` (total 353 tes vitest lulus).
+  2. Layar Dashboard `/laporan/teratas`:
+     - Filter rentang tanggal (`RangePicker`) sinkron dengan `useRange(tz)`.
+     - Tata letak grid 2 kolom di laptop/desktop (`laptop:grid-cols-2`) dan 1 kolom di mobile (390px) tanpa overflow horizontal.
+     - 5 kartu laporan teratas:
+       1. Produk Terlaris (peringkat, nama produk, porsi omzet, qty terjual, total omzet, tautan ke `/laporan/produk`).
+       2. Laba Kotor per Produk (kartu nonaktif berlabel "Segera" dengan banner informasi persiapan HPP historis di server; kebutuhan dicatat di `docs/REQUESTS-FOR-CLAUDE.md`).
+       3. Stok Terendah (peringkat, bahan/barang, satuan, sisa stok, status badge, tautan ke `/inventori/stok`).
+       4. Stok Mendekati Minimum (peringkat, nama bahan, batas minimum, sisa/kekurangan, kondisi badge, tautan ke `/inventori/stok`).
+       5. Jenis Order Terbanyak (peringkat, jenis order, frekuensi nota, total omzet, porsi %, tautan ke `/laporan/jenis-order`).
+     - Keadaan memuat (`cg-skeleton`), keadaan kosong (`cg-empty`), dan penanganan galat (`ErrorBox`).
+  3. Navigasi:
+     - `/laporan/teratas` ditambahkan ke `apps/dashboard/src/lib/nav.ts` pada grup Laporan > Penjualan (`built: true`).
+  4. Kepatuhan & Uji:
+     - `pnpm -r typecheck` (0 galat)
+     - `pnpm -F @cgpos/shared test` (56 file, 353 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
+     - `bash scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard)
+     - Playwright audit di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (3 tangkapan layar di `docs/shots/a49/`).
+
