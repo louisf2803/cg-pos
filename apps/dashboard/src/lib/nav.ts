@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { BarChart3, Boxes, Coins, Home, Package, Settings, Users } from 'lucide-react';
+import { BarChart3, Boxes, ChefHat, Coins, Home, Package, Settings, Users } from 'lucide-react';
 
 export type NavItem = { href: string; label: string; screen: string; tier: 1 | 2 | 3; built?: boolean };
 export type NavGroup = { label: string; icon: LucideIcon; items: NavItem[] };
@@ -23,6 +23,7 @@ export const NAV: NavGroup[] = [
       { href: '/promo', label: 'Promo dan kupon', screen: 'S44', tier: 2, built: true },
     ],
   },
+  { label: 'Dapur', icon: ChefHat, items: [{ href: '/dapur', label: 'Layar dapur', screen: 'S60', tier: 3, built: true }] },
   {
     label: 'Laporan', icon: BarChart3, items: [
       { href: '/laporan', label: 'Laporan penjualan', screen: 'S80', tier: 1, built: true },

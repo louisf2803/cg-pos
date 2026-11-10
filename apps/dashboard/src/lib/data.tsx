@@ -15,7 +15,7 @@ let fake: DataLayer | null = null;
  */
 export function DataProvider({ children }: { children: ReactNode }) {
   if (!supabase) {
-    const data = (fake ??= createFakeData());
+    const data = (fake ??= createFakeData({ kitchenDemo: true }));
     return <Ctx.Provider value={data}>{children}</Ctx.Provider>;
   }
   return <SupabaseGate>{children}</SupabaseGate>;

@@ -9,6 +9,7 @@ import {
   type PayAccount, type PurchaseInvoice, type PurchaseInvoiceInput, type PurchaseInvoiceSummary, type PurchaseItem, type PurchaseLine, type PurchaseOrder, type PurchaseOrderInput, type PurchaseOrderSummary, type PurchasePayInput, type PurchasePayment, type PurchaseReceiveInput, type Supplier, type SupplierInput,
 } from './purchasing';
 
+import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf,
   type Account, type AccountCategory, type AccountInput, type FinLine, type Journal, type JournalInput, type JournalSummary, type PayableRow, type StatementRow, type TrialRow,
@@ -206,6 +207,16 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return { entryId: l.entry_id, number: e.number, date: e.entry_date, description: e.description, sourceType: e.source_type, status: e.status, accountId: a.id, code: a.code, name: a.name, category: a.category,
         debit: Number(l.debit), credit: Number(l.credit), ...(l.memo ? { memo: l.memo as string } : {}) };
     });
+  }
+
+  function mapKitchenError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur dapur belum aktif di database (migrasi 0018 belum diterapkan).');
+    if (/not allowed/i.test(m)) return new DataError('forbidden', 'Akun ini tidak boleh mengakses dapur outlet ini.');
+    if (/order not found/i.test(m)) return new DataError('not_found', 'Pesanan belum tersimpan di server. Simpan pesanan dulu.');
+    if (/order is not active/i.test(m)) return new DataError('invalid', 'Pesanan ini sudah dibatalkan atau ditutup.');
+    if (/invalid status|no items|too many items/i.test(m)) return new DataError('invalid', 'Pengubahan status ditolak server.');
+    return mapDbError(error);
   }
 
   async function load(): Promise<Resolved> {
@@ -1226,6 +1237,30 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw mapPurchaseError(error);
       return (await self.getPurchaseInvoice(input.invoiceId))!;
+    },
+
+    // ---------- dapur ----------
+    async kitchenBoard(servedMinutes = 0) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('kitchen_board', { p_outlet: ctx.outletId, p_served_minutes: servedMinutes });
+      if (error) throw mapKitchenError(error);
+      return groupTickets(((data ?? []) as Row[]).map((r): KitchenRow => ({
+        itemId: r.item_id, orderId: r.order_id, orderNumber: r.order_number, orderType: r.order_type, name: r.name, qty: Number(r.qty), status: r.status as KitchenStatus, sentAt: r.sent_at, statusAt: r.status_at,
+        extras: ((r.extras ?? []) as Row[]).map((e) => ({ name: e.name as string, qty: Number(e.qty) })),
+        ...(r.table_name ? { tableName: r.table_name as string } : {}), ...(r.label ? { label: r.label as string } : {}), ...(r.guest_count !== null && r.guest_count !== undefined ? { guestCount: Number(r.guest_count) } : {}),
+        ...(r.queue_no !== null && r.queue_no !== undefined ? { queueNo: Number(r.queue_no) } : {}), ...(r.note ? { note: r.note as string } : {}),
+      })));
+    },
+    async kitchenSend(orderId) {
+      const { device } = await resolve();
+      const { data, error } = await db().rpc('kitchen_send', { p_order: orderId, p_device: device?.id ?? null });
+      if (error) throw mapKitchenError(error);
+      return { sent: Number((data as { sent: number }).sent) };
+    },
+    async kitchenSetStatus(itemIds, status) {
+      if (itemIds.length === 0) throw new DataError('invalid', 'Pilih baris yang mau diubah.');
+      const { error } = await db().rpc('kitchen_set_status', { p_items: itemIds, p_status: status });
+      if (error) throw mapKitchenError(error);
     },
 
     // ---------- keuangan ----------

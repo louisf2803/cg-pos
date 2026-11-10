@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { extrasLineTotal, extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -89,6 +89,19 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     setPlacing(true); setSaveErr(''); setNotice('');
     try { setPaying(await persist()); }
     catch (e) { setSaveErr(e instanceof Error ? e.message : 'Pesanan gagal disimpan.'); }
+    finally { setPlacing(false); }
+  }
+
+  /** Simpan pesanan lalu kirim barisnya ke layar dapur. Pesanan tetap di layar supaya bisa ditambah atau dibayar. */
+  async function toKitchen() {
+    if (!cart.state.lines.length || placing) return;
+    if (!online) { setNotice(''); setSaveErr('Kirim ke dapur butuh internet.'); return; }
+    setPlacing(true); setSaveErr(''); setNotice('');
+    try {
+      const o = await persist();
+      const r = await data.kitchenSend(o.id);
+      setNotice(r.sent > 0 ? `${r.sent} baris pesanan ${o.number} dikirim ke dapur.` : `Semua baris pesanan ${o.number} sudah ada di dapur.`);
+    } catch (e) { setSaveErr(e instanceof Error ? e.message : 'Gagal mengirim ke dapur.'); }
     finally { setPlacing(false); }
   }
 
@@ -264,6 +277,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         {saveErr && <span role="alert" className="text-danger-strong text-sm flex-1">{saveErr}</span>}
         {!saveErr && notice && <span role="status" className="text-sm flex-1">{notice}</span>}
         <button className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
+        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={toKitchen}><ChefHat className="cg-icon cg-icon--sm" aria-hidden /> Kirim ke dapur</button>
         <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={hold}><Save className="cg-icon cg-icon--sm" aria-hidden /> Simpan</button>
         <button className="cg-btn cg-btn--primary cg-btn--lg ml-auto reg__pay" disabled={!cart.state.lines.length || placing} aria-busy={placing} onClick={pay}>
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}

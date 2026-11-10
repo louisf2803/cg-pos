@@ -19,6 +19,7 @@ import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
+import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf, trialBalanceOf,
   type Account, type AccountInput, type FinLine, type Journal, type JournalInput, type JournalSummary,
@@ -117,7 +118,7 @@ const FAKE_COA: [string, string, 'header' | 'detail', Account['category'], strin
 const coaId = (code: string, key?: string) => (key === 'cash_main' ? 'acc-kas' : key === 'bank_main' ? 'acc-bank' : `acc-${code}`);
 interface FakeEntry { id: string; number: string; date: string; description: string; sourceType: string; sourceId?: string; status: 'posted' | 'voided'; reversesId?: string; lines: { accountId: string; debit: number; credit: number; memo?: string }[] }
 
-export interface FakeOptions { now?: () => Date; seed?: boolean }
+export interface FakeOptions { now?: () => Date; seed?: boolean; /** dua pesanan terbuka yang sudah ada di layar dapur, untuk pengembangan layar dapur */ kitchenDemo?: boolean }
 
 /** Data palsu di memori. PIN disimpan polos HANYA di sini; versi asli memakai bcrypt di server. */
 export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): void } {
@@ -147,6 +148,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let pInvoices: FInvoice[] = [];
   let receiptKeys = new Set<string>();
   let accounts: Account[] = [];
+  const kitchen = new Map<string, { status: KitchenStatus; sentAt: string; statusAt: string }>();
   let stored: FakeEntry[] = [];
   const seqOf = new Map<string, number>();
   let extraGroups: ExtraGroup[] = [];
@@ -309,7 +311,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     ];
     pOrders = []; pInvoices = []; receiptKeys = new Set();
     accounts = FAKE_COA.map(([code, name, kind, category, key]) => ({ id: coaId(code, key), code, name, kind, category, isActive: true, ...(key ? { systemKey: key } : {}) }));
-    stored = []; seqOf.clear();
+    stored = []; seqOf.clear(); kitchen.clear();
     if (opts.seed === false) return;
     const opening: [string, number, number][] = [];
     for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
@@ -359,9 +361,27 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     if (opts.seed !== false) pushPoints('cu-ani', 120, 'adjust', 'Saldo awal');
     seedStock();
     if (opts.seed !== false) seedHistory();
+    if (opts.seed !== false && opts.kitchenDemo) seedKitchenDemo();
   }
 
   /** riwayat hari ini untuk dashboard: pesanan lunas tersebar sepanjang jam kerja */
+  function seedKitchenDemo() {
+    const base = now();
+    const specs: { id: string; table: string; ageMin: number; items: [string, number, string?][]; guests: number }[] = [
+      { id: 'demo-k1', table: 't-T2', ageMin: 4, guests: 2, items: [['p1', 2, 'tanpa gula'], ['p9', 1]] },
+      { id: 'demo-k2', table: 't-T4', ageMin: 23, guests: 4, items: [['p3', 1], ['p10', 2]] },
+    ];
+    for (const sp of specs) {
+      const at = new Date(base.getTime() - sp.ageMin * 60000);
+      const draftItems = sp.items.map(([pid, qty, note], k) => { const pr = products.find((q) => q.id === pid)!; return { id: `${sp.id}-${k}`, productId: pid, name: pr.name, qty, unitPrice: pr.price, ...(note ? { note } : {}) }; });
+      const calc = recompute({ id: sp.id, type: 'dine_in', items: draftItems }, 0);
+      orders.push({ id: sp.id, number: formatOrderNumber(CTX.outletCode, CTX.deviceCode, at, seqFor(at), CTX.timezone), type: 'dine_in', tableId: sp.table, guestCount: sp.guests, cashierId: 'e-sari', status: 'open',
+        items: draftItems.map((d, k) => ({ ...d, lineTotal: calc.lines[k]!.lineTotal })), subtotal: calc.subtotal, discountTotal: calc.discountTotal, serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal,
+        rounding: calc.rounding, total: calc.total, paidTotal: 0, payments: [], openedAt: at.toISOString() });
+      for (const d of draftItems) kitchen.set(d.id, { status: 'new', sentAt: at.toISOString(), statusAt: at.toISOString() });
+    }
+  }
+
   function seedHistory() {
     const base = now();
     const p = localParts(base, CTX.timezone);
@@ -973,6 +993,35 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       storeEntry(input.paidAt ?? todayKey(), `Bayar ${inv.number}`, 'purchase_payment', input.id, 'PAY', [
         { accountId: acct('accounts_payable').id, debit: input.amount, credit: 0 }, { accountId: input.accountId, debit: 0, credit: input.amount }]);
       return invoiceView(inv);
+    },
+    // ---------- dapur ----------
+    async kitchenBoard(servedMinutes = 0) {
+      const cut = now().getTime() - Math.max(0, servedMinutes) * 60000;
+      const rows: KitchenRow[] = [];
+      for (const o of orders) {
+        if (o.status === 'void') continue;
+        for (const it of o.items) {
+          const k = kitchen.get(it.id);
+          if (!k || (k.status === 'served' && new Date(k.statusAt).getTime() <= cut)) continue;
+          const table = o.tableId ? tables.find((t) => t.id === o.tableId)?.name : undefined;
+          rows.push({ itemId: it.id, orderId: o.id, orderNumber: o.number, orderType: o.type, name: it.name, qty: it.qty, extras: (it.extras ?? []).map((e) => ({ name: e.name, qty: it.qty })),
+            status: k.status, sentAt: k.sentAt, statusAt: k.statusAt, ...(table ? { tableName: table } : {}), ...(o.label ? { label: o.label } : {}), ...(o.guestCount !== undefined ? { guestCount: o.guestCount } : {}), ...(it.note ? { note: it.note } : {}) });
+        }
+      }
+      return clone(groupTickets(rows));
+    },
+    async kitchenSend(orderId) {
+      const o = orders.find((x) => x.id === orderId);
+      if (!o) throw new DataError('not_found', 'Pesanan belum tersimpan di server.');
+      if (o.status === 'void') throw new DataError('invalid', 'Pesanan ini sudah dibatalkan.');
+      let sent = 0; const at = now().toISOString();
+      for (const it of o.items) if (!kitchen.has(it.id)) { kitchen.set(it.id, { status: 'new', sentAt: at, statusAt: at }); sent += 1; }
+      return { sent };
+    },
+    async kitchenSetStatus(itemIds, status) {
+      if (itemIds.length === 0) throw new DataError('invalid', 'Pilih baris yang mau diubah.');
+      const at = now().toISOString();
+      for (const id of itemIds) { const k = kitchen.get(id); if (k && k.status !== status) { k.status = status; k.statusAt = at; } }
     },
     async listAccounts() { return clone([...accounts].sort((a, b) => a.code.localeCompare(b.code))); },
     async saveAccount(input: AccountInput) {

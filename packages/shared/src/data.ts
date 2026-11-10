@@ -4,6 +4,7 @@ import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
 import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
+import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -195,4 +196,11 @@ export interface DataLayer {
   nextOrderNumber(): Promise<string>;
 
   salesSummary(range: SalesRange): Promise<SalesSummary>;
+  // ---------- dapur ----------
+  /** Papan dapur outlet ini: tiket per pesanan yang baris-barisnya sudah dikirim. `servedMinutes` menambah yang baru disajikan. */
+  kitchenBoard(servedMinutes?: number): Promise<KitchenTicket[]>;
+  /** Kirim baris pesanan yang belum terkirim ke dapur (idempoten). Pesanan harus sudah tersimpan di server. */
+  kitchenSend(orderId: string): Promise<{ sent: number }>;
+  kitchenSetStatus(itemIds: string[], status: KitchenStatus): Promise<void>;
 }
+
