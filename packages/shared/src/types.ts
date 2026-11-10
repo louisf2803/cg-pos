@@ -44,6 +44,8 @@ export interface Shift {
   id: string; cashierId: string; openedAt: string; openingCash: number; status: 'open' | 'closed';
   closedAt?: string; counted?: number; expectedCash?: number; variance?: number;
 }
+/** Kas masuk atau keluar di laci selama shift (mis. beli es batu, tambah uang kembalian). */
+export interface CashMovement { id: string; shiftId: string; kind: 'in' | 'out'; amount: number; reason: string; occurredAt: string }
 export interface ShiftReport {
   shift: Shift; expectedCash: number; counted: number; variance: number;
   cashSales: number; otherSales: number; cashIn: number; cashOut: number; orderCount: number;

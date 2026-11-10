@@ -33,7 +33,7 @@ import { DataError } from './types';
 import { couponInputProblem, normalizeCode, promotionProblem } from './promo';
 import type {
   Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
-  Shift, ShiftReport,
+  Shift, ShiftReport, CashMovement,
 } from './types';
 import type { OrderType } from './order-calc';
 import { computeOrder } from './order-calc';
@@ -1661,6 +1661,29 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       }]);
       const inputs = await gatherShiftInputs(shiftId);
       return buildShiftReport(inputs, Math.round(counted));
+    },
+    async addCashMovement(input) {
+      const { deviceId } = await requireDevice();
+      if (!Number.isFinite(input.amount) || input.amount <= 0) throw new DataError('bad_amount', 'Jumlah harus lebih dari 0');
+      const reason = input.reason.trim();
+      if (reason.length < 3) throw new DataError('invalid', 'Alasan wajib diisi (minimal 3 huruf)');
+      const occurredAt = now().toISOString();
+      try {
+        await pushOps(deviceId, [{
+          type: 'cash.move', entityId: input.id,
+          payload: { id: input.id, shift_id: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), employee_id: input.employeeId ?? null, occurred_at: occurredAt },
+        }]);
+      } catch (e) {
+        const m = e instanceof Error ? e.message : '';
+        if (/daily cash-out limit/i.test(m)) throw new DataError('invalid', 'Batas kas keluar harian terlampaui.');
+        if (/needs a photo/i.test(m)) throw new DataError('invalid', 'Outlet ini mewajibkan foto bukti kas; belum didukung di layar ini.');
+        throw e;
+      }
+      return { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt };
+    },
+    async listCashMovements(shiftId) {
+      const rows = must(await db().from('cash_movements').select('id,shift_id,kind,amount,reason,occurred_at').eq('shift_id', shiftId).order('occurred_at')) as Row[] | null;
+      return (rows ?? []).map((r): CashMovement => ({ id: r.id as string, shiftId: r.shift_id as string, kind: r.kind as 'in' | 'out', amount: Number(r.amount), reason: r.reason as string, occurredAt: r.occurred_at as string }));
     },
     async shiftSummary(shiftId) {
       return buildShiftReport(await gatherShiftInputs(shiftId));

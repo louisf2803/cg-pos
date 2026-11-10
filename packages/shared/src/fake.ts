@@ -15,7 +15,7 @@ import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type Auth
 import { DataError } from './types';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
-  SalesRange, SalesSummary, Shift, ShiftReport,
+  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement,
 } from './types';
 import { computeOrder } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem } from './outlet';
@@ -190,7 +190,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let products: Product[] = [];
   let orders: Order[] = [];
   let shifts: Shift[] = [];
-  let cashMoves: { shiftId: string; kind: 'in' | 'out'; amount: number }[] = [];
+  let cashMoves: CashMovement[] = [];
   const seqByDay = new Map<string, number>();
 
   const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -1351,6 +1351,19 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         .sort((a, b) => (a.openedAt < b.openedAt ? 1 : -1)).slice(0, 100)
         .map((s) => clone({ ...buildShiftReport(shiftInputs(s)), cashierName: employees.find((e) => e.id === s.cashierId)?.name ?? '—' }));
     },
+    async addCashMovement(input) {
+      const s = shifts.find((x) => x.id === input.shiftId);
+      if (!s) throw new DataError('not_found', 'Shift tidak ditemukan');
+      if (s.status !== 'open') throw new DataError('invalid', 'Shift sudah ditutup');
+      if (!Number.isFinite(input.amount) || input.amount <= 0) throw new DataError('bad_amount', 'Jumlah harus lebih dari 0');
+      const reason = input.reason.trim();
+      if (reason.length < 3) throw new DataError('invalid', 'Alasan wajib diisi (minimal 3 huruf)');
+      const existing = cashMoves.find((m) => m.id === input.id);
+      if (existing) return clone(existing);
+      const m: CashMovement = { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt: now().toISOString() };
+      cashMoves.push(m); return clone(m);
+    },
+    async listCashMovements(shiftId) { return clone(cashMoves.filter((m) => m.shiftId === shiftId)); },
     async shiftSummary(shiftId) {
       const s = shifts.find((x) => x.id === shiftId);
       if (!s) throw new DataError('not_found', 'Shift tidak ditemukan');

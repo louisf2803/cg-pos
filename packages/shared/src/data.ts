@@ -13,7 +13,7 @@ import type { StockLocation, StockTransfer, StockTransferInput } from './stock-t
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
-  SalesRange, SalesSummary, Shift, ShiftReport,
+  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement,
 } from './types';
 import type { ShiftReportRow } from './shift-report';
 
@@ -190,6 +190,9 @@ export interface DataLayer {
   closeShift(input: { shiftId: string; counted: number; closedBy: string }): Promise<ShiftReport>;
   /** Ringkasan shift tanpa menutupnya: penerimaan per metode, kas, produk terjual. Bisa dipanggil berulang. */
   shiftSummary(shiftId: string): Promise<ShiftReport>;
+  /** Catat kas masuk/keluar di laci pada shift yang terbuka. Jumlah > 0 dan alasan wajib; batas kas keluar harian dijaga server. */
+  addCashMovement(input: { id: string; shiftId: string; kind: 'in' | 'out'; amount: number; reason: string; employeeId?: string }): Promise<CashMovement>;
+  listCashMovements(shiftId: string): Promise<CashMovement[]>;
   /** Semua shift outlet ini yang dibuka pada rentang (paling banyak 100, terbaru dulu), lengkap dengan laporannya. Untuk dashboard. */
   listShiftReports(range: SalesRange): Promise<ShiftReportRow[]>;
 

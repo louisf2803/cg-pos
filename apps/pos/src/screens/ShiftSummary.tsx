@@ -1,4 +1,5 @@
-import { accessFor, formatRp } from '@cgpos/shared';
+import { useState } from 'react';
+import { accessFor, formatRp, newId } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useSession } from '../lib/session';
@@ -13,13 +14,15 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
   const shift = session.shift!;
   const canSeeCash = accessFor(session.employee.role, 'see_expected_cash') === 'allow';
   const sum = useAsync(async () => {
-    const [report, staff, open, part] = await Promise.all([
+    const [report, staff, open, part, moves] = await Promise.all([
       data.shiftSummary(shift.id), data.listEmployees().catch(() => []),
       data.listOrders({ status: 'open', limit: 100 }), data.listOrders({ status: 'partially_paid', limit: 100 }),
+      data.listCashMovements(shift.id).catch(() => []),
     ]);
     const waiting = [...open, ...part];
-    return { report, cashier: staff.find((e) => e.id === shift.cashierId)?.name ?? session.employee.name, waitingCount: waiting.length, waitingLeft: waiting.reduce((a, o) => a + (o.total - o.paidTotal), 0) };
+    return { moves, report, cashier: staff.find((e) => e.id === shift.cashierId)?.name ?? session.employee.name, waitingCount: waiting.length, waitingLeft: waiting.reduce((a, o) => a + (o.total - o.paidTotal), 0) };
   }, [data, shift.id]);
+  const [cashDlg, setCashDlg] = useState<'in' | 'out' | null>(null);
 
   return (
     <Modal title="Shift berjalan" onClose={onClose} labelledBy="shift-title">
@@ -27,7 +30,7 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
         {sum.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 40 }} />)}</div>}
         {sum.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert"><span>Ringkasan gagal dimuat. {sum.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={sum.reload}>Coba lagi</button></div>}
         {sum.status === 'ready' && (() => {
-          const { report: r, cashier, waitingCount, waitingLeft } = sum.data;
+          const { report: r, cashier, waitingCount, waitingLeft, moves } = sum.data;
           return (
             <>
               <p className="text-text-muted">Dibuka {hhmm(shift.openedAt)} oleh {cashier}. {r.orderCount} pesanan lunas.</p>
@@ -58,6 +61,18 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
                 <p className="text-text-muted text-sm">Jumlah uang yang seharusnya ada di laci disembunyikan untuk kasir, supaya penghitungan saat tutup kasir jujur. Manajer atau pemilik bisa melihatnya.</p>
               )}
               {waitingCount > 0 && <p className="cg-banner cg-banner--warning" role="status">{waitingCount} pesanan belum lunas, sisa tagihan {formatRp(waitingLeft)}. Selesaikan atau batalkan sebelum menutup kasir.</p>}
+              <section aria-labelledby="sh-kas">
+                <div className="flex justify-between items-center gap-8 mb-8">
+                  <h3 id="sh-kas" className="text-base">Kas masuk dan keluar</h3>
+                  <div className="flex gap-8">
+                    <button className="cg-btn cg-btn--secondary cg-btn--sm" data-testid="cash-in-open" onClick={() => setCashDlg('in')}>Kas masuk</button>
+                    <button className="cg-btn cg-btn--secondary cg-btn--sm" data-testid="cash-out-open" onClick={() => setCashDlg('out')}>Kas keluar</button>
+                  </div>
+                </div>
+                {moves.length === 0 ? <p className="text-text-muted">Belum ada kas masuk atau keluar.</p> : (
+                  <ul className="grid gap-4" data-testid="cash-list">{moves.map((m) => <li key={m.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{hhmm(m.occurredAt)} · {m.reason}</span><span className="cg-num">{m.kind === 'out' ? '-' : '+'}{formatRp(m.amount)}</span></li>)}</ul>
+                )}
+              </section>
               <section aria-labelledby="sh-produk">
                 <h3 id="sh-produk" className="text-base mb-8">Produk terjual</h3>
                 {r.productsSold.length === 0 ? <p className="text-text-muted">Belum ada produk terjual.</p> : (
@@ -74,6 +89,42 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
           <button className="cg-btn cg-btn--primary" data-autofocus onClick={onClose}>Selesai</button>
         </div>
       </div>
+      {cashDlg && <CashDialog kind={cashDlg} onClose={() => setCashDlg(null)} onSave={async (amount, reason) => {
+        await data.addCashMovement({ id: newId(), shiftId: shift.id, kind: cashDlg, amount, reason, employeeId: session.employee.id });
+        setCashDlg(null); sum.reload();
+      }} />}
+    </Modal>
+  );
+}
+
+/** Catat uang yang masuk atau keluar dari laci di luar penjualan (mis. beli es batu, tambah uang kembalian). */
+function CashDialog({ kind, onClose, onSave }: { kind: 'in' | 'out'; onClose: () => void; onSave: (amount: number, reason: string) => Promise<void> }) {
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const a = Number(amount.replace(/[^\d]/g, ''));
+    if (!Number.isFinite(a) || a <= 0) { setErr('Jumlah harus lebih dari 0.'); return; }
+    if (reason.trim().length < 3) { setErr('Alasan wajib diisi (minimal 3 huruf).'); return; }
+    setBusy(true); setErr('');
+    try { await onSave(a, reason); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Gagal mencatat kas.'); setBusy(false); }
+  }
+  return (
+    <Modal title={kind === 'in' ? 'Kas masuk' : 'Kas keluar'} onClose={onClose} labelledBy="cash-title">
+      <form onSubmit={submit} className="grid gap-12" noValidate>
+        <label className="grid gap-4"><span className="text-sm">Jumlah (Rp)</span>
+          <input className="cg-input" inputMode="numeric" data-autofocus data-testid="cash-amount" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+        <label className="grid gap-4"><span className="text-sm">Alasan</span>
+          <input className="cg-input" data-testid="cash-reason" value={reason} maxLength={120} onChange={(e) => setReason(e.target.value)} placeholder={kind === 'in' ? 'Mis. tambah uang kembalian' : 'Mis. beli es batu'} /></label>
+        {err && <p role="alert" className="text-sm text-danger-strong" data-testid="cash-err">{err}</p>}
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>Batal</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy} data-testid="cash-save">Simpan</button>
+        </div>
+      </form>
     </Modal>
   );
 }
