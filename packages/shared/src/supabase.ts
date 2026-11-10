@@ -10,6 +10,7 @@ import {
 } from './purchasing';
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf,
@@ -1300,6 +1301,21 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { data, error } = await db().rpc('auth_code_use', { p_device: r.device!.id, p_code: normalizeAuthCode(code), p_permission: permission, p_order: orderId ?? null });
       if (error) throw mapAuthCodeError(error);
       return typeof data === 'string' ? data : null;
+    },
+
+    // ---------- log aktivitas ----------
+    async listActivity(q: ActivityQuery = {}) {
+      const { data, error } = await db().rpc('activity_list', { p_from: q.from ?? null, p_to: q.to ?? null, p_entity: q.entity ?? null, p_limit: q.limit ?? 200 });
+      if (error) throw error.code === '42501' || /no access/i.test(error.message ?? '') ? new DataError('forbidden', 'Hanya pemilik, admin, atau manajer yang boleh melihat log aktivitas.') : error;
+      return ((data ?? []) as Row[]).map((r): ActivityRow => {
+        const d = (r.detail ?? {}) as { name?: unknown; changes?: unknown };
+        return {
+          id: r.id, at: r.created_at, action: r.action, entity: r.entity,
+          ...(r.entity_id ? { entityId: r.entity_id as string } : {}), ...(r.outlet_id ? { outletId: r.outlet_id as string } : {}),
+          ...(r.actor_user_id ? { actorUserId: r.actor_user_id as string } : {}), ...(r.actor_email ? { actorEmail: r.actor_email as string } : {}),
+          ...(typeof d.name === 'string' && d.name ? { name: d.name } : {}), changes: parseChanges(d.changes),
+        };
+      });
     },
 
     // ---------- keuangan ----------

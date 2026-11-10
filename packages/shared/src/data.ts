@@ -6,6 +6,7 @@ import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoice
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
+import type { ActivityQuery, ActivityRow } from './activity';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -217,5 +218,9 @@ export interface DataLayer {
   revokeAuthCode(id: string): Promise<boolean>;
   /** Kasir (perangkat): tukar kode dengan identitas penerbit; null bila salah, kedaluwarsa, sudah dipakai, atau perangkat dikunci karena terlalu banyak salah. Hanya online. */
   useAuthCode(code: string, permission: AuthCodePermission, orderId?: string): Promise<string | null>;
+
+  // ---------- log aktivitas ----------
+  /** Dashboard (pemilik/admin/manajer): perubahan pengaturan dan kejadian sistem, terbaru dulu. Bawaan 30 hari terakhir, paling banyak 200. */
+  listActivity(q?: ActivityQuery): Promise<ActivityRow[]>;
 }
 

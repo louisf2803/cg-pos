@@ -5,6 +5,7 @@ import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, 
 import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
+import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
 import type {
@@ -159,6 +160,21 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     { id: 'demo-code-free', code: '13572468', permission: 'complimentary', note: 'Contoh untuk demo', issuedAt: now().toISOString(), expiresAt: new Date(now().getTime() + 86400000).toISOString() },
   ];
   let authCodeFails: number[] = [];
+  // contoh log untuk demo/tes tampilan; kolom diisi seperti keluaran database (`{kolom: [lama, baru]}`)
+  const ago = (min: number) => new Date(now().getTime() - min * 60000).toISOString();
+  const activityLog: ActivityRow[] = ([
+    ['a1', 20, 'product.updated', 'product', 'Kopi susu', { price: [22000, 24000], description: [null, 'Espresso, susu segar, gula aren'] }],
+    ['a2', 95, 'employee.pin_changed', 'employee', 'Sari', {}],
+    ['a3', 400, 'tax.updated', 'tax', 'PB1', { rate: [10, 11], is_active: [false, true] }],
+    ['a4', 1500, 'product.created', 'product', 'Es teh tarik', {}],
+    ['a5', 2900, 'table.deleted', 'table', 'Meja 12', {}],
+    ['a6', 4300, 'order.finalize_failed', 'order', 'KOP/01/0042', {}],
+    ['a7', 9000, 'outlet_settings.updated', 'outlet_settings', '', { service_charge_rate: [0, 5] }],
+  ] as [string, number, string, string, string, Record<string, [unknown, unknown]>][]).map(([id, min, action, entity, name, ch], i) => ({
+    id: `demo-log-${id}`, at: ago(min), action, entity, entityId: `demo-ent-${i}`, ...(name ? { name } : {}),
+    actorUserId: action.startsWith('order.') ? undefined : 'u-owner', actorEmail: action.startsWith('order.') ? undefined : i % 2 ? 'budi@contoh.id' : 'pemilik@contoh.id',
+    changes: parseChanges(ch),
+  }));
   let stored: FakeEntry[] = [];
   const seqOf = new Map<string, number>();
   let extraGroups: ExtraGroup[] = [];
@@ -1081,6 +1097,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (!c) { authCodeFails.push(t.getTime()); return null; }
       c.usedAt = t.toISOString(); authCodeFails = [];
       return 'e-owner';
+    },
+    async listActivity(q: ActivityQuery = {}) {
+      const to = q.to ? new Date(q.to).getTime() : now().getTime() + 86400000;
+      const from = q.from ? new Date(q.from).getTime() : now().getTime() - 30 * 86400000;
+      return clone(activityLog
+        .filter((r) => { const t = new Date(r.at).getTime(); return t >= from && t < to && (!q.entity || r.entity === q.entity); })
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .slice(0, Math.max(1, Math.min(q.limit ?? 200, 500))));
     },
     async listAccounts() { return clone([...accounts].sort((a, b) => a.code.localeCompare(b.code))); },
     async saveAccount(input: AccountInput) {
