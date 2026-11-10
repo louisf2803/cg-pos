@@ -33,6 +33,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const prods = useAsync(() => data.listProducts(), [data]);
   const extraGroups = useAsync<ExtraGroup[]>(() => data.listExtraGroups().catch(() => []), [data]);
   const [extraFor, setExtraFor] = useState<Product | null>(null);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [cat, setCat] = useState<string | 'all'>('all');
   const [q, setQ] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
@@ -239,110 +240,354 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 
       <aside className="cg-shell__panel reg__panel" aria-label="Pesanan">
         <div className="p-12 border-b border-border grid gap-8">
+          {/* 1. Header Pesanan dengan nomor transaksi kecil abu */}
           <div className="flex items-center justify-between">
-            <h2 className="text-lg">Pesanan</h2>
-            <span className="flex gap-4">
-              <button className="cg-btn cg-btn--ghost cg-btn--sm" disabled={!cart.state.lines.length} onClick={() => cart.dispatch({ t: 'clear' })}>Kosongkan</button>
-              <button className="cg-btn cg-btn--secondary cg-btn--sm reg__close" onClick={() => setPanelOpen(false)}>Tutup</button>
-            </span>
-          </div>
-          <div className="cg-tabs" role="tablist" aria-label="Jenis pesanan">
-            {TYPES.map((t) => <button key={t.v} role="tab" className="cg-tab" aria-selected={cart.state.type === t.v} onClick={() => cart.dispatch({ t: 'type', type: t.v })}>{t.label}</button>)}
-          </div>
-          <div className="flex gap-8">
-            <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setCustPick(true)}
-              aria-label={cart.state.customerId ? `Pelanggan ${cart.state.customerName ?? ''}, ganti pelanggan` : 'Pilih pelanggan'}>
-              <span className="flex items-center gap-8 min-w-0"><UserRound className="cg-icon cg-icon--sm" aria-hidden /><span className="truncate">{cart.state.customerId ? cart.state.customerName : 'Pelanggan'}</span></span>
-              {!cart.state.customerId && <span className="text-text-muted text-sm">Opsional</span>}
+            <div>
+              <h2 className="text-base font-bold text-text">Pesanan</h2>
+              <span className="text-xs text-text-muted font-mono">
+                {cart.state.orderId ? `#${cart.state.orderId.slice(-8).toUpperCase()}` : '#BARU'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm reg__close"
+              onClick={() => setPanelOpen(false)}
+            >
+              Tutup
             </button>
-            {cart.state.customerId && <button className="cg-btn cg-btn--ghost" aria-label="Lepas pelanggan" onClick={() => cart.dispatch({ t: 'customer' })}><X className="cg-icon cg-icon--sm" aria-hidden /></button>}
           </div>
+
+          {/* Jenis Pesanan dan Tombol Pelanggan Sebaris (Dua kolom sama lebar) */}
+          <div className="grid grid-cols-2 gap-8 items-stretch">
+            {/* Kolom 1: Jenis Pesanan */}
+            <div className="relative">
+              <select
+                className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface"
+                value={cart.state.type}
+                onChange={(e) => cart.dispatch({ t: 'type', type: e.target.value as OrderType })}
+                aria-label="Jenis pesanan"
+              >
+                {TYPES.map((t) => (
+                  <option key={t.v} value={t.v}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Kolom 2: Tombol Pelanggan */}
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary h-[38px] text-xs w-full flex items-center justify-between px-8"
+                onClick={() => setCustPick(true)}
+                aria-label={cart.state.customerId ? `Pelanggan ${cart.state.customerName ?? ''}, ganti pelanggan` : 'Pilih pelanggan'}
+              >
+                <span className="flex items-center gap-6 min-w-0">
+                  <UserRound className="cg-icon cg-icon--xs shrink-0" aria-hidden />
+                  <span className="truncate font-semibold">{cart.state.customerId ? cart.state.customerName : 'Pelanggan'}</span>
+                </span>
+                {!cart.state.customerId && <span className="text-text-muted text-[10px]">Opsional</span>}
+              </button>
+              {cart.state.customerId && (
+                <button
+                  type="button"
+                  className="cg-btn cg-btn--ghost p-6 h-[38px]"
+                  aria-label="Lepas pelanggan"
+                  onClick={() => cart.dispatch({ t: 'customer' })}
+                >
+                  <X className="cg-icon cg-icon--xs" aria-hidden />
+                </button>
+              )}
+            </div>
+          </div>
+
           {cart.state.type !== 'dine_in' && (
-            <label className="cg-field"><span className="cg-sr">{LABEL_HINT[cart.state.type]}</span>
-              <input className="cg-input" placeholder={LABEL_HINT[cart.state.type]} maxLength={60} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: undefined })} />
+            <label className="cg-field">
+              <span className="cg-sr">{LABEL_HINT[cart.state.type]}</span>
+              <input
+                className="cg-input h-[34px] text-xs"
+                placeholder={LABEL_HINT[cart.state.type]}
+                maxLength={60}
+                value={cart.state.label ?? ''}
+                onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: undefined })}
+              />
             </label>
           )}
+
           {cart.state.type === 'dine_in' && (
-            <div className="grid gap-8">
-              <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setTablePick(true)} aria-label={cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}, ganti meja` : 'Pilih meja'}>
-                <span>{cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}` : 'Pilih meja'}</span><span className="text-text-muted">{cart.state.tableId ? 'Ganti' : 'Opsional'}</span>
+            <div className="grid gap-6">
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary cg-btn--block flex justify-between h-[34px] text-xs"
+                onClick={() => setTablePick(true)}
+                aria-label={cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}, ganti meja` : 'Pilih meja'}
+              >
+                <span>{cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}` : 'Pilih meja'}</span>
+                <span className="text-text-muted">{cart.state.tableId ? 'Ganti' : 'Opsional'}</span>
               </button>
-              <div className="grid grid-cols-[1fr_96px] gap-8">
-                <label className="cg-field"><span className="cg-sr">Nama pesanan</span>
-                  <input className="cg-input" placeholder={LABEL_HINT.dine_in} maxLength={40} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: cart.state.guestCount })} />
+              <div className="grid grid-cols-[1fr_80px] gap-6">
+                <label className="cg-field">
+                  <span className="cg-sr">Nama pesanan</span>
+                  <input
+                    className="cg-input h-[34px] text-xs"
+                    placeholder={LABEL_HINT.dine_in}
+                    maxLength={40}
+                    value={cart.state.label ?? ''}
+                    onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: cart.state.guestCount })}
+                  />
                 </label>
-                <label className="cg-field"><span className="cg-sr">Jumlah tamu</span>
-                  <input className="cg-input" inputMode="numeric" placeholder="Tamu" value={cart.state.guestCount ?? ''} onChange={(e) => { const n = parseInt(e.target.value.replace(/\D/g, ''), 10); cart.dispatch({ t: 'meta', label: cart.state.label, guestCount: Number.isFinite(n) && n > 0 ? Math.min(n, 99) : undefined }); }} />
+                <label className="cg-field">
+                  <span className="cg-sr">Jumlah tamu</span>
+                  <input
+                    className="cg-input h-[34px] text-xs"
+                    inputMode="numeric"
+                    placeholder="Tamu"
+                    value={cart.state.guestCount ?? ''}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                      cart.dispatch({ t: 'meta', label: cart.state.label, guestCount: Number.isFinite(n) && n > 0 ? Math.min(n, 99) : undefined });
+                    }}
+                  />
                 </label>
               </div>
             </div>
           )}
         </div>
-        <div className="cg-shell__lines">
-          {cart.state.lines.length === 0
-            ? <div className="cg-empty"><h3>Pesanan masih kosong</h3><p>Ketuk produk untuk menambahkannya.</p></div>
-            : <ul>{cart.state.lines.map((l) => {
-              const total = cart.calc.lines.find((x) => x.id === l.id)?.lineTotal ?? 0;
-              return (
-                <li key={l.id} className="cg-line" style={{ cursor: 'default' }}>
-                  <span className="cg-line__name break-words min-w-0">{l.name}{l.extras?.length ? <span className="block text-text-muted text-sm font-normal">{l.extras.map((e) => e.name).join(', ')}</span> : null}</span>
-                  <span className="cg-line__amount cg-num">{formatRp(total)}</span>
-                  <span className="cg-line__sub">{l.qty} × {formatRp(l.unitPrice + extrasPerUnit(l.extras))}</span>
-                  {noteFor === l.id
-                    ? <input className="cg-input" style={{ gridColumn: '1 / -1', marginTop: 8 }} autoFocus maxLength={120} placeholder="Catatan untuk dapur, mis. tanpa es" aria-label={`Catatan ${l.name}`}
-                      value={l.note ?? ''} onChange={(e) => cart.dispatch({ t: 'note', lineId: l.id, note: e.target.value })}
-                      onBlur={() => setNoteFor(null)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setNoteFor(null); } }} />
-                    : <button className="cg-btn cg-btn--ghost cg-btn--sm break-words text-left" style={{ gridColumn: '1 / -1', justifySelf: 'start' }} onClick={() => setNoteFor(l.id)}
-                      aria-label={l.note ? `Ubah catatan ${l.name}: ${l.note}` : `Tambah catatan ${l.name}`}>{l.note ? `Catatan: ${l.note}` : '+ Catatan'}</button>}
-                  {l.overridePct && l.basePrice !== undefined && (priceFor?.id === l.id
-                    ? (
-                      <form style={{ gridColumn: '1 / -1', marginTop: 8 }} className="grid gap-4" noValidate onSubmit={(e) => {
-                        e.preventDefault();
-                        const price = Number(priceFor.text.replace(/\./g, '').replace(',', '.'));
-                        const problem = priceOverrideProblem(l.basePrice!, l.overridePct!, price);
-                        if (problem) return setPriceFor({ ...priceFor, err: problem });
-                        cart.dispatch({ t: 'price', lineId: l.id, unitPrice: price }); setPriceFor(null);
-                      }}>
-                        <label className="cg-label" htmlFor={`harga-${l.id}`}>Harga baru {l.name} (daftar {formatRp(l.basePrice)})</label>
-                        <div className="flex gap-8"><input id={`harga-${l.id}`} className="cg-input cg-num" inputMode="numeric" autoFocus value={priceFor.text}
-                          onChange={(e) => setPriceFor({ ...priceFor, text: e.target.value.replace(/[^\d.,]/g, ''), err: '' })} onKeyDown={(e) => { if (e.key === 'Escape') setPriceFor(null); }} />
-                        <button className="cg-btn cg-btn--primary">Pakai</button><button type="button" className="cg-btn cg-btn--ghost" onClick={() => setPriceFor(null)}>Batal</button></div>
-                        {priceFor.err && <p role="alert" className="text-sm text-danger-strong break-words">{priceFor.err}</p>}
-                      </form>
-                    )
-                    : <button className="cg-btn cg-btn--ghost cg-btn--sm" style={{ gridColumn: '1 / -1', justifySelf: 'start' }} onClick={() => setPriceFor({ id: l.id, text: String(l.unitPrice), err: '' })}
-                      aria-label={`Ubah harga ${l.name}`}>{l.unitPrice === l.basePrice ? 'Ubah harga' : `Harga diubah dari ${formatRp(l.basePrice)}`}</button>)}
-                  <span className="cg-stepper" style={{ gridColumn: '1 / -1', justifySelf: 'start', marginTop: 8 }}>
-                    <button onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })} aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}>{l.qty === 1 ? <Trash2 className="cg-icon cg-icon--sm" aria-hidden /> : <Minus className="cg-icon cg-icon--sm" aria-hidden />}</button>
-                    <output aria-label={`Jumlah ${l.name}`}>{l.qty}</output>
-                    <button onClick={() => { const pr = prods.status === 'ready' ? prods.data.find((x) => x.id === l.productId) : undefined; if (pr && !stockOk(pr)) return; cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty + 1 }); }} aria-label={`Tambah ${l.name}`}><Plus className="cg-icon cg-icon--sm" aria-hidden /></button>
-                  </span>
-                </li>
-              );
-            })}</ul>}
+
+        {/* 2. Baris pesanan: jumlah di kiri, nama, harga di kanan, ekstra/catatan kecil di bawah nama, tombol hapus merah bulat di ujung kanan */}
+        <div className="cg-shell__lines p-8 overflow-y-auto">
+          {cart.state.lines.length === 0 ? (
+            <div className="cg-empty py-24">
+              <h3>Pesanan masih kosong</h3>
+              <p>Ketuk produk untuk menambahkannya.</p>
+            </div>
+          ) : (
+            <ul className="space-y-6">
+              {cart.state.lines.map((l) => {
+                const total = cart.calc.lines.find((x) => x.id === l.id)?.lineTotal ?? 0;
+                const isSelected = selectedLineId === l.id;
+                return (
+                  <li
+                    key={l.id}
+                    className={`p-8 rounded-lg border transition-colors cursor-pointer ${
+                      isSelected ? 'border-accent bg-surface-raised shadow-xs' : 'border-border bg-surface hover:border-border-input'
+                    }`}
+                    onClick={() => setSelectedLineId(isSelected ? null : l.id)}
+                  >
+                    <div className="flex items-start gap-8">
+                      {/* Jumlah di kiri */}
+                      <span className="w-24 h-24 rounded bg-surface-raised border border-border text-xs font-bold flex items-center justify-center shrink-0">
+                        {l.qty}
+                      </span>
+
+                      {/* Nama & Ekstra/Catatan */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-text break-words leading-tight">{l.name}</p>
+                        {l.extras?.length ? (
+                          <p className="text-[11px] text-text-muted mt-2">{l.extras.map((e) => e.name).join(', ')}</p>
+                        ) : null}
+                        {l.note ? (
+                          <p className="text-[11px] text-accent italic mt-2">Catatan: {l.note}</p>
+                        ) : null}
+                      </div>
+
+                      {/* Harga di kanan */}
+                      <span className="text-xs font-bold text-text tabular-nums shrink-0">
+                        {formatRp(total)}
+                      </span>
+
+                      {/* Tombol hapus merah bulat di ujung kanan */}
+                      <button
+                        type="button"
+                        className="w-24 h-24 rounded-full bg-danger/10 hover:bg-danger text-danger hover:text-white flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+                        aria-label={`Hapus ${l.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cart.dispatch({ t: 'qty', lineId: l.id, qty: 0 });
+                        }}
+                      >
+                        <Trash2 className="w-12 h-12" aria-hidden />
+                      </button>
+                    </div>
+
+                    {/* Stepper ringkas & aksi (muncul saat baris dipilih) */}
+                    {isSelected && (
+                      <div
+                        className="mt-8 pt-6 border-t border-border flex items-center justify-between gap-8 flex-wrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Stepper ringkas */}
+                        <div className="flex items-center gap-4">
+                          <button
+                            type="button"
+                            className="w-28 h-28 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
+                            onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })}
+                            aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}
+                          >
+                            {l.qty === 1 ? <Trash2 className="w-12 h-12" /> : <Minus className="w-12 h-12" />}
+                          </button>
+                          <span className="w-28 text-center text-xs font-bold tabular-nums">{l.qty}</span>
+                          <button
+                            type="button"
+                            className="w-28 h-28 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
+                            onClick={() => {
+                              const pr = prods.status === 'ready' ? prods.data.find((x) => x.id === l.productId) : undefined;
+                              if (pr && !stockOk(pr)) return;
+                              cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty + 1 });
+                            }}
+                            aria-label={`Tambah ${l.name}`}
+                          >
+                            <Plus className="w-12 h-12" />
+                          </button>
+                        </div>
+
+                        {/* Catatan toggle & Ubah harga */}
+                        <div className="flex items-center gap-6">
+                          {noteFor === l.id ? (
+                            <input
+                              className="cg-input h-[28px] text-xs px-6"
+                              autoFocus
+                              maxLength={120}
+                              placeholder="Catatan..."
+                              value={l.note ?? ''}
+                              onChange={(e) => cart.dispatch({ t: 'note', lineId: l.id, note: e.target.value })}
+                              onBlur={() => setNoteFor(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === 'Escape') {
+                                  e.preventDefault();
+                                  setNoteFor(null);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-xs text-text-muted hover:text-accent font-medium underline"
+                              onClick={() => setNoteFor(l.id)}
+                            >
+                              {l.note ? 'Ubah catatan' : '+ Catatan'}
+                            </button>
+                          )}
+
+                          {l.overridePct && l.basePrice !== undefined && (
+                            <button
+                              type="button"
+                              className="text-xs text-text-muted hover:text-accent font-medium underline"
+                              onClick={() => setPriceFor({ id: l.id, text: String(l.unitPrice), err: '' })}
+                            >
+                              Ubah harga
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
-        {cart.state.lines.length > 0 && (
-          <div className="px-12 pb-8 grid gap-4">
-            <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setDiscOpen(true)}
-              aria-label={cart.discounts.total > 0 ? `Diskon dan promo, terpasang ${formatRp(cart.discounts.total)}` : 'Diskon dan promo'}>
-              <span className="flex items-center gap-8"><Tag className="cg-icon cg-icon--sm" aria-hidden /> Diskon dan promo</span>
-              <span className={cart.discounts.total > 0 ? 'cg-num' : 'text-text-muted text-sm'}>{cart.discounts.total > 0 ? `-${formatRp(cart.discounts.total)}` : 'Opsional'}</span>
+
+        {/* 3. Dasar kolom keranjang: tiga tombol ikon sebaris (kosongkan, diskon/promo, simpan), Kirim ke dapur, batang hijau penuh Bayar */}
+        <div className="p-12 border-t border-border grid gap-8 bg-surface-raised mt-auto">
+          {cart.state.lines.length > 0 && (
+            <div className="pb-4 grid gap-4">
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary cg-btn--block flex justify-between"
+                onClick={() => setDiscOpen(true)}
+                aria-label={cart.discounts.total > 0 ? `Diskon dan promo, terpasang ${formatRp(cart.discounts.total)}` : 'Diskon dan promo'}
+              >
+                <span className="flex items-center gap-8"><Tag className="cg-icon cg-icon--sm" aria-hidden /> Diskon dan promo</span>
+                <span className={cart.discounts.total > 0 ? 'cg-num' : 'text-text-muted text-sm'}>
+                  {cart.discounts.total > 0 ? `-${formatRp(cart.discounts.total)}` : 'Opsional'}
+                </span>
+              </button>
+              {cart.discounts.skipped.map((d) => (
+                <p key={d.id} role="status" className="text-sm text-danger-strong break-words">
+                  {d.label} tidak berlaku lagi: {d.reason}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <Totals calc={cart.calc} />
+
+          {/* Tiga tombol ikon sebaris: kosongkan, diskon/promo, simpan */}
+          <div className="grid grid-cols-3 gap-6">
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm flex items-center justify-center gap-4 text-xs"
+              disabled={!cart.state.lines.length}
+              onClick={() => cart.dispatch({ t: 'clear' })}
+              title="Kosongkan pesanan"
+              aria-label="Kosongkan pesanan"
+            >
+              <Trash2 className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Kosongkan</span>
             </button>
-            {cart.discounts.skipped.map((d) => <p key={d.id} role="status" className="text-sm text-danger-strong break-words">{d.label} tidak berlaku lagi: {d.reason}</p>)}
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm flex items-center justify-center gap-4 text-xs"
+              onClick={() => setDiscOpen(true)}
+              title="Diskon dan promo"
+              aria-label="Diskon dan promo"
+            >
+              <Tag className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Diskon</span>
+            </button>
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm flex items-center justify-center gap-4 text-xs"
+              disabled={!cart.state.lines.length || placing}
+              onClick={hold}
+              title="Simpan pesanan"
+              aria-label="Simpan pesanan"
+            >
+              <Save className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Simpan</span>
+            </button>
           </div>
-        )}
-        <Totals calc={cart.calc} />
+
+          {/* Tombol sekunder: Kirim ke dapur */}
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm w-full flex items-center justify-center gap-6"
+            disabled={!cart.state.lines.length || placing}
+            onClick={toKitchen}
+            aria-label="Kirim ke dapur"
+          >
+            <ChefHat className="cg-icon cg-icon--xs" aria-hidden />
+            <span>Kirim ke dapur</span>
+          </button>
+
+          {/* Batang hijau penuh lebar Bayar dengan lencana jumlah item di kiri dan total di kanan */}
+          <button
+            type="button"
+            className="w-full h-[48px] px-16 rounded-lg bg-accent hover:bg-accent-hover text-on-accent font-bold flex items-center justify-between shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            disabled={!cart.state.lines.length || placing}
+            aria-busy={placing}
+            onClick={pay}
+            aria-label={`Bayar ${cart.state.lines.length ? formatRp(cart.calc.total) : ''}`}
+          >
+            <span className="flex items-center gap-8">
+              <span className="w-24 h-24 rounded-full bg-white/20 text-white text-xs font-bold flex items-center justify-center">
+                {cart.count}
+              </span>
+              <span>Bayar</span>
+            </span>
+            <span className="tabular-nums font-extrabold text-base">
+              {formatRp(cart.calc.total)}
+            </span>
+          </button>
+        </div>
       </aside>
 
       <footer className="cg-shell__bar">
         {saveErr && <span role="alert" className="text-danger-strong text-sm flex-1">{saveErr}</span>}
         {!saveErr && notice && <span role="status" className="text-sm flex-1">{notice}</span>}
-        <button className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
-        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={toKitchen} aria-label="Kirim ke dapur"><ChefHat className="cg-icon cg-icon--sm" aria-hidden /><span className="reg__lbl">Kirim ke dapur</span></button>
-        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={hold} aria-label="Simpan"><Save className="cg-icon cg-icon--sm" aria-hidden /><span className="reg__lbl">Simpan</span></button>
-        <button className="cg-btn cg-btn--primary cg-btn--lg ml-auto reg__pay" disabled={!cart.state.lines.length || placing} aria-busy={placing} onClick={pay}>
-          Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
-        </button>
+        <button type="button" className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
       </footer>
       {shiftOpen && <ShiftSummary onClose={() => setShiftOpen(false)} onCloseShift={() => { setShiftOpen(false); onCloseShift(); }} />}
       {settings && <DeviceSettings onClose={() => setSettings(false)} />}

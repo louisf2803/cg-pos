@@ -24,6 +24,8 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Order | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [isSplit, setIsSplit] = useState(false);
+  const [showCustomInput, setShowCustomInput] = useState(false);
   // satu id per upaya bayar: ketuk dua kali tidak menggandakan pembayaran (kontrak idempoten dengan server)
   const attemptId = useRef(newId());
 
@@ -96,98 +98,345 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   }
 
   return (
-    <main className="min-h-full grid desktop:grid-cols-[1fr_1fr] tablet:grid-cols-[1fr_1fr] content-start">
-      <header className="col-span-full flex items-center gap-12 px-16 h-[var(--layout-pos-header)] border-b border-border bg-surface-raised">
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onBack} disabled={busy}><ArrowLeft className="cg-icon" aria-hidden /> Kembali ke pesanan</button>
-        <strong className="ml-auto">{order.number}</strong>
+    <main className="min-h-full flex flex-col bg-bg">
+      {/* Header */}
+      <header className="flex items-center gap-12 px-16 h-[var(--layout-pos-header,56px)] border-b border-border bg-surface-raised shrink-0">
+        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onBack} disabled={busy}>
+          <ArrowLeft className="cg-icon" aria-hidden /> Kembali ke pesanan
+        </button>
+        <strong className="ml-auto font-mono text-sm">{order.number}</strong>
       </header>
 
-      <section className="p-16 grid gap-12 content-start" aria-labelledby="h-metode">
-        <h1 id="h-metode" className="text-lg">Pilih cara bayar</h1>
-        {methods.status === 'loading' && <div className="grid gap-8" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 56 }} />)}</div>}
-        {methods.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert"><span>Metode bayar gagal dimuat. {methods.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={methods.reload}>Coba lagi</button></div>}
-        <div className="cg-methods" role="radiogroup" aria-label="Metode pembayaran">
-          {cashFirst.map((m) => {
-            const Icon = ICON[m.kind];
-            const off = m.kind === 'gateway';
-            return (
-              <button key={m.id} role="radio" aria-checked={methodId === m.id} aria-disabled={off} className="cg-method"
-                onClick={() => { if (off) return; setMethodId(m.id); setRaw(''); setAmountRaw(''); setReference(''); setErr(''); attemptId.current = newId(); }}>
-                <Icon className="cg-icon" aria-hidden /> {m.name}
-                {off && <small>Segera hadir</small>}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="p-16 grid gap-16 content-start border-t tablet:border-t-0 tablet:border-l border-border" aria-labelledby="h-tagihan">
-        <h2 id="h-tagihan" className="text-lg">Tagihan</h2>
-        <div className="grid gap-4">
-          <p className="text-text-muted text-sm">{current.paidTotal > 0 ? 'Sisa tagihan' : 'Total tagihan'}</p>
-          <p className="cg-money-lg">{formatRp(method ? due : current.total - current.paidTotal)}</p>
-          {method && rounding !== 0 && <p className="text-text-muted text-sm">Sudah termasuk pembulatan {rounding > 0 ? '+' : ''}{formatRp(rounding)}</p>}
-        </div>
-
-        {current.payments.length > 0 && (
-          <ul className="grid gap-4 text-sm" aria-label="Pembayaran yang sudah dicatat">
-            {current.payments.map((p) => <li key={p.id} className="flex justify-between"><span>{p.methodName}</span><span className="cg-num">{formatRp(p.amount)}</span></li>)}
-          </ul>
-        )}
-        {partial && !method && <div className="cg-banner cg-banner--info" role="status"><span>Pembayaran tercatat. Pilih cara bayar lain untuk sisa {formatRp(partial.total - partial.paidTotal)}.</span></div>}
-        {!method && !partial && <div className="cg-banner cg-banner--info"><span>Pilih cara bayar di sebelah kiri atau di atas. Bisa dibayar dengan beberapa cara.</span></div>}
-
-        {method && (
-          <div className="cg-field">
-            <label className="cg-label" htmlFor="jumlah">Jumlah dibayar dengan {method.name} (Rp)</label>
-            <input id="jumlah" className="cg-input" inputMode="numeric" value={amountRaw} placeholder={String(due)}
-              onChange={(e) => { setAmountRaw(e.target.value); setErr(''); }} />
-            {due > 0 && amount > 0 && amount < due && <p className="text-text-muted text-sm">Sisa {formatRp(due - amount)} dibayar dengan cara lain.</p>}
+      {/* 4 & 5. Baris Atas: 3 Angka Sebaris & Baris Aksi */}
+      <div className="p-16 border-b border-border bg-surface shrink-0 grid gap-12">
+        <div className="grid grid-cols-3 gap-8 p-12 rounded-xl bg-surface-raised border border-border">
+          <div className="text-center">
+            <span className="text-xs text-text-muted font-medium">Total tagihan</span>
+            <p className="text-base tablet:text-xl font-bold text-text tabular-nums mt-2">{formatRp(target)}</p>
           </div>
-        )}
+          <div className="text-center border-x border-border px-8">
+            <span className="text-xs text-text-muted font-medium">Sisa tagihan</span>
+            <p className={`text-base tablet:text-xl font-bold tabular-nums mt-2 ${due > 0 ? 'text-danger-strong' : 'text-text'}`}>
+              {formatRp(due)}
+            </p>
+          </div>
+          <div className="text-center">
+            <span className="text-xs text-text-muted font-medium">Kembalian</span>
+            <p className="text-base tablet:text-xl font-bold text-info tabular-nums mt-2">{formatRp(change)}</p>
+          </div>
+        </div>
 
-        {method && isCash && (
-          <>
+        <div className="flex items-center gap-8">
+          <button
+            type="button"
+            className={`cg-chip ${isSplit ? 'cg-chip--active' : ''}`}
+            onClick={() => setIsSplit(!isSplit)}
+            title="Bayar dengan beberapa cara / jumlah terpisah"
+          >
+            Pisah bayar
+          </button>
+          <button
+            type="button"
+            className="cg-chip opacity-50 cursor-not-allowed"
+            disabled
+            title="Catatan segera hadir"
+          >
+            Catatan (segera)
+          </button>
+        </div>
+      </div>
+
+      {/* Konten 3 Kolom di Desktop (Kiri: Metode, Tengah: Nominal/Input, Kanan: Ringkasan Pesanan) */}
+      <div className="flex-1 grid grid-cols-1 desktop:grid-cols-[220px_1fr_320px] tablet:grid-cols-[200px_1fr] divide-y tablet:divide-y-0 tablet:divide-x divide-border overflow-y-auto">
+        {/* 6. KIRI: Rel Metode */}
+        <section className="p-16 grid gap-12 content-start bg-surface/50" aria-labelledby="h-metode">
+          <h2 id="h-metode" className="text-xs font-bold text-text-muted uppercase tracking-wider">Metode Bayar</h2>
+          <div className="cg-methods flex flex-col gap-8" role="radiogroup" aria-label="Metode pembayaran">
+            {cashFirst.map((m) => {
+              const Icon = ICON[m.kind];
+              const off = m.kind === 'gateway';
+              return (
+                <button
+                  key={m.id}
+                  role="radio"
+                  aria-checked={methodId === m.id}
+                  aria-disabled={off}
+                  className={`cg-method flex items-center justify-between p-12 rounded-lg border text-left font-medium transition-colors ${
+                    methodId === m.id ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-border bg-surface-raised hover:bg-surface'
+                  } ${off ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  onClick={() => {
+                    if (off) return;
+                    setMethodId(m.id);
+                    setRaw('');
+                    setAmountRaw('');
+                    setReference('');
+                    setErr('');
+                    attemptId.current = newId();
+                  }}
+                >
+                  <span className="flex items-center gap-8 min-w-0">
+                    <Icon className="cg-icon cg-icon--sm shrink-0" aria-hidden />
+                    <span className="truncate">{m.name}</span>
+                  </span>
+                  {off && <small className="text-[10px] text-text-muted">Segera hadir</small>}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* TENGAH: Nominal Cepat & Input Uang */}
+        <section className="p-16 grid gap-16 content-start bg-surface-raised" aria-labelledby="h-input-bayar">
+          <h2 id="h-input-bayar" className="text-xs font-bold text-text-muted uppercase tracking-wider">
+            {method ? `Pembayaran: ${method.name}` : 'Pilih Cara Bayar'}
+          </h2>
+
+          {partial && !method && (
+            <div className="cg-banner cg-banner--info" role="status">
+              <span>Pembayaran tercatat. Pilih cara bayar lain untuk sisa {formatRp(due)}.</span>
+            </div>
+          )}
+          {!method && !partial && (
+            <div className="cg-banner cg-banner--info">
+              <span>Pilih metode pembayaran di sebelah kiri untuk melanjutkan.</span>
+            </div>
+          )}
+
+          {method && isSplit && (
             <div className="cg-field">
-              <label className="cg-label" htmlFor="diterima">Uang diterima (Rp)</label>
-              <input id="diterima" className="cg-input" inputMode="numeric" autoFocus value={raw} placeholder={String(amount)}
-                onChange={(e) => { setRaw(e.target.value); setErr(''); }} aria-invalid={!!err} aria-describedby={err ? 'e-bayar' : undefined}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void confirm(); } }} />
+              <label className="cg-label font-semibold text-xs" htmlFor="jumlah">
+                Jumlah dibayar dengan {method.name} (Rp)
+              </label>
+              <input
+                id="jumlah"
+                className="cg-input"
+                inputMode="numeric"
+                value={amountRaw}
+                placeholder={String(due)}
+                onChange={(e) => {
+                  setAmountRaw(e.target.value);
+                  setErr('');
+                }}
+              />
+              {due > 0 && amount > 0 && amount < due && (
+                <p className="text-text-muted text-xs mt-2">Sisa {formatRp(due - amount)} dibayar dengan cara lain.</p>
+              )}
             </div>
-            <div className="flex flex-wrap gap-8" role="group" aria-label="Nominal cepat">
-              {quickCashAmounts(amount).map((a, i) => (
-                <button key={a} className="cg-chip" aria-pressed={tendered === a && raw !== ''} onClick={() => { setRaw(String(a)); setErr(''); }}>{i === 0 ? `Uang pas ${formatRp(a)}` : formatRp(a)}</button>
-              ))}
-            </div>
-            <div className="border border-border rounded-lg bg-surface p-16" aria-live="polite">
-              {shortfall > 0
-                ? <><p className="text-text-muted text-sm">Masih kurang</p><p className="text-xl cg-num text-danger-strong">{formatRp(shortfall)}</p></>
-                : <><p className="text-text-muted text-sm">Kembalian</p><p className="text-xl cg-num">{formatRp(change)}</p></>}
-            </div>
-          </>
-        )}
+          )}
 
-        {method && !isCash && method.kind !== 'complimentary' && (
-          <div className="cg-banner cg-banner--info"><span>Selesaikan pembayaran di perangkat {method.name}, lalu catat di sini sebesar {formatRp(amount)}.</span></div>
-        )}
-        {method && method.kind === 'complimentary' && (
-          <div className="cg-banner cg-banner--warning"><span>Pesanan ini tidak ditagih. Alasan wajib diisi dan tercatat di laporan.</span></div>
-        )}
-        {method && refField && (
-          <div className="cg-field">
-            <label className="cg-label" htmlFor="referensi">{refField.label}{refField.required ? '' : ' (boleh kosong)'}</label>
-            <input id="referensi" className="cg-input" value={reference} maxLength={PAYMENT_REF_MAX} placeholder={refField.hint}
-              onChange={(e) => { setReference(e.target.value); setErr(''); }} aria-required={refField.required}
-              aria-invalid={!!err && refField.required} aria-describedby={err ? 'e-bayar' : undefined} />
+          {method && isCash && (
+            <div className="space-y-12">
+              {/* Nominal Cepat */}
+              <div>
+                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-8">
+                  Pilihan Nominal Cepat
+                </span>
+                <div className="flex flex-wrap gap-8" role="group" aria-label="Nominal cepat">
+                  {quickCashAmounts(amount).map((a, i) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className={`cg-chip ${tendered === a && raw !== '' ? 'cg-chip--active' : ''}`}
+                      aria-pressed={tendered === a && raw !== ''}
+                      onClick={() => {
+                        setRaw(String(a));
+                        setShowCustomInput(false);
+                        setErr('');
+                      }}
+                    >
+                      {i === 0 ? `Uang pas ${formatRp(a)}` : formatRp(a)}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className={`cg-chip ${showCustomInput ? 'cg-chip--active' : ''}`}
+                    onClick={() => setShowCustomInput(true)}
+                  >
+                    Lainnya
+                  </button>
+                </div>
+              </div>
+
+              {/* Input Uang Diterima */}
+              <div className="cg-field">
+                <label className="cg-label font-semibold text-xs" htmlFor="diterima">
+                  Uang diterima (Rp)
+                </label>
+                <input
+                  id="diterima"
+                  className="cg-input"
+                  inputMode="numeric"
+                  autoFocus
+                  value={raw}
+                  placeholder={String(amount)}
+                  onChange={(e) => {
+                    setRaw(e.target.value);
+                    setErr('');
+                  }}
+                  aria-invalid={!!err}
+                  aria-describedby={err ? 'e-bayar' : undefined}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void confirm();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="border border-border rounded-lg bg-surface p-12" aria-live="polite">
+                {shortfall > 0 ? (
+                  <div>
+                    <p className="text-text-muted text-xs">Uang diterima masih kurang</p>
+                    <p className="text-lg cg-num font-bold text-danger-strong">{formatRp(shortfall)}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-text-muted text-xs">Kembalian</p>
+                    <p className="text-lg cg-num font-bold text-info">{formatRp(change)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {method && !isCash && method.kind !== 'complimentary' && (
+            <div className="cg-banner cg-banner--info">
+              <span>Selesaikan pembayaran di perangkat {method.name}, lalu catat di sini sebesar {formatRp(amount)}.</span>
+            </div>
+          )}
+
+          {method && method.kind === 'complimentary' && (
+            <div className="cg-banner cg-banner--warning">
+              <span>Pesanan ini tidak ditagih. Alasan wajib diisi dan tercatat di laporan.</span>
+            </div>
+          )}
+
+          {method && refField && (
+            <div className="cg-field">
+              <label className="cg-label font-semibold text-xs" htmlFor="referensi">
+                {refField.label}{refField.required ? '' : ' (boleh kosong)'}
+              </label>
+              <input
+                id="referensi"
+                className="cg-input"
+                value={reference}
+                maxLength={PAYMENT_REF_MAX}
+                placeholder={refField.hint}
+                onChange={(e) => {
+                  setReference(e.target.value);
+                  setErr('');
+                }}
+                aria-required={refField.required}
+                aria-invalid={!!err && refField.required}
+                aria-describedby={err ? 'e-bayar' : undefined}
+              />
+            </div>
+          )}
+
+          {method && method.kind === 'complimentary' && (
+            <ApproverFields a={approver} idPrefix="komplimen" what="pembayaran gratis" />
+          )}
+
+          {err && (
+            <p id="e-bayar" role="alert" className="cg-error">
+              {err}
+            </p>
+          )}
+        </section>
+
+        {/* 7. KANAN: Ringkasan Pesanan & Batang Terima Pembayaran */}
+        <section className="p-16 flex flex-col justify-between bg-surface/30 min-w-0" aria-labelledby="h-ringkasan">
+          <div>
+            <h2 id="h-ringkasan" className="text-xs font-bold text-text-muted uppercase tracking-wider mb-12">
+              Ringkasan Pesanan
+            </h2>
+
+            {/* Informasi Pelanggan & Nomor */}
+            <div className="p-10 rounded-lg bg-surface border border-border space-y-4 mb-12 text-xs">
+              <div className="flex justify-between">
+                <span className="text-text-muted">Pelanggan:</span>
+                <span className="font-bold text-text truncate max-w-[160px]">
+                  {order.customerName || 'Tanpa pelanggan'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-muted">Nomor Pesanan:</span>
+                <span className="font-mono font-semibold text-text">{order.number}</span>
+              </div>
+            </div>
+
+            {/* Daftar Baris Pesanan */}
+            <details className="mb-12 border border-border rounded-lg bg-surface text-xs" open>
+              <summary className="p-8 font-semibold cursor-pointer select-none text-text">
+                Rincian Item ({order.items.length})
+              </summary>
+              <div className="p-8 pt-0 max-h-[220px] overflow-y-auto divide-y divide-border/50">
+                {order.items.map((it) => (
+                  <div key={it.id} className="py-6 flex justify-between gap-8">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-text truncate">{it.qty}x {it.name}</p>
+                      {it.extras?.length ? (
+                        <p className="text-[10px] text-text-muted">{it.extras.map((e) => e.name).join(', ')}</p>
+                      ) : null}
+                    </div>
+                    <span className="tabular-nums font-semibold shrink-0 text-text">
+                      {formatRp(it.qty * it.unitPrice)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+
+            {/* Totals */}
+            <div className="space-y-4 text-xs py-8 border-t border-border">
+              <div className="flex justify-between text-text-muted">
+                <span>Subtotal</span>
+                <span className="tabular-nums text-text font-medium">{formatRp(order.subtotal)}</span>
+              </div>
+              {order.discountTotal > 0 && (
+                <div className="flex justify-between text-danger-strong">
+                  <span>Potongan</span>
+                  <span className="tabular-nums font-medium">-{formatRp(order.discountTotal)}</span>
+                </div>
+              )}
+              {order.taxTotal > 0 && (
+                <div className="flex justify-between text-text-muted">
+                  <span>Pajak</span>
+                  <span className="tabular-nums text-text font-medium">{formatRp(order.taxTotal)}</span>
+                </div>
+              )}
+              {rounding !== 0 && (
+                <div className="flex justify-between text-text-muted">
+                  <span>Pembulatan</span>
+                  <span className="tabular-nums text-text font-medium">{rounding > 0 ? '+' : ''}{formatRp(rounding)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-bold text-text pt-6 border-t border-border">
+                <span>Total Tagihan</span>
+                <span className="tabular-nums">{formatRp(target)}</span>
+              </div>
+            </div>
           </div>
-        )}
-        {method && method.kind === 'complimentary' && <ApproverFields a={approver} idPrefix="komplimen" what="pembayaran gratis" />}
 
-        {err && <p id="e-bayar" role="alert" className="cg-error">{err}</p>}
-        <button className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block" disabled={!method || busy || due <= 0 || amount <= 0} aria-busy={busy} onClick={() => void confirm()}>
-          {busy ? 'Memproses…' : method ? `Terima ${formatRp(isCash ? Math.max(tendered, 0) : amount)}` : 'Pilih cara bayar dulu'}
-        </button>
-      </section>
+          {/* Batang Terima Pembayaran di Dasar */}
+          <div className="pt-16 border-t border-border mt-auto">
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block h-[48px] font-bold text-sm"
+              disabled={!method || busy || due <= 0 || amount <= 0 || (isCash && tendered < amount)}
+              aria-busy={busy}
+              onClick={() => void confirm()}
+            >
+              {busy
+                ? 'Memproses…'
+                : method
+                ? `Terima ${formatRp(isCash ? Math.max(tendered, 0) : amount)}`
+                : 'Pilih cara bayar dulu'}
+            </button>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
