@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
+import { photoPath, photoProblem } from './photo';
+
+const PHOTO_BUCKET = 'menu-images';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import type { DataLayer } from './data';
 import { DataError } from './types';
@@ -640,6 +643,24 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async setCatalogActive(id, active) {
       const rows = (must(await db().from('products').update({ is_active: active }).or(`id.eq.${id},parent_id.eq.${id}`).is('deleted_at', null).select('id')) as Row[] | null) ?? [];
       if (rows.length === 0) throw new DataError('not_found', 'Produk tidak ditemukan');
+    },
+
+    async setProductPhoto(productId, photo) {
+      const { orgId } = await resolve();
+      const head = must(await db().from('products').select('id').eq('id', productId).is('deleted_at', null).maybeSingle()) as Row | null;
+      if (!head) throw new DataError('not_found', 'Produk tidak ditemukan');
+      if (photo) {
+        const problem = photoProblem(photo);
+        if (problem) throw new DataError('invalid', problem);
+        const path = photoPath(orgId, productId, photo.contentType, now().getTime());
+        const up = await client.storage.from(PHOTO_BUCKET).upload(path, photo.data, { contentType: photo.contentType, cacheControl: '31536000', upsert: false });
+        if (up.error) throw new DataError('invalid', `Foto gagal diunggah: ${up.error.message}`);
+        const url = client.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+        must(await db().from('products').update({ photo_path: url }).eq('id', productId));
+      } else {
+        must(await db().from('products').update({ photo_path: null }).or(`id.eq.${productId},parent_id.eq.${productId}`));
+      }
+      return (await self.getCatalogProduct(productId))!;
     },
 
     // ---------- karyawan dan metode bayar ----------

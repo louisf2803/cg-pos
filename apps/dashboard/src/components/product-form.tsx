@@ -1,14 +1,17 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { DataError, formatRp, newId, parseRp, variantsProblem, type CatalogProduct } from '@cgpos/shared';
+import { ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { DataError, formatRp, newId, parseRp, variantsProblem, type CatalogProduct, type ProductPhotoInput } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox } from '@/components/page';
+import { prepareProductPhoto } from '@/lib/image';
 
 interface Row { key: string; id?: string; label: string; price: string; sku: string; isActive: boolean }
 const newRow = (r: Partial<Row> = {}): Row => ({ key: newId(), label: '', price: '', sku: '', isActive: true, ...r });
+
+class PhotoFailed extends Error {}
 
 /** Form produk gaya Majoo: satu produk, boleh punya varian (S/M/L, dst.) dengan harga dan SKU masing-masing. */
 export function ProductForm({ initial }: { initial?: CatalogProduct }) {
@@ -26,6 +29,20 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const [err, setErr] = useState<{ field?: string; msg: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const firstNew = useRef<HTMLInputElement | null>(null);
+  // foto: 'keep' = tidak diubah; 'new' = dipasang setelah produk tersimpan; 'remove' = dihapus setelah tersimpan
+  const [photo, setPhoto] = useState<{ kind: 'keep' } | { kind: 'remove' } | { kind: 'new'; input: ProductPhotoInput; previewUrl: string }>({ kind: 'keep' });
+  const [photoErr, setPhotoErr] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const savedId = useRef<string | undefined>(initial?.id);
+  const shownPhoto = photo.kind === 'new' ? photo.previewUrl : photo.kind === 'remove' ? undefined : initial?.photoUrl;
+
+  async function pickPhoto(file: File | undefined) {
+    if (!file) return;
+    setPhotoErr(''); setPhotoBusy(true);
+    try { const r = await prepareProductPhoto(file); setPhoto({ kind: 'new', input: r.photo, previewUrl: r.previewUrl }); }
+    catch (e) { setPhotoErr(e instanceof Error ? e.message : 'Foto gagal diproses.'); }
+    finally { setPhotoBusy(false); }
+  }
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
@@ -47,13 +64,17 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
     } else if (!/\d/.test(price)) return setErr({ field: 'price', msg: 'Isi harga dalam rupiah, 0 atau lebih.' });
     setSaving(true);
     try {
-      await data.saveCatalogProduct({
-        id: initial?.id, name, categoryId: categoryId || null, price: hasVariants ? 0 : parseRp(price), sku: hasVariants ? undefined : sku.trim() || undefined,
+      const saved = await data.saveCatalogProduct({
+        id: savedId.current, name, categoryId: categoryId || null, price: hasVariants ? 0 : parseRp(price), sku: hasVariants ? undefined : sku.trim() || undefined,
         trackStock, isActive, isFavorite: initial?.isFavorite, kind: initial?.kind, variants,
       });
+      savedId.current = saved.id;      // bila foto gagal, simpan ulang memperbarui produk yang sama, bukan membuat ganda
+      if (photo.kind === 'new') await data.setProductPhoto(saved.id, photo.input).catch((e3: unknown) => { throw new PhotoFailed(e3 instanceof Error ? e3.message : 'Foto gagal diunggah.'); });
+      else if (photo.kind === 'remove') await data.setProductPhoto(saved.id, null).catch((e3: unknown) => { throw new PhotoFailed(e3 instanceof Error ? e3.message : 'Foto gagal dihapus.'); });
       router.push('/produk');
     } catch (e2) {
-      setErr({ field: e2 instanceof DataError && /sku/i.test(e2.message) ? 'sku' : undefined, msg: e2 instanceof Error ? e2.message : 'Gagal menyimpan.' });
+      if (e2 instanceof PhotoFailed) setErr({ msg: `Produk sudah tersimpan, tetapi foto belum terpasang: ${e2.message} Coba simpan lagi.` });
+      else setErr({ field: e2 instanceof DataError && /sku/i.test(e2.message) ? 'sku' : undefined, msg: e2 instanceof Error ? e2.message : 'Gagal menyimpan.' });
       setSaving(false);
     }
   }
@@ -74,6 +95,24 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
             <option value="">Tanpa kategori</option>
             {cats.status === 'ready' && cats.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+        </div>
+
+        <div className="cg-field">
+          <span className="cg-label" id="foto-label">Foto produk (opsional)</span>
+          <div className="flex items-center gap-16 flex-wrap" role="group" aria-labelledby="foto-label">
+            {shownPhoto
+              ? <img className="cg-thumb" src={shownPhoto} alt="Foto produk saat ini" width={96} height={96} style={{ width: 96, height: 96 }} />
+              : <div className="cg-thumb grid place-items-center text-text-muted" style={{ width: 96, height: 96 }} aria-hidden><ImagePlus className="cg-icon" /></div>}
+            <div className="grid gap-8">
+              <label className="cg-btn cg-btn--secondary cg-btn--sm cursor-pointer">
+                <ImagePlus className="cg-icon cg-icon--sm" aria-hidden /> {shownPhoto ? 'Ganti foto' : 'Pilih foto'}
+                <input type="file" accept="image/*" className="cg-sr" aria-label="Pilih file foto produk" disabled={photoBusy} onChange={(e) => { void pickPhoto(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
+              {shownPhoto && <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPhoto(initial?.photoUrl && photo.kind === 'new' ? { kind: 'keep' } : { kind: 'remove' })}>{photo.kind === 'new' && initial?.photoUrl ? 'Batalkan foto baru' : 'Hapus foto'}</button>}
+            </div>
+          </div>
+          <p className="text-text-muted text-sm mt-4">{photoBusy ? 'Mengolah foto…' : 'Foto dikecilkan otomatis dan baru terpasang setelah produk disimpan. Foto berlaku untuk seluruh varian.'}</p>
+          {photoErr && <p className="cg-error" role="alert">{photoErr}</p>}
         </div>
 
         <label className="flex items-center gap-8">

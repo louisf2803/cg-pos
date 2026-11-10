@@ -1,4 +1,5 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
+import type { ProductPhotoInput } from './photo';
 import type {
   Bundle, BundleInput, Category, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -66,6 +67,8 @@ export interface DataLayer {
   saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct>;
   /** Menonaktifkan/mengaktifkan produk beserta seluruh variannya. */
   setCatalogActive(id: string, active: boolean): Promise<void>;
+  /** Pasang foto produk (null = hapus, termasuk foto varian). Pemilik dan manajer. Foto lama di penyimpanan tidak dihapus. */
+  setProductPhoto(productId: string, photo: ProductPhotoInput | null): Promise<CatalogProduct>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;

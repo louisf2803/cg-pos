@@ -1,5 +1,6 @@
 import type { DataLayer } from './data';
 import { createTableOps } from './table-ops';
+import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { DataError } from './types';
 import type {
@@ -428,6 +429,19 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const hit = products.filter((p) => p.id === id || p.parentId === id);
       if (!hit.length) throw new DataError('not_found', 'Produk tidak ditemukan');
       for (const p of hit) p.isActive = active;
+    },
+
+    async setProductPhoto(productId, photo) {
+      const head = products.find((p) => p.id === productId);
+      if (!head) throw new DataError('not_found', 'Produk tidak ditemukan');
+      if (photo) {
+        const problem = photoProblem(photo);
+        if (problem) throw new DataError('invalid', problem);
+        head.photoUrl = bytesToDataUri(photo);
+      } else {
+        for (const p of products.filter((x) => x.id === productId || x.parentId === productId)) delete p.photoUrl;
+      }
+      return (await self.getCatalogProduct(productId))!;
     },
 
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
