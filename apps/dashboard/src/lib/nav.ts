@@ -96,7 +96,7 @@ export const NAV: NavGroup[] = [
   },
   {
     label: 'Analisa', icon: LineChart, items: [
-      { href: '/laporan/jam-ramai', label: 'Jam ramai', screen: 'S85', tier: 2 },
+      { href: '/laporan/jam-ramai', label: 'Jam ramai', screen: 'S85', tier: 2, built: true },
       { href: '/analisa/produk', label: 'Produk terlaris dan perputaran stok', screen: 'S85', tier: 3 },
     ],
   },
