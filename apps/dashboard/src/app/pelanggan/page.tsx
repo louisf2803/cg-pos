@@ -1,7 +1,18 @@
 'use client';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { customerProblem, formatRp, LOYALTY_KIND_LABEL, type Customer, type CustomerInput, type Order } from '@cgpos/shared';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import {
+  computeCustomerOrderStats,
+  customerProblem,
+  filterCustomerOrders,
+  formatOrderPaymentMethods,
+  formatRp,
+  LOYALTY_KIND_LABEL,
+  paginateOrders,
+  type Customer,
+  type CustomerInput,
+  type Order,
+} from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -125,86 +136,513 @@ function EditDialog({ item, onClose, onSaved }: { item?: Customer; onClose: () =
   );
 }
 
+type DetailTab = 'summary' | 'orders' | 'points';
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  paid: 'Lunas',
+  open: 'Belum lunas',
+  partially_paid: 'Belum lunas',
+  void: 'Dibatalkan',
+};
+
+const ORDER_TYPE_LABELS: Record<string, string> = {
+  dine_in: 'Makan di tempat',
+  take_away: 'Bawa pulang',
+  delivery: 'Antar',
+  service: 'Jasa',
+};
+
 function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () => void; onEdit: () => void }) {
   const data = useData();
   const d = useDialog(onClose);
-  const hist = useAsync(() => data.listOrders({ customerId: item.id, all: true }), [data, item.id]);
-  const led = useAsync(() => data.listLoyaltyLedger(item.id, 30), [data, item.id]);
+  const [activeTab, setActiveTab] = useState<DetailTab>('summary');
+
+  // Ambil transaksi pelanggan (dengan filter klien pengaman)
+  const hist = useAsync(async () => {
+    const res = await data.listOrders({ customerId: item.id, all: true });
+    return res.filter((o: Order) => !o.customerId || o.customerId === item.id);
+  }, [data, item.id]);
+
+  // Ambil riwayat mutasi poin
+  const led = useAsync(async () => {
+    try {
+      return await data.listLoyaltyLedger(item.id, 50);
+    } catch {
+      return [];
+    }
+  }, [data, item.id]);
+
   const [balance, setBalance] = useState(item.pointsBalance);
   const [adj, setAdj] = useState({ delta: '', note: '' });
   const [adjErr, setAdjErr] = useState('');
   const [adjBusy, setAdjBusy] = useState(false);
+
+  // Filter & paginasi untuk tab riwayat transaksi
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orderStatus, setOrderStatus] = useState('all');
+  const [page, setPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  const allOrders = hist.status === 'ready' ? hist.data : [];
+  const stats = useMemo(() => computeCustomerOrderStats(allOrders, item.id), [allOrders, item.id]);
+
+  const filteredOrders = useMemo(() => {
+    return filterCustomerOrders(allOrders, item.id, orderSearch, orderStatus);
+  }, [allOrders, item.id, orderSearch, orderStatus]);
+
+  const paginated = useMemo(() => {
+    return paginateOrders(filteredOrders, page, 5);
+  }, [filteredOrders, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [orderSearch, orderStatus]);
+
   async function adjust(e: FormEvent) {
     e.preventDefault();
     if (adjBusy) return;
     const n = Number(adj.delta.replace(/[^\d-]/g, ''));
-    if (!Number.isInteger(n) || n === 0) return setAdjErr('Isi jumlah poin, positif untuk menambah atau negatif untuk mengurangi.');
-    setAdjBusy(true); setAdjErr('');
-    try { setBalance(await data.adjustPoints(item.id, n, adj.note)); setAdj({ delta: '', note: '' }); led.reload(); }
-    catch (err) { setAdjErr(err instanceof Error ? err.message : 'Poin gagal disesuaikan.'); }
-    finally { setAdjBusy(false); }
+    if (!Number.isInteger(n) || n === 0) {
+      return setAdjErr('Isi jumlah poin, positif untuk menambah atau negatif untuk mengurangi.');
+    }
+    setAdjBusy(true);
+    setAdjErr('');
+    try {
+      setBalance(await data.adjustPoints(item.id, n, adj.note));
+      setAdj({ delta: '', note: '' });
+      led.reload();
+    } catch (err) {
+      setAdjErr(err instanceof Error ? err.message : 'Poin gagal disesuaikan.');
+    } finally {
+      setAdjBusy(false);
+    }
   }
-  const paid = hist.status === 'ready' ? hist.data.filter((o: Order) => o.status === 'paid') : [];
-  const spend = paid.reduce((n, o) => n + o.total, 0);
-  const last = paid.map((o) => o.closedAt ?? o.openedAt).sort().at(-1);
-  const rows: [string, string | undefined][] = [
-    ['Kode', item.code], ['Telepon', item.phone], ['Email', item.email], ['Jenis kelamin', item.gender ? GENDER[item.gender] : undefined],
-    ['Tanggal lahir', item.birthDate ? fmtDate(item.birthDate + 'T12:00:00+07:00') : undefined], ['Kota', item.city], ['Alamat', item.address], ['Catatan', item.note],
+
+  const profileRows: [string, string | undefined][] = [
+    ['Kode', item.code],
+    ['Telepon', item.phone],
+    ['Email', item.email],
+    ['Jenis kelamin', item.gender ? GENDER[item.gender] : undefined],
+    ['Tanggal lahir', item.birthDate ? fmtDate(item.birthDate + 'T12:00:00+07:00') : undefined],
+    ['Kota', item.city],
+    ['Alamat', item.address],
+    ['Catatan', item.note],
   ];
+
   return (
     <dialog {...d.props} aria-labelledby="judul-detail">
-      <div className="grid gap-12">
-        <h2 id="judul-detail" className="cg-modal__title break-words">{item.name}</h2>
-        <dl className="grid gap-4 text-sm" style={{ gridTemplateColumns: 'max-content 1fr', columnGap: 16 }}>
-          {rows.filter(([, v]) => v).map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt className="text-text-muted">{k}</dt><dd className="break-words">{v}</dd></div>)}
-          <dt className="text-text-muted">Poin</dt><dd className="cg-num" data-testid="saldo-poin">{balance}</dd>
-        </dl>
-        <section aria-labelledby="riwayat-judul">
-          <h3 id="riwayat-judul" className="font-semibold mb-8">Riwayat belanja</h3>
-          {hist.status === 'loading' && <div className="cg-skeleton" style={{ height: 80 }} aria-busy="true" aria-label="Memuat" />}
-          {hist.status === 'error' && <ErrorBox message={hist.message} onRetry={hist.reload} />}
-          {hist.status === 'ready' && (hist.data.length === 0 ? <p className="text-text-muted">Belum ada transaksi.</p> : (
-            <>
-              <p className="text-sm mb-8"><strong className="cg-num">{paid.length}</strong> transaksi lunas · total <strong className="cg-num">{formatRp(spend)}</strong>{last && <> · terakhir {fmtDate(last)}</>}</p>
-              <ul className="grid gap-4 max-h-[240px] overflow-auto" aria-label="Transaksi">
-                {hist.data.slice(0, 50).map((o) => (
-                  <li key={o.id} className="flex justify-between gap-12 text-sm border-b border-border pb-4">
-                    <span className="min-w-0 break-all">{o.number}<span className="block text-text-muted">{fmtDate(o.closedAt ?? o.openedAt)}{o.status === 'void' ? ' · dibatalkan' : o.status !== 'paid' ? ' · belum lunas' : ''}</span></span>
-                    <span className="cg-num">{formatRp(o.total)}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ))}
-        </section>
-        <section aria-labelledby="poin-judul">
-          <h3 id="poin-judul" className="font-semibold mb-8">Riwayat poin</h3>
-          {led.status === 'loading' && <div className="cg-skeleton" style={{ height: 48 }} aria-busy="true" aria-label="Memuat" />}
-          {led.status === 'error' && <ErrorBox message={led.message} onRetry={led.reload} />}
-          {led.status === 'ready' && (led.data.length === 0 ? <p className="text-text-muted">Belum ada pergerakan poin.</p> : (
-            <ul className="grid gap-4 max-h-[160px] overflow-auto" aria-label="Pergerakan poin">
-              {led.data.map((e) => (
-                <li key={e.id} className="flex justify-between gap-12 text-sm border-b border-border pb-4">
-                  <span className="min-w-0 break-words">{LOYALTY_KIND_LABEL[e.kind]}{e.note ? ` · ${e.note}` : ''}<span className="block text-text-muted">{fmtDate(e.createdAt)}</span></span>
-                  <span className="cg-num">{e.points > 0 ? `+${e.points}` : e.points}</span>
-                </li>
-              ))}
-            </ul>
-          ))}
-          <form onSubmit={adjust} className="grid gap-8 mt-12" noValidate aria-label="Sesuaikan poin">
-            <div className="grid gap-8" style={{ gridTemplateColumns: 'minmax(96px, 1fr) 2fr' }}>
-              <div className="cg-field"><label className="cg-label" htmlFor="poin-delta">Tambah/kurangi poin</label>
-                <input id="poin-delta" className="cg-input" inputMode="numeric" maxLength={7} value={adj.delta} onChange={(e) => { setAdj((s) => ({ ...s, delta: e.target.value })); setAdjErr(''); }} /></div>
-              <div className="cg-field"><label className="cg-label" htmlFor="poin-catatan">Alasan</label>
-                <input id="poin-catatan" className="cg-input" maxLength={200} value={adj.note} onChange={(e) => setAdj((s) => ({ ...s, note: e.target.value }))} /></div>
+      <div className="grid gap-16 w-full max-w-[640px] text-text">
+        {/* Header Dialog */}
+        <div className="flex items-start justify-between border-b border-border pb-12">
+          <div>
+            <h2 id="judul-detail" className="cg-modal__title break-words">
+              {item.name}
+            </h2>
+            {item.code && <span className="text-xs text-text-muted">{item.code}</span>}
+          </div>
+          <button
+            type="button"
+            className="text-text-muted hover:text-text p-4 rounded-md"
+            onClick={() => d.ref.current?.close()}
+            aria-label="Tutup dialog"
+          >
+            <X className="w-16 h-16" />
+          </button>
+        </div>
+
+        {/* Tab Segmented Control */}
+        <div className="flex items-center gap-8 border-b border-border pb-8 overflow-x-auto min-w-0" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'summary'}
+            className="cg-chip"
+            aria-pressed={activeTab === 'summary'}
+            onClick={() => {
+              setActiveTab('summary');
+              setSelectedOrder(null);
+            }}
+          >
+            Ringkasan
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'orders'}
+            className="cg-chip"
+            aria-pressed={activeTab === 'orders'}
+            onClick={() => setActiveTab('orders')}
+          >
+            Riwayat transaksi {allOrders.length > 0 ? `(${allOrders.length})` : ''}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'points'}
+            className="cg-chip"
+            aria-pressed={activeTab === 'points'}
+            onClick={() => {
+              setActiveTab('points');
+              setSelectedOrder(null);
+            }}
+          >
+            Poin ({balance})
+          </button>
+        </div>
+
+        {/* TAB 1: RINGKASAN */}
+        {activeTab === 'summary' && (
+          <div className="grid gap-16 min-w-0">
+            {/* 3 Kartu Ringkasan Cepat */}
+            <div className="grid grid-cols-3 gap-8">
+              <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
+                <span className="text-xs text-text-muted block mb-4">Total Belanja</span>
+                <strong className="text-sm cg-num text-text">{formatRp(stats.totalSpend)}</strong>
+              </div>
+              <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
+                <span className="text-xs text-text-muted block mb-4">Transaksi Lunas</span>
+                <strong className="text-sm cg-num text-text">{stats.paidCount}</strong>
+              </div>
+              <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
+                <span className="text-xs text-text-muted block mb-4">Saldo Poin</span>
+                <strong className="text-sm cg-num text-text" data-testid="saldo-poin">{balance}</strong>
+              </div>
             </div>
-            <p role="alert" className="text-danger-strong min-h-[20px]">{adjErr}</p>
-            <div><button type="submit" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={adjBusy}>{adjBusy ? 'Menyimpan…' : 'Sesuaikan poin'}</button></div>
-          </form>
-        </section>
-        <div className="cg-modal__actions">
-          <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Tutup</button>
-          <button type="button" className="cg-btn cg-btn--primary" onClick={onEdit}>Ubah</button>
+
+            {/* Rincian Profil */}
+            <section aria-label="Profil pelanggan">
+              <h3 className="font-semibold text-xs text-text-muted uppercase mb-8">Informasi Kontak & Alamat</h3>
+              <dl className="grid gap-8 text-sm" style={{ gridTemplateColumns: 'max-content 1fr', columnGap: 16 }}>
+                {profileRows.filter(([, v]) => v).map(([k, v]) => (
+                  <div key={k} style={{ display: 'contents' }}>
+                    <dt className="text-text-muted">{k}</dt>
+                    <dd className="break-words font-medium">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          </div>
+        )}
+
+        {/* TAB 2: RIWAYAT TRANSAKSI */}
+        {activeTab === 'orders' && (
+          <div className="grid gap-12 min-w-0">
+            {selectedOrder ? (
+              /* Tampilan Ringkasan Pesanan Baca-Saja */
+              <div className="border border-border rounded-xl p-16 bg-surface-muted/20 flex flex-col gap-12">
+                <div className="flex items-center justify-between pb-8 border-b border-border">
+                  <div>
+                    <h3 className="font-bold text-sm text-text">
+                      Pesanan {selectedOrder.number}
+                    </h3>
+                    <span className="text-xs text-text-muted">
+                      {fmtDate(selectedOrder.closedAt ?? selectedOrder.openedAt)} · {ORDER_TYPE_LABELS[selectedOrder.type] || selectedOrder.type}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--secondary cg-btn--sm"
+                    onClick={() => setSelectedOrder(null)}
+                  >
+                    Kembali ke daftar
+                  </button>
+                </div>
+
+                {/* Tabel Item Pesanan */}
+                <div className="cg-data-wrap">
+                  <table className="cg-data w-full text-xs" aria-label="Rincian item pesanan">
+                    <thead>
+                      <tr>
+                        <th>Menu</th>
+                        <th className="text-right">Qty</th>
+                        <th className="text-right">Harga</th>
+                        <th className="text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedOrder.items.map((it, idx) => (
+                        <tr key={it.id || idx}>
+                          <td className="break-words max-w-[200px]">
+                            <span className="font-medium text-text">{it.name}</span>
+                            {it.note && <span className="block text-[11px] text-text-muted italic">Catatan: {it.note}</span>}
+                          </td>
+                          <td className="text-right cg-num">{it.qty}</td>
+                          <td className="text-right cg-num">{formatRp(it.unitPrice)}</td>
+                          <td className="text-right cg-num font-medium">{formatRp(it.unitPrice * it.qty)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Ringkasan Hitungan Biaya */}
+                <div className="grid gap-4 text-xs max-w-[260px] ml-auto border-t border-border pt-8 w-full">
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">Subtotal:</span>
+                    <span className="cg-num">{formatRp(selectedOrder.subtotal)}</span>
+                  </div>
+                  {selectedOrder.discountTotal > 0 && (
+                    <div className="flex justify-between text-danger">
+                      <span>Potongan:</span>
+                      <span className="cg-num">-{formatRp(selectedOrder.discountTotal)}</span>
+                    </div>
+                  )}
+                  {selectedOrder.serviceCharge > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Layanan:</span>
+                      <span className="cg-num">{formatRp(selectedOrder.serviceCharge)}</span>
+                    </div>
+                  )}
+                  {selectedOrder.taxTotal > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Pajak PB1:</span>
+                      <span className="cg-num">{formatRp(selectedOrder.taxTotal)}</span>
+                    </div>
+                  )}
+                  {selectedOrder.rounding !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Pembulatan:</span>
+                      <span className="cg-num">{formatRp(selectedOrder.rounding)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-sm border-t border-border pt-4 text-text">
+                    <span>Total:</span>
+                    <span className="cg-num">{formatRp(selectedOrder.total)}</span>
+                  </div>
+                </div>
+
+                {/* Rincian Pembayaran */}
+                {selectedOrder.payments.length > 0 && (
+                  <div className="border-t border-border pt-8 text-xs">
+                    <span className="font-semibold text-text block mb-4">Pembayaran:</span>
+                    {selectedOrder.payments.map((p, pIdx) => (
+                      <div key={p.id || pIdx} className="flex justify-between text-text-muted py-[2px]">
+                        <span>{p.methodName || p.kind} {p.reference ? `(${p.reference})` : ''}</span>
+                        <span className="cg-num font-medium text-text">{formatRp(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Tabel Daftar Riwayat Pesanan */
+              <>
+                {/* Baris Pencarian & Filter Status */}
+                <div className="flex flex-col tablet:flex-row gap-8 items-stretch tablet:items-center justify-between">
+                  <div className="relative flex-1">
+                    <Search className="w-16 h-16 absolute left-8 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                    <input
+                      type="search"
+                      placeholder="Cari nomor pesanan…"
+                      className="cg-input pl-[28px] text-xs w-full h-[36px]"
+                      value={orderSearch}
+                      onChange={(e) => setOrderSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-8 shrink-0">
+                    <select
+                      className="cg-input text-xs h-[36px]"
+                      value={orderStatus}
+                      onChange={(e) => setOrderStatus(e.target.value)}
+                    >
+                      <option value="all">Semua status</option>
+                      <option value="paid">Lunas</option>
+                      <option value="unpaid">Belum lunas</option>
+                      <option value="void">Dibatalkan</option>
+                    </select>
+                  </div>
+                </div>
+
+                {hist.status === 'loading' && (
+                  <div className="grid gap-8 py-16" aria-busy="true" aria-label="Memuat transaksi">
+                    {[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 44 }} />)}
+                  </div>
+                )}
+                {hist.status === 'error' && <ErrorBox message={hist.message} onRetry={hist.reload} />}
+
+                {hist.status === 'ready' && (
+                  paginated.totalCount === 0 ? (
+                    <div className="p-16 text-center text-xs text-text-muted border border-border rounded-xl">
+                      <p className="font-semibold text-text mb-4">
+                        {orderSearch || orderStatus !== 'all' ? 'Tidak ada transaksi yang cocok.' : 'Belum ada transaksi.'}
+                      </p>
+                      <p>Transaksi pelanggan akan tercatat otomatis saat kasir memilih pelanggan ini saat checkout.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="cg-data-wrap min-w-0">
+                        <table className="cg-data w-full text-xs" aria-label="Daftar transaksi pelanggan">
+                          <thead>
+                            <tr>
+                              <th>Nomor</th>
+                              <th>Waktu</th>
+                              <th>Metode</th>
+                              <th>Status</th>
+                              <th className="text-right">Total</th>
+                              <th className="text-center"><span className="cg-sr">Aksi</span></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginated.items.map((o) => (
+                              <tr key={o.id} className="hover:bg-surface-muted/50 cursor-pointer" onClick={() => setSelectedOrder(o)}>
+                                <td className="font-semibold text-primary">{o.number}</td>
+                                <td className="whitespace-nowrap text-text-muted">{fmtDate(o.closedAt ?? o.openedAt)}</td>
+                                <td className="max-w-[120px] truncate text-text-muted">{formatOrderPaymentMethods(o)}</td>
+                                <td>
+                                  <span className={`cg-badge ${
+                                    o.status === 'paid' ? 'cg-badge--success' : o.status === 'void' ? 'cg-badge--danger' : 'cg-badge--warning'
+                                  }`}>
+                                    {ORDER_STATUS_LABELS[o.status] || o.status}
+                                  </span>
+                                </td>
+                                <td className="text-right cg-num font-bold">{formatRp(o.total)}</td>
+                                <td className="text-center">
+                                  <button
+                                    type="button"
+                                    className="cg-btn cg-btn--ghost cg-btn--sm p-4"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedOrder(o);
+                                    }}
+                                    aria-label={`Lihat pesanan ${o.number}`}
+                                  >
+                                    <Eye className="w-12 h-12" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Controls */}
+                      {paginated.totalPages > 1 && (
+                        <div className="flex items-center justify-between text-xs pt-8 border-t border-border mt-4">
+                          <span className="text-text-muted">
+                            Halaman {paginated.currentPage} dari {paginated.totalPages} ({paginated.totalCount} transaksi)
+                          </span>
+                          <div className="flex items-center gap-8">
+                            <button
+                              type="button"
+                              className="cg-btn cg-btn--secondary cg-btn--sm"
+                              disabled={paginated.currentPage <= 1}
+                              onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            >
+                              <ChevronLeft className="w-12 h-12 mr-4" />
+                              Sebelumnya
+                            </button>
+                            <button
+                              type="button"
+                              className="cg-btn cg-btn--secondary cg-btn--sm"
+                              disabled={paginated.currentPage >= paginated.totalPages}
+                              onClick={() => setPage((p) => Math.min(paginated.totalPages, p + 1))}
+                            >
+                              Berikutnya
+                              <ChevronRight className="w-12 h-12 ml-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: POIN */}
+        {activeTab === 'points' && (
+          <div className="grid gap-16 min-w-0">
+            {/* Saldo Poin Box */}
+            <div className="p-16 border border-border rounded-xl bg-surface-muted/30 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-text-muted block">Saldo Poin Aktif</span>
+                <span className="text-2xl font-bold cg-num text-primary" data-testid="saldo-poin">
+                  {balance}
+                </span>
+                <span className="text-xs text-text-muted block mt-4">
+                  Poin dapat ditukarkan saat transaksi di kasir sesuai aturan loyalti.
+                </span>
+              </div>
+            </div>
+
+            {/* Riwayat Mutasi Poin */}
+            <section aria-labelledby="poin-judul">
+              <h3 id="poin-judul" className="font-semibold text-xs text-text-muted uppercase mb-8">
+                Riwayat Pergerakan Poin
+              </h3>
+              {led.status === 'loading' && <div className="cg-skeleton" style={{ height: 48 }} aria-busy="true" aria-label="Memuat poin" />}
+              {led.status === 'error' && <ErrorBox message={led.message} onRetry={led.reload} />}
+              {led.status === 'ready' && (led.data.length === 0 ? (
+                <p className="text-xs text-text-muted">Belum ada pergerakan poin.</p>
+              ) : (
+                <ul className="grid gap-4 max-h-[160px] overflow-auto text-xs" aria-label="Pergerakan poin">
+                  {led.data.map((e) => (
+                    <li key={e.id} className="flex justify-between gap-12 border-b border-border pb-4">
+                      <span className="min-w-0 break-words">
+                        <span className="font-medium text-text">{LOYALTY_KIND_LABEL[e.kind] || e.kind}</span>
+                        {e.note ? ` · ${e.note}` : ''}
+                        <span className="block text-text-muted">{fmtDate(e.createdAt)}</span>
+                      </span>
+                      <span className={`cg-num font-bold ${e.points > 0 ? 'text-success' : 'text-danger'}`}>
+                        {e.points > 0 ? `+${e.points}` : e.points}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ))}
+
+              {/* Form Koreksi Poin */}
+              <form onSubmit={adjust} className="grid gap-8 mt-16 p-12 border border-border rounded-xl" noValidate aria-label="Sesuaikan poin">
+                <span className="font-semibold text-xs text-text">Penyesuaian Poin Manual</span>
+                <div className="grid gap-8" style={{ gridTemplateColumns: 'minmax(96px, 1fr) 2fr' }}>
+                  <div className="cg-field">
+                    <label className="cg-label text-xs" htmlFor="poin-delta">Poin (+/-)</label>
+                    <input
+                      id="poin-delta"
+                      className="cg-input text-xs"
+                      inputMode="numeric"
+                      placeholder="+100 atau -50"
+                      maxLength={7}
+                      value={adj.delta}
+                      onChange={(e) => {
+                        setAdj((s) => ({ ...s, delta: e.target.value }));
+                        setAdjErr('');
+                      }}
+                    />
+                  </div>
+                  <div className="cg-field">
+                    <label className="cg-label text-xs" htmlFor="poin-catatan">Alasan penyesuaian</label>
+                    <input
+                      id="poin-catatan"
+                      className="cg-input text-xs"
+                      placeholder="Contoh: Koreksi kasir, reward khusus"
+                      maxLength={200}
+                      value={adj.note}
+                      onChange={(e) => setAdj((s) => ({ ...s, note: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                {adjErr && <p role="alert" className="text-danger text-xs min-h-[16px]">{adjErr}</p>}
+                <div>
+                  <button type="submit" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={adjBusy}>
+                    {adjBusy ? 'Menyimpan…' : 'Simpan penyesuaian poin'}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
+
+        {/* Modal Actions */}
+        <div className="cg-modal__actions pt-12 border-t border-border flex justify-end gap-8">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>
+            Tutup
+          </button>
+          <button type="button" className="cg-btn cg-btn--primary" onClick={onEdit}>
+            Ubah pelanggan
+          </button>
         </div>
       </div>
     </dialog>
