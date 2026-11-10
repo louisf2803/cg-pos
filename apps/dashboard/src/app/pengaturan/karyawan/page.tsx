@@ -246,7 +246,7 @@ export default function KaryawanDanAkses() {
             placeholder="Cari nama atau kode karyawan…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="cg-input pl-36 w-full text-xs h-[36px]"
+            className="cg-input pl-[36px] w-full text-xs h-[36px]"
           />
         </div>
 
@@ -313,7 +313,7 @@ export default function KaryawanDanAkses() {
                         <th className="py-12 px-16 text-left">Posisi / Peran</th>
                         <th className="py-12 px-16 text-left">Outlet</th>
                         <th className="py-12 px-16 text-left">Status</th>
-                        <th className="py-12 px-16 text-right">Tindakan</th>
+                        <th className="py-12 px-16 text-right w-[280px]" style={{ textAlign: 'right' }}>Tindakan</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -368,9 +368,9 @@ export default function KaryawanDanAkses() {
                             </td>
 
                             {/* Tindakan: Tombol Rapi + Menu */}
-                            <td className="py-12 px-16 text-right whitespace-nowrap">
+                            <td className="py-12 px-16 text-right whitespace-nowrap w-[280px]">
                               <div className="flex items-center justify-end gap-6">
-                                {e.isActive && (
+                                {e.isActive ? (
                                   <button
                                     type="button"
                                     className="cg-btn cg-btn--secondary cg-btn--sm inline-flex items-center gap-4"
@@ -384,9 +384,20 @@ export default function KaryawanDanAkses() {
                                     <KeyRound className="cg-icon cg-icon--xs" aria-hidden />
                                     <span>Atur PIN</span>
                                   </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="cg-btn cg-btn--secondary cg-btn--sm inline-flex items-center gap-4 opacity-40 cursor-not-allowed"
+                                    title="Karyawan nonaktif tidak dapat diatur PIN-nya"
+                                    aria-label={`Atur PIN ${e.name} (nonaktif)`}
+                                  >
+                                    <KeyRound className="cg-icon cg-icon--xs" aria-hidden />
+                                    <span>Atur PIN</span>
+                                  </button>
                                 )}
 
-                                {e.role !== 'owner' && (
+                                {e.role !== 'owner' ? (
                                   <button
                                     type="button"
                                     className="cg-btn cg-btn--ghost cg-btn--sm"
@@ -395,9 +406,19 @@ export default function KaryawanDanAkses() {
                                   >
                                     Ubah
                                   </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="cg-btn cg-btn--ghost cg-btn--sm opacity-40 cursor-not-allowed text-text-muted"
+                                    title="Peran pemilik tidak dapat diubah"
+                                    aria-label={`Ubah ${e.name} (pemilik tidak dapat diubah)`}
+                                  >
+                                    Ubah
+                                  </button>
                                 )}
 
-                                {e.role !== 'owner' && (
+                                {e.role !== 'owner' ? (
                                   <button
                                     type="button"
                                     className="cg-btn cg-btn--ghost cg-btn--sm text-danger hover:bg-danger/10"
@@ -406,6 +427,16 @@ export default function KaryawanDanAkses() {
                                     aria-label={`${e.isActive ? 'Nonaktifkan' : 'Aktifkan'} ${e.name}`}
                                   >
                                     {e.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="cg-btn cg-btn--ghost cg-btn--sm opacity-40 cursor-not-allowed text-text-muted"
+                                    title="Akun pemilik tidak dapat dinonaktifkan"
+                                    aria-label={`Nonaktifkan ${e.name} (pemilik tidak dapat dinonaktifkan)`}
+                                  >
+                                    Nonaktifkan
                                   </button>
                                 )}
                               </div>
