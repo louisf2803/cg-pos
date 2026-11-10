@@ -71,3 +71,11 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   6. Filter Outlet: Terhubung dengan state pemilih outlet sidebar (`selectedOutlet` dari ShellContext).
   7. Lolos uji: `pnpm -r typecheck`, 237 tes shared vitest, build dashboard 112 halaman, serta Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (screenshot di `docs/shots/a14/`).
 - Giliran 34: review A14 (beranda) — lulus typecheck, 224+ tes, build; di cloud tanpa overflow. Digabung ke main. Temuan perapian diteruskan ke antrean A21. Skor dihitung ulang di bawah.
+- Selesai (tugas A15): Isi Dashboard Keuangan (/keuangan) lengkap:
+  1. Header: PageHeader dengan judul "Dashboard keuangan", ikon "?" bantuan, bintang favorit, tanggal acuan, tombol aksi "Panduan dashboard" (membuka modal penjelasan 4 widget keuangan) dan tombol "Tambah widget" (placeholder nonaktif dengan tooltip).
+  2. Widget Laba Rugi: Pilihan waktu Hari / Bulan, ringkasan 3 metrik (Pendapatan, Total Beban, Laba Bersih), grafik garis SVG buatan sendiri dengan kurva spline mulus multi-garis (garis hijau pendapatan, garis merah beban, garis biru laba bersih), legenda, sumbu Y berformat rb/jt, tooltip hover dan keyboard accessible, link ke laporan laba rugi lengkap.
+  3. Widget Arus Kas: Pilihan waktu Hari / Bulan, ringkasan 3 metrik (Kas Masuk, Kas Keluar, Saldo Kas Bersih), grafik garis SVG buatan sendiri (garis hijau kas masuk, garis merah kas keluar, garis biru saldo bersih), legenda, sumbu Y berformat rb/jt, tooltip interaktif, link ke laporan arus kas lengkap.
+  4. Kartu Saldo Kas: Menampilkan total saldo kas & bank aktif dan daftar akun kas/bank (nama, kode COA, dan saldo per akun), link ke buku kas & bank.
+  5. Kartu Posisi Neraca: Menampilkan Total Aset, Liabilitas, Ekuitas, badge status keseimbangan neraca (hijau Seimbang / merah Peringatan Tidak Seimbang), bar visualisasi proporsi kewajiban & modal terhadap aset, link ke laporan neraca lengkap.
+  6. Helper & Tes: `packages/shared/src/finance-widget.ts` (`extractIncomeBreakdown`) beserta 3 uji unit di `packages/shared/test/finance-widget.test.ts`, diekspor di `index.ts`.
+  7. Lolos uji: `pnpm -r typecheck`, 242 tes shared vitest, build dashboard 112 halaman, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a15/`).
