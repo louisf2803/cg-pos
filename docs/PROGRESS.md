@@ -88,3 +88,9 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   6. Keamanan PIN: Tetap tidak menampilkan atau menyimpan PIN dalam bentuk apa pun (hanya dialog input 6 digit terenkripsi server).
   7. Matriks Hak Akses: Dipertahankan di bagian bawah dengan styling token rapi.
   8. Lolos uji: `pnpm -r typecheck`, 242 tes shared vitest, build dashboard 112 halaman, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a16/`).
+
+
+## Giliran 35 (10 Nov 2026) — review A15/A16 dan pengamatan kasir Majoo
+- A15 (keuangan: Laba Rugi, Arus Kas, Saldo Kas, Neraca) dan A16 (Daftar Karyawan: kartu kuota, filter, modal outlet, mobile) lulus review.sh (typecheck, 226+ tes shared, build) dan Playwright 390/1280/1440 (tanpa overflow, tanpa galat konsol). Lingkup hanya apps/dashboard, packages/shared, docs. Digabung ke main. Temuan kecil -> A25.
+- Pengamatan kasir Majoo di BlueStacks (shift dibuka kas awal 0 sesuai arahan Louis; tidak ada pembayaran, keranjang percobaan dihapus; shift masih terbuka, Louis yang menutup). Catatan di docs/POS-REF.md. Antrean baru A22-A24 untuk apps/pos (tampilan saja, wajib lulus trial-e2e).
+- Insiden: satu klik saya sempat mengenai tombol tutup BlueStacks; dibuka lagi, Louis login ulang sendiri (PIN tidak pernah saya isi).
