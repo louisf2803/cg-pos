@@ -129,12 +129,12 @@ export default function KitchenReportPage() {
 
       {loading && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat laporan dapur">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton h-72 rounded-lg" />
             ))}
           </div>
-          <div className="cg-skeleton h-240 rounded-lg" />
+          <div className="cg-skeleton h-[240px] rounded-lg" />
         </div>
       )}
 
@@ -152,7 +152,7 @@ export default function KitchenReportPage() {
       {report && (report.totals.totalTickets > 0 || report.totals.cancelledTickets > 0) && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Dapur */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-12" aria-label="Ringkasan operasional dapur">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan operasional dapur">
             <StatCard
               label="Total tiket dapur"
               value={`${num(report.totals.totalTickets)} tiket`}
@@ -185,7 +185,7 @@ export default function KitchenReportPage() {
             <h2 className="text-sm font-semibold mb-12 flex items-center gap-8">
               <Clock className="w-16 h-16 text-primary" aria-hidden /> Status tiket saat ini
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-12">
+            <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
               {report.byStatus.map((st) => (
                 <div key={st.status} className="p-12 rounded-lg bg-surface-raised border border-border/50">
                   <span className="block text-xs text-text-muted">{st.label}</span>
@@ -200,7 +200,7 @@ export default function KitchenReportPage() {
           <div className="border border-border rounded-xl bg-surface overflow-hidden min-w-0">
             <div className="p-16 border-b border-border">
               <h2 className="text-base font-semibold flex items-center gap-8">
-                <ChefHat className="w-18 h-18 text-primary" aria-hidden /> Kinerja per stasiun dapur
+                <ChefHat className="w-[18px] h-[18px] text-primary" aria-hidden /> Kinerja per stasiun dapur
               </h2>
               <p className="text-xs text-text-muted mt-2">
                 Pengelompokan berdasarkan kategori produk (misal Makanan, Minuman, Dapur Utama)
@@ -208,7 +208,7 @@ export default function KitchenReportPage() {
             </div>
 
             {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto min-w-0">
+            <div className="hidden tablet:block overflow-x-auto min-w-0">
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-raised border-b border-border text-xs text-text-muted uppercase">
@@ -246,7 +246,7 @@ export default function KitchenReportPage() {
             </div>
 
             {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-border min-w-0">
+            <div className="tablet:hidden divide-y divide-border min-w-0">
               {report.byStation.map((s) => (
                 <div key={s.key} className="p-16 space-y-12 min-w-0">
                   <div className="flex items-center justify-between gap-8 min-w-0">
@@ -283,7 +283,7 @@ export default function KitchenReportPage() {
             <div className="border border-border rounded-xl bg-surface overflow-hidden min-w-0">
               <div className="p-16 border-b border-border">
                 <h2 className="text-base font-semibold flex items-center gap-8">
-                  <Flame className="w-18 h-18 text-amber-500" aria-hidden /> Beban pesanan per jam
+                  <Flame className="w-[18px] h-[18px] text-amber-500" aria-hidden /> Beban pesanan per jam
                 </h2>
                 <p className="text-xs text-text-muted mt-2">
                   Distribusi waktu kirim pesanan dan kecepatan dapur menyelesaikan per jam
@@ -336,10 +336,10 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
+    <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
       <div>
         <span className="text-xs text-text-muted font-medium block mb-4 leading-tight break-words">{label}</span>
-        <strong className={`text-xl sm:text-2xl font-bold block text-left leading-tight tracking-tight ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
+        <strong className={`text-base tablet:text-xl desktop:text-2xl font-bold block text-left leading-tight tracking-tight ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
           {value}
         </strong>
       </div>

@@ -349,3 +349,29 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+
+- Selesai (tugas A43): Bersihkan Prefix Breakpoint & Kunci Spasi di 8 Halaman Lama + Nit Barcode 390px:
+  1. Pembersihan Prefix Breakpoint & Kunci Spasi Tak Terdefinisi:
+     - Mengganti seluruh prefix breakpoint yang tidak terdaftar di preset Tailwind (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) dengan breakpoint sah monorepo (`tablet:`, `laptop:`, `desktop:`, `wide:`).
+     - Mengganti kunci spasi non-standar (misal `w-14`, `w-240`, `py-3`, `px-10`, `py-5`, `gap-6`, `pl-36`, `h-240`, `h-2`, `w-28`, `w-36`, dsb.) menjadi nilai eksplisit bracket (`[Npx]`) sesuai skala desain.
+     - Diterapkan pada 8 halaman:
+       - `apps/dashboard/src/app/analisa/perputaran-stok/page.tsx`
+       - `apps/dashboard/src/app/analisa/waktu-teramai-penjualan/page.tsx`
+       - `apps/dashboard/src/app/analisa/waktu-teramai-produk/page.tsx`
+       - `apps/dashboard/src/app/laporan/dapur/page.tsx`
+       - `apps/dashboard/src/app/laporan/karyawan/page.tsx`
+       - `apps/dashboard/src/app/laporan/pelanggan/page.tsx`
+       - `apps/dashboard/src/app/laporan/persediaan/page.tsx`
+       - `apps/dashboard/src/app/laporan/produk/page.tsx`
+  2. Perbaikan Nit Barcode di 390px (`apps/dashboard/src/app/produk/barcode/page.tsx`):
+     - Memindahkan tampilan harga ke bawah nama produk pada layar sempit/mobile (`tablet:hidden`), menyembunyikan kolom harga khusus di mobile (`hidden tablet:table-cell`).
+     - Menjaga tombol stepper jumlah tepat 32px (`w-32 h-32`) sehingga tabel muat rapi di 390px tanpa terpotong atau menimbulkan scroll horizontal.
+  3. Verifikasi & Audit Visual:
+     - Menangkap 27 screenshot SEBELUM (`docs/shots/a43/before-*.png`) dan 27 screenshot SESUDAH (`docs/shots/a43/after-*.png`) di 1440px, 1280px, dan 390px.
+     - Pemeriksaan visual memastikan kartu KPI tidak renggang berlebihan, teks membungkus rapi, ikon proporsional, dan tabel tidak meluap.
+     - Audit Playwright: 0 overflow horizontal, 0 galat konsol.
+  4. Lolos Uji:
+     - `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard)
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (55 file, 346 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis)

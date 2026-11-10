@@ -117,7 +117,7 @@ export default function StockTurnoverPage() {
 
       {loading && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat analisa perputaran stok">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton h-72 rounded-lg" />
             ))}
@@ -140,7 +140,7 @@ export default function StockTurnoverPage() {
       {report && report.rows.length > 0 && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Perputaran Stok */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-12" aria-label="Ringkasan perputaran persediaan">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan perputaran persediaan">
             <StatCard
               label="Perputaran cepat (Fast)"
               value={`${num(report.summary.fastMovingCount)} barang`}
@@ -162,11 +162,7 @@ export default function StockTurnoverPage() {
             />
             <StatCard
               label="Rata-rata rasio perputaran"
-              value={`${
-                report.summary.avgTurnoverRatio < 10
-                  ? new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(report.summary.avgTurnoverRatio)
-                  : num(Math.round(report.summary.avgTurnoverRatio))
-              }×`}
+              value={`${report.summary.avgTurnoverRatio}×`}
               subtext={`Dari total ${num(report.summary.totalItems)} barang dipantau`}
               testId="rata-rata-rasio"
             />
@@ -174,7 +170,7 @@ export default function StockTurnoverPage() {
 
           {/* Kotak Petunjuk Formula */}
           <div className="p-12 border border-border rounded-lg bg-surface flex items-start gap-10 text-xs text-text-muted">
-            <HelpCircle className="w-16 h-16 text-accent-strong shrink-0 mt-2" aria-hidden />
+            <HelpCircle className="w-16 h-16 text-primary shrink-0 mt-2" aria-hidden />
             <div>
               <strong>Cara membaca analisa perputaran stok:</strong>
               <div className="mt-2 space-y-2">
@@ -190,9 +186,9 @@ export default function StockTurnoverPage() {
 
           {/* Bagian Tabel & Filter */}
           <div className="border border-border rounded-xl bg-surface overflow-hidden min-w-0">
-            <div className="p-16 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-12">
+            <div className="p-16 border-b border-border flex flex-col tablet:flex-row tablet:items-center justify-between gap-12">
               {/* Filter Tabs */}
-              <div className="flex flex-wrap items-center gap-6" role="tablist">
+              <div className="flex flex-wrap items-center gap-[6px]" role="tablist">
                 <FilterTab label="Semua" count={report.rows.length} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
                 <FilterTab label="Cepat" count={report.summary.fastMovingCount} active={statusFilter === 'fast_moving'} onClick={() => setStatusFilter('fast_moving')} color="primary" />
                 <FilterTab label="Normal" count={report.summary.normalCount} active={statusFilter === 'normal'} onClick={() => setStatusFilter('normal')} />
@@ -201,12 +197,12 @@ export default function StockTurnoverPage() {
               </div>
 
               {/* Search Bar */}
-              <div className="relative w-full md:w-240">
+              <div className="relative w-full tablet:w-[240px]">
                 <Search className="w-16 h-16 absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
                 <input
                   type="text"
                   placeholder="Cari nama barang..."
-                  className="cg-input pl-36 text-sm w-full"
+                  className="cg-input pl-[36px] text-sm w-full"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -214,7 +210,7 @@ export default function StockTurnoverPage() {
             </div>
 
             {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto min-w-0">
+            <div className="hidden tablet:block overflow-x-auto min-w-0">
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-raised border-b border-border text-xs text-text-muted uppercase">
@@ -232,7 +228,7 @@ export default function StockTurnoverPage() {
                     <tr key={r.productId} className="hover:bg-surface-raised/50 transition-colors">
                       <td className="py-12 px-16 font-medium text-text">
                         <div className="flex items-center gap-8">
-                          <Boxes className="w-16 h-16 text-accent-strong shrink-0" aria-hidden />
+                          <Boxes className="w-16 h-16 text-primary shrink-0" aria-hidden />
                           <div>
                             <span className="font-semibold block">{r.name}</span>
                             <span className="text-xs text-text-muted capitalize">
@@ -243,7 +239,7 @@ export default function StockTurnoverPage() {
                       </td>
                       <td className="py-12 px-16 text-right cg-num font-mono">{num(r.currentStock)} {r.unit}</td>
                       <td className="py-12 px-16 text-right cg-num font-mono text-text-muted">{r.avgStock} {r.unit}</td>
-                      <td className="py-12 px-16 text-right font-semibold cg-num text-accent-strong">
+                      <td className="py-12 px-16 text-right font-semibold cg-num text-primary">
                         {num(r.soldQty)} {r.unit}
                       </td>
                       <td className="py-12 px-16 text-right font-bold cg-num text-base">
@@ -273,12 +269,12 @@ export default function StockTurnoverPage() {
             </div>
 
             {/* Mobile View (< 768px: Kartu Responsif) */}
-            <div className="md:hidden divide-y divide-border min-w-0">
+            <div className="tablet:hidden divide-y divide-border min-w-0">
               {filteredRows.map((r) => (
                 <div key={r.productId} className="p-16 space-y-12 min-w-0">
                   <div className="flex items-center justify-between gap-8 min-w-0">
                     <div className="flex items-center gap-8 min-w-0">
-                      <Boxes className="w-16 h-16 text-accent-strong shrink-0" aria-hidden />
+                      <Boxes className="w-16 h-16 text-primary shrink-0" aria-hidden />
                       <div className="truncate">
                         <strong className="text-sm block truncate">{r.name}</strong>
                         <span className="text-xs text-text-muted capitalize">
@@ -296,7 +292,7 @@ export default function StockTurnoverPage() {
                     </div>
                     <div>
                       <span className="text-text-muted block">Terjual</span>
-                      <span className="font-semibold cg-num text-accent-strong">{num(r.soldQty)} {r.unit}</span>
+                      <span className="font-semibold cg-num text-primary">{num(r.soldQty)} {r.unit}</span>
                     </div>
                     <div>
                       <span className="text-text-muted block">Rasio perputaran</span>
@@ -327,17 +323,17 @@ export default function StockTurnoverPage() {
 function StatusBadge({ status, label }: { status: StockTurnoverRow['status']; label: string }) {
   let badgeClass = 'bg-surface-raised text-text-muted border-border';
   if (status === 'fast_moving') {
-    badgeClass = 'bg-accent-soft text-accent-strong border-accent/20 font-semibold';
+    badgeClass = 'bg-primary/10 text-primary border-primary/20 font-semibold';
   } else if (status === 'normal') {
-    badgeClass = 'bg-surface-raised text-text border-border font-medium';
+    badgeClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
   } else if (status === 'slow_moving') {
-    badgeClass = 'bg-warning-soft text-warning-strong border-warning-strong/20 font-semibold';
+    badgeClass = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
   } else if (status === 'dead_stock') {
-    badgeClass = 'bg-danger-soft text-danger-strong border-danger/20 font-semibold';
+    badgeClass = 'bg-danger/10 text-danger border-danger/20 font-semibold';
   }
 
   return (
-    <span className={`inline-flex items-center px-8 py-3 rounded-full text-xs border ${badgeClass}`}>
+    <span className={`inline-flex items-center px-8 py-[3px] rounded-full text-xs border ${badgeClass}`}>
       {label}
     </span>
   );
@@ -356,15 +352,15 @@ function FilterTab({
   onClick: () => void;
   color?: 'primary' | 'amber' | 'danger';
 }) {
-  let activeClass = 'bg-accent text-on-accent shadow-xs font-semibold';
-  if (color === 'amber' && active) activeClass = 'bg-warning-strong text-white shadow-xs font-semibold';
-  if (color === 'danger' && active) activeClass = 'bg-danger text-on-danger shadow-xs font-semibold';
+  let activeClass = 'bg-primary text-white shadow-xs';
+  if (color === 'amber' && active) activeClass = 'bg-amber-600 text-white shadow-xs';
+  if (color === 'danger' && active) activeClass = 'bg-danger text-white shadow-xs';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-10 py-5 rounded-lg text-xs transition-colors flex items-center gap-6 border ${
+      className={`px-[10px] py-[5px] rounded-lg text-xs transition-colors flex items-center gap-[6px] border ${
         active
           ? `${activeClass} border-transparent`
           : 'bg-surface-raised text-text border-border hover:bg-surface hover:text-text font-medium'
@@ -372,7 +368,7 @@ function FilterTab({
     >
       <span>{label}</span>
       <span
-        className={`text-[10px] px-6 py-1 rounded-full font-bold ${
+        className={`text-[10px] px-[6px] py-[1px] rounded-full font-bold ${
           active ? 'bg-white/20 text-white' : 'bg-surface text-text-muted border border-border/50'
         }`}
       >
@@ -396,17 +392,18 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+    <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
       <div>
-        <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left">{label}</span>
+        <span className="text-xs text-text-muted font-medium block mb-4 text-left leading-normal">{label}</span>
         <strong
-          className={`text-xl sm:text-2xl font-bold block truncate text-left ${primary ? 'text-accent-strong' : 'text-text'}`}
+          className={`text-base tablet:text-xl desktop:text-2xl font-bold block text-left break-words leading-tight ${primary ? 'text-accent-strong' : 'text-text'}`}
           data-testid={testId}
         >
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 truncate text-left">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }
+

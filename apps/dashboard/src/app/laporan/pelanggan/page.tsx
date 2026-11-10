@@ -262,7 +262,7 @@ export default function LaporanPelanggan() {
 
       {isLoading && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat laporan">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton" style={{ height: 88 }} />
             ))}
@@ -274,7 +274,7 @@ export default function LaporanPelanggan() {
       {!isLoading && !isError && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
             <div className="cg-data min-w-0">
               <span className="cg-data__label">Pelanggan Aktif</span>
               <span className="cg-data__value text-success-strong">
@@ -361,12 +361,12 @@ export default function LaporanPelanggan() {
             </div>
 
             <div className="flex flex-wrap items-center gap-12 flex-1 justify-end max-w-xl">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-[6px]">
                 <ArrowUpDown className="cg-icon text-text-muted" aria-hidden />
                 <label htmlFor="sort-pelanggan" className="cg-sr">Urutkan berdasarkan</label>
                 <select
                   id="sort-pelanggan"
-                  className="cg-input py-6 text-sm"
+                  className="cg-input py-[6px] text-sm"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
                 >
@@ -436,7 +436,7 @@ export default function LaporanPelanggan() {
                           className="border-b hover:bg-surface-hover"
                           style={{ borderColor: 'var(--color-border)' }}
                         >
-                          <td className="py-10 px-8 font-medium">
+                          <td className="py-[10px] px-8 font-medium">
                             <div>{c.name}</div>
                             {c.code && (
                               <span className="text-xs text-text-muted">
@@ -444,30 +444,30 @@ export default function LaporanPelanggan() {
                               </span>
                             )}
                           </td>
-                          <td className="py-10 px-8 text-text-muted">
+                          <td className="py-[10px] px-8 text-text-muted">
                             <div>{c.phone || '-'}</div>
                             {c.email && (
                               <div className="text-xs">{c.email}</div>
                             )}
                           </td>
-                          <td className="py-10 px-8 text-right font-medium">
+                          <td className="py-[10px] px-8 text-right font-medium">
                             {item.orderCount > 0 ? (
                               <span>{item.orderCount}x</span>
                             ) : (
                               <span className="text-text-muted">0</span>
                             )}
                           </td>
-                          <td className="py-10 px-8 text-right font-medium">
+                          <td className="py-[10px] px-8 text-right font-medium">
                             {item.totalSpend > 0 ? (
                               <span className="text-brand-strong">{formatRp(item.totalSpend)}</span>
                             ) : (
                               <span className="text-text-muted">Rp 0</span>
                             )}
                           </td>
-                          <td className="py-10 px-8 text-right text-text-muted">
+                          <td className="py-[10px] px-8 text-right text-text-muted">
                             {item.orderCount > 0 ? formatRp(item.avgSpend) : '-'}
                           </td>
-                          <td className="py-10 px-8 text-right font-medium">
+                          <td className="py-[10px] px-8 text-right font-medium">
                             {(c.pointsBalance || 0) > 0 ? (
                               <span className="text-accent-strong">
                                 {c.pointsBalance.toLocaleString('id-ID')}
@@ -476,14 +476,14 @@ export default function LaporanPelanggan() {
                               <span className="text-text-muted">0</span>
                             )}
                           </td>
-                          <td className="py-10 px-8 text-text-muted">
+                          <td className="py-[10px] px-8 text-text-muted">
                             {fmtDate(item.lastOrderDate, tz)}
                           </td>
-                          <td className="py-10 px-8 text-right">
-                            <div className="inline-flex items-center gap-6 justify-end w-28">
+                          <td className="py-[10px] px-8 text-right">
+                            <div className="inline-flex items-center gap-[6px] justify-end w-[112px]">
                               <span className="text-xs">{sharePct}%</span>
                               <div
-                                className="h-2 w-16 rounded-full"
+                                className="h-[8px] w-16 rounded-full"
                                 style={{ backgroundColor: 'var(--color-border)' }}
                               >
                                 <div
