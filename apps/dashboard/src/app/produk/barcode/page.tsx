@@ -519,7 +519,7 @@ export default function BarcodePrintPage() {
                                       const n = parseInt(e.target.value.replace(/[^\d]/g, ''), 10);
                                       updateQuantity(p.id, isNaN(n) ? 1 : n);
                                     }}
-                                    className="w-10 text-center text-xs font-bold cg-num border border-border rounded-sm py-[2px] bg-surface text-text"
+                                    className="w-[40px] text-center text-xs font-bold cg-num border border-border rounded-sm py-[2px] bg-surface text-text"
                                     aria-label={`Jumlah label untuk ${p.name}`}
                                   />
                                   <button
