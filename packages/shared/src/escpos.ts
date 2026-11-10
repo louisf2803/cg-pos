@@ -1,6 +1,7 @@
 import { formatRp } from './money';
 import { orderTypeLabel } from './report';
 import { taxDisplay } from './outlet';
+import { resolveReceiptTemplate, themeCols, type PrintTheme } from './receipt-template';
 import type { Order, OutletContext } from './types';
 
 /**
@@ -47,38 +48,45 @@ export function twoColumns(left: string, right: string, cols: number): string[] 
   return [...lines, ' '.repeat(Math.max(0, cols - r.length)) + r];
 }
 
-export type Piece = { text: string; align?: 'left' | 'center'; bold?: boolean; big?: boolean };
+/** size: tema huruf (normal = biasa, medium = tinggi dua kali, large = lebar dan tinggi dua kali) */
+export type Piece = { text: string; align?: 'left' | 'center'; bold?: boolean; big?: boolean; size?: PrintTheme };
+
+/** Terapkan tema huruf ke semua potongan (normal tidak mengubah apa pun). */
+export const withTheme = (pieces: Piece[], theme: PrintTheme): Piece[] => (theme === 'normal' ? pieces : pieces.map((pc) => ({ ...pc, size: theme })));
 
 const fmtTime = (iso: string, tz: string) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
 
 /** Isi struk/tagihan sebagai potongan teks per baris, sama isinya dengan tampilan struk di layar. */
-export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName: string; kind: 'receipt' | 'bill'; cols: number }): Piece[] {
-  const { order, ctx, cashierName, kind, cols } = o;
+export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName: string; kind: 'receipt' | 'bill'; cols: number; printedAt?: string }): Piece[] {
+  const { order, ctx, cashierName, kind } = o;
+  const tpl = resolveReceiptTemplate(ctx);
+  const cols = themeCols(o.cols, tpl.theme);
   const p: Piece[] = [];
   const dash = '-'.repeat(cols);
   const center = (t: string, bold = false) => { for (const l of wrapText(t, cols)) p.push({ text: l, align: 'center', bold }); };
   const row = (a: string, b: string, bold = false) => { for (const l of twoColumns(a, b, cols)) p.push({ text: l, bold }); };
   const text = (t: string) => { for (const l of wrapText(t, cols)) p.push({ text: l }); };
 
-  center(ctx.outletName, true);
-  if (ctx.address) center(ctx.address);
-  if (ctx.phone) center(ctx.phone);
+  if (tpl.showOutletName) center(ctx.outletName, true);
+  if (tpl.showAddress && ctx.address) center(ctx.address);
+  if (tpl.showPhone && ctx.phone) center(ctx.phone);
   if (ctx.receiptHeader) for (const l of ctx.receiptHeader.split('\n')) if (l.trim()) center(l.trim());
   p.push({ text: dash });
-  row(kind === 'bill' ? 'TAGIHAN (belum lunas)' : 'STRUK', orderTypeLabel(order.type));
-  text(order.number);
-  const meta = [order.label, order.guestCount ? `${order.guestCount} tamu` : ''].filter(Boolean).join(' - ');
+  row(kind === 'bill' ? 'TAGIHAN (belum lunas)' : 'STRUK', tpl.showOrderType ? orderTypeLabel(order.type) : '');
+  if (tpl.showOrderNo) text(order.number);
+  const meta = [tpl.showTable ? order.label : '', tpl.showGuests && order.guestCount ? `${order.guestCount} tamu` : ''].filter(Boolean).join(' - ');
   if (meta) text(meta);
-  text(fmtTime(order.closedAt ?? order.openedAt, ctx.timezone));
-  if (ctx.receiptShowCashier !== false) text(`Kasir: ${cashierName}`);
-  if (order.customerName && ctx.receiptShowCustomer !== false) text(`Pelanggan: ${order.customerName}`);
+  if (tpl.showTime) text(fmtTime(order.closedAt ?? order.openedAt, ctx.timezone));
+  if (tpl.showCashier) text(`Kasir: ${cashierName}`);
+  if (order.customerName && tpl.showCustomer) text(`Pelanggan: ${order.customerName}`);
   p.push({ text: dash });
   for (const i of order.items) {
     text(i.name);
-    row(`${i.qty} x ${formatRp(i.unitPrice)}`, formatRp(i.qty * i.unitPrice));
-    for (const e of i.extras ?? []) row(`+ ${e.name}${i.qty > 1 ? ` x ${i.qty}` : ''}`, e.price > 0 ? formatRp(e.price * i.qty) : '');
-    if (i.note) text(`  ${i.note}`);
+    if (tpl.showUnitPrice) row(`${i.qty} x ${formatRp(i.unitPrice)}`, formatRp(i.qty * i.unitPrice));
+    else row(`${i.qty} x`, formatRp(i.qty * i.unitPrice));
+    if (tpl.showExtras) for (const e of i.extras ?? []) row(`+ ${e.name}${i.qty > 1 ? ` x ${i.qty}` : ''}`, e.price > 0 ? formatRp(e.price * i.qty) : '');
+    if (tpl.showNotes && i.note) text(`  ${i.note}`);
   }
   p.push({ text: dash });
   const d = taxDisplay(order);
@@ -99,7 +107,8 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
     row('Sisa', formatRp(order.total - order.paidTotal));
   }
   if (ctx.receiptFooter) { p.push({ text: dash }); center(ctx.receiptFooter); }
-  return p;
+  if (tpl.showPrintTime) { if (!ctx.receiptFooter) p.push({ text: dash }); center(`dicetak ${fmtTime(o.printedAt ?? new Date().toISOString(), ctx.timezone)}`); }
+  return withTheme(p, tpl.theme);
 }
 
 export interface EscposOptions { paper: PaperWidth; openDrawer?: boolean; cut?: boolean }
@@ -110,13 +119,17 @@ export function encodeEscpos(pieces: Piece[], opts: EscposOptions): Uint8Array {
   const put = (s: string) => { for (const ch of s) b.push(ch.charCodeAt(0)); };
   let align: 'left' | 'center' = 'left';
   let bold = false;
+  let size: PrintTheme = 'normal';
   for (const pc of pieces) {
     const a = pc.align ?? 'left';
     if (a !== align) { b.push(ESC, 0x61, a === 'center' ? 1 : 0); align = a; }
     const w = !!pc.bold;
     if (w !== bold) { b.push(ESC, 0x45, w ? 1 : 0); bold = w; }
+    const sz = pc.size ?? 'normal';
+    if (sz !== size) { b.push(GS, 0x21, sz === 'large' ? 0x11 : sz === 'medium' ? 0x01 : 0x00); size = sz; }
     put(toPrinterText(pc.text)); b.push(0x0a);
   }
+  if (size !== 'normal') b.push(GS, 0x21, 0x00);
   if (bold) b.push(ESC, 0x45, 0);
   b.push(ESC, 0x61, 0);
   b.push(0x0a, 0x0a, 0x0a); // sisa kertas sebelum dipotong

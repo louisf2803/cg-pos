@@ -1,4 +1,5 @@
-import { encodeEscpos, paperCols, twoColumns, wrapText, type PaperWidth, type Piece } from './escpos';
+import { encodeEscpos, paperCols, twoColumns, withTheme, wrapText, type PaperWidth, type Piece } from './escpos';
+import { themeCols, type PrintTheme } from './receipt-template';
 import { orderTypeLabel } from './report';
 
 /**
@@ -27,6 +28,8 @@ export interface StationTemplate {
   boldItems: boolean;
   /** garis pemisah antarbagian */
   separators: boolean;
+  /** ukuran huruf tiket: normal, sedang (tinggi 2x), besar (lebar dan tinggi 2x) */
+  theme: PrintTheme;
 }
 
 export interface PrintStation {
@@ -47,8 +50,8 @@ export const MAX_LABELS_PER_PRINT = 40;
 
 export function defaultTemplate(kind: StationKind = 'checker'): StationTemplate {
   return kind === 'label'
-    ? { title: '', footer: '', showOrderNo: true, showOrderType: false, showTable: true, showGuests: false, showCashier: false, showTime: true, showNotes: true, showExtras: true, boldItems: true, separators: false }
-    : { title: '', footer: '', showOrderNo: true, showOrderType: true, showTable: true, showGuests: true, showCashier: true, showTime: true, showNotes: true, showExtras: true, boldItems: true, separators: true };
+    ? { title: '', footer: '', showOrderNo: true, showOrderType: false, showTable: true, showGuests: false, showCashier: false, showTime: true, showNotes: true, showExtras: true, boldItems: true, separators: false, theme: 'normal' }
+    : { title: '', footer: '', showOrderNo: true, showOrderType: true, showTable: true, showGuests: true, showCashier: true, showTime: true, showNotes: true, showExtras: true, boldItems: true, separators: true, theme: 'normal' };
 }
 
 const BOOLS = ['showOrderNo', 'showOrderType', 'showTable', 'showGuests', 'showCashier', 'showTime', 'showNotes', 'showExtras', 'boldItems', 'separators'] as const;
@@ -60,6 +63,7 @@ export function normalizeTemplate(raw: unknown, kind: StationKind = 'checker'): 
   const r = raw as Record<string, unknown>;
   const out: StationTemplate = { ...base };
   for (const k of BOOLS) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
+  if (r.theme === 'normal' || r.theme === 'medium' || r.theme === 'large') out.theme = r.theme;
   if (typeof r.title === 'string') out.title = r.title.replace(/\s+/g, ' ').trim().slice(0, STATION_TEXT_MAX);
   if (typeof r.footer === 'string') out.footer = r.footer.replace(/\s+/g, ' ').trim().slice(0, STATION_TEXT_MAX);
   return out;
@@ -78,6 +82,7 @@ export function stationProblem(input: PrintStationInput): string | null {
   if (t) {
     if (typeof t.title === 'string' && t.title.trim().length > STATION_TEXT_MAX) return `Judul tiket maksimal ${STATION_TEXT_MAX} huruf.`;
     if (typeof t.footer === 'string' && t.footer.trim().length > STATION_TEXT_MAX) return `Teks bawah tiket maksimal ${STATION_TEXT_MAX} huruf.`;
+    if (t.theme !== undefined && t.theme !== 'normal' && t.theme !== 'medium' && t.theme !== 'large') return 'Ukuran huruf tiket tidak dikenal.';
   }
   return null;
 }
@@ -104,8 +109,9 @@ const fmtTime = (iso: string, tz: string) =>
 
 /** Isi satu tiket checker sebagai potongan teks per baris (sama untuk layar, pratinjau dashboard, dan ESC/POS). */
 export function checkerPieces(o: { station: Pick<PrintStation, 'name' | 'template'>; meta: TicketMeta; lines: SentLine[]; cols: number }): Piece[] {
-  const { station, meta, lines, cols } = o;
+  const { station, meta, lines } = o;
   const t = station.template;
+  const cols = themeCols(o.cols, t.theme ?? 'normal');
   const p: Piece[] = [];
   const dash = '-'.repeat(cols);
   const sep = () => { if (t.separators) p.push({ text: dash }); };
@@ -128,13 +134,14 @@ export function checkerPieces(o: { station: Pick<PrintStation, 'name' | 'templat
   }
   sep();
   if (t.footer) center(t.footer);
-  return p;
+  return withTheme(p, t.theme ?? 'normal');
 }
 
 /** Satu stiker per porsi (jumlah 2 = dua stiker), maksimal MAX_LABELS_PER_PRINT. Tiap stiker = satu daftar potongan. */
 export function labelPieceSets(o: { station: Pick<PrintStation, 'name' | 'template'>; meta: TicketMeta; lines: SentLine[]; cols: number }): Piece[][] {
-  const { station, meta, lines, cols } = o;
+  const { station, meta, lines } = o;
   const t = station.template;
+  const cols = themeCols(o.cols, t.theme ?? 'normal');
   const sets: Piece[][] = [];
   const total = lines.reduce((s, l) => s + Math.max(1, Math.round(l.qty)), 0);
   let n = 0;
@@ -152,7 +159,7 @@ export function labelPieceSets(o: { station: Pick<PrintStation, 'name' | 'templa
       if (meta2) text(meta2);
       if (total > 1) text(`${n}/${total}`);
       if (t.footer) text(t.footer);
-      sets.push(p);
+      sets.push(withTheme(p, t.theme ?? 'normal'));
     }
   }
   return sets;

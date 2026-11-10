@@ -1,4 +1,5 @@
 import type { OrderType } from './order-calc';
+import { receiptTemplateProblem } from './receipt-template';
 
 export interface OutletInfo { code: string; name: string; address: string; phone: string; timezone: string }
 export interface OutletOptions {
@@ -16,6 +17,8 @@ export interface OutletOptions {
   /** tampilkan nama kasir / pelanggan di struk; tidak diisi = tampil. Butuh migrasi 0027. */
   receiptShowCashier?: boolean;
   receiptShowCustomer?: boolean;
+  /** templat struk lengkap (tema, tampil/sembunyi, batas cetak). Butuh migrasi 0031. */
+  receiptTemplate?: Partial<import('./receipt-template').ReceiptTemplate>;
 }
 export const ROUNDING_STEPS = [0, 50, 100, 500, 1000] as const;
 export const ORDER_TYPES: { id: OrderType; label: string }[] = [
@@ -30,6 +33,7 @@ export function outletOptionsProblem(o: OutletOptions): string | null {
   if (o.receiptFooter.length > 300) return 'Catatan kaki struk maksimal 300 karakter.';
   if ((o.receiptHeader ?? '').length > 200) return 'Teks kepala struk maksimal 200 karakter.';
   if ((o.receiptHeader ?? '').split('\n').length > 4) return 'Teks kepala struk maksimal 4 baris.';
+  if (o.receiptTemplate) { const tp = receiptTemplateProblem(o.receiptTemplate); if (tp) return tp; }
   for (const [v, label] of [[o.cashOutDailyLimit, 'Batas kas keluar harian'], [o.defaultOpeningCash, 'Modal awal bawaan']] as const) {
     if (v == null) continue;
     if (!Number.isInteger(v) || v < 0 || v > 1_000_000_000) return `${label} harus bilangan bulat rupiah antara 0 dan 1.000.000.000, atau dikosongkan.`;

@@ -18,6 +18,7 @@ export * from './offline';
 export * from './escpos';
 export * from './station';
 export * from './notes';
+export * from './receipt-template';
 export * from './table-ops';
 export * from './permissions';
 export * from './shift-report';

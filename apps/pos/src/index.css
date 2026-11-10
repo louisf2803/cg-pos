@@ -115,6 +115,10 @@ body { overscroll-behavior: none; }
 .receipt { font-family: ui-monospace, 'Courier New', monospace; font-size: 12px; line-height: 1.35; color: #000; background: #fff; padding: 8px; }
 .receipt--80 { width: 72mm; }
 .receipt--58 { width: 48mm; font-size: 11px; }
+.receipt--medium { font-size: 15px; line-height: 1.4; }
+.receipt--58.receipt--medium { font-size: 13px; }
+.receipt--large { font-size: 20px; line-height: 1.4; }
+.receipt--58.receipt--large { font-size: 16px; }
 .receipt hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
 .receipt__center { text-align: center; }
 .receipt__row { display: flex; justify-content: space-between; gap: 8px; }

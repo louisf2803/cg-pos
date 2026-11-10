@@ -1,5 +1,6 @@
 import type { DataLayer } from './data';
 import { createTableOps } from './table-ops';
+import { sanitizeReceiptTemplate } from './receipt-template';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
@@ -543,7 +544,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
           roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter,
           cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null,
-          receiptHeader: CTX.receiptHeader ?? '', receiptShowCashier: CTX.receiptShowCashier !== false, receiptShowCustomer: CTX.receiptShowCustomer !== false },
+          receiptHeader: CTX.receiptHeader ?? '', receiptShowCashier: CTX.receiptShowCashier !== false, receiptShowCustomer: CTX.receiptShowCustomer !== false, receiptTemplate: clone(CTX.receiptTemplate ?? {}) },
       });
     },
     async saveOutletInfo(input) {
@@ -565,7 +566,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);
       if (problem) throw new DataError('invalid', problem);
-      const { receiptFooter, requireCashPhoto: _p, receiptHeader, receiptShowCashier, receiptShowCustomer, ...rest } = input;
+      const { receiptFooter, requireCashPhoto: _p, receiptHeader, receiptShowCashier, receiptShowCustomer, receiptTemplate, ...rest } = input;
+      if (receiptTemplate !== undefined) CTX.receiptTemplate = sanitizeReceiptTemplate(receiptTemplate);
       if (receiptHeader !== undefined) CTX.receiptHeader = receiptHeader.trim() || undefined;
       if (receiptShowCashier !== undefined) CTX.receiptShowCashier = receiptShowCashier;
       if (receiptShowCustomer !== undefined) CTX.receiptShowCustomer = receiptShowCustomer;

@@ -117,3 +117,20 @@ describe('labelPieceSets dan stationBytes', () => {
     expect(lab.filter((b, i) => b === 0x1b && lab[i + 1] === 0x40).length).toBe(3);
   });
 });
+
+describe('tema huruf tiket', () => {
+  const st = (theme: 'normal' | 'medium' | 'large') => ({ name: 'Dapur', template: { ...defaultTemplate('checker'), theme } });
+  const meta = { orderNumber: 'OUT1/A/261110/012', orderType: 'dine_in', tableName: 'T4', guestCount: 3, cashierName: 'Sari', at: '2026-11-10T07:05:00Z', timezone: 'Asia/Jakarta' };
+  const lines = [{ itemId: 's1', stationId: 's', name: 'Kopi susu gula aren', qty: 2, extras: [] }];
+  it('bawaan normal; normalisasi menerima tema sah dan menolak yang lain', () => {
+    expect(defaultTemplate('checker').theme).toBe('normal');
+    expect(normalizeTemplate({ theme: 'large' }).theme).toBe('large');
+    expect(normalizeTemplate({ theme: 'raksasa' }).theme).toBe('normal');
+    expect(stationProblem({ name: 'Dapur', template: { theme: 'x' as never } })).toMatch(/Ukuran huruf/);
+  });
+  it('besar: kolom separuh dan semua potongan bertanda besar; normal tidak', () => {
+    const big = checkerPieces({ station: st('large'), meta, lines, cols: 32 });
+    expect(big.every((p) => p.size === 'large' && p.text.length <= 16)).toBe(true);
+    expect(checkerPieces({ station: st('normal'), meta, lines, cols: 32 }).some((p) => p.size)).toBe(false);
+  });
+});
