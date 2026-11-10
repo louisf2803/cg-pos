@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { checkStockLimit, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -89,7 +89,14 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   };
   const qtyOf = (p: Product) => cart.state.lines.filter((l) => l.productId === p.id).reduce((n, l) => n + l.qty, 0);
   /** Produk dengan grup Ekstra membuka pemilih dulu; selainnya langsung masuk pesanan. */
+  /** Bila outlet melarang stok minus, tolak penambahan melebihi sisa stok (pesan di bilah status). */
+  const stockOk = (p: Product, adding = 1): boolean => {
+    const r = checkStockLimit({ allowNegative: ctx.settings.allowNegativeStock, trackStock: !!p.trackStock, stock: p.stock ?? undefined, inCart: qtyOf(p), adding });
+    if (!r.ok) setNotice(stockLimitMessage(p.name, r.available));
+    return r.ok;
+  };
   const choose = (p: Product) => {
+    if (!stockOk(p)) return;
     const gs = extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, p) : [];
     if (gs.length) setExtraFor(p); else cart.dispatch({ t: 'add', product: p });
   };
@@ -308,7 +315,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                   <span className="cg-stepper" style={{ gridColumn: '1 / -1', justifySelf: 'start', marginTop: 8 }}>
                     <button onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })} aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}>{l.qty === 1 ? <Trash2 className="cg-icon cg-icon--sm" aria-hidden /> : <Minus className="cg-icon cg-icon--sm" aria-hidden />}</button>
                     <output aria-label={`Jumlah ${l.name}`}>{l.qty}</output>
-                    <button onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty + 1 })} aria-label={`Tambah ${l.name}`}><Plus className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    <button onClick={() => { const pr = prods.status === 'ready' ? prods.data.find((x) => x.id === l.productId) : undefined; if (pr && !stockOk(pr)) return; cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty + 1 }); }} aria-label={`Tambah ${l.name}`}><Plus className="cg-icon cg-icon--sm" aria-hidden /></button>
                   </span>
                 </li>
               );
