@@ -79,3 +79,12 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   5. Kartu Posisi Neraca: Menampilkan Total Aset, Liabilitas, Ekuitas, badge status keseimbangan neraca (hijau Seimbang / merah Peringatan Tidak Seimbang), bar visualisasi proporsi kewajiban & modal terhadap aset, link ke laporan neraca lengkap.
   6. Helper & Tes: `packages/shared/src/finance-widget.ts` (`extractIncomeBreakdown`) beserta 3 uji unit di `packages/shared/test/finance-widget.test.ts`, diekspor di `index.ts`.
   7. Lolos uji: `pnpm -r typecheck`, 242 tes shared vitest, build dashboard 112 halaman, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a15/`).
+- Selesai (tugas A16): Daftar Karyawan (/pengaturan/karyawan) perapian tampilan:
+  1. Kartu Kuota di Atas: Dua kartu kuota visual untuk Staf Kasir dan Admin/Manajer (menampilkan total batas kuota, terpakai, dan sisa slot dengan bar kemajuan proporsional).
+  2. Pencarian & Filter: Kolom cari teks (nama dan kode karyawan) + filter status (Semua / Aktif / Nonaktif) + filter peran (Semua / Kasir / Manajer / Pemilik).
+  3. Tabel Desktop & Tablet: Kolom nama+kode, posisi/peran, outlet penugasan, status badge (Aktif / Nonaktif), dan menu aksi (Atur PIN, Ubah, Nonaktifkan/Aktifkan).
+  4. Modal Ringkasan Outlet: Tombol aksi "Ringkasan outlet" membuka modal ringkasan pembagian jumlah staf kasir, manajer, dan nonaktif per outlet.
+  5. Tampilan Mobile (< 768px): Daftar kartu responsif mandiri tanpa tabel lebar horizontal yang meluap.
+  6. Keamanan PIN: Tetap tidak menampilkan atau menyimpan PIN dalam bentuk apa pun (hanya dialog input 6 digit terenkripsi server).
+  7. Matriks Hak Akses: Dipertahankan di bagian bawah dengan styling token rapi.
+  8. Lolos uji: `pnpm -r typecheck`, 242 tes shared vitest, build dashboard 112 halaman, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a16/`).
