@@ -188,3 +188,8 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   6. Penyelarasan Kolom Tindakan Karyawan: Memberikan lebar kolom tetap (`w-[280px] min-w-[280px]`) pada `th` dan `td`, menampilkan tombol "Ubah" dan "Nonaktifkan" dalam status nonaktif/abu (`opacity-40 cursor-not-allowed`) untuk baris Pemilik/Owner agar seluruh baris memiliki 3 tombol yang simetris dan rata kanan.
   7. Header Tabel Tindakan: Header tabel "Tindakan" dipastikan rata kanan (`style={{ textAlign: 'right' }}`).
   8. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (265 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (screenshot di `docs/shots/a25/`).
+
+## Review A25 (perapian keuangan dan karyawan) — digabung
+- Lingkup sesuai (apps/dashboard + docs). Lulus: typecheck, tes shared, build dashboard; Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; screenshot sudah kulihat.
+- Beres: kurva tidak lagi menembus nol, placeholder cari karyawan rapat ke ikon, kolom Tindakan sejajar rata kanan, ruang kosong kartu Laba Rugi/Arus Kas berkurang.
+- Sisa kosmetik jadi tugas A41 (angka Rp terpecah dua baris di 390, label "Aktiva" ganda, baris Kas/Bank tinggi, ruang kosong kartu Neraca).
