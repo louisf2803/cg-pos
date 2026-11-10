@@ -360,6 +360,7 @@ export const MODUL: NavModule[] = [
         label: 'Operasional & Cetak',
         icon: Sliders,
         items: [
+          { href: '/pengaturan/catatan', label: 'Catatan siap pakai', screen: 'S53', tier: 2, built: true },
           { href: '/pengaturan/stok', label: 'Notifikasi dan batas stok', screen: 'S60', tier: 2 },
           { href: '/pengaturan/struk', label: 'Tampilan struk', screen: 'S53', tier: 2 },
           { href: '/dapur', label: 'Layar dapur', screen: 'S60', tier: 3, built: true },
