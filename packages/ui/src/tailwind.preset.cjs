@@ -3,7 +3,7 @@
    Catatan: warna memakai var(), jadi pengubah opasitas seperti bg-accent/50 tidak tersedia; pakai token *-soft. */
 module.exports = {
   theme: {
-    screens: { tablet: '600px', desktop: '1200px' },
+    screens: { tablet: '600px', laptop: '1024px', desktop: '1200px', wide: '1440px' },
     extend: {
       colors: {
       'bg': 'var(--color-bg)',
@@ -31,6 +31,15 @@ module.exports = {
       'info-soft': 'var(--color-info-soft)',
       'info-strong': 'var(--color-info-strong)',
       'overlay': 'var(--color-overlay)',
+      'shell-bg': 'var(--shell-bg)',
+      'shell-bg-active': 'var(--shell-bg-active)',
+      'shell-bg-hover': 'var(--shell-bg-hover)',
+      'shell-stripe': 'var(--shell-stripe)',
+      'shell-text': 'var(--shell-text)',
+      'shell-text-muted': 'var(--shell-text-muted)',
+      'trend-up': 'var(--color-trend-up)',
+      'trend-down': 'var(--color-trend-down)',
+      'chart-bar': 'var(--color-chart-bar)',
       'table-empty': 'var(--color-table-empty)',
       'table-empty-text': 'var(--color-table-empty-text)',
       'table-seated': 'var(--color-table-seated)',

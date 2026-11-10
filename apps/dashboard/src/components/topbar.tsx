@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -16,6 +16,7 @@ import {
   LogOut,
   User,
   X,
+  Lock,
 } from 'lucide-react';
 import { MODUL, getModuleForPath } from '@/lib/nav';
 import { useAuth } from '@/lib/auth';
@@ -40,8 +41,13 @@ export function Topbar() {
 
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
+
   const moreRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const primaryCloseBtnRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const contextAsync = useAsync(() => data.getContext(), [data]);
   const currentModule = getModuleForPath(path, activeModuleHint);
@@ -60,8 +66,60 @@ export function Topbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleModuleClick = (m: (typeof MODUL)[number]) => {
+  // Close locked modal and restore focus to trigger button
+  const closeLockedModal = useCallback(() => {
+    setLockedFeature(null);
+    setTimeout(() => {
+      triggerRef.current?.focus();
+    }, 50);
+  }, [setLockedFeature]);
+
+  // Accessibility: Focus trap & Escape key handler for locked modal
+  useEffect(() => {
+    if (!lockedFeature) return;
+
+    // Focus into modal
+    const timer = setTimeout(() => {
+      primaryCloseBtnRef.current?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLockedModal();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [lockedFeature, closeLockedModal]);
+
+  const handleModuleClick = (m: (typeof MODUL)[number], e: React.MouseEvent<HTMLButtonElement>) => {
     if (m.locked) {
+      triggerRef.current = e.currentTarget;
       setLockedFeature(m.label);
       return;
     }
@@ -148,29 +206,29 @@ export function Topbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 h-[60px] bg-surface-raised border-b border-border flex items-center justify-between px-16 desktop:px-24">
-        {/* Left: Logo & Hamburger button */}
-        <div className="flex items-center gap-12">
+      <header className="sticky top-0 z-40 h-[60px] bg-surface-raised border-b border-border flex items-center justify-between px-16 desktop:px-24 select-none">
+        {/* Left: Logo & Mobile Hamburger */}
+        <div className="flex items-center gap-12 shrink-0">
           <button
             type="button"
-            className="desktop:hidden p-8 rounded-md text-text-muted hover:text-text hover:bg-surface"
+            className="laptop:hidden p-8 rounded-md text-text-muted hover:text-text hover:bg-surface"
             aria-label="Buka menu navigasi"
             onClick={() => setMobileNavOpen(true)}
           >
             <Menu className="cg-icon" aria-hidden />
           </button>
-          <Link href="/" className="flex items-center gap-8 font-bold text-lg text-text">
-            <span className="w-8 h-8 rounded-md bg-success flex items-center justify-center text-on-success text-xs font-black">
+          <Link href="/" className="flex items-center gap-8 font-bold text-lg text-text shrink-0">
+            <span className="w-8 h-8 rounded-md bg-accent flex items-center justify-center text-on-accent text-xs font-black shadow-sm">
               CG
             </span>
-            <span>POS</span>
+            <span className="tracking-tight">POS</span>
           </Link>
         </div>
 
-        {/* Center: Module Tabs (hidden on mobile <= 900px, visible on desktop) */}
+        {/* Center: Module Tabs (Horizontal, height 36px, centered, no wrap) */}
         <nav
           aria-label="Modul aplikasi"
-          className="hidden desktop:flex items-center gap-6 overflow-x-auto py-4"
+          className="hidden laptop:flex items-center gap-4 desktop:gap-8 justify-center min-w-0 flex-1 px-8"
         >
           {topModules.map((m) => {
             const isActive = currentModule.id === m.id;
@@ -178,12 +236,8 @@ export function Topbar() {
               <button
                 key={m.id}
                 type="button"
-                onClick={() => handleModuleClick(m)}
-                className={`px-14 py-6 rounded-full text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-success text-on-success font-semibold shadow-sm'
-                    : 'text-text-muted hover:text-text hover:bg-surface'
-                }`}
+                onClick={(e) => handleModuleClick(m, e)}
+                className={`cg-topbar-pill ${isActive ? 'cg-topbar-pill--active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
               >
                 {m.label}
@@ -192,13 +246,11 @@ export function Topbar() {
           })}
 
           {/* Dropdown Lainnya ▾ */}
-          <div className="relative" ref={moreRef}>
+          <div className="relative shrink-0" ref={moreRef}>
             <button
               type="button"
-              className={`flex items-center gap-4 px-12 py-6 rounded-full text-sm font-medium transition-all ${
-                currentModule.id === 'pengaturan'
-                  ? 'bg-success text-on-success font-semibold shadow-sm'
-                  : 'text-text-muted hover:text-text hover:bg-surface'
+              className={`cg-topbar-pill gap-4 ${
+                currentModule.id === 'pengaturan' ? 'cg-topbar-pill--active' : ''
               }`}
               onClick={() => setMoreMenuOpen(!moreMenuOpen)}
               aria-expanded={moreMenuOpen}
@@ -211,7 +263,7 @@ export function Topbar() {
             {moreMenuOpen && (
               <div
                 role="menu"
-                className="absolute left-0 mt-8 w-56 bg-surface-raised border border-border rounded-lg shadow-pop py-6 z-50 animate-fadeIn"
+                className="absolute left-0 mt-8 w-56 bg-surface-raised border border-border rounded-xl shadow-pop py-6 z-50 animate-fadeIn"
               >
                 {otherMenuItems.map((item) => (
                   <button
@@ -230,40 +282,42 @@ export function Topbar() {
           </div>
         </nav>
 
-        {/* Right: Notifications, Business name, User profile, Menu ⋮ */}
-        <div className="flex items-center gap-12">
-          {/* Notification bell with red indicator */}
+        {/* Right: Notifications, Business name, User profile, Menu ⋮ (Always visible at 1280px & 1440px) */}
+        <div className="flex items-center gap-12 shrink-0">
+          {/* Notification bell with conditional indicator */}
           <button
             type="button"
-            className="relative p-8 rounded-full text-text-muted hover:text-text hover:bg-surface transition-colors"
+            className="relative p-8 rounded-full text-text-muted hover:text-text hover:bg-surface transition-colors shrink-0"
             aria-label="Pemberitahuan baru"
             title="Pemberitahuan"
             onClick={() =>
               setInfoModal({
                 title: 'Pemberitahuan',
-                message: 'Tidak ada pemberitahuan baru saat ini. Seluruh sistem beroperasi normal.',
+                message: 'Tidak ada pemberitahuan baru saat ini. Seluruh operasional berjalan normal.',
               })
             }
           >
             <Bell className="cg-icon" aria-hidden />
-            <span
-              className="absolute top-6 right-6 w-2 h-2 rounded-full bg-danger ring-2 ring-surface-raised"
-              aria-hidden
-            />
+            {hasUnreadNotification && (
+              <span
+                className="absolute top-6 right-6 w-2 h-2 rounded-full bg-danger ring-2 ring-surface-raised"
+                aria-hidden
+              />
+            )}
           </button>
 
-          {/* Business & User badge */}
-          <div className="hidden desktop:flex flex-col text-right">
-            <span className="text-sm font-semibold text-text leading-tight truncate max-w-[160px]">
+          {/* Business & User badge (shrink-0, clearly displayed) */}
+          <div className="hidden laptop:flex flex-col text-right justify-center shrink-0 min-w-0">
+            <span className="text-sm font-semibold text-text leading-tight truncate max-w-[180px]">
               {businessName}
             </span>
-            <span className="text-xs text-text-muted leading-tight truncate max-w-[160px]">
+            <span className="text-xs text-text-muted leading-tight truncate max-w-[180px]">
               {userName}
             </span>
           </div>
 
           {/* User menu ⋮ */}
-          <div className="relative" ref={userRef}>
+          <div className="relative shrink-0" ref={userRef}>
             <button
               type="button"
               className="p-8 rounded-full text-text-muted hover:text-text hover:bg-surface transition-colors"
@@ -277,7 +331,7 @@ export function Topbar() {
             {userMenuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 mt-8 w-56 bg-surface-raised border border-border rounded-lg shadow-pop py-6 z-50 animate-fadeIn"
+                className="absolute right-0 mt-8 w-56 bg-surface-raised border border-border rounded-xl shadow-pop py-6 z-50 animate-fadeIn"
               >
                 <div className="px-16 py-8 border-b border-border mb-4">
                   <p className="text-sm font-semibold truncate">{businessName}</p>
@@ -331,59 +385,69 @@ export function Topbar() {
         </div>
       </header>
 
-      {/* Modal: Fitur Terkunci (Appointment & Whatsapp) */}
+      {/* Modal Terkunci (Appointment & Whatsapp) - Accessible dialog with Escape, Backdrop, and Focus trap */}
       {lockedFeature && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="locked-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-16 bg-overlay/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-16 bg-overlay/50 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeLockedModal();
+          }}
         >
-          <div className="cg-card max-w-md w-full p-24 shadow-pop rounded-xl bg-surface-raised border border-border">
+          <div
+            ref={modalRef}
+            className="cg-card max-w-md w-full p-24 shadow-pop rounded-xl bg-surface-raised border border-border"
+          >
             <div className="flex items-center justify-between pb-12 border-b border-border">
               <h2 id="locked-title" className="text-lg font-bold text-text">
                 Fitur Belum Tersedia
               </h2>
               <button
                 type="button"
-                className="p-4 rounded-md text-text-muted hover:text-text"
+                className="p-6 rounded-md text-text-muted hover:text-text hover:bg-surface transition-colors"
                 aria-label="Tutup dialog"
-                onClick={() => setLockedFeature(null)}
+                onClick={closeLockedModal}
               >
                 <X className="cg-icon" aria-hidden />
               </button>
             </div>
             <div className="py-20 text-center">
-              <div className="w-16 h-16 rounded-full bg-warning-soft text-warning-strong flex items-center justify-center mx-auto mb-16">
-                <Sliders className="w-8 h-8" aria-hidden />
+              <div className="w-16 h-16 rounded-full bg-accent-soft text-accent-strong flex items-center justify-center mx-auto mb-16 shadow-sm">
+                <Lock className="w-8 h-8" aria-hidden />
               </div>
               <p className="text-base font-semibold text-text mb-8">
                 Modul {lockedFeature}
               </p>
-              <p className="text-sm text-text-muted max-w-sm mx-auto">
+              <p className="text-sm text-text-muted max-w-sm mx-auto leading-relaxed">
                 Fitur ini belum tersedia di paket Anda.
               </p>
             </div>
             <div className="flex justify-end pt-12 border-t border-border">
               <button
+                ref={primaryCloseBtnRef}
                 type="button"
                 className="cg-btn cg-btn--primary"
-                onClick={() => setLockedFeature(null)}
+                onClick={closeLockedModal}
               >
-                Mengerti
+                Tutup
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal: Informasi Umum (Bantuan, Layanan, etc.) */}
+      {/* Modal Informasi Tambahan (Bantuan, Layanan, etc.) */}
       {infoModal && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="info-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-16 bg-overlay/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-16 bg-overlay/50 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInfoModal(null);
+          }}
         >
           <div className="cg-card max-w-md w-full p-24 shadow-pop rounded-xl bg-surface-raised border border-border">
             <div className="flex items-center justify-between pb-12 border-b border-border">
@@ -392,7 +456,7 @@ export function Topbar() {
               </h2>
               <button
                 type="button"
-                className="p-4 rounded-md text-text-muted hover:text-text"
+                className="p-6 rounded-md text-text-muted hover:text-text hover:bg-surface"
                 aria-label="Tutup dialog"
                 onClick={() => setInfoModal(null)}
               >
@@ -400,7 +464,7 @@ export function Topbar() {
               </button>
             </div>
             <div className="py-20 text-center">
-              <p className="text-sm text-text max-w-sm mx-auto">
+              <p className="text-sm text-text max-w-sm mx-auto leading-relaxed">
                 {infoModal.message}
               </p>
             </div>

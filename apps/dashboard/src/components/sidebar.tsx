@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   X,
   Store,
   Star,
   MessageCircle,
   Headphones,
   Check,
-  CreditCard,
 } from 'lucide-react';
 import { MODUL, ALL_ITEMS, getModuleForPath, type NavItem } from '@/lib/nav';
 import { getFavorites } from '@/lib/favorites';
@@ -25,6 +26,8 @@ export function Sidebar() {
   const {
     mobileNavOpen,
     setMobileNavOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
     activeModuleHint,
     setActiveModuleHint,
     setLockedFeature,
@@ -126,7 +129,7 @@ export function Sidebar() {
       {/* Mobile scrim / backdrop */}
       {mobileNavOpen && (
         <div
-          className="cg-scrim desktop:hidden z-40 fixed inset-0 bg-overlay/50 backdrop-blur-sm"
+          className="cg-scrim laptop:hidden z-40 fixed inset-0 bg-overlay/50 backdrop-blur-sm"
           onClick={() => setMobileNavOpen(false)}
           aria-hidden
         />
@@ -136,13 +139,15 @@ export function Sidebar() {
       <aside
         aria-label="Navigasi Menu Utama"
         className={`${
-          mobileNavOpen ? 'fixed inset-y-0 left-0 z-50 flex' : 'hidden'
-        } desktop:flex flex-col w-[250px] shrink-0 h-screen desktop:h-[calc(100vh-60px)] desktop:sticky desktop:top-[60px] cg-sidebar-tosca overflow-y-auto select-none`}
+          mobileNavOpen ? 'fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[85vw]' : 'hidden'
+        } laptop:flex flex-col ${
+          sidebarCollapsed ? 'laptop:w-[72px]' : 'laptop:w-[250px]'
+        } shrink-0 h-screen laptop:h-[calc(100vh-60px)] laptop:sticky laptop:top-[60px] cg-sidebar-shell overflow-y-auto overflow-x-hidden select-none transition-[width] duration-150`}
       >
         {/* Top Section */}
-        <div className="p-16 border-b border-white/10 flex flex-col gap-12 shrink-0">
+        <div className="p-16 border-b border-white/10 shrink-0">
           {/* Header Mobile: Title & Close Button */}
-          <div className="flex items-center justify-between desktop:hidden">
+          <div className="flex items-center justify-between pb-12 laptop:hidden">
             <span className="font-bold text-base text-white tracking-wide">MENU UTAMA</span>
             <button
               type="button"
@@ -155,7 +160,7 @@ export function Sidebar() {
           </div>
 
           {/* Mobile Chip Modul (Only visible on mobile drawer <= 900px) */}
-          <div className="desktop:hidden flex flex-col gap-6">
+          <div className="laptop:hidden flex flex-col gap-6 pb-12">
             <span className="text-xs uppercase font-semibold text-white/60 tracking-wider">
               PILIH MODUL
             </span>
@@ -169,7 +174,7 @@ export function Sidebar() {
                     onClick={() => handleModuleSelect(m.id)}
                     className={`px-10 py-4 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                       isActive
-                        ? 'bg-white text-brand font-bold shadow'
+                        ? 'bg-white text-accent font-bold shadow'
                         : 'bg-white/10 text-white hover:bg-white/20'
                     }`}
                   >
@@ -180,220 +185,374 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* Pemilih Outlet */}
-          <div className="relative">
-            <label id="lbl-pemilih-outlet" className="cg-sr">Pilih Outlet</label>
-            <button
-              type="button"
-              aria-labelledby="lbl-pemilih-outlet"
-              aria-expanded={outletMenuOpen}
-              className="w-full flex items-center justify-between gap-8 px-12 py-8 rounded-lg bg-white/10 hover:bg-white/15 text-white transition-colors text-left"
-              onClick={() => setOutletMenuOpen(!outletMenuOpen)}
-            >
-              <div className="flex items-center gap-8 min-w-0">
-                <Store className="cg-icon cg-icon--sm shrink-0 text-white/80" aria-hidden />
-                <span className="text-sm font-medium truncate">{currentOutletName}</span>
-              </div>
-              <ChevronDown
-                className={`cg-icon cg-icon--sm shrink-0 transition-transform ${
-                  outletMenuOpen ? 'rotate-180' : ''
-                }`}
-                aria-hidden
-              />
-            </button>
-
-            {outletMenuOpen && (
-              <div
-                role="listbox"
-                aria-label="Daftar Outlet"
-                className="absolute top-full left-0 right-0 mt-4 py-4 rounded-lg bg-surface-raised border border-border shadow-pop z-50 text-text text-sm"
+          {/* Desktop Collapsed View (Mode Ikon w-[72px]) */}
+          {sidebarCollapsed ? (
+            <div className="hidden laptop:flex flex-col items-center gap-12">
+              {/* Tombol bulat kecil untuk melebarkan menu */}
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-28 h-28 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-colors"
+                title="Lebarkan menu navigasi"
+                aria-label="Lebarkan menu navigasi"
               >
-                {outletOptions.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    role="option"
-                    aria-selected={selectedOutlet === opt.id}
-                    className="w-full flex items-center justify-between px-12 py-8 hover:bg-surface text-left transition-colors"
-                    onClick={() => {
-                      setSelectedOutlet(opt.id);
-                      setOutletMenuOpen(false);
-                    }}
-                  >
-                    <span className="truncate">{opt.name}</span>
-                    {selectedOutlet === opt.id && (
-                      <Check className="cg-icon cg-icon--sm text-success" aria-hidden />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+                <ChevronRight className="cg-icon cg-icon--xs" aria-hidden />
+              </button>
 
-          {/* Saldo Order Online widget (khusus modul Order Online) */}
-          {currentModule.id === 'order-online' && (
-            <div className="p-12 rounded-lg bg-white/10 border border-white/15 flex flex-col gap-4">
-              <span className="text-xs text-white/70">Saldo Order Online</span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-base font-bold text-white">Rp 0</span>
-                <span className="px-6 py-2 rounded text-[10px] font-semibold bg-success text-on-success">
-                  Aktif
-                </span>
+              {/* Outlet button mode ikon */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOutletMenuOpen(!outletMenuOpen)}
+                  className="w-36 h-36 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                  title={`Outlet: ${currentOutletName} (Klik untuk ganti)`}
+                  aria-label={`Pilih Outlet: ${currentOutletName}`}
+                  aria-expanded={outletMenuOpen}
+                >
+                  <Store className="cg-icon cg-icon--sm" aria-hidden />
+                </button>
+
+                {outletMenuOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Daftar Outlet"
+                    className="absolute top-0 left-full ml-8 w-48 py-4 rounded-lg bg-surface-raised border border-border shadow-pop z-50 text-text text-sm"
+                  >
+                    <div className="px-12 py-4 text-[10px] font-bold uppercase tracking-wider text-text-muted border-b border-border">
+                      PILIH OUTLET
+                    </div>
+                    {outletOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selectedOutlet === opt.id}
+                        className="w-full flex items-center justify-between px-12 py-8 hover:bg-surface text-left transition-colors"
+                        onClick={() => {
+                          setSelectedOutlet(opt.id);
+                          setOutletMenuOpen(false);
+                        }}
+                      >
+                        <span className="truncate">{opt.name}</span>
+                        {selectedOutlet === opt.id && (
+                          <Check className="cg-icon cg-icon--sm text-success" aria-hidden />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+            </div>
+          ) : (
+            /* Desktop/Mobile Expanded View */
+            <div className="flex flex-col gap-12">
+              <div className="relative">
+                <div className="flex items-center justify-between gap-8">
+                  <div className="flex items-center gap-8 min-w-0">
+                    <Store className="cg-icon cg-icon--sm shrink-0 text-white/80" aria-hidden />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-white/60 leading-none mb-2">
+                        Outlet
+                      </span>
+                      <button
+                        type="button"
+                        id="btn-outlet-select"
+                        aria-label={`Pilih Outlet: ${currentOutletName}`}
+                        aria-expanded={outletMenuOpen}
+                        className="text-sm font-medium text-white truncate hover:underline flex items-center gap-4 text-left"
+                        onClick={() => setOutletMenuOpen(!outletMenuOpen)}
+                      >
+                        <span className="truncate">{currentOutletName}</span>
+                        <ChevronDown
+                          className={`cg-icon cg-icon--xs shrink-0 transition-transform ${
+                            outletMenuOpen ? 'rotate-180' : ''
+                          }`}
+                          aria-hidden
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tombol bulat kecil di kanan untuk menciutkan sidebar (>=1024px) */}
+                  <button
+                    type="button"
+                    onClick={() => setSidebarCollapsed(true)}
+                    className="hidden laptop:flex items-center justify-center w-26 h-26 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors shrink-0"
+                    title="Ciutkan menu ke mode ikon"
+                    aria-label="Ciutkan menu ke mode ikon"
+                  >
+                    <ChevronLeft className="cg-icon cg-icon--xs" aria-hidden />
+                  </button>
+                </div>
+
+                {outletMenuOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Daftar Outlet"
+                    className="absolute top-full left-0 right-0 mt-8 py-4 rounded-lg bg-surface-raised border border-border shadow-pop z-50 text-text text-sm"
+                  >
+                    {outletOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selectedOutlet === opt.id}
+                        className="w-full flex items-center justify-between px-12 py-8 hover:bg-surface text-left transition-colors"
+                        onClick={() => {
+                          setSelectedOutlet(opt.id);
+                          setOutletMenuOpen(false);
+                        }}
+                      >
+                        <span className="truncate">{opt.name}</span>
+                        {selectedOutlet === opt.id && (
+                          <Check className="cg-icon cg-icon--sm text-success" aria-hidden />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Saldo Order Online widget (khusus modul Order Online) */}
+              {currentModule.id === 'order-online' && (
+                <div className="p-12 rounded-lg bg-white/10 border border-white/15 flex flex-col gap-4">
+                  <span className="text-xs text-white/70">Saldo Order Online</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-base font-bold text-white">Rp 0</span>
+                    <span className="px-6 py-2 rounded text-[10px] font-semibold bg-success text-on-success">
+                      Aktif
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Accordion Menu Area */}
+        {/* Menu Area */}
         <div className="flex-1 px-8 py-12 flex flex-col gap-4 overflow-y-auto">
-          {/* Menu Favorit Group (Selalu ada di paling atas) */}
-          <div className="mb-8">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between px-12 py-8 rounded-md text-xs font-semibold uppercase tracking-wider text-white/75 hover:text-white hover:bg-white/5 transition-colors"
-              onClick={() => toggleGroup('Menu Favorit')}
-              aria-expanded={openGroup === 'Menu Favorit'}
-            >
-              <div className="flex items-center gap-8">
-                <Star className="cg-icon cg-icon--sm text-warning fill-warning" aria-hidden />
-                <span>Menu Favorit</span>
-              </div>
-              <ChevronDown
-                className={`cg-icon cg-icon--sm transition-transform ${
-                  openGroup === 'Menu Favorit' ? 'rotate-180' : ''
-                }`}
-                aria-hidden
-              />
-            </button>
+          {/* Mode Ciut (Icon-only mode on desktop >=1024px) */}
+          {sidebarCollapsed ? (
+            <div className="hidden laptop:flex flex-col items-center gap-6">
+              {/* Favorit button in icon mode */}
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-40 h-40 rounded-lg flex items-center justify-center text-warning hover:bg-white/10 transition-colors"
+                title="Menu Favorit (Klik untuk lebarkan)"
+                aria-label="Menu Favorit"
+              >
+                <Star className="cg-icon cg-icon--sm fill-warning" aria-hidden />
+              </button>
 
-            {openGroup === 'Menu Favorit' && (
-              <ul className="mt-4 flex flex-col gap-2">
-                {favoriteItems.length === 0 ? (
-                  <li className="px-12 py-8 text-xs text-white/60 italic leading-relaxed">
-                    Belum ada menu favorit. Klik tanda bintang di judul halaman untuk menambahkannya.
-                  </li>
-                ) : (
-                  favoriteItems.map((item) => {
-                    const isActive = item.href === activeItem;
-                    return (
-                      <li key={item.href}>
-                        <Link
-                          href={item.href}
-                          aria-current={isActive ? 'page' : undefined}
-                          className="cg-sidebar-item flex items-center justify-between px-16 py-8 rounded-md text-sm font-medium"
-                          onClick={() => setMobileNavOpen(false)}
-                        >
-                          <span className="truncate">{item.label}</span>
-                          {!item.built && (
-                            <span className="px-4 py-1 text-[10px] rounded bg-white/20 text-white">
-                              T{item.tier}
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            )}
-          </div>
+              {/* Groups in icon mode */}
+              {currentModule.groups.map((group) => {
+                const Icon = group.icon;
+                const isGroupActive = group.items.some((i) => i.href === activeItem);
 
-          {/* Module Groups (Accordion: Single open group at a time) */}
-          {currentModule.groups.map((group) => {
-            const isExpanded = openGroup === group.label;
-            const Icon = group.icon;
-
-            return (
-              <div key={group.label} className="flex flex-col">
+                return (
+                  <button
+                    key={group.label}
+                    type="button"
+                    onClick={() => {
+                      if (group.items.length > 0 && group.items[0]) {
+                        router.push(group.items[0].href);
+                      }
+                      setOpenGroup(group.label);
+                    }}
+                    className={`w-40 h-40 rounded-lg flex items-center justify-center transition-colors relative ${
+                      isGroupActive
+                        ? 'bg-white/20 text-white font-bold'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                    title={group.label}
+                    aria-label={group.label}
+                  >
+                    {Icon ? (
+                      <Icon className="cg-icon cg-icon--sm" aria-hidden />
+                    ) : (
+                      <span className="text-xs font-bold">{group.label.charAt(0)}</span>
+                    )}
+                    {isGroupActive && (
+                      <span className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-20 rounded-l bg-warning" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            /* Mode Lebar / Accordion Lengkap */
+            <>
+              {/* Menu Favorit Group (Selalu ada di paling atas) */}
+              <div className="mb-8">
                 <button
                   type="button"
                   className="w-full flex items-center justify-between px-12 py-8 rounded-md text-xs font-semibold uppercase tracking-wider text-white/75 hover:text-white hover:bg-white/5 transition-colors"
-                  onClick={() => toggleGroup(group.label)}
-                  aria-expanded={isExpanded}
-                  aria-controls={`group-${group.label.replace(/\s+/g, '-')}`}
+                  onClick={() => toggleGroup('Menu Favorit')}
+                  aria-expanded={openGroup === 'Menu Favorit'}
                 >
-                  <div className="flex items-center gap-8 min-w-0">
-                    {Icon && <Icon className="cg-icon cg-icon--sm shrink-0" aria-hidden />}
-                    <span className="truncate">{group.label}</span>
+                  <div className="flex items-center gap-8">
+                    <Star className="cg-icon cg-icon--sm text-warning fill-warning" aria-hidden />
+                    <span>Menu Favorit</span>
                   </div>
                   <ChevronDown
-                    className={`cg-icon cg-icon--sm shrink-0 transition-transform ${
-                      isExpanded ? 'rotate-180' : ''
+                    className={`cg-icon cg-icon--sm transition-transform ${
+                      openGroup === 'Menu Favorit' ? 'rotate-180' : ''
                     }`}
                     aria-hidden
                   />
                 </button>
 
-                {isExpanded && (
-                  <ul
-                    id={`group-${group.label.replace(/\s+/g, '-')}`}
-                    className="mt-2 flex flex-col gap-2"
-                  >
-                    {group.items.map((item, idx) => {
-                      const isActive = item.href === activeItem;
-                      const showSection =
-                        item.section &&
-                        (!group.items[idx - 1] || group.items[idx - 1]?.section !== item.section);
-
-                      return (
-                        <li key={item.href} className="flex flex-col">
-                          {showSection && (
-                            <span className="px-16 pt-8 pb-4 text-[11px] font-semibold text-white/50 uppercase tracking-wider">
-                              {item.section}
-                            </span>
-                          )}
-                          <Link
-                            href={item.href}
-                            aria-current={isActive ? 'page' : undefined}
-                            className={`cg-sidebar-item flex items-center justify-between rounded-md px-16 py-8 text-sm font-medium ${
-                              item.section ? 'pl-24' : ''
-                            }`}
-                            onClick={() => setMobileNavOpen(false)}
-                          >
-                            <span className="truncate">{item.label}</span>
-                            {!item.built && (
-                              <span className="px-4 py-1 text-[10px] rounded bg-white/20 text-white shrink-0">
-                                T{item.tier}
-                              </span>
-                            )}
-                          </Link>
-                        </li>
-                      );
-                    })}
+                {openGroup === 'Menu Favorit' && (
+                  <ul className="mt-4 flex flex-col gap-2">
+                    {favoriteItems.length === 0 ? (
+                      <li className="px-12 py-8 text-xs text-white/60 italic leading-relaxed">
+                        Belum ada menu favorit. Klik tanda bintang di judul halaman untuk menambahkannya.
+                      </li>
+                    ) : (
+                      favoriteItems.map((item) => {
+                        const isActive = item.href === activeItem;
+                        return (
+                          <li key={item.href}>
+                            <Link
+                              href={item.href}
+                              aria-current={isActive ? 'page' : undefined}
+                              className="cg-sidebar-item flex items-center justify-between px-16 py-8 rounded-md text-sm font-medium"
+                              onClick={() => setMobileNavOpen(false)}
+                            >
+                              <span className="truncate">{item.label}</span>
+                              {!item.built && (
+                                <span className="px-4 py-1 text-[10px] rounded bg-white/20 text-white">
+                                  T{item.tier}
+                                </span>
+                              )}
+                            </Link>
+                          </li>
+                        );
+                      })
+                    )}
                   </ul>
                 )}
               </div>
-            );
-          })}
+
+              {/* Module Groups (Accordion: Single open group at a time) */}
+              {currentModule.groups.map((group) => {
+                const isExpanded = openGroup === group.label;
+                const Icon = group.icon;
+
+                return (
+                  <div key={group.label} className="flex flex-col">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-12 py-8 rounded-md text-xs font-semibold uppercase tracking-wider text-white/75 hover:text-white hover:bg-white/5 transition-colors"
+                      onClick={() => toggleGroup(group.label)}
+                      aria-expanded={isExpanded}
+                      aria-controls={`group-${group.label.replace(/\s+/g, '-')}`}
+                    >
+                      <div className="flex items-center gap-8 min-w-0">
+                        {Icon && <Icon className="cg-icon cg-icon--sm shrink-0" aria-hidden />}
+                        <span className="truncate">{group.label}</span>
+                      </div>
+                      <ChevronDown
+                        className={`cg-icon cg-icon--sm shrink-0 transition-transform ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}
+                        aria-hidden
+                      />
+                    </button>
+
+                    {isExpanded && (
+                      <ul
+                        id={`group-${group.label.replace(/\s+/g, '-')}`}
+                        className="mt-2 flex flex-col gap-2"
+                      >
+                        {group.items.map((item, idx) => {
+                          const isActive = item.href === activeItem;
+                          const showSection =
+                            item.section &&
+                            (!group.items[idx - 1] || group.items[idx - 1]?.section !== item.section);
+
+                          return (
+                            <li key={item.href} className="flex flex-col">
+                              {showSection && (
+                                <span className="px-16 pt-8 pb-4 text-[11px] font-semibold text-white/50 uppercase tracking-wider">
+                                  {item.section}
+                                </span>
+                              )}
+                              <Link
+                                href={item.href}
+                                aria-current={isActive ? 'page' : undefined}
+                                className={`cg-sidebar-item flex items-center justify-between rounded-md px-16 py-8 text-sm font-medium ${
+                                  item.section ? 'pl-24' : ''
+                                }`}
+                                onClick={() => setMobileNavOpen(false)}
+                              >
+                                <span className="truncate">{item.label}</span>
+                                {!item.built && (
+                                  <span className="px-4 py-1 text-[10px] rounded bg-white/20 text-white shrink-0">
+                                    T{item.tier}
+                                  </span>
+                                )}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* Bottom Section: Kotak Bantuan Menempel di Bawah */}
         <div className="p-16 border-t border-white/10 shrink-0">
-          <div className="p-12 rounded-xl bg-white/10 border border-white/15 flex flex-col gap-8">
-            <div className="flex items-center gap-8">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
+          {sidebarCollapsed ? (
+            <div className="hidden laptop:flex justify-center">
+              <button
+                type="button"
+                className="w-36 h-36 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-colors"
+                title="Butuh Bantuan? (Chat Layanan 24 Jam)"
+                aria-label="Butuh Bantuan? Hubungi Layanan Pelanggan"
+                onClick={() =>
+                  setInfoModal({
+                    title: 'Bantuan 24 Jam CG POS',
+                    message:
+                      'Tim dukungan teknis dan operasional CG POS siap melayani Anda melalui chat daring dan WhatsApp resmi.',
+                  })
+                }
+              >
                 <Headphones className="cg-icon cg-icon--sm" aria-hidden />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-white leading-tight">Butuh Bantuan?</p>
-                <p className="text-[11px] text-white/70 leading-tight">Chat Layanan 24 Jam</p>
-              </div>
+              </button>
             </div>
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-6 py-6 px-12 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-medium transition-colors"
-              onClick={() =>
-                setInfoModal({
-                  title: 'Bantuan 24 Jam CG POS',
-                  message:
-                    'Tim dukungan teknis dan operasional CG POS siap melayani Anda melalui chat daring dan WhatsApp resmi.',
-                })
-              }
-            >
-              <MessageCircle className="cg-icon cg-icon--sm" aria-hidden />
-              <span>Hubungi CS</span>
-            </button>
-          </div>
+          ) : (
+            <div className="p-12 rounded-xl bg-white/10 border border-white/15 flex flex-col gap-8">
+              <div className="flex items-center gap-8">
+                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
+                  <Headphones className="cg-icon cg-icon--sm" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-white leading-tight">Butuh Bantuan?</p>
+                  <p className="text-[11px] text-white/70 leading-tight">Chat Layanan 24 Jam</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="w-full flex items-center justify-center gap-6 py-6 px-12 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-medium transition-colors"
+                onClick={() =>
+                  setInfoModal({
+                    title: 'Bantuan 24 Jam CG POS',
+                    message:
+                      'Tim dukungan teknis dan operasional CG POS siap melayani Anda melalui chat daring dan WhatsApp resmi.',
+                  })
+                }
+              >
+                <MessageCircle className="cg-icon cg-icon--sm" aria-hidden />
+                <span>Hubungi CS</span>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>
