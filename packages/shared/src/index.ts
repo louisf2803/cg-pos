@@ -52,4 +52,5 @@ export * from './barcode';
 export * from './columns';
 export * from './ledger-multi';
 export * from './cashflow-indirect';
+export * from './dashboard-layout';
 

@@ -349,3 +349,30 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+
+- Selesai (tugas A38): Dashboard Keuangan: Widget Bisa Ditambah dan Diatur (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/dashboard-layout.ts`:
+     - Tipe dan Katalog 7 Widget Keuangan (`FINANCE_WIDGET_CATALOG`): Laba Rugi, Arus Kas, Saldo Kas & Bank, Posisi Neraca, Umur Hutang, Penerimaan & Pengeluaran Ringkas, Rekonsiliasi Non-tunai Ringkas.
+     - `validateAndMigrateLayout`: validasi data mentah dari penyimpanan, pembersihan ID tidak valid, deduplikasi stabil, dan migrasi array lama versi 0 ke skema versi 1 (`FINANCE_LAYOUT_SCHEMA_VERSION`).
+     - `addWidgetToLayout`: penambahan widget baru ke susunan dengan pencegahan duplikasi dan penolakan ID asing.
+     - `removeWidgetFromLayout`: penghapusan widget dari tata letak.
+     - `moveWidgetInLayout`: pengurutan naik/turun berbasis penukaran indeks dengan penjaga batas atas dan bawah yang aman untuk keyboard dan tombol visual.
+     - `getAvailableWidgets`: mendeteksi daftar widget katalog yang belum dipasang di dashboard.
+     - `serializeFinanceLayout` & `getFinanceLayoutStorageKey`: serialisasi terstandarisasi dengan isolasi kunci per pengguna (`cgpos_finance_layout_<user>`).
+     - 8 unit test komprehensif di `packages/shared/test/dashboard-layout.test.ts` (total 354 tes vitest lulus).
+  2. Kustomisasi Dashboard Keuangan (`/keuangan`):
+     - Pengaktifan tombol 'Tambah widget' di `PageHeader` yang membuka dialog katalog modal berpratinjau mini, kategori tag, dan deskripsi fungsi.
+     - Tombol 'Kembalikan bawaan' di header untuk mereset susunan ke 4 widget default.
+     - Kontrol kartu widget individual: tombol naik (`ChevronUp`), tombol turun (`ChevronDown`), dan tombol hapus (`Trash2`) dengan atribut ARIA dan navigasi keyboard penuh (tanpa bergantung pada drag and drop).
+     - 3 widget baru yang berfungsi penuh:
+       - Umur Hutang: 4 kartu umur (`AGING_BUCKETS`), total hutang usaha, dan 3 pemasok utama tertunggak dengan tautan ke laporan hutang.
+       - Penerimaan & Pengeluaran Ringkas: perbandingan kas masuk vs keluar, persentase perputaran, rasio bar visual, dan status surplus/defisit.
+       - Rekonsiliasi Non-tunai Ringkas: total nominal pembayaran non-tunai dan daftar metode kartu/QRIS/transfer.
+     - Keadaan Kosong (Empty State) saat seluruh widget dihapus dengan ajakan menambah widget pertama atau memasang widget bawaan.
+  3. Kepatuhan Tailwind & Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (hanya memakai breakpoint `tablet:`, `laptop:`, `desktop:`, `wide:`, ukuran terdaftar/eksplisit, dan token CSS monorepo).
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error pada seluruh 5 proyek workspace).
+     - `pnpm -F @cgpos/shared test` (56 file, 354 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis prerendered).
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol untuk tampilan default, katalog modal, seluruh 7 widget, dan keadaan kosong (6 tangkapan layar di `docs/shots/a38/`).
