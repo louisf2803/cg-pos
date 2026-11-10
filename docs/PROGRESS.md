@@ -299,3 +299,24 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   5. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (301 tes vitest), `pnpm -F @cgpos/dashboard build` (115 halaman statis), lint Tailwind `scripts/lint-tailwind.sh`, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (15 tangkapan layar di `docs/shots/a32/`).
 - S132 (Claude) — review & merge A32 (atur kolom + ekspor laporan Penjualan/Per periode/Karyawan): lingkup benar (apps/dashboard, packages/shared, docs); lulus review.sh setelah kuperbaiki: prefix mati `md:` di laporan/karyawan, kunci spasi tak terdefinisi (`mt-6`, `mt-2`). Cacat tampilan yang lolos dari tes AG: (1) `PageHeader` memberi blok judul `flex-1` basis 0 sehingga di 390 px judul halaman terhimpit tombol aksi (huruf bertumpuk) — kini `basis-[240px]` (berlaku untuk semua halaman dashboard); (2) popover Atur kolom `absolute` terpotong wadah halaman yang pendek di ≥600 px (tombol Reset/Selesai tak terjangkau) — kini `fixed` dengan posisi dihitung dari tombol. Playwright 390/1280/1440: tanpa overflow/galat; tangkapan docs/shots/rv32/ sudah kulihat.
 - S133 (Claude) — migrasi produksi atas persetujuan Louis ("Migrasi lanjutkan aja", 11 Nov 2026 01:23 WIB, menjawab usulan menerapkan 0028, 0029, 0030): diterapkan satu per satu, semuanya `success`: 0028_owner_guard_revoke, 0029_print_stations, 0030_note_presets (tanpa begin/commit, dibungkus apply_migration). Verifikasi baca-saja: anon dan authenticated tidak lagi bisa mengeksekusi `employees_owner_guard()`; tabel `pos.print_stations` dan `pos.note_presets` ada, RLS aktif, anon tanpa akses, 0 baris; kolom `products.print_station_id` dan `kitchen_items.station_id` ada; 0 produk terpetakan (tidak ada data produksi diubah/diisi; stasiun belum dibuat — menunggu layar A44 atau Louis). Penasihat keamanan: SECURITY DEFINER dapat dieksekusi authenticated turun 43→42; tidak ada temuan baru dari tabel baru; sisa temuan (public.* RLS/search_path, 42 RPC pos, leaked password) sudah ada sebelumnya dan schema public tidak disentuh. Belum dicoba dengan login nyata. Daftar migrasi produksi kini sampai 0030 (0001–0030 lengkap).
+- Selesai (tugas A33): Buku Besar Multi-Akun & Ekspor CSV (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/ledger-multi.ts`:
+     - `computeMultiLedgerSummary`: agregasi saldo awal, total debit, total kredit, saldo akhir, jumlah akun, dan total mutasi transaksi.
+     - `sortLedgersByAccount`: pengurutan stabil berdasarkan kode akun numerik lalu nama akun.
+     - `filterAccountsForLedger`: penyaringan akun berdasarkan kode, nama, atau kategori.
+     - `toCsvWithBom` & `buildMultiLedgerCsvRows`: pembentukan baris CSV UTF-8 dengan BOM (`\uFEFF`) agar terbaca rapi di Microsoft Excel. Mencakup metadata rentang tanggal, pembukaan akun, mutasi debit/kredit/saldo berjalan, subtotal per akun, dan baris total keseluruhan.
+     - 6 unit test di `packages/shared/test/ledger-multi.test.ts` (total 322 test vitest lulus).
+  2. Halaman Buku Besar Multi-Akun (`/keuangan/buku-besar`):
+     - Pemilih Banyak Akun (Multi-Select Popover): mendukung pencarian kode/nama, "Pilih semua", "Kosongkan", indikator jumlah akun terpilih, serta chip akun yang dapat dihapus individual.
+     - Pengambilan Data Paralel: memanggil `Promise.all(selectedIds.map(id => data.ledger(id, span)))` tanpa mengubah antarmuka `DataLayer` atau `data.ts`.
+     - 4 Kartu Ringkasan KPI: Total Debit, Total Kredit, Saldo Akhir Kumulatif, dan Jumlah Akun Terpilih.
+     - Tabel Terpisah Per Akun: lencana kode akun, kategori, status normal debit/kredit, saldo awal, mutasi debit/kredit, jenis/nomor jurnal, dan saldo berjalan dengan footer subtotal per akun.
+     - Ekspor CSV Multi-Akun dengan tombol unduh dinamis ber-BOM UTF-8.
+     - Keadaan Kosong (Empty State) yang informatif saat tidak ada akun yang dipilih.
+  3. Kepatuhan Tailwind & Aksesibilitas:
+     - Mengikuti aturan preset Tailwind monorepo (`tablet:`, `laptop:`, `desktop:`, `wide:`, tanpa prefix mati dan menggunakan ukuran eksplisit untuk spasi non-standar). Lolos `scripts/lint-tailwind.sh`.
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (52 file, 322 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a33/`).
