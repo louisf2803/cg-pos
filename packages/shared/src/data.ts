@@ -9,6 +9,7 @@ import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
+import type { ShiftReportRow } from './shift-report';
 
 /**
  * Satu-satunya pintu data untuk dashboard dan POS. Implementasi:
@@ -179,6 +180,8 @@ export interface DataLayer {
   closeShift(input: { shiftId: string; counted: number; closedBy: string }): Promise<ShiftReport>;
   /** Ringkasan shift tanpa menutupnya: penerimaan per metode, kas, produk terjual. Bisa dipanggil berulang. */
   shiftSummary(shiftId: string): Promise<ShiftReport>;
+  /** Semua shift outlet ini yang dibuka pada rentang (paling banyak 100, terbaru dulu), lengkap dengan laporannya. Untuk dashboard. */
+  listShiftReports(range: SalesRange): Promise<ShiftReportRow[]>;
 
   /** setara op order.upsert: simpan pesanan (status open), menghitung ulang angka dengan computeOrder */
   saveOrder(draft: OrderDraft, cashierId: string): Promise<Order>;

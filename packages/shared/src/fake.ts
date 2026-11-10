@@ -380,6 +380,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         rounding: calc.rounding, total: calc.total, paidTotal: 0, payments: [], openedAt: at.toISOString() });
       for (const d of draftItems) kitchen.set(d.id, { status: 'new', sentAt: at.toISOString(), statusAt: at.toISOString() });
     }
+    // satu kasir lagi masih bertugas, supaya keadaan "belum bisa tutup toko" terlihat
+    shifts.push({ id: 'demo-shift-open', cashierId: 'e-budi', openedAt: new Date(base.getTime() - 2 * 3600_000).toISOString(), openingCash: 150000, status: 'open' });
   }
 
   function seedHistory() {
@@ -410,6 +412,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         payments: [pay], openedAt: at.toISOString(), closedAt: at.toISOString(),
       });
     });
+    // shift contoh sudah ditutup dengan hitungan fisik yang kurang 5.000 dari seharusnya
+    const sh = shifts.find((x) => x.id === shiftId)!;
+    const rep = buildShiftReport(shiftInputs(sh));
+    Object.assign(sh, { expectedCash: rep.expectedCash, counted: rep.expectedCash - 5000, variance: -5000 });
   }
   reset();
 
@@ -1125,6 +1131,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const r = buildShiftReport(before, Math.round(counted));
       Object.assign(s, { status: 'closed', closedAt: now().toISOString(), counted: r.counted, expectedCash: r.expectedCash, variance: r.variance });
       return { ...r, shift: clone(s) } satisfies ShiftReport;
+    },
+    async listShiftReports(range) {
+      return shifts.filter((s) => s.openedAt >= range.from && s.openedAt < range.to)
+        .sort((a, b) => (a.openedAt < b.openedAt ? 1 : -1)).slice(0, 100)
+        .map((s) => clone({ ...buildShiftReport(shiftInputs(s)), cashierName: employees.find((e) => e.id === s.cashierId)?.name ?? '—' }));
     },
     async shiftSummary(shiftId) {
       const s = shifts.find((x) => x.id === shiftId);

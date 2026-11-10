@@ -19,7 +19,7 @@ const PHOTO_BUCKET = 'menu-images';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
-import { buildShiftReport, type ShiftInputs } from './shift-report';
+import { buildShiftReport, type ShiftInputs, type ShiftReportRow } from './shift-report';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import { couponInputProblem, normalizeCode, promotionProblem } from './promo';
@@ -1450,6 +1450,17 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async shiftSummary(shiftId) {
       return buildShiftReport(await gatherShiftInputs(shiftId));
+    },
+    async listShiftReports(range) {
+      const { ctx } = await resolve();
+      const rows = (must(await db().from('shifts').select('*').eq('outlet_id', ctx.outletId).gte('opened_at', range.from).lt('opened_at', range.to)
+        .order('opened_at', { ascending: false }).limit(100)) as Row[] | null) ?? [];
+      if (rows.length === 0) return [];
+      const emp = (must(await db().from('employees').select('id,name').in('id', [...new Set(rows.map((r) => r.cashier_id as string))])) as Row[] | null) ?? [];
+      const names = new Map(emp.map((e) => [e.id as string, e.name as string]));
+      const out: ShiftReportRow[] = [];
+      for (const r of rows) out.push({ ...buildShiftReport(await gatherShiftInputs(r.id as string)), cashierName: names.get(r.cashier_id as string) ?? '—' });
+      return out;
     },
 
     // ---------- pesanan ----------
