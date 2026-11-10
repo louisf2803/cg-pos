@@ -17,6 +17,7 @@ export * from './bundle';
 export * from './offline';
 export * from './escpos';
 export * from './station';
+export * from './notes';
 export * from './table-ops';
 export * from './permissions';
 export * from './shift-report';

@@ -6,6 +6,7 @@ import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoice
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { PrintStation, PrintStationInput, SentLine } from './station';
+import type { NotePreset, NotePresetInput } from './notes';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
 import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
@@ -228,6 +229,12 @@ export interface DataLayer {
   savePrintStation(input: PrintStationInput): Promise<PrintStation>;
   /** Hapus stasiun; produk yang menunjuk ke stasiun ini kembali tanpa stasiun. */
   removePrintStation(id: string): Promise<void>;
+  // ---------- catatan siap pakai (kategori catatan) ----------
+  /** Catatan siap pakai outlet ini (termasuk yang nonaktif). Kosong bila belum ada atau database belum menerima migrasi 0030. */
+  listNotePresets(): Promise<NotePreset[]>;
+  /** Buat (tanpa id) atau ubah (dengan id). Kategori + isi yang sama (tanpa membedakan huruf besar/kecil) ditolak. */
+  saveNotePreset(input: NotePresetInput): Promise<NotePreset>;
+  removeNotePreset(id: string): Promise<void>;
   /** Petakan produk ke stasiun (atau lepas dengan null): per daftar produk dan/atau semua produk satu kategori. Varian ikut induknya. */
   assignProductsToStation(input: { stationId: string | null; productIds?: string[]; categoryId?: string }): Promise<{ changed: number }>;
   kitchenSetStatus(itemIds: string[], status: KitchenStatus): Promise<void>;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
-import { checkStockLimit, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { checkStockLimit, groupNotePresets, noteHasText, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -75,6 +75,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [settings, setSettings] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [custPick, setCustPick] = useState(false);
+  const notePresets = useAsync<NotePreset[]>(() => data.listNotePresets().catch(() => []), [data]);
+  const noteGroups = groupNotePresets(notePresets.status === 'ready' ? notePresets.data : []);
   const promos = useAsync<Promotion[]>(() => data.listPromotions({ activeOnly: true }).catch(() => []), [data]);
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [priceFor, setPriceFor] = useState<{ id: string; text: string; err: string } | null>(null);
@@ -711,7 +713,30 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                               {l.note ? 'Ubah catatan' : '+ Catatan'}
                             </button>
                           )}
-
+                        </div>
+                        {noteFor === l.id && noteGroups.length > 0 && (
+                          <div className="flex flex-col gap-4 w-full" data-testid="note-presets" aria-label="Catatan siap pakai" ref={(el) => el?.scrollIntoView({ block: 'nearest' })}>
+                            {noteGroups.map((g) => (
+                              <div key={g.category} className="flex flex-wrap items-center gap-4">
+                                <span className="text-[11px] text-text-muted">{g.category}:</span>
+                                {g.items.map((n) => {
+                                  const on = noteHasText(l.note, n.text);
+                                  return (
+                                    <button
+                                      key={n.id}
+                                      type="button"
+                                      aria-pressed={on}
+                                      className="cg-chip note-chip"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => cart.dispatch({ t: 'note', lineId: l.id, note: toggleNoteText(l.note, n.text) })}
+                                    >{n.text}</button>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-6">
                           {l.overridePct && l.basePrice !== undefined && (
                             <button
                               type="button"

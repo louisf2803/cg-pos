@@ -28,6 +28,7 @@ import { assembleCatalog, variantProductName, variantsProblem } from './variants
 import { roundToStep } from './money';
 import { paymentRefProblem } from './payment-rules';
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { notePresetProblem, type NotePreset, type NotePresetInput } from './notes';
 import { defaultTemplate, normalizeTemplate, stationProblem, type PrintStation, type PrintStationInput, type SentLine } from './station';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf, trialBalanceOf,
@@ -161,6 +162,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let accounts: Account[] = [];
   const kitchen = new Map<string, { status: KitchenStatus; sentAt: string; statusAt: string; stationId?: string }>();
   let stations: PrintStation[] = [];
+  let notePresets: NotePreset[] = [];
   type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
   // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
   const authCodes: AuthCodeFake[] = [
@@ -403,6 +405,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       { id: 'st-bar', name: 'Bar', kind: 'checker', printMode: 'ask', copies: 1, paper: '58', template: { ...defaultTemplate('checker'), title: 'CHECKER BAR', showGuests: false }, sort: 2, isActive: true },
     ];
     if (opts.seed !== false) for (const pr of products) { const c = pr.categoryId; if (c === 'c-kopi' || c === 'c-non') pr.printStationId = 'st-bar'; else if (c === 'c-makan' || c === 'c-camil') pr.printStationId = 'st-dapur'; }
+    notePresets = opts.seed === false ? [] : [
+      ['Level pedas', 'Tidak pedas'], ['Level pedas', 'Sedang'], ['Level pedas', 'Pedas'], ['Gula', 'Kurang manis'], ['Gula', 'Tanpa gula'], ['Es', 'Es sedikit'], ['Es', 'Tanpa es'], ['Permintaan', 'Bungkus terpisah'], ['Permintaan', 'Jangan pakai sedotan'],
+    ].map(([category, text], i) => ({ id: `np-${i + 1}`, category: category!, text: text!, sort: i + 1, isActive: true }));
     extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
     bundleItems = new Map();
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
@@ -1100,6 +1105,23 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         lines.push({ itemId: it.id, stationId: st.id, name: it.name, qty: it.qty, ...(it.note ? { note: it.note } : {}), extras: (it.extras ?? []).map((e) => ({ name: e.name, qty: 1 })) });
       }
       return { sent: lines.length, lines };
+    },
+    async listNotePresets() { return clone([...notePresets].sort((a, b) => a.sort - b.sort || a.category.localeCompare(b.category))); },
+    async saveNotePreset(input: NotePresetInput) {
+      const problem = notePresetProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const category = input.category.trim(), text = input.text.trim();
+      const same = (x: NotePreset) => x.category.trim().toLowerCase() === category.toLowerCase() && x.text.trim().toLowerCase() === text.toLowerCase();
+      if (notePresets.some((x) => x.id !== input.id && same(x))) throw new DataError('invalid', `Catatan "${text}" di kategori ${category} sudah ada`);
+      const cur = input.id ? notePresets.find((x) => x.id === input.id) : undefined;
+      if (input.id && !cur) throw new DataError('not_found', 'Catatan tidak ditemukan');
+      const next: NotePreset = { id: cur?.id ?? newId(), category, text, sort: input.sort ?? cur?.sort ?? (notePresets.reduce((m, x) => Math.max(m, x.sort), 0) + 1), isActive: input.isActive ?? cur?.isActive ?? true };
+      if (cur) Object.assign(cur, next); else notePresets.push(next);
+      return clone(next);
+    },
+    async removeNotePreset(id) {
+      if (!notePresets.some((x) => x.id === id)) throw new DataError('not_found', 'Catatan tidak ditemukan');
+      notePresets = notePresets.filter((x) => x.id !== id);
     },
     async listPrintStations() { return clone([...stations].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))); },
     async savePrintStation(input: PrintStationInput) {

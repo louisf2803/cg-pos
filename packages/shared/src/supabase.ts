@@ -10,6 +10,7 @@ import {
 } from './purchasing';
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { notePresetProblem, type NotePreset } from './notes';
 import { normalizeTemplate, stationProblem, type PrintStation, type SentLine, type StationKind } from './station';
 import { priceOverridePctProblem } from './price-override';
 import type { DiscountUse, DiscountSource } from './promo-report';
@@ -235,6 +236,14 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return stationsProbe;
   };
   const productSelect = async (): Promise<string> => PRODUCT_SELECT.replace(',product_units(', (await stationsAvailable()) ? ',print_station_id,product_units(' : ',product_units(');
+  /** Apakah database sudah menerima migrasi 0030 (tabel note_presets)? Dicek sekali per sesi. */
+  let notesProbe: Promise<boolean> | null = null;
+  const notesAvailable = (): Promise<boolean> => {
+    notesProbe ??= (async () => { const r = await db().from('note_presets').select('id').limit(1); return !r.error; })().catch(() => false);
+    return notesProbe;
+  };
+  const NOTES_NEED_MIGRATION = 'Catatan siap pakai belum bisa dipakai: database belum menerima migrasi 0030 (menunggu persetujuan Louis).';
+  const toNote = (r: Row): NotePreset => ({ id: r.id as string, category: r.category as string, text: r.text as string, sort: Number(r.sort) || 0, isActive: r.is_active !== false });
   const STATION_NEEDS_MIGRATION = 'Stasiun cetak belum bisa dipakai: database belum menerima migrasi 0029 (menunggu persetujuan Louis).';
   const toStation = (r: Row): PrintStation => {
     const kind: StationKind = r.kind === 'label' ? 'label' : 'checker';
@@ -1345,6 +1354,40 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         extras: ((l.extras ?? []) as Row[]).map((e) => ({ name: e.name as string, qty: Number(e.qty) })),
       }));
       return { sent: Number(d.sent), lines };
+    },
+    async listNotePresets() {
+      if (!(await notesAvailable())) return [];
+      const { ctx } = await resolve();
+      const rows = (must(await db().from('note_presets').select('*').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort').order('category')) as Row[] | null) ?? [];
+      return rows.map(toNote);
+    },
+    async saveNotePreset(input) {
+      const problem = notePresetProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!(await notesAvailable())) throw new DataError('invalid', NOTES_NEED_MIGRATION);
+      const { ctx, orgId } = await resolve();
+      const category = input.category.trim(), text = input.text.trim();
+      try {
+        if (input.id) {
+          const patch: Row = { category, text };
+          if (input.sort !== undefined) patch.sort = input.sort;
+          if (input.isActive !== undefined) patch.is_active = input.isActive;
+          const row = must(await db().from('note_presets').update(patch).eq('id', input.id).is('deleted_at', null).select('*').maybeSingle()) as Row | null;
+          if (!row) throw new DataError('forbidden', 'Catatan tidak ditemukan atau hanya pemilik dan manajer yang bisa mengubahnya');
+          return toNote(row);
+        }
+        const last = must(await db().from('note_presets').select('sort').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort', { ascending: false }).limit(1)) as Row[] | null;
+        const row = must(await db().from('note_presets').insert({ id: newId(), org_id: orgId, outlet_id: ctx.outletId, category, text, sort: input.sort ?? (Number(last?.[0]?.sort ?? 0) + 1), is_active: input.isActive ?? true }).select('*').single()) as Row;
+        return toNote(row);
+      } catch (e) {
+        if (e instanceof DataError && /duplicate|unique|sudah ada/i.test(e.message)) throw new DataError('invalid', `Catatan "${text}" di kategori ${category} sudah ada`);
+        throw e;
+      }
+    },
+    async removeNotePreset(id) {
+      if (!(await notesAvailable())) throw new DataError('invalid', NOTES_NEED_MIGRATION);
+      const rows = (must(await db().from('note_presets').delete().eq('id', id).select('id')) as Row[] | null) ?? [];
+      if (rows.length === 0) throw new DataError('not_found', 'Catatan tidak ditemukan atau tidak boleh dihapus akun ini');
     },
     async listPrintStations() {
       if (!(await stationsAvailable())) return [];
