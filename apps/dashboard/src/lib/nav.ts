@@ -111,6 +111,7 @@ export const MODUL: NavModule[] = [
           { section: 'Katalog', href: '/kategori', label: 'Daftar departemen & kategori', screen: 'S34', tier: 1, built: true },
           { section: 'Katalog', href: '/produk', label: 'Produk barang', screen: 'S33', tier: 1, built: true },
           { section: 'Katalog', href: '/produk/impor', label: 'Impor dan ekspor produk', screen: 'S33', tier: 2, built: true },
+          { section: 'Katalog', href: '/produk/barcode', label: 'Cetak barcode', screen: 'S33', tier: 2, built: true },
           { section: 'Katalog', href: '/layanan', label: 'Produk layanan', screen: 'S36', tier: 2 },
           { section: 'Katalog', href: '/fasilitas', label: 'Produk fasilitas', screen: 'S36', tier: 3 },
           { section: 'Katalog', href: '/ekstra', label: 'Produk ekstra', screen: 'S35', tier: 1, built: true },

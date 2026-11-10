@@ -261,3 +261,17 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   8. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (282 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a30/`).
 
 - S127 (Claude) — review & merge A29+A30: tampilan awal rusak karena preset Tailwind dashboard hanya punya breakpoint tablet/laptop/desktop/wide dan spasi 4–64 (prefix `sm: lg:` tidak berlaku; `w-14`/`gap-10` jatuh ke skala bawaan: ikon 56px, KPI membengkak; `text-accent-contrast` tidak ada → chip aktif gelap di atas hijau). Diperbaiki di denah, rekonsiliasi, biaya (prefix → tablet:/laptop:, nilai eksplisit [Npx], `text-on-accent`). Ditambah `scripts/lint-tailwind.sh` (ikut review.sh; menolak baris BARU dengan prefix mati / kunci spasi tak terdefinisi, diuji positif & negatif) dan aturan di docs/queue/README.md. 8 halaman lama yang masih memakai prefix mati dijadwalkan di A43. review.sh SEMUA LULUS; Playwright 390/1280/1440 tanpa overflow/galat; tangkapan layar di docs/shots/rv29/.
+- Selesai (tugas A31): Cetak Barcode Produk (`packages/shared` & `apps/dashboard`):
+  1. Generator Code 128 (Set B) murni di `packages/shared/src/barcode.ts`:
+     - Standar 107 pola 11-modul Code 128 lengkap dengan Start B (104), Stop (106, 13 modul), dan perhitungan checksum modulo 103 (`calculateCode128BChecksum`).
+     - Fungsi `encodeCode128B(text)` dan `generateCode128Svg(text, options)` menghasilkan representasi baris dan vektor SVG murni tanpa pustaka eksternal.
+     - 11 unit tests di `packages/shared/test/barcode.test.ts` (total 293 unit test shared vitest lulus).
+  2. Halaman Cetak Barcode (`/produk/barcode`):
+     - Pilihan preset ukuran stiker: 40 × 30 mm (bawaan), 30 × 20 mm (stiker kecil), dan Gulungan 58 mm (printer kasir / thermal roll).
+     - Pengaturan elemen label: toggle Nama Produk, Harga Jual (Rp), dan Kode SKU (terbaca manusia).
+     - Pemilih produk: pencarian instan, status SKU jelas, tombol "Pilih semua ber-SKU", "Batal pilih", serta pengatur jumlah salinan label per produk (+ / - dan input angka). Produk tanpa SKU otomatis dinonaktifkan dengan tooltip/keterangan yang jelas.
+     - Pratinjau label dinamis berbasis SVG vektor tajam dengan pembatasan teks rapi (`line-clamp-2` untuk nama panjang) dan styling print `@media print` yang mengisolasi area kanvas cetak serta menyembunyikan navigasi dashboard.
+     - Tombol "Cetak label" memicu dialog print peramban (`window.print()`).
+  3. Integrasi Navigasi:
+     - Menu `Cetak barcode` didaftarkan di modul Penjualan > Katalog (`/produk/barcode`, built: true, tier 2).
+  4. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (49 file, 293 tes vitest), `pnpm -F @cgpos/dashboard build` (115 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a31/`).
