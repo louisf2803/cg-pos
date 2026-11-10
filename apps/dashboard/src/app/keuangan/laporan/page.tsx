@@ -281,7 +281,7 @@ function CashFlowIndirectView({ cf }: { cf: IndirectCashFlow }) {
       )}
 
       <div className="cg-data-wrap min-w-0">
-        <table className="cg-data w-full" aria-label="Arus kas metode tidak langsung">
+        <table className="cg-data w-full" style={{ minWidth: 0 }} aria-label="Arus kas metode tidak langsung">
           <thead>
             <tr>
               <th className="text-left">Keterangan / Akun</th>
