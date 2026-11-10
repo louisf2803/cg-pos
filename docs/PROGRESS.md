@@ -240,3 +240,14 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 
 - S126 (goal 90): Filter Promo di rel kategori kasir. Helper murni `promoProductIds` (promo item yang berlaku sekarang untuk jenis order; abaikan nonaktif/kedaluwarsa/belum mulai/jenis order lain/promo semua-produk) + 3 tes; kasir menampilkan "Promo" hanya bila ada produk cocok dan otomatis kembali ke Semua bila promonya hilang. e2e (viewmode-e2e) dan screenshot docs/shots/s126/ lulus. Skor paritas tidak berubah (65,2): baris itu sudah partial, sisa hanya Deposit.
 - Catatan jujur: tiap fitur kasir kecil seperti ini menambah <= 0,3 poin; 90 tidak terjangkau tanpa 10 must-have yang butuh produksi/perangkat/keputusan Louis. Persetujuan migrasi produksi (0011, 0025, 0026, 0027) masih menunggu konfirmasi Supabase dari Louis.
+
+- Selesai (tugas A30): Denah Meja Tampilan Grid Visual dengan Status (`apps/dashboard`):
+  1. Tab Tampilan Denah & Daftar: Menambahkan segmented control "Denah" dan "Daftar" di `/pengaturan/denah` sehingga pengguna dapat beralih antara tampilan denah visual berbasis kartu status meja dan pengelolaan daftar per lantai yang sudah ada.
+  2. Tab Bar Lantai & Filter: Menampilkan bilah chip lantai ("Semua lantai", serta chip tiap lantai dengan hitungan meja) untuk menyaring tampilan kartu meja secara responsif.
+  3. Ringkasan Status Meja: Menghadirkan 4 kartu ringkasan di atas grid meja yang merangkum Total Meja, Meja Kosong (hijau), Meja Terisi (amber/kuning), dan Nonaktif (abu-abu), baik untuk lantai terpilih maupun keseluruhan outlet.
+  4. Kartu Meja Visual: Setiap kartu meja menampilkan nama meja (tebal, dipotong elipsis dengan tooltip), kapasitas kursi (ikon `Users` + angka kursi), serta pil status: Kosong (`cg-badge--success`), Terisi (`cg-badge--warning` dengan nomor pesanan dan total nominal dari `TableStatus`), dan Nonaktif. Tampilan grid responsif 2 kolom pada mobile 390px dan auto-fill minmax(128px) pada tablet/desktop.
+  5. Panel Samping (Detail Drawer): Mengklik kartu meja membuka drawer detail meja yang menampilkan nama meja, lantai, kapasitas, status, rincian pesanan aktif (nomor, nama pemesan, tamu, total, waktu buka), tombol "Ubah meja" (membuka modal form bawaan), serta aksi toggle "Aktifkan/Nonaktifkan Meja".
+  6. Aksesibilitas Keyboard: Kartu meja berupa elemen button dengan fokus yang terlihat jelas. Drawer dapat ditutup menggunakan tombol Escape maupun backdrop, dan secara otomatis mengembalikan fokus ke kartu meja pemicu.
+  7. Pembaruan Otomatis 30 Detik: Mengimplementasikan polling penyegaran status tiap 30 detik (dan tombol manual "Muat ulang"), yang otomatis dijeda saat tab peramban tersembunyi (`visibilitychange`).
+  8. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (282 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a30/`).
+
