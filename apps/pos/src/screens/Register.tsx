@@ -14,6 +14,8 @@ import { ShiftSummary } from './ShiftSummary';
 import { Payment } from './Payment';
 import { CustomerPicker } from './CustomerPicker';
 import { DiscountDialog } from './DiscountDialog';
+import { SideDrawer } from './SideDrawer';
+import { Sales } from './Sales';
 
 const TYPES: { v: OrderType; label: string }[] = [
   { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
@@ -54,6 +56,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [saveErr, setSaveErr] = useState('');
   const [showOrders, setShowOrders] = useState(false);
   const [ordersTab, setOrdersTab] = useState<'waiting' | 'pending'>('waiting');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showSales, setShowSales] = useState(false);
   const pend = usePending();
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
@@ -163,6 +167,9 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     return <Payment order={paying} ctx={ctx} onBack={() => setPaying(null)}
       onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); waitingOrders.reload(); }} />;
   }
+  if (showSales) {
+    return <Sales ctx={ctx} onClose={() => setShowSales(false)} />;
+  }
   if (showOrders) {
     return <Orders ctx={ctx} canResume={cart.state.lines.length === 0} initialTab={ordersTab}
       onClose={() => { setShowOrders(false); waitingOrders.reload(); }}
@@ -185,6 +192,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             className="p-6 rounded hover:bg-white/15 text-white flex items-center justify-center shrink-0 cursor-pointer"
             aria-label="Menu kasir"
             title="Menu kasir"
+            onClick={() => setDrawerOpen(true)}
           >
             <Menu className="cg-icon cg-icon--sm" aria-hidden />
           </button>
@@ -571,6 +579,32 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           </ul>
           <div className="cg-modal__actions"><button className="cg-btn cg-btn--ghost" onClick={() => setPicking(null)}>Batal</button></div>
         </Modal>
+      )}
+      {drawerOpen && (
+        <SideDrawer
+          outletName={ctx.outletName}
+          cashierName={session.employee.name}
+          onClose={() => setDrawerOpen(false)}
+          onNavigate={(view) => {
+            setDrawerOpen(false);
+            if (view === 'register') {
+              // Sudah di kasir
+            } else if (view === 'sales') {
+              setShowSales(true);
+            } else if (view === 'orders') {
+              setOrdersTab('waiting');
+              setShowOrders(true);
+            } else if (view === 'shift') {
+              setShiftOpen(true);
+            } else if (view === 'settings') {
+              setSettings(true);
+            } else if (view === 'lock') {
+              onLock();
+            } else if (view === 'closeShift') {
+              onCloseShift();
+            }
+          }}
+        />
       )}
     </div>
   );

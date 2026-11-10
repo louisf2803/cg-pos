@@ -1,9 +1,32 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, Ban, CreditCard, Merge, MoveRight, Play, Printer, Undo2 } from 'lucide-react';
-import { formatRp, type PendingEntry, refundAmounts, refundableLines, newId, type Employee, type Order, type OutletContext, type Refund } from '@cgpos/shared';
+import {
+  ArrowLeft,
+  Ban,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  Filter,
+  Merge,
+  MoveRight,
+  Play,
+  Printer,
+  RefreshCw,
+  Search,
+  Undo2,
+  X,
+} from 'lucide-react';
+import {
+  formatRp,
+  type PendingEntry,
+  refundAmounts,
+  refundableLines,
+  newId,
+  type Order,
+  type OutletContext,
+  type Refund,
+} from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
-import { useSession } from '../lib/session';
 import { Modal } from '../ui';
 import { ReceiptDialog } from './Receipt';
 import { MergeTableDialog, MoveTableDialog } from './TableMove';
@@ -11,97 +34,793 @@ import { useApprover, ApproverFields } from '../lib/approver';
 
 const REASONS = ['Salah input pesanan', 'Pelanggan batal', 'Pesanan ganda', 'Lainnya'];
 const REFUND_REASONS = ['Pesanan salah', 'Produk bermasalah', 'Pelanggan batal', 'Lainnya'];
-const TYPE: Record<Order['type'], string> = { takeaway: 'Bawa pulang', dine_in: 'Makan di tempat', delivery: 'Antar', service: 'Jasa' };
-const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+const TYPE_LABELS: Record<Order['type'], string> = {
+  takeaway: 'Bawa pulang',
+  dine_in: 'Makan di tempat',
+  delivery: 'Antar',
+  service: 'Jasa',
+};
 
-/** Daftar pesanan yang belum lunas di outlet ini: lanjutkan, bayar, atau batalkan (void). */
-export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResume, onPay }: { ctx: OutletContext; canResume: boolean; initialTab?: 'waiting' | 'paid' | 'pending'; onClose: () => void; onResume: (o: Order) => void; onPay: (o: Order) => void }) {
+const hhmm = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '—';
+  }
+};
+
+type CategoryKey = 'all' | 'open' | 'paid' | 'void' | 'pending';
+
+/**
+ * Daftar Order (Orders.tsx):
+ * Rel kategori kiri di desktop (Semua, Terbuka, Selesai, Dibatalkan, tiap dengan jumlah),
+ * chip scroll di mobile (<1024px).
+ * Tabel: Jenis, Nama/meja, Nomor, Waktu, Status (pil berwarna), Tagihan, dan Aksi.
+ * Kolom pencarian nomor/nama & modal filter jenis/status.
+ */
+export function Orders({
+  ctx,
+  canResume,
+  initialTab = 'waiting',
+  onClose,
+  onResume,
+  onPay,
+}: {
+  ctx: OutletContext;
+  canResume: boolean;
+  initialTab?: 'waiting' | 'paid' | 'pending';
+  onClose: () => void;
+  onResume: (o: Order) => void;
+  onPay: (o: Order) => void;
+}) {
   const data = useData();
-  const [tab, setTab] = useState<'waiting' | 'paid' | 'pending'>(initialTab);
   const pend = usePending();
-  const list = useAsync(async () => {
-    if (tab === 'pending') return [];
-    if (tab === 'paid') return data.listOrders({ status: 'paid', limit: 50 });
-    const [open, part] = await Promise.all([data.listOrders({ status: 'open', limit: 100 }), data.listOrders({ status: 'partially_paid', limit: 100 })]);
-    return [...open, ...part].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
-  }, [data, tab]);
+
+  // Kategori terpilih: inisialisasi dari prop initialTab
+  const [category, setCategory] = useState<CategoryKey>(() => {
+    if (initialTab === 'paid') return 'paid';
+    if (initialTab === 'pending') return 'pending';
+    return 'open';
+  });
+
+  // Pencarian & Filter
+  const [q, setQ] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'partially_paid' | 'paid' | 'void'>('all');
+  const [filterType, setFilterType] = useState<'all' | Order['type']>('all');
+
+  // Ambil semua pesanan dari DataLayer
+  const list = useAsync(() => data.listOrders({ limit: 200 }), [data]);
+
+  // Dialog & Aksi
   const [refunding, setRefunding] = useState<Order | null>(null);
   const [voiding, setVoiding] = useState<Order | null>(null);
   const [moving, setMoving] = useState<Order | null>(null);
   const [merging, setMerging] = useState<Order | null>(null);
-  const tableList = useAsync(() => data.listTables(), [data]);
-  const names = useMemo<Record<string, string>>(() => (tableList.status === 'ready' ? Object.fromEntries(tableList.data.map((t) => [t.id, t.name])) : {}), [tableList]);
   const [bill, setBill] = useState<Order | null>(null);
+  const [billKind, setBillKind] = useState<'receipt' | 'bill'>('receipt');
   const [notice, setNotice] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Ambil daftar meja untuk nama meja
+  const tableList = useAsync(() => data.listTables(), [data]);
+  const names = useMemo<Record<string, string>>(
+    () => (tableList.status === 'ready' ? Object.fromEntries(tableList.data.map((t) => [t.id, t.name])) : {}),
+    [tableList]
+  );
+
+  const rawOrders = list.status === 'ready' ? list.data : [];
+
+  // Hitung jumlah untuk tiap rel kategori
+  const counts = useMemo(() => {
+    const all = rawOrders.length;
+    const open = rawOrders.filter((o) => o.status === 'open' || o.status === 'partially_paid').length;
+    const paid = rawOrders.filter((o) => o.status === 'paid').length;
+    const voided = rawOrders.filter((o) => o.status === 'void').length;
+    const pending = pend.entries.length;
+    return { all, open, paid, voided, pending };
+  }, [rawOrders, pend.entries.length]);
+
+  // Filter pesanan sesuai kategori, pencarian, dan filter modal
+  const filteredOrders = useMemo(() => {
+    return rawOrders.filter((o) => {
+      // Filter kategori rel
+      if (category === 'open' && o.status !== 'open' && o.status !== 'partially_paid') return false;
+      if (category === 'paid' && o.status !== 'paid') return false;
+      if (category === 'void' && o.status !== 'void') return false;
+
+      // Filter modal status
+      if (filterStatus !== 'all') {
+        if (filterStatus === 'open' && o.status !== 'open') return false;
+        if (filterStatus === 'partially_paid' && o.status !== 'partially_paid') return false;
+        if (filterStatus === 'paid' && o.status !== 'paid') return false;
+        if (filterStatus === 'void' && o.status !== 'void') return false;
+      }
+
+      // Filter modal jenis
+      if (filterType !== 'all' && o.type !== filterType) return false;
+
+      // Pencarian query
+      if (q.trim()) {
+        const query = q.trim().toLowerCase();
+        const hitNum = o.number.toLowerCase().includes(query);
+        const hitCust = o.customerName ? o.customerName.toLowerCase().includes(query) : false;
+        const hitLabel = o.label ? o.label.toLowerCase().includes(query) : false;
+        const hitTable = o.tableId && names[o.tableId] ? names[o.tableId]?.toLowerCase().includes(query) : false;
+        if (!hitNum && !hitCust && !hitLabel && !hitTable) return false;
+      }
+
+      return true;
+    });
+  }, [rawOrders, category, filterStatus, filterType, q, names]);
+
+  const hasActiveFilter = filterStatus !== 'all' || filterType !== 'all';
 
   return (
-    <div className="grid gap-16 p-16 max-w-[720px] mx-auto">
-      <header className="flex items-center gap-12">
-        <button className="cg-btn cg-btn--ghost" onClick={onClose} aria-label="Kembali ke kasir"><ArrowLeft className="cg-icon" aria-hidden /></button>
-        <h1 className="text-xl">Daftar Order</h1>
-        <button className="cg-btn cg-btn--secondary cg-btn--sm ml-auto" onClick={list.reload}>Muat ulang</button>
+    <div className="min-h-full flex flex-col bg-bg">
+      {/* Header Utama Daftar Order */}
+      <header className="flex items-center justify-between gap-8 px-16 min-h-[var(--layout-pos-header,56px)] border-b border-border bg-surface-raised shrink-0">
+        <div className="flex items-center gap-8 min-w-0">
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm shrink-0"
+            onClick={onClose}
+            aria-label="Kembali ke kasir"
+          >
+            <ArrowLeft className="cg-icon cg-icon--sm" aria-hidden />
+            <span className="hidden tablet:inline">Kembali</span>
+          </button>
+          <h1 className="text-base font-bold text-text truncate">Daftar Order</h1>
+        </div>
+        <div className="flex items-center gap-6 ml-auto shrink-0">
+          <button
+            type="button"
+            className={`cg-btn cg-btn--sm ${hasActiveFilter ? 'cg-btn--primary' : 'cg-btn--secondary'}`}
+            onClick={() => setFilterOpen(true)}
+            aria-haspopup="dialog"
+            aria-label="Filter pesanan"
+          >
+            <Filter className="cg-icon cg-icon--xs" aria-hidden />
+            <span>Filter{hasActiveFilter ? ' (1)' : ''}</span>
+          </button>
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm"
+            onClick={() => list.reload()}
+            title="Muat ulang"
+            aria-label="Muat ulang"
+          >
+            <RefreshCw className="cg-icon cg-icon--xs" aria-hidden />
+            <span className="hidden tablet:inline">Muat ulang</span>
+          </button>
+        </div>
       </header>
-      <div className="cg-tabs" role="tablist" aria-label="Jenis order">
-        <button role="tab" className="cg-tab" aria-selected={tab === 'waiting'} onClick={() => { setTab('waiting'); setNotice(''); }}>Menunggu</button>
-        <button role="tab" className="cg-tab" aria-selected={tab === 'paid'} onClick={() => { setTab('paid'); setNotice(''); }}>Lunas</button>
-        <button role="tab" className="cg-tab" aria-selected={tab === 'pending'} onClick={() => { setTab('pending'); setNotice(''); }}>Tertunda{pend.entries.length > 0 ? ` (${pend.entries.length})` : ''}</button>
-      </div>
-      {notice && <p role="status" className="cg-banner cg-banner--info">{notice}</p>}
-      {tab === 'pending' && <PendingList entries={pend.entries} onRetry={pend.retry} onDiscard={pend.discard} onNotice={setNotice} />}
-      {tab === 'waiting' && !canResume && list.status === 'ready' && list.data.length > 0 && (
-        <p className="cg-banner cg-banner--warning">Pesanan di layar kasir belum disimpan. Simpan atau kosongkan dulu sebelum melanjutkan pesanan lain.</p>
+
+      {/* Bar Notifikasi jika ada */}
+      {notice && (
+        <p role="status" className="cg-banner cg-banner--info mx-16 mt-12 mb-0">
+          {notice}
+        </p>
       )}
-      {tab !== 'pending' && list.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 96 }} />)}</div>}
-      {tab !== 'pending' && list.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert"><span>Daftar order gagal dimuat. {list.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={list.reload}>Coba lagi</button></div>}
-      {tab !== 'pending' && list.status === 'ready' && list.data.length === 0 && (
-        <div className="cg-empty">{tab === 'paid' ? <><h3>Belum ada pesanan lunas</h3><p>Pesanan yang sudah dibayar muncul di sini dan bisa di-refund.</p></> : <><h3>Tidak ada pesanan yang menunggu</h3><p>Pesanan yang disimpan dari layar kasir muncul di sini.</p></>}</div>
+
+      {/* Peringatan jika pesanan di kasir belum disimpan */}
+      {!canResume && category === 'open' && counts.open > 0 && (
+        <p className="cg-banner cg-banner--warning mx-16 mt-12 mb-0">
+          Pesanan di layar kasir belum disimpan. Simpan atau kosongkan dulu sebelum melanjutkan pesanan lain.
+        </p>
       )}
-      {tab !== 'pending' && list.status === 'ready' && (
-        <ul className="grid gap-12">
-          {list.data.map((o) => {
-            const partial = o.status === 'partially_paid';
-            return (
-              <li key={o.id} className="border border-border rounded-lg bg-surface-raised p-16 grid gap-12">
-                <div className="flex flex-wrap items-baseline justify-between gap-8">
-                  <strong className="break-all">{o.number}</strong>
-                  <span className="text-text-muted text-sm">{hhmm(o.openedAt)} · {TYPE[o.type]}{o.tableId && names[o.tableId] ? ` · Meja ${names[o.tableId]}` : ''}</span>
+
+      {/* Layout Konten: Rel Kiri (Desktop) + Area Tabel Kanan */}
+      <div className="flex-1 flex flex-col laptop:flex-row p-12 tablet:p-16 gap-16 max-w-[1200px] w-full mx-auto min-w-0">
+        {/* Rel Kategori Desktop */}
+        <nav
+          className="hidden laptop:flex flex-col gap-6 w-[200px] shrink-0 border-r border-border pr-16"
+          aria-label="Kategori order"
+        >
+          <button
+            type="button"
+            className={`w-full flex items-center justify-between px-12 py-10 rounded-lg text-sm font-semibold transition-colors text-left ${
+              category === 'all'
+                ? 'bg-accent text-on-accent'
+                : 'hover:bg-surface-raised text-text'
+            }`}
+            onClick={() => { setCategory('all'); setNotice(''); }}
+          >
+            <span>Semua</span>
+            <span className={`cg-badge cg-badge--sm ml-4 ${category === 'all' ? 'bg-white/25 text-white' : ''}`}>
+              {counts.all}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`w-full flex items-center justify-between px-12 py-10 rounded-lg text-sm font-semibold transition-colors text-left ${
+              category === 'open'
+                ? 'bg-accent text-on-accent'
+                : 'hover:bg-surface-raised text-text'
+            }`}
+            onClick={() => { setCategory('open'); setNotice(''); }}
+          >
+            <span>Terbuka</span>
+            <span className={`cg-badge cg-badge--sm ml-4 ${category === 'open' ? 'bg-white/25 text-white' : ''}`}>
+              {counts.open}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`w-full flex items-center justify-between px-12 py-10 rounded-lg text-sm font-semibold transition-colors text-left ${
+              category === 'paid'
+                ? 'bg-accent text-on-accent'
+                : 'hover:bg-surface-raised text-text'
+            }`}
+            onClick={() => { setCategory('paid'); setNotice(''); }}
+          >
+            <span>Selesai</span>
+            <span className={`cg-badge cg-badge--sm ml-4 ${category === 'paid' ? 'bg-white/25 text-white' : ''}`}>
+              {counts.paid}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`w-full flex items-center justify-between px-12 py-10 rounded-lg text-sm font-semibold transition-colors text-left ${
+              category === 'void'
+                ? 'bg-accent text-on-accent'
+                : 'hover:bg-surface-raised text-text'
+            }`}
+            onClick={() => { setCategory('void'); setNotice(''); }}
+          >
+            <span>Dibatalkan</span>
+            <span className={`cg-badge cg-badge--sm ml-4 ${category === 'void' ? 'bg-white/25 text-white' : ''}`}>
+              {counts.voided}
+            </span>
+          </button>
+          {counts.pending > 0 && (
+            <button
+              type="button"
+              className={`w-full flex items-center justify-between px-12 py-10 rounded-lg text-sm font-semibold transition-colors text-left ${
+                category === 'pending'
+                  ? 'bg-accent text-on-accent'
+                  : 'hover:bg-surface-raised text-text'
+              }`}
+              onClick={() => { setCategory('pending'); setNotice(''); }}
+            >
+              <span>Tertunda</span>
+              <span className="cg-badge cg-badge--warning cg-badge--sm ml-4">
+                {counts.pending}
+              </span>
+            </button>
+          )}
+        </nav>
+
+        {/* Rel Chip Horizontal Mobile (<1024px) */}
+        <div className="laptop:hidden overflow-x-auto flex items-center gap-8 pb-4 shrink-0 no-scrollbar">
+          <button
+            type="button"
+            className={`cg-chip shrink-0 ${category === 'all' ? 'cg-chip--active' : ''}`}
+            onClick={() => { setCategory('all'); setNotice(''); }}
+          >
+            Semua ({counts.all})
+          </button>
+          <button
+            type="button"
+            className={`cg-chip shrink-0 ${category === 'open' ? 'cg-chip--active' : ''}`}
+            onClick={() => { setCategory('open'); setNotice(''); }}
+          >
+            Terbuka ({counts.open})
+          </button>
+          <button
+            type="button"
+            className={`cg-chip shrink-0 ${category === 'paid' ? 'cg-chip--active' : ''}`}
+            onClick={() => { setCategory('paid'); setNotice(''); }}
+          >
+            Selesai ({counts.paid})
+          </button>
+          <button
+            type="button"
+            className={`cg-chip shrink-0 ${category === 'void' ? 'cg-chip--active' : ''}`}
+            onClick={() => { setCategory('void'); setNotice(''); }}
+          >
+            Dibatalkan ({counts.voided})
+          </button>
+          {counts.pending > 0 && (
+            <button
+              type="button"
+              className={`cg-chip shrink-0 ${category === 'pending' ? 'cg-chip--active' : ''}`}
+              onClick={() => { setCategory('pending'); setNotice(''); }}
+            >
+              Tertunda ({counts.pending})
+            </button>
+          )}
+        </div>
+
+        {/* Area Konten Utama Kanan: Cari + Tabel / Pending List */}
+        <div className="flex-1 flex flex-col space-y-12 min-w-0">
+          {/* Kolom Cari */}
+          <div className="flex items-center gap-8">
+            <label className="cg-search flex-1 m-0">
+              <Search className="cg-icon cg-icon--sm" aria-hidden />
+              <span className="cg-sr">Cari pesanan</span>
+              <input
+                type="search"
+                className="cg-input"
+                placeholder="Cari nomor struk, nama pemesan, atau meja..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            {q && (
+              <button
+                type="button"
+                className="cg-btn cg-btn--ghost cg-btn--sm"
+                onClick={() => setQ('')}
+                aria-label="Bersihkan pencarian"
+              >
+                <X className="cg-icon cg-icon--xs" aria-hidden />
+              </button>
+            )}
+          </div>
+
+          {/* Jika kategori Tertunda, tampilkan PendingList */}
+          {category === 'pending' ? (
+            <PendingList
+              entries={pend.entries}
+              onRetry={pend.retry}
+              onDiscard={pend.discard}
+              onNotice={setNotice}
+            />
+          ) : (
+            <>
+              {/* Status Memuat (Skeleton) */}
+              {list.status === 'loading' && (
+                <div className="space-y-8" aria-busy="true" aria-label="Memuat daftar pesanan">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="cg-skeleton h-[56px] rounded-lg" />
+                  ))}
                 </div>
-                {o.label && <p className="break-words text-sm">{o.label}</p>}
-                {o.customerName && <p className="break-words text-sm text-text-muted">Pelanggan: {o.customerName}</p>}
-                <details>
-                  <summary className="cursor-pointer">{o.items.reduce((n, i) => n + i.qty, 0)} item · <span className="cg-num">{formatRp(o.total)}</span>{partial && <span className="cg-badge cg-badge--warning ml-8">Dibayar sebagian {formatRp(o.paidTotal)}</span>}</summary>
-                  <ul className="grid gap-4 mt-8">
-                    {o.items.map((i) => <li key={i.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{i.name} <span className="text-text-muted">× {i.qty}</span>{i.extras?.length ? <span className="block text-text-muted text-sm">{i.extras.map((e) => e.name).join(', ')}</span> : null}</span><span className="cg-num">{formatRp(i.lineTotal)}</span></li>)}
-                  </ul>
-                </details>
-                <div className="flex flex-wrap gap-8">
-                  {tab === 'paid' ? (
-                    <>
-                      <button className="cg-btn cg-btn--ghost" onClick={() => setBill(o)}><Printer className="cg-icon cg-icon--sm" aria-hidden /> Struk</button>
-                      <button className="cg-btn cg-btn--secondary ml-auto" onClick={() => setRefunding(o)}><Undo2 className="cg-icon cg-icon--sm" aria-hidden /> Refund</button>
-                    </>
-                  ) : (
-                    <>
-                      {!partial && <button className="cg-btn cg-btn--secondary" disabled={!canResume} onClick={() => onResume(o)}><Play className="cg-icon cg-icon--sm" aria-hidden /> Lanjutkan</button>}
-                      <button className="cg-btn cg-btn--ghost" onClick={() => setBill(o)}><Printer className="cg-icon cg-icon--sm" aria-hidden /> Tagihan</button>
-                      <button className="cg-btn cg-btn--primary" onClick={() => onPay(o)}><CreditCard className="cg-icon cg-icon--sm" aria-hidden /> Bayar</button>
-                      {!partial && o.type === 'dine_in' && o.tableId && <button className="cg-btn cg-btn--ghost" onClick={() => setMoving(o)}><MoveRight className="cg-icon cg-icon--sm" aria-hidden /> Pindah meja</button>}
-                      {!partial && o.type === 'dine_in' && o.tableId && <button className="cg-btn cg-btn--ghost" onClick={() => setMerging(o)}><Merge className="cg-icon cg-icon--sm" aria-hidden /> Gabung meja</button>}
-                      {!partial && <button className="cg-btn cg-btn--ghost ml-auto" onClick={() => setVoiding(o)}><Ban className="cg-icon cg-icon--sm" aria-hidden /> Batalkan</button>}
-                    </>
+              )}
+
+              {/* Status Galat */}
+              {list.status === 'error' && (
+                <div className="cg-banner cg-banner--danger" role="alert">
+                  <span>Daftar order gagal dimuat. {list.message}</span>
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--secondary cg-btn--sm ml-auto"
+                    onClick={list.reload}
+                  >
+                    Coba lagi
+                  </button>
+                </div>
+              )}
+
+              {/* Status Siap & Kosong */}
+              {list.status === 'ready' && filteredOrders.length === 0 && (
+                <div className="cg-empty py-32 text-center bg-surface-raised rounded-xl border border-border">
+                  <h3 className="font-bold text-sm">
+                    {q || hasActiveFilter
+                      ? 'Tidak ada pesanan yang cocok'
+                      : category === 'paid'
+                      ? 'Belum ada pesanan lunas'
+                      : category === 'void'
+                      ? 'Belum ada pesanan dibatalkan'
+                      : 'Tidak ada pesanan terbuka'}
+                  </h3>
+                  <p className="text-xs text-text-muted mt-4">
+                    {q || hasActiveFilter
+                      ? 'Coba sesuaikan kata kunci pencarian atau bersihkan filter.'
+                      : 'Pesanan yang diproses kasir akan muncul di sini.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Status Siap & Ada Data: Tabel Responsif */}
+              {list.status === 'ready' && filteredOrders.length > 0 && (
+                <div className="border border-border rounded-xl bg-surface-raised overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto min-w-0">
+                    <table className="w-full text-left border-collapse text-sm min-w-[620px]">
+                      <thead className="border-b border-border bg-surface text-xs font-semibold text-text-muted uppercase tracking-wider">
+                        <tr>
+                          <th className="p-12">Jenis</th>
+                          <th className="p-12">Nama / Meja</th>
+                          <th className="p-12">Nomor</th>
+                          <th className="p-12">Waktu</th>
+                          <th className="p-12">Status</th>
+                          <th className="p-12 text-right">Tagihan</th>
+                          <th className="p-12 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {filteredOrders.map((o) => {
+                          const partial = o.status === 'partially_paid';
+                          const isExpanded = expandedId === o.id;
+                          const tableName = o.tableId ? names[o.tableId] : undefined;
+                          const displayName = tableName
+                            ? `Meja ${tableName}`
+                            : o.customerName || o.label || '—';
+
+                          return (
+                            <tr
+                              key={o.id}
+                              className={`group hover:bg-surface/50 transition-colors ${
+                                isExpanded ? 'bg-surface/40' : ''
+                              }`}
+                            >
+                              <td className="p-12 align-top">
+                                <span className="cg-badge text-[11px] font-medium whitespace-nowrap">
+                                  {TYPE_LABELS[o.type]}
+                                </span>
+                              </td>
+                              <td className="p-12 align-top">
+                                <div className="font-medium text-text max-w-[150px] truncate" title={displayName}>
+                                  {displayName}
+                                </div>
+                                {tableName && o.customerName && (
+                                  <span className="text-xs text-text-muted block truncate max-w-[150px]">
+                                    {o.customerName}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-12 align-top">
+                                <span className="font-mono text-xs font-semibold text-text break-all">
+                                  {o.number}
+                                </span>
+                              </td>
+                              <td className="p-12 align-top whitespace-nowrap text-xs text-text-muted">
+                                {hhmm(o.openedAt)}
+                              </td>
+                              <td className="p-12 align-top">
+                                {o.status === 'paid' && (
+                                  <span className="cg-badge cg-badge--accent text-[11px]">Selesai</span>
+                                )}
+                                {o.status === 'open' && (
+                                  <span className="cg-badge text-[11px]">Terbuka</span>
+                                )}
+                                {partial && (
+                                  <span className="cg-badge cg-badge--warning text-[11px]">Sebagian</span>
+                                )}
+                                {o.status === 'void' && (
+                                  <span className="cg-badge cg-badge--danger text-[11px]">Dibatalkan</span>
+                                )}
+                              </td>
+                              <td className="p-12 align-top text-right">
+                                <strong className="cg-num text-sm text-text tabular-nums">
+                                  {formatRp(o.total)}
+                                </strong>
+                                {partial && (
+                                  <span className="text-[11px] text-text-muted block">
+                                    Sisa {formatRp(o.total - o.paidTotal)}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-12 align-top text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-6">
+                                  {o.status === 'paid' ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="cg-btn cg-btn--ghost cg-btn--sm"
+                                        onClick={() => {
+                                          setBillKind('receipt');
+                                          setBill(o);
+                                        }}
+                                        title="Cetak Struk"
+                                        aria-label={`Struk pesanan ${o.number}`}
+                                      >
+                                        <Printer className="cg-icon cg-icon--xs" aria-hidden />
+                                        <span>Struk</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="cg-btn cg-btn--secondary cg-btn--sm"
+                                        onClick={() => setRefunding(o)}
+                                        title="Refund pesanan"
+                                        aria-label={`Refund pesanan ${o.number}`}
+                                      >
+                                        <Undo2 className="cg-icon cg-icon--xs" aria-hidden />
+                                        <span>Refund</span>
+                                      </button>
+                                    </>
+                                  ) : o.status === 'void' ? (
+                                    <span className="text-xs text-text-muted italic pr-4">Batal</span>
+                                  ) : (
+                                    <>
+                                      {!partial && (
+                                        <button
+                                          type="button"
+                                          className="cg-btn cg-btn--secondary cg-btn--sm"
+                                          disabled={!canResume}
+                                          onClick={() => onResume(o)}
+                                          title={canResume ? 'Lanjutkan pesanan di kasir' : 'Kosongkan kasir dulu'}
+                                          aria-label={`Lanjutkan pesanan ${o.number}`}
+                                        >
+                                          <Play className="cg-icon cg-icon--xs" aria-hidden />
+                                          <span className="hidden tablet:inline">Lanjutkan</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        className="cg-btn cg-btn--primary cg-btn--sm"
+                                        onClick={() => onPay(o)}
+                                        aria-label={`Bayar pesanan ${o.number}`}
+                                      >
+                                        <CreditCard className="cg-icon cg-icon--xs" aria-hidden />
+                                        <span>Bayar</span>
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* Tombol Detail/Expander */}
+                                  <button
+                                    type="button"
+                                    className="p-6 rounded hover:bg-surface text-text-muted hover:text-text cursor-pointer"
+                                    onClick={() => setExpandedId(isExpanded ? null : o.id)}
+                                    aria-expanded={isExpanded}
+                                    aria-label={`Detail pesanan ${o.number}`}
+                                    title="Tampilkan detail"
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="cg-icon cg-icon--xs" aria-hidden />
+                                    ) : (
+                                      <ChevronDown className="cg-icon cg-icon--xs" aria-hidden />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Panel Detail Item yang Diekspansi */}
+                  {expandedId && (
+                    <div className="p-16 border-t border-border bg-surface/30">
+                      {(() => {
+                        const target = filteredOrders.find((o) => o.id === expandedId);
+                        if (!target) return null;
+                        const partial = target.status === 'partially_paid';
+
+                        return (
+                          <div className="space-y-12">
+                            <div className="flex flex-wrap items-center justify-between gap-8 pb-8 border-b border-border">
+                              <div>
+                                <h4 className="text-sm font-bold text-text">
+                                  Rincian Pesanan: {target.number}
+                                </h4>
+                                <p className="text-xs text-text-muted mt-2">
+                                  {target.items.reduce((sum, it) => sum + it.qty, 0)} item · Total: {formatRp(target.total)}
+                                  {target.customerName ? ` · Pelanggan: ${target.customerName}` : ''}
+                                  {target.label ? ` · Catatan: ${target.label}` : ''}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-8">
+                                {target.status !== 'paid' && target.status !== 'void' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="cg-btn cg-btn--ghost cg-btn--sm"
+                                      onClick={() => {
+                                        setBillKind('bill');
+                                        setBill(target);
+                                      }}
+                                    >
+                                      <Printer className="cg-icon cg-icon--xs" aria-hidden />
+                                      <span>Cetak Tagihan</span>
+                                    </button>
+                                    {!partial && target.type === 'dine_in' && target.tableId && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="cg-btn cg-btn--ghost cg-btn--sm"
+                                          onClick={() => setMoving(target)}
+                                        >
+                                          <MoveRight className="cg-icon cg-icon--xs" aria-hidden />
+                                          <span>Pindah meja</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="cg-btn cg-btn--ghost cg-btn--sm"
+                                          onClick={() => setMerging(target)}
+                                        >
+                                          <Merge className="cg-icon cg-icon--xs" aria-hidden />
+                                          <span>Gabung meja</span>
+                                        </button>
+                                      </>
+                                    )}
+                                    {!partial && (
+                                      <button
+                                        type="button"
+                                        className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
+                                        onClick={() => setVoiding(target)}
+                                      >
+                                        <Ban className="cg-icon cg-icon--xs" aria-hidden />
+                                        <span>Batalkan pesanan</span>
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Daftar Item */}
+                            <ul className="space-y-6 text-xs">
+                              {target.items.map((item) => (
+                                <li key={item.id} className="flex justify-between gap-12">
+                                  <div className="min-w-0">
+                                    <span className="font-semibold text-text">{item.name}</span>{' '}
+                                    <span className="text-text-muted">× {item.qty}</span>
+                                    {item.extras && item.extras.length > 0 && (
+                                      <span className="block text-text-muted text-[11px] mt-2">
+                                        + {item.extras.map((ex) => ex.name).join(', ')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="cg-num tabular-nums text-text font-medium shrink-0">
+                                    {formatRp(item.lineTotal)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   )}
                 </div>
-              </li>
-            );
-          })}
-        </ul>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Modal Filter */}
+      {filterOpen && (
+        <FilterDialog
+          status={filterStatus}
+          type={filterType}
+          onClose={() => setFilterOpen(false)}
+          onApply={(s, t) => {
+            setFilterStatus(s as typeof filterStatus);
+            setFilterType(t as typeof filterType);
+            setFilterOpen(false);
+          }}
+          onReset={() => {
+            setFilterStatus('all');
+            setFilterType('all');
+            setFilterOpen(false);
+          }}
+        />
       )}
-      {refunding && <RefundDialog order={refunding} onClose={() => setRefunding(null)} onDone={(r) => { setRefunding(null); setNotice(`Refund ${r.number} ${formatRp(r.total)} tercatat via ${r.methodName}.`); list.reload(); }} />}
-      {bill && <ReceiptDialog order={bill} ctx={ctx} kind={tab === 'paid' ? 'receipt' : 'bill'} onClose={() => setBill(null)} />}
-      {moving && <MoveTableDialog order={moving} tableName={names[moving.tableId ?? ''] ?? '—'} onClose={() => setMoving(null)} onDone={(o, to) => { setMoving(null); setNotice(`Pesanan ${o.number} dipindah ke meja ${to}.`); list.reload(); }} />}
-      {merging && <MergeTableDialog order={merging} names={names} onClose={() => setMerging(null)} onDone={(o, from) => { setMerging(null); setNotice(`Pesanan ${from.number} digabung ke ${o.number} (meja ${names[o.tableId ?? ''] ?? '—'}).`); list.reload(); }} />}
-      {voiding && <VoidDialog order={voiding} onClose={() => setVoiding(null)} onDone={(n) => { setVoiding(null); setNotice(`Pesanan ${n} dibatalkan.`); list.reload(); }} />}
+
+      {/* Dialog Aksi Pesanan */}
+      {refunding && (
+        <RefundDialog
+          order={refunding}
+          onClose={() => setRefunding(null)}
+          onDone={(r) => {
+            setRefunding(null);
+            setNotice(`Refund ${r.number} ${formatRp(r.total)} tercatat via ${r.methodName}.`);
+            list.reload();
+          }}
+        />
+      )}
+      {bill && (
+        <ReceiptDialog
+          order={bill}
+          ctx={ctx}
+          kind={billKind}
+          onClose={() => setBill(null)}
+        />
+      )}
+      {moving && (
+        <MoveTableDialog
+          order={moving}
+          tableName={names[moving.tableId ?? ''] ?? '—'}
+          onClose={() => setMoving(null)}
+          onDone={(o, to) => {
+            setMoving(null);
+            setNotice(`Pesanan ${o.number} dipindah ke meja ${to}.`);
+            list.reload();
+          }}
+        />
+      )}
+      {merging && (
+        <MergeTableDialog
+          order={merging}
+          names={names}
+          onClose={() => setMerging(null)}
+          onDone={(o, from) => {
+            setMerging(null);
+            setNotice(`Pesanan ${from.number} digabung ke ${o.number} (meja ${names[o.tableId ?? ''] ?? '—'}).`);
+            list.reload();
+          }}
+        />
+      )}
+      {voiding && (
+        <VoidDialog
+          order={voiding}
+          onClose={() => setVoiding(null)}
+          onDone={(n) => {
+            setVoiding(null);
+            setNotice(`Pesanan ${n} dibatalkan.`);
+            list.reload();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Modal Filter Pesanan (Status & Jenis) */
+function FilterDialog({
+  status,
+  type,
+  onClose,
+  onApply,
+  onReset,
+}: {
+  status: string;
+  type: string;
+  onClose: () => void;
+  onApply: (status: string, type: string) => void;
+  onReset: () => void;
+}) {
+  const [selStatus, setSelStatus] = useState(status);
+  const [selType, setSelType] = useState(type);
+
+  return (
+    <Modal title="Filter Pesanan" onClose={onClose} labelledBy="filter-order-title">
+      <div className="grid gap-16">
+        <div className="cg-field">
+          <label className="cg-label" htmlFor="filter-status-select">
+            Status Pesanan
+          </label>
+          <select
+            id="filter-status-select"
+            className="cg-input"
+            value={selStatus}
+            onChange={(e) => setSelStatus(e.target.value)}
+          >
+            <option value="all">Semua status</option>
+            <option value="open">Terbuka</option>
+            <option value="partially_paid">Dibayar sebagian</option>
+            <option value="paid">Lunas / Selesai</option>
+            <option value="void">Dibatalkan</option>
+          </select>
+        </div>
+
+        <div className="cg-field">
+          <label className="cg-label" htmlFor="filter-type-select">
+            Jenis Pesanan
+          </label>
+          <select
+            id="filter-type-select"
+            className="cg-input"
+            value={selType}
+            onChange={(e) => setSelType(e.target.value)}
+          >
+            <option value="all">Semua jenis pesanan</option>
+            <option value="dine_in">Makan di tempat</option>
+            <option value="takeaway">Bawa pulang</option>
+            <option value="delivery">Antar</option>
+            <option value="service">Jasa</option>
+          </select>
+        </div>
+
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onReset}>
+            Reset
+          </button>
+          <button
+            type="button"
+            className="cg-btn cg-btn--primary"
+            onClick={() => onApply(selStatus, selType)}
+          >
+            Terapkan Filter
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -163,7 +882,7 @@ function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () =>
   const [restock, setRestock] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [attempt] = useState(() => newId());   // satu id per dialog: kirim ulang tidak menggandakan refund
+  const [attempt] = useState(() => newId());
 
   const lines = history.status === 'ready' ? refundableLines(order, history.data) : [];
   const options = methods.status === 'ready' ? methods.data.filter((m) => m.kind === 'cash' || m.kind === 'noncash') : [];
@@ -245,35 +964,94 @@ function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () =>
   );
 }
 
-const hhmm2 = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-function PendingList({ entries, onRetry, onDiscard, onNotice }: { entries: PendingEntry[]; onRetry: (id: string) => Promise<void>; onDiscard: (id: string) => void; onNotice: (m: string) => void }) {
+function PendingList({
+  entries,
+  onRetry,
+  onDiscard,
+  onNotice,
+}: {
+  entries: PendingEntry[];
+  onRetry: (id: string) => Promise<void>;
+  onDiscard: (id: string) => void;
+  onNotice: (m: string) => void;
+}) {
   const [discarding, setDiscarding] = useState<PendingEntry | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  if (entries.length === 0) return <div className="cg-empty"><h3>Semua transaksi sudah terkirim</h3><p>Pesanan dan pembayaran yang dibuat saat internet putus muncul di sini sampai terkirim ke server.</p></div>;
+
+  if (entries.length === 0) {
+    return (
+      <div className="cg-empty py-32 text-center bg-surface-raised rounded-xl border border-border">
+        <h3 className="font-bold text-sm">Semua transaksi sudah terkirim</h3>
+        <p className="text-xs text-text-muted mt-4">
+          Pesanan dan pembayaran yang dibuat saat internet putus muncul di sini sampai terkirim ke server.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <>
-      <p className="cg-banner cg-banner--info">Transaksi di bawah ini tersimpan di perangkat ini dan akan dikirim otomatis saat koneksi kembali. Nomor pesanan sementara diganti nomor resmi setelah terkirim.</p>
+    <div className="space-y-12">
+      <p className="cg-banner cg-banner--info">
+        Transaksi di bawah ini tersimpan di perangkat ini dan akan dikirim otomatis saat koneksi kembali. Nomor pesanan sementara diganti nomor resmi setelah terkirim.
+      </p>
       <ul className="grid gap-12">
         {entries.map((e) => (
           <li key={e.id} className="border border-border rounded-lg bg-surface-raised p-16 grid gap-8">
             <div className="flex flex-wrap items-baseline justify-between gap-8">
-              <strong className="break-all">{e.label}</strong>
-              <span className="text-text-muted text-sm">{hhmm2(e.createdAt)} · <span className="cg-num">{formatRp(e.amount)}</span></span>
+              <strong className="break-all text-sm font-bold text-text">{e.label}</strong>
+              <span className="text-text-muted text-xs">
+                {hhmm(e.createdAt)} · <span className="cg-num font-semibold">{formatRp(e.amount)}</span>
+              </span>
             </div>
-            <p className="text-sm">
-              {e.status === 'failed' ? <span className="cg-badge cg-badge--warning">Ditolak server</span> : <span className="cg-badge">Menunggu koneksi</span>}
-              {e.status === 'failed' && e.error && <span className="ml-8 text-danger-strong break-words">{e.error}</span>}
+            <p className="text-xs">
+              {e.status === 'failed' ? (
+                <span className="cg-badge cg-badge--warning">Ditolak server</span>
+              ) : (
+                <span className="cg-badge">Menunggu koneksi</span>
+              )}
+              {e.status === 'failed' && e.error && (
+                <span className="ml-8 text-danger-strong break-words">{e.error}</span>
+              )}
             </p>
             <div className="flex flex-wrap gap-8">
-              <button className="cg-btn cg-btn--secondary" disabled={busy === e.id} onClick={async () => { setBusy(e.id); try { await onRetry(e.id); } finally { setBusy(null); } }}>{busy === e.id ? 'Mengirim…' : 'Kirim ulang'}</button>
-              <button className="cg-btn cg-btn--ghost ml-auto" onClick={() => setDiscarding(e)}>Hapus</button>
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary cg-btn--sm"
+                disabled={busy === e.id}
+                onClick={async () => {
+                  setBusy(e.id);
+                  try {
+                    await onRetry(e.id);
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {busy === e.id ? 'Mengirim…' : 'Kirim ulang'}
+              </button>
+              <button
+                type="button"
+                className="cg-btn cg-btn--ghost cg-btn--sm ml-auto"
+                onClick={() => setDiscarding(e)}
+              >
+                Hapus
+              </button>
             </div>
           </li>
         ))}
       </ul>
-      {discarding && <DiscardDialog entry={discarding} onClose={() => setDiscarding(null)} onDone={() => { onDiscard(discarding.id); onNotice('Transaksi tertunda dihapus dari perangkat.'); setDiscarding(null); }} />}
-    </>
+      {discarding && (
+        <DiscardDialog
+          entry={discarding}
+          onClose={() => setDiscarding(null)}
+          onDone={() => {
+            onDiscard(discarding.id);
+            onNotice('Transaksi tertunda dihapus dari perangkat.');
+            setDiscarding(null);
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -281,6 +1059,7 @@ function DiscardDialog({ entry, onClose, onDone }: { entry: PendingEntry; onClos
   const ap = useApprover('discard_pending');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
   async function submit(ev: FormEvent) {
     ev.preventDefault();
     if (busy) return;
@@ -291,6 +1070,7 @@ function DiscardDialog({ entry, onClose, onDone }: { entry: PendingEntry; onClos
       onDone();
     } catch (err) { setError(err instanceof Error ? err.message : 'Gagal menghapus.'); setBusy(false); }
   }
+
   return (
     <Modal title="Hapus transaksi tertunda?" onClose={busy ? undefined : onClose} labelledBy="discard-title">
       <form onSubmit={submit} className="grid gap-16">
