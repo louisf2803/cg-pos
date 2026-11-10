@@ -18,7 +18,16 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'GAGAL ') + m); if (!c) fail++
     const cols = () => p.evaluate(() => getComputedStyle(document.querySelector('.cg-shell__grid')).gridTemplateColumns.split(' ').length);
     ok((await grid.getAttribute('data-view')) === 'grid', `${tag}: bawaan = kartu bergambar`);
     const gridCols = await cols();
+    const setModeNoop = async () => {};
     const setMode = async (label) => { await p.locator('header button[aria-label="Pengaturan perangkat"]').click(); await p.getByRole('radio', { name: new RegExp(label) }).check(); await p.getByRole('button', { name: 'Selesai' }).click(); await p.waitForTimeout(250); };
+    // filter Promo di rel kategori (data demo: promo item "Hemat kopi" untuk 2 produk)
+    const promoBtn = p.locator('.cg-rail-item', { hasText: /^Promo$/ });
+    ok((await promoBtn.count()) === 1, `${tag}: rel kategori punya filter Promo`);
+    await promoBtn.click();
+    const promoTiles = await p.locator('.cg-tile').count();
+    ok(promoTiles === 2, `${tag}: filter Promo hanya menampilkan produk promo (${promoTiles})`);
+    await p.locator('.cg-rail-item', { hasText: /^Semua$/ }).click();
+    await setModeNoop();
     await setMode('Daftar ringkas');
     ok((await cols()) === 1 && gridCols >= 2, `${tag}: daftar ringkas = 1 kolom (kartu ${gridCols} kolom)`);
     ok((await p.locator('.cg-tile').count()) > 5, `${tag}: semua produk tetap tampil di daftar`);

@@ -237,3 +237,6 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 - Lingkup sesuai (apps/dashboard + docs). review.sh lulus; Playwright 1440/1280/390 pada 4 halaman analisa tanpa overflow dan tanpa galat konsol; screenshot docs/shots/rv28/ kulihat.
 - Beres: heatmap hari x jam (24 kolom muat, sel hijau menurut intensitas), batang distribusi per hari sejajar, kontrol Transaksi | Nominal jadi segmented control.
 - Sisa kosmetik jadi tugas A42 (nilai KPI terpotong di 390, ruang kosong di atas kontrol, teks aksesibilitas yang tampil ke pengguna).
+
+- S126 (goal 90): Filter Promo di rel kategori kasir. Helper murni `promoProductIds` (promo item yang berlaku sekarang untuk jenis order; abaikan nonaktif/kedaluwarsa/belum mulai/jenis order lain/promo semua-produk) + 3 tes; kasir menampilkan "Promo" hanya bila ada produk cocok dan otomatis kembali ke Semua bila promonya hilang. e2e (viewmode-e2e) dan screenshot docs/shots/s126/ lulus. Skor paritas tidak berubah (65,2): baris itu sudah partial, sisa hanya Deposit.
+- Catatan jujur: tiap fitur kasir kecil seperti ini menambah <= 0,3 poin; 90 tidak terjangkau tanpa 10 must-have yang butuh produksi/perangkat/keputusan Louis. Persetujuan migrasi produksi (0011, 0025, 0026, 0027) masih menunggu konfirmasi Supabase dari Louis.

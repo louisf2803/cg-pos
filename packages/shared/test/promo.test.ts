@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   accessFor, appliedFromEntries, cartGross, couponInputProblem, couponProblem, createFakeData, fitDiscounts, manualProblem, newId, normalizeCode,
-  promotionAmount, promotionBlock, promotionProblem, resolveDiscounts, type AppliedDiscount, type Promotion, type PromoCart,
+  promoProductIds, promotionAmount, promotionBlock, promotionProblem, resolveDiscounts, type AppliedDiscount, type Promotion, type PromoCart,
 } from '../src';
 
 const NOW = new Date('2026-11-09T05:00:00Z');
@@ -166,5 +166,25 @@ describe('promo: data palsu', () => {
     expect(merged.discountTotal).toBe(22000);
     expect(merged.discounts!.map((x) => x.amount).sort()).toEqual([2000, 20000]);
     expect(new Set(merged.discounts!.map((x) => x.id)).size).toBe(2);
+  });
+});
+
+describe('promoProductIds (filter Promo di kasir)', () => {
+  const mk = (o: Partial<Promotion>): Promotion => ({ id: 'p', name: 'x', kind: 'percent_item', value: 10, minSpend: 0, productIds: [], orderTypes: ['dine_in', 'takeaway'], isActive: true, ...o });
+  const now = new Date('2026-11-10T05:00:00Z');
+  it('mengumpulkan produk promo item yang berlaku untuk jenis order ini', () => {
+    const ids = promoProductIds([mk({ productIds: ['a', 'b'] }), mk({ id: 'q', kind: 'amount_item', productIds: ['c'] })], now, 'takeaway');
+    expect([...ids].sort()).toEqual(['a', 'b', 'c']);
+  });
+  it('mengabaikan promo nonaktif, kedaluwarsa, belum mulai, jenis order lain, dan promo semua produk', () => {
+    const promos = [
+      mk({ productIds: ['off'], isActive: false }), mk({ productIds: ['old'], endsAt: '2026-11-09T00:00:00Z' }),
+      mk({ productIds: ['soon'], startsAt: '2026-11-11T00:00:00Z' }), mk({ productIds: ['other'], orderTypes: ['delivery'] }),
+      mk({ productIds: [] }), mk({ kind: 'percent_order', productIds: ['ord'] }),
+    ];
+    expect(promoProductIds(promos, now, 'takeaway').size).toBe(0);
+  });
+  it('promo gratis item memasukkan produk syarat dan produk gratisnya', () => {
+    expect([...promoProductIds([mk({ kind: 'free_item', productIds: ['s'], freeProductId: 'f' })], now, 'dine_in')].sort()).toEqual(['f', 's']);
   });
 });

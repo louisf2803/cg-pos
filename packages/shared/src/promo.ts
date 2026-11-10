@@ -72,6 +72,22 @@ export function couponProblem(c: Coupon, p: Promotion | undefined, now: Date, us
   return null;
 }
 
+/**
+ * Id produk yang sedang ikut promo tingkat item (potongan persen/nominal per item atau gratis item) untuk jenis order ini.
+ * Promo yang berlaku untuk semua produk (daftar produk kosong) tidak dihitung, supaya filter "Promo" di kasir tetap bermakna.
+ */
+export function promoProductIds(promos: Promotion[], now: Date, orderType: OrderType): Set<string> {
+  const ids = new Set<string>();
+  for (const p of promos) {
+    if (p.kind !== 'percent_item' && p.kind !== 'amount_item' && p.kind !== 'free_item') continue;
+    if (windowProblem({ isActive: p.isActive, start: p.startsAt, end: p.endsAt }, now, 'Promo')) continue;
+    if (!p.orderTypes.includes(orderType)) continue;
+    for (const id of p.productIds) ids.add(id);
+    if (p.kind === 'free_item' && p.freeProductId) ids.add(p.freeProductId);
+  }
+  return ids;
+}
+
 /** Bisa dipakai pada keranjang ini? Mengembalikan alasan bila tidak. */
 export function promotionBlock(p: Promotion, cart: PromoCart, now: Date): string | null {
   const w = windowProblem({ isActive: p.isActive, start: p.startsAt, end: p.endsAt }, now, 'Promo');

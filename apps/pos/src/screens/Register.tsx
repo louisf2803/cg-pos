@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
-import { checkStockLimit, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { checkStockLimit, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -24,6 +24,7 @@ const TYPES: { v: OrderType; label: string }[] = [
 ];
 const FAV = '__favorit';
 const BUNDLE = '__paket';
+const PROMO = '__promo';
 const NO_PROMOS: Promotion[] = [];
 const LABEL_HINT: Record<OrderType, string> = {
   dine_in: 'Nama pesanan (opsional)', takeaway: 'Nama pemesan (opsional)', delivery: 'Nama dan tujuan antar (opsional)', service: 'Keterangan jasa (opsional)',
@@ -81,6 +82,13 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 
   const hasFav = prods.status === 'ready' && prods.data.some((p) => p.isFavorite);
   const hasBundle = prods.status === 'ready' && prods.data.some((p) => p.kind === 'bundle');
+  /** produk yang sedang ikut promo item untuk jenis order di keranjang; filter Promo muncul hanya bila ada yang cocok */
+  const promoIds = useMemo(
+    () => (promos.status === 'ready' ? promoProductIds(promos.data, new Date(), cart.state.type) : new Set<string>()),
+    [promos, cart.state.type],
+  );
+  const hasPromo = prods.status === 'ready' && prods.data.some((p) => promoIds.has(p.id));
+  useEffect(() => { if (cat === PROMO && prods.status === 'ready' && !hasPromo) setCat('all'); }, [cat, hasPromo, prods.status]);
   const visible = useMemo(() => {
     if (prods.status !== 'ready') return [];
     const s = q.trim().toLowerCase();
@@ -88,12 +96,13 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     return groupVariants(prods.data).filter((t) => {
       const c = t.kind === 'single' ? t.product.categoryId : t.categoryId;
       if (cat === FAV) { if (!(t.kind === 'single' ? t.product.isFavorite : t.options.some((o) => o.product.isFavorite))) return false; }
+      else if (cat === PROMO) { if (!(t.kind === 'single' ? promoIds.has(t.product.id) : t.options.some((o) => promoIds.has(o.product.id)))) return false; }
       else if (cat === BUNDLE) { if (!(t.kind === 'single' && t.product.kind === 'bundle')) return false; }
       else if (cat !== 'all' && c !== cat) return false;
       if (!s) return true;
       return t.kind === 'single' ? hit(t.product) : t.name.toLowerCase().includes(s) || t.options.some((o) => hit(o.product));
     });
-  }, [prods, cat, q]);
+  }, [prods, cat, q, promoIds]);
 
   const [scanMsg, setScanMsg] = useState<{ ok: boolean; text: string } | null>(null);
   /** Enter di kolom cari: kode SKU persis langsung masuk pesanan (pemindai kode batang mengetik lalu menekan Enter); kalau hasil cari tinggal satu, itu yang dipakai. */
@@ -325,6 +334,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       <nav className="cg-shell__rail" aria-label="Kategori">
         <button className="cg-rail-item" aria-current={cat === 'all'} onClick={() => setCat('all')}>Semua</button>
         {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}>Favorit</button>}
+        {hasPromo && <button className="cg-rail-item" aria-current={cat === PROMO} onClick={() => setCat(PROMO)}>Promo</button>}
         {hasBundle && <button className="cg-rail-item" aria-current={cat === BUNDLE} onClick={() => setCat(BUNDLE)}>Paket</button>}
         {cats.status === 'ready' && cats.data.map((c) => (
           <button key={c.id} className="cg-rail-item" aria-current={cat === c.id} onClick={() => setCat(c.id)}>{c.name}</button>
