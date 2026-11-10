@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Star } from 'lucide-react';
 import { checkStockLimit, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -25,6 +25,15 @@ const LABEL_HINT: Record<OrderType, string> = {
   dine_in: 'Nama pesanan (opsional)', takeaway: 'Nama pemesan (opsional)', delivery: 'Nama dan tujuan antar (opsional)', service: 'Keterangan jasa (opsional)',
 };
 
+/** Inisial besar dua huruf sebagai pengganti foto produk */
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0]?.[0] && parts[1]?.[0]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.trim().slice(0, 2).toUpperCase();
+}
+
 export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; onCloseShift: () => void; onLock: () => void }) {
   const data = useData();
   const { session } = useSession();
@@ -32,6 +41,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const cats = useAsync(() => data.listCategories(), [data]);
   const prods = useAsync(() => data.listProducts(), [data]);
   const extraGroups = useAsync<ExtraGroup[]>(() => data.listExtraGroups().catch(() => []), [data]);
+  const waitingOrders = useAsync(() => data.listOrders({ status: 'open', limit: 100 }).catch(() => []), [data]);
+  const openOrdersCount = waitingOrders.status === 'ready' ? waitingOrders.data.length : 0;
   const [extraFor, setExtraFor] = useState<Product | null>(null);
   const [cat, setCat] = useState<string | 'all'>('all');
   const [q, setQ] = useState('');
@@ -111,6 +122,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras, note: l.note?.trim() || undefined })),
     }, session.employee.id);
     cart.dispatch({ t: 'saved', orderId: o.id });
+    waitingOrders.reload();
     return o;
   }
 
@@ -149,38 +161,120 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   if (paying) {
     const fromList = showOrders && paying.id !== cart.state.orderId;
     return <Payment order={paying} ctx={ctx} onBack={() => setPaying(null)}
-      onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); }} />;
+      onDone={() => { if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); } setPaying(null); prods.reload(); waitingOrders.reload(); }} />;
   }
   if (showOrders) {
     return <Orders ctx={ctx} canResume={cart.state.lines.length === 0} initialTab={ordersTab}
-      onClose={() => setShowOrders(false)}
+      onClose={() => { setShowOrders(false); waitingOrders.reload(); }}
       onResume={async (o0) => {
         const o = (await data.getOrder(o0.id).catch(() => null)) ?? o0;
         const full = o;
         const tableName = o.tableId ? (await data.listTables().catch(() => [])).find((t) => t.id === o.tableId)?.name : undefined;
-        cart.dispatch({ t: 'load', order: full, tableName }); setShowOrders(false); setPanelOpen(true); setNotice('');
+        cart.dispatch({ t: 'load', order: full, tableName }); setShowOrders(false); setPanelOpen(true); setNotice(''); waitingOrders.reload();
       }}
       onPay={(o) => setPaying(o)} />;
   }
 
   return (
     <div className={`cg-shell reg ${panelOpen ? 'reg--panel' : ''}`}>
-      <header className="cg-shell__header">
-        <strong className="truncate">{ctx.outletName}</strong>
-        <span className="text-text-muted text-sm truncate hidden tablet:inline">Kasir: {session.employee.name}</span>
-        <span className={`cg-conn ${online ? 'cg-conn--online' : 'cg-conn--offline'} ml-auto`} role="status" aria-label={online ? 'Online' : 'Offline'}>
-          {online ? <Wifi className="cg-icon cg-icon--sm" aria-hidden /> : <WifiOff className="cg-icon cg-icon--sm" aria-hidden />}
-          <span className="hidden tablet:inline">{online ? 'Online' : 'Offline'}</span>
-        </span>
-        {pend.entries.length > 0 && (
-          <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => { setOrdersTab('pending'); setShowOrders(true); }} aria-label={`${pend.entries.length} transaksi tertunda, buka daftar`}>
-            Tertunda ({pend.entries.length})
+      <header className="cg-shell__header flex items-center justify-between text-white">
+        {/* Kiri: Tombol Menu + Nama Outlet + Kasir + Online */}
+        <div className="flex items-center gap-8 min-w-0">
+          <button
+            type="button"
+            className="p-6 rounded hover:bg-white/15 text-white flex items-center justify-center shrink-0 cursor-pointer"
+            aria-label="Menu kasir"
+            title="Menu kasir"
+          >
+            <Menu className="cg-icon cg-icon--sm" aria-hidden />
           </button>
-        )}
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label="Daftar Order" onClick={() => { setOrdersTab('waiting'); setShowOrders(true); }}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> <span className="hidden tablet:inline">Daftar Order</span></button>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm whitespace-nowrap" onClick={() => setShiftOpen(true)}>Shift</button>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setSettings(true)} aria-label="Pengaturan perangkat"><Settings className="cg-icon" aria-hidden /></button>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onLock} aria-label="Kunci layar"><Lock className="cg-icon" aria-hidden /></button>
+          <strong className="truncate max-w-[120px] tablet:max-w-[180px] font-bold text-white text-sm">{ctx.outletName}</strong>
+          <span className="text-white/80 text-xs truncate hidden tablet:inline">Kasir: {session.employee.name}</span>
+          <span
+            className={`inline-flex items-center gap-4 text-xs font-medium px-8 py-2 rounded-full shrink-0 ${
+              online ? 'bg-white/20 text-white' : 'bg-red-500/90 text-white'
+            }`}
+            role="status"
+            aria-label={online ? 'Online' : 'Offline'}
+          >
+            {online ? <Wifi className="cg-icon cg-icon--xs" aria-hidden /> : <WifiOff className="cg-icon cg-icon--xs" aria-hidden />}
+            <span className="hidden desktop:inline">{online ? 'Online' : 'Offline'}</span>
+          </span>
+        </div>
+
+        {/* Tengah: Nama aplikasi CG POS sebagai teks */}
+        <div className="hidden laptop:flex items-center justify-center font-extrabold tracking-wider text-base text-white select-none">
+          CG POS
+        </div>
+
+        {/* Kanan: Notifikasi, Tertunda, Daftar Order, Shift, Pengaturan, Kunci */}
+        <div className="flex items-center gap-6 shrink-0">
+          <button
+            type="button"
+            className="relative p-6 rounded hover:bg-white/15 text-white flex items-center justify-center cursor-pointer"
+            aria-label="Notifikasi"
+            title="Notifikasi"
+          >
+            <Bell className="cg-icon cg-icon--sm" aria-hidden />
+            {pend.entries.length > 0 && (
+              <span className="absolute top-4 right-4 w-8 h-8 rounded-full bg-red-400 border border-white" />
+            )}
+          </button>
+
+          {pend.entries.length > 0 && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-4 px-8 py-4 rounded-md bg-warning text-on-warning text-xs font-bold shrink-0 cursor-pointer"
+              onClick={() => { setOrdersTab('pending'); setShowOrders(true); }}
+              aria-label={`${pend.entries.length} transaksi tertunda, buka daftar`}
+            >
+              <span>Tertunda ({pend.entries.length})</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="inline-flex items-center gap-6 px-10 py-6 rounded-md bg-white/15 hover:bg-white/25 text-white text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer"
+            aria-label="Daftar Order"
+            onClick={() => { setOrdersTab('waiting'); setShowOrders(true); }}
+          >
+            <ClipboardList className="cg-icon cg-icon--sm" aria-hidden />
+            <span className="hidden tablet:inline">Daftar Order</span>
+            {openOrdersCount > 0 && (
+              <span className="px-6 py-1 rounded-full text-[10px] font-bold bg-white text-accent">
+                {openOrdersCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="inline-flex items-center gap-4 px-10 py-6 rounded-md bg-white/15 hover:bg-white/25 text-white text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer"
+            onClick={() => setShiftOpen(true)}
+          >
+            Shift
+          </button>
+
+          <button
+            type="button"
+            className="p-6 rounded hover:bg-white/15 text-white flex items-center justify-center cursor-pointer"
+            onClick={() => setSettings(true)}
+            aria-label="Pengaturan perangkat"
+            title="Pengaturan perangkat"
+          >
+            <Settings className="cg-icon cg-icon--sm" aria-hidden />
+          </button>
+
+          <button
+            type="button"
+            className="p-6 rounded hover:bg-white/15 text-white flex items-center justify-center cursor-pointer"
+            onClick={onLock}
+            aria-label="Kunci layar"
+            title="Kunci layar"
+          >
+            <Lock className="cg-icon cg-icon--sm" aria-hidden />
+          </button>
+        </div>
       </header>
 
       <nav className="cg-shell__rail" aria-label="Kategori">
@@ -193,16 +287,48 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       </nav>
 
       <section className="reg__catalog" aria-label="Produk">
-        <label className="cg-search reg__search">
-          <Search className="cg-icon cg-icon--sm" aria-hidden />
-          <span className="cg-sr">Cari produk</span>
-          <input className="cg-input" type="search" placeholder="Cari produk, atau ketik/scan SKU lalu Enter" value={q} onChange={(e) => { setQ(e.target.value); setScanMsg(null); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSearchEnter(); } }} />
-        </label>
-        <div className="flex justify-end">
-          <button className="cg-btn cg-btn--secondary cg-btn--sm" data-testid="custom-open" onClick={() => setCustomOpen(true)} aria-haspopup="dialog">Item bebas</button>
+        {/* Bar cari sejajar dengan ikon scan dan tombol Item bebas */}
+        <div className="flex items-center gap-8 px-16 pt-12 pb-4 shrink-0">
+          <label className="cg-search flex-1 m-0 relative">
+            <Search className="cg-icon cg-icon--sm" aria-hidden />
+            <span className="cg-sr">Cari produk</span>
+            <input
+              className="cg-input pr-36"
+              type="search"
+              placeholder="Cari produk, atau ketik/scan SKU lalu Enter"
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setScanMsg(null); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSearchEnter(); } }}
+            />
+            <button
+              type="button"
+              className="absolute right-8 top-1/2 -translate-y-1/2 text-text-muted hover:text-text p-4 cursor-pointer"
+              title="Pemindai kode batang"
+              aria-label="Pemindai kode batang"
+              onClick={() => { if (q) onSearchEnter(); }}
+            >
+              <ScanBarcode className="cg-icon cg-icon--sm" aria-hidden />
+            </button>
+          </label>
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm whitespace-nowrap shrink-0"
+            data-testid="custom-open"
+            onClick={() => setCustomOpen(true)}
+            aria-haspopup="dialog"
+          >
+            Item bebas
+          </button>
         </div>
-        {scanMsg && <p role="status" className={`text-sm ${scanMsg.ok ? 'text-text-muted' : 'text-danger-strong'}`} data-testid="scan-msg">{scanMsg.text}</p>}
+        {scanMsg && (
+          <p
+            role="status"
+            className={`px-16 text-sm ${scanMsg.ok ? 'text-text-muted' : 'text-danger-strong'}`}
+            data-testid="scan-msg"
+          >
+            {scanMsg.text}
+          </p>
+        )}
         <div className="cg-shell__grid">
           {prods.status === 'loading' && Array.from({ length: 8 }, (_, i) => <div key={i} className="cg-skeleton" style={{ height: 170 }} aria-hidden />)}
           {prods.status === 'error' && <div className="cg-banner cg-banner--danger" role="alert" style={{ gridColumn: '1 / -1' }}><span>Produk gagal dimuat. {prods.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={prods.reload}>Coba lagi</button></div>}
@@ -218,19 +344,69 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             const name = isGroup ? t.name : t.product.name;
             const out = isGroup ? t.soldOut : t.product.trackStock && (t.product.stock ?? 0) <= 0;
             const price = isGroup ? (t.minPrice === t.maxPrice ? formatRp(t.minPrice) : `mulai ${formatRp(t.minPrice)}`) : formatRp(t.product.price);
+            const photoUrl = isGroup ? t.options.find((o) => o.product.photoUrl)?.product.photoUrl : t.product.photoUrl;
+
+            const tracksStock = isGroup ? t.options.some((o) => o.product.trackStock) : !!t.product.trackStock;
+            const rawStock = isGroup
+              ? t.options.reduce((sum, o) => sum + (o.product.trackStock ? (o.product.stock ?? 0) : 0), 0)
+              : (t.product.stock ?? 0);
+            const currentStock = Math.max(0, rawStock - n);
+            const isFav = isGroup ? t.options.some((o) => o.product.isFavorite) : !!t.product.isFavorite;
+
             return (
-              <button key={t.key} className="cg-tile"
+              <button
+                key={t.key}
+                className="cg-tile relative group"
                 onClick={() => (isGroup ? setPicking(t) : choose(t.product))}
                 aria-haspopup={isGroup ? 'dialog' : undefined}
-                aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
-                <span className="cg-tile__media" aria-hidden><ProductPhoto src={isGroup ? t.options.find((o) => o.product.photoUrl)?.product.photoUrl : t.product.photoUrl} fallback={<ShoppingBag className="cg-icon cg-icon--lg" />} /></span>
+                aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}
+              >
+                <span className="cg-tile__media relative overflow-hidden" aria-hidden>
+                  {/* Lencana stok kecil di pojok kiri atas gambar jika melacak stok */}
+                  {tracksStock && (
+                    <span
+                      className={`absolute top-6 left-6 z-10 px-6 py-2 rounded text-[10px] font-bold tracking-tight shadow-xs ${
+                        currentStock <= 0
+                          ? 'bg-danger text-on-danger'
+                          : 'bg-surface/90 text-text border border-border'
+                      }`}
+                    >
+                      {currentStock <= 0 ? 'Habis' : currentStock}
+                    </span>
+                  )}
+
+                  {/* Bintang kecil bila favorit di pojok kanan atas gambar */}
+                  {isFav && (
+                    <span className="absolute top-6 right-6 z-10 p-3 rounded-full bg-surface/90 text-amber-500 shadow-xs border border-border flex items-center justify-center">
+                      <Star className="w-10 h-10 fill-amber-400 text-amber-400" />
+                    </span>
+                  )}
+
+                  <ProductPhoto
+                    src={photoUrl}
+                    fallback={
+                      <div className="w-full h-full flex items-center justify-center bg-surface font-extrabold text-2xl text-text-muted select-none">
+                        {getInitials(name)}
+                      </div>
+                    }
+                  />
+                </span>
+
                 <span className="cg-tile__body">
                   <span className="cg-tile__name">{name}</span>
                   <span className="cg-tile__price">{price}</span>
                   {isGroup && <span className="text-xs text-text-muted">{t.options.map((o) => o.label).join(' · ')}</span>}
                   {out && <span className="cg-badge cg-badge--warning w-fit">Stok habis</span>}
                 </span>
-                {n > 0 && <span className="cg-badge cg-badge--accent cg-tile__qty" aria-hidden>{n}</span>}
+
+                {/* Lapisan hijau semi-transparan dengan jumlah di tengah setelah ada di pesanan */}
+                {n > 0 && (
+                  <div className="absolute inset-0 bg-accent/25 backdrop-blur-[0.5px] rounded-[inherit] flex items-center justify-center z-20 pointer-events-none transition-all">
+                    <span className="w-36 h-36 rounded-full bg-accent text-on-accent font-bold text-base flex items-center justify-center shadow-lg border-2 border-white">
+                      {n}
+                    </span>
+                  </div>
+                )}
               </button>
             );
           })}
