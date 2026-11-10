@@ -13,6 +13,7 @@ import {
   buildCashEntryJournal,
   categorizeCashEntries,
   formatRp,
+  localDateKey,
   newId,
   toCsv,
   validateCashEntry,
@@ -26,6 +27,19 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { useReport } from '@/lib/use-report';
 import { fmtDate, todayKey, useDialog } from '@/components/fin-common';
+
+function formatLocalPeriod(fromKey: string, toKey: string): string {
+  const f = (d: string) =>
+    new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'UTC',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(`${d}T00:00:00Z`));
+
+  if (fromKey === toKey) return f(fromKey);
+  return `${f(fromKey)} – ${f(toKey)}`;
+}
 
 interface CashModalProps {
   kind: CashEntryKind;
@@ -264,11 +278,15 @@ function CashEntryModal({ kind, accounts, onClose, onDone }: CashModalProps) {
 
 export default function ExpensesAndReceiptsPage() {
   const data = useData();
-  const { value, setValue, range, today } = useReport();
+  const { ctx, value, setValue, range, today } = useReport();
   const [activeTab, setActiveTab] = useState<CashEntryKind>('out');
   const [search, setSearch] = useState('');
   const [dialogKind, setDialogKind] = useState<CashEntryKind | null>(null);
   const [notice, setNotice] = useState('');
+
+  const tz = ctx.status === 'ready' ? ctx.data.timezone : 'Asia/Jakarta';
+  const localFrom = localDateKey(new Date(range.from), tz);
+  const localTo = localDateKey(new Date(new Date(range.to).getTime() - 1), tz);
 
   const accountsAsync = useAsync(async () => {
     return data.listAccounts();
@@ -276,13 +294,13 @@ export default function ExpensesAndReceiptsPage() {
 
   const journalsAsync = useAsync(async () => {
     const summaries = await data.listJournal({
-      from: range.from,
-      to: range.to,
+      from: localFrom,
+      to: localTo,
       sourceType: 'manual',
     });
     const details = await Promise.all(summaries.map((s) => data.getJournal(s.id)));
     return details.filter((j): j is NonNullable<typeof j> => j !== null);
-  }, [data, range.from, range.to]);
+  }, [data, localFrom, localTo]);
 
   const categorized = useMemo(() => {
     if (
@@ -335,7 +353,7 @@ export default function ExpensesAndReceiptsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `arus-kas-${activeTab === 'in' ? 'penerimaan' : 'pengeluaran'}-${range.from}-${range.to}.csv`;
+    a.download = `arus-kas-${activeTab === 'in' ? 'penerimaan' : 'pengeluaran'}-${localFrom}-${localTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -400,19 +418,19 @@ export default function ExpensesAndReceiptsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-[var(--color-border)] mb-16 gap-8">
+      <div className="flex border-b border-border mb-16 gap-8">
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === 'out'}
           onClick={() => setActiveTab('out')}
-          className={`px-16 py-8 text-sm font-semibold border-b-2 transition-colors flex items-center gap-6 ${
+          className={`px-16 py-8 text-sm font-semibold border-b-2 transition-colors flex items-center gap-8 ${
             activeTab === 'out'
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+              ? 'border-accent text-accent-strong font-bold'
               : 'border-transparent text-text-muted hover:text-text'
           }`}
         >
-          <ArrowUpFromLine className="w-4 h-4 text-danger" aria-hidden />
+          <ArrowUpFromLine className="w-16 h-16 text-danger shrink-0" aria-hidden />
           Pengeluaran (Kas Keluar)
         </button>
         <button
@@ -420,54 +438,64 @@ export default function ExpensesAndReceiptsPage() {
           role="tab"
           aria-selected={activeTab === 'in'}
           onClick={() => setActiveTab('in')}
-          className={`px-16 py-8 text-sm font-semibold border-b-2 transition-colors flex items-center gap-6 ${
+          className={`px-16 py-8 text-sm font-semibold border-b-2 transition-colors flex items-center gap-8 ${
             activeTab === 'in'
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+              ? 'border-accent text-accent-strong font-bold'
               : 'border-transparent text-text-muted hover:text-text'
           }`}
         >
-          <ArrowDownToLine className="w-4 h-4 text-accent" aria-hidden />
+          <ArrowDownToLine className="w-16 h-16 text-accent shrink-0" aria-hidden />
           Penerimaan (Kas Masuk)
         </button>
       </div>
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-12 mb-16 min-w-0">
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Total {activeTab === 'in' ? 'Penerimaan' : 'Pengeluaran'}
-          </p>
-          <p className="text-xl font-bold cg-num text-[var(--color-accent)]">
-            {formatRp(currentTotal)}
-          </p>
-          <p className="text-xs text-text-muted mt-4">
-            Periode: {range.from} s/d {range.to}
-          </p>
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Total {activeTab === 'in' ? 'Penerimaan' : 'Pengeluaran'}
+            </span>
+            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
+              {formatRp(currentTotal)}
+            </strong>
+          </div>
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+            Periode: {formatLocalPeriod(localFrom, localTo)}
+          </span>
         </div>
 
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Banyak Transaksi
-          </p>
-          <p className="text-xl font-bold cg-num">
-            {currentEntries.length}{' '}
-            <span className="text-sm font-normal text-text-muted">transaksi</span>
-          </p>
-          <p className="text-xs text-text-muted mt-4">Tercatat di pembukuan</p>
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Banyak Transaksi
+            </span>
+            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-text cg-num">
+              {currentEntries.length}{' '}
+              <span className="text-sm font-normal text-text-muted">transaksi</span>
+            </strong>
+          </div>
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+            Tercatat di pembukuan
+          </span>
         </div>
 
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Rata-rata per Transaksi
-          </p>
-          <p className="text-xl font-bold cg-num">
-            {formatRp(
-              currentEntries.length > 0
-                ? Math.round(currentTotal / currentEntries.length)
-                : 0
-            )}
-          </p>
-          <p className="text-xs text-text-muted mt-4">Nilai nominal rata-rata</p>
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Rata-rata per Transaksi
+            </span>
+            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-text cg-num">
+              {formatRp(
+                currentEntries.length > 0
+                  ? Math.round(currentTotal / currentEntries.length)
+                  : 0
+              )}
+            </strong>
+          </div>
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+            Estimasi per transaksi kas
+          </span>
         </div>
       </div>
 
@@ -476,12 +504,12 @@ export default function ExpensesAndReceiptsPage() {
         <div className="flex-1 max-w-sm">
           <div className="relative">
             <Search
-              className="w-4 h-4 text-text-muted absolute left-10 top-1/2 -translate-y-1/2 pointer-events-none"
+              className="w-16 h-16 text-text-muted absolute left-10 top-1/2 -translate-y-1/2 pointer-events-none"
               aria-hidden
             />
             <input
               type="search"
-              className="cg-input pl-32 w-full text-sm"
+              className="cg-input pl-[34px] w-full text-sm"
               placeholder="Cari transaksi, nomor jurnal, keterangan…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
