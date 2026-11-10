@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { KeyRound, Plus } from 'lucide-react';
-import { pinProblem, type Employee, type ManagedEmployee } from '@cgpos/shared';
+import { accessFor, pinProblem, PERMISSIONS, ROLE_LABEL, type Access, type Employee, type ManagedEmployee } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
-const ROLE: Record<Employee['role'], string> = { owner: 'Pemilik', manager: 'Manajer', cashier: 'Kasir' };
+const ROLE = ROLE_LABEL;
+const ACCESS_TEXT: Record<Access, string> = { allow: 'Boleh', approve: 'Perlu PIN manajer', deny: 'Tidak boleh' };
 
 export default function KaryawanDanAkses() {
   const data = useData();
@@ -55,6 +56,26 @@ export default function KaryawanDanAkses() {
           </table>
         </div>
       ))}
+      <section className="mt-32" aria-labelledby="hak-akses-peran">
+        <h2 id="hak-akses-peran" className="text-lg mb-8">Hak akses per peran di kasir</h2>
+        <p className="text-text-muted mb-12">Pemilik dan manajer boleh langsung (mereka sudah masuk dengan PIN sendiri). Kasir perlu PIN manajer atau pemilik untuk tindakan yang mengubah uang atau data. Aturan ini tetap sama untuk semua outlet.</p>
+        <div className="cg-data-wrap">
+          <table className="cg-data">
+            <thead><tr><th>Tindakan</th><th>Kasir</th><th>Manajer</th><th>Pemilik</th></tr></thead>
+            <tbody>
+              {PERMISSIONS.map((p) => (
+                <tr key={p.id}>
+                  <td className="break-words max-w-[360px]">{p.label}</td>
+                  {(['cashier', 'manager', 'owner'] as const).map((r) => {
+                    const a = accessFor(r, p.id);
+                    return <td key={r}><span className={`cg-badge ${a === 'allow' ? 'cg-badge--accent' : a === 'approve' ? 'cg-badge--warning' : ''}`}>{ACCESS_TEXT[a]}</span></td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
       {edit && <EmployeeDialog employee={edit === 'new' ? undefined : edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); list.reload(); }} />}
       {target && <PinDialog employee={target} onClose={() => setTarget(null)} onSaved={() => { setDone(target.name); setTarget(null); }} />}
     </>

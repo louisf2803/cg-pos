@@ -106,7 +106,7 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
 
 function VoidDialog({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: (number: string) => void }) {
   const data = useData();
-  const ap = useApprover();
+  const ap = useApprover('void_order');
   const [reason, setReason] = useState(REASONS[0]!);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -152,7 +152,7 @@ function VoidDialog({ order, onClose, onDone }: { order: Order; onClose: () => v
 
 function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: (r: Refund) => void }) {
   const data = useData();
-  const ap = useApprover();
+  const ap = useApprover('refund');
   const history = useAsync(() => data.listRefunds(order.id), [data, order.id]);
   const methods = useAsync(() => data.listPaymentMethods(), [data]);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -277,7 +277,7 @@ function PendingList({ entries, onRetry, onDiscard, onNotice }: { entries: Pendi
 }
 
 function DiscardDialog({ entry, onClose, onDone }: { entry: PendingEntry; onClose: () => void; onDone: () => void }) {
-  const ap = useApprover();
+  const ap = useApprover('discard_pending');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function submit(ev: FormEvent) {

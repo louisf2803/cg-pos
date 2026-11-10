@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, Minus, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { ClipboardList, Lock, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -9,6 +9,7 @@ import { useOnline } from '../lib/online';
 import { Modal, ProductPhoto } from '../ui';
 import { Orders } from './Orders';
 import { TablePicker } from './TablePicker';
+import { DeviceSettings } from './DeviceSettings';
 import { Payment } from './Payment';
 
 const TYPES: { v: OrderType; label: string }[] = [
@@ -38,6 +39,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const pend = usePending();
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
+  const [settings, setSettings] = useState(false);
   const cart = useCart(ctx);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
@@ -113,18 +115,19 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       <header className="cg-shell__header">
         <strong className="truncate">{ctx.outletName}</strong>
         <span className="text-text-muted text-sm truncate hidden tablet:inline">Kasir: {session.employee.name}</span>
-        <span className={`cg-conn ${online ? 'cg-conn--online' : 'cg-conn--offline'} ml-auto`} role="status">
+        <span className={`cg-conn ${online ? 'cg-conn--online' : 'cg-conn--offline'} ml-auto`} role="status" aria-label={online ? 'Online' : 'Offline'}>
           {online ? <Wifi className="cg-icon cg-icon--sm" aria-hidden /> : <WifiOff className="cg-icon cg-icon--sm" aria-hidden />}
-          {online ? 'Online' : 'Offline'}
+          <span className="hidden tablet:inline">{online ? 'Online' : 'Offline'}</span>
         </span>
         {pend.entries.length > 0 && (
           <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => { setOrdersTab('pending'); setShowOrders(true); }} aria-label={`${pend.entries.length} transaksi tertunda, buka daftar`}>
             Tertunda ({pend.entries.length})
           </button>
         )}
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => { setOrdersTab('waiting'); setShowOrders(true); }}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> Daftar Order</button>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onCloseShift}>Tutup kasir</button>
-        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onLock} aria-label="Kunci dan ganti kasir"><Lock className="cg-icon" aria-hidden /></button>
+        <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label="Daftar Order" onClick={() => { setOrdersTab('waiting'); setShowOrders(true); }}><ClipboardList className="cg-icon cg-icon--sm" aria-hidden /> <span className="hidden tablet:inline">Daftar Order</span></button>
+        <button className="cg-btn cg-btn--ghost cg-btn--sm whitespace-nowrap" onClick={onCloseShift}>Tutup kasir</button>
+        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setSettings(true)} aria-label="Pengaturan perangkat"><Settings className="cg-icon" aria-hidden /></button>
+        <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onLock} aria-label="Kunci layar"><Lock className="cg-icon" aria-hidden /></button>
       </header>
 
       <nav className="cg-shell__rail" aria-label="Kategori">
@@ -238,6 +241,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
         </button>
       </footer>
+      {settings && <DeviceSettings onClose={() => setSettings(false)} />}
       {tablePick && (
         <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}
           onClose={() => setTablePick(false)}

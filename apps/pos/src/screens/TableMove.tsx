@@ -68,7 +68,7 @@ export function MoveTableDialog({ order, tableName, onClose, onDone }: { order: 
 /** Satukan pesanan meja lain ke pesanan ini. Pesanan sumber dibatalkan dengan catatan "Digabung ke …". */
 export function MergeTableDialog({ order, names, onClose, onDone }: { order: Order; names: Record<string, string>; onClose: () => void; onDone: (o: Order, from: Order) => void }) {
   const data = useData();
-  const ap = useApprover();
+  const ap = useApprover('merge_tables');
   const others = useAsync(async () => (await data.listOrders({ status: 'open', limit: 100 })).filter((o) => o.id !== order.id && o.type === 'dine_in' && !!o.tableId && o.paidTotal === 0), [data, order.id]);
   const [fromId, setFromId] = useState('');
   const [error, setError] = useState('');

@@ -9,6 +9,9 @@ import { NoDevice } from './screens/NoDevice';
 import { OpenShift } from './screens/OpenShift';
 import { Register } from './screens/Register';
 import { CloseShift } from './screens/CloseShift';
+import { LockScreen } from './screens/LockScreen';
+import { useDevicePrefs } from './lib/device-prefs';
+import { useIdleLock } from './lib/idle';
 
 type View = 'register' | 'close';
 
@@ -22,13 +25,18 @@ function Shell() {
   const ctx = useAsync(() => data.getContext(), [data]);
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<View>('register');
+  const [lock, setLock] = useState<null | 'manual' | 'idle'>(null);
+  const prefs = useDevicePrefs();
 
   const login = useCallback(async (employee: Employee) => {
     const shift = await data.currentShift();
     setSession({ employee, shift });
+    setLock(null);
     setView('register');
   }, [data]);
-  const logout = useCallback(() => setSession(null), []);
+  const logout = useCallback(() => { setSession(null); setLock(null); }, []);
+  const lockNow = useCallback(() => setLock('manual'), []);
+  useIdleLock({ minutes: prefs.idleLockMinutes, enabled: !!session && !lock, onIdle: () => setLock('idle') });
   const setShift = useCallback((shift: Shift | null) => setSession((s) => (s ? { ...s, shift } : s)), []);
 
   useEffect(() => { if (ctx.status === 'ready') document.title = `Kasir · ${ctx.data.outletName}`; }, [ctx]);
@@ -42,12 +50,15 @@ function Shell() {
   if (ctx.data.deviceCode === '-') return <NoDevice outletName={ctx.data.outletName} />;
   if (!session) return <Login onSuccess={(e) => void login(e)} />;
   return (
-    <SessionCtx.Provider value={{ session, setShift, logout }}>
-      {view === 'close'
-        ? <CloseShift onCancel={() => setView('register')} onClosed={logout} />
-        : !session.shift
-          ? <OpenShift employee={session.employee} onOpened={setShift} onLogout={logout} />
-          : <Register ctx={ctx.data} onCloseShift={() => setView('close')} onLock={logout} />}
+    <SessionCtx.Provider value={{ session, setShift, logout, lock: lockNow }}>
+      <div className="min-h-full" inert={!!lock} aria-hidden={!!lock}>
+        {view === 'close'
+          ? <CloseShift onCancel={() => setView('register')} onClosed={logout} />
+          : !session.shift
+            ? <OpenShift employee={session.employee} onOpened={setShift} onLogout={logout} />
+            : <Register ctx={ctx.data} onCloseShift={() => setView('close')} onLock={lockNow} />}
+      </div>
+      {lock && <LockScreen reason={lock} onUnlock={() => setLock(null)} onSwitch={logout} />}
     </SessionCtx.Provider>
   );
 }

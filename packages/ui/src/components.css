@@ -144,6 +144,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .cg-method small{margin-left:auto;font-weight:500;font-size:var(--text-xs);white-space:nowrap}
 
 /* ---------- Modal, toast, banner ---------- */
+.cg-lock{position:fixed;inset:0;z-index:80;background:var(--color-bg);overflow:auto;display:grid;place-items:center}
 .cg-scrim{position:fixed;inset:0;background:color-mix(in srgb,var(--color-overlay) 55%,transparent);display:grid;place-items:center;padding:var(--space-16)}
 .cg-modal{width:min(440px,100%);background:var(--color-surface-raised);border-radius:var(--radius-xl);box-shadow:var(--shadow-pop);padding:var(--space-24);display:grid;gap:var(--space-16);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
 .cg-modal__title{font-size:var(--text-lg);font-weight:600;line-height:var(--text-lg-line);margin:0}
