@@ -8,6 +8,7 @@ import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
 import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
+import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -233,5 +234,13 @@ export interface DataLayer {
   listRecipes(): Promise<RecipeProduct[]>;
   /** Ganti seluruh resep satu produk secara atomik (pemilik/admin/manajer). Mengembalikan jumlah baris tersimpan. */
   saveRecipe(productId: string, lines: RecipeLine[]): Promise<number>;
+
+  // ---------- satuan ganda ----------
+  /** Satuan satu barang (dasar dulu), beserta penanda sudah dipakai. */
+  listProductUnits(productId: string): Promise<ProductUnitRow[]>;
+  /** Tambah atau ubah satuan lain suatu barang (pemilik/admin/manajer). Nama satuan baru dibuat otomatis. */
+  saveProductUnit(input: ProductUnitInput): Promise<void>;
+  /** Arsipkan satuan lain yang belum dipakai. Mengembalikan false bila tidak ada. */
+  removeProductUnit(productId: string, unitId: string): Promise<boolean>;
 }
 

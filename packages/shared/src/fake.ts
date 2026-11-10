@@ -6,6 +6,7 @@ import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } fro
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { priceOverridePctProblem } from './price-override';
+import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
@@ -244,10 +245,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     'ing-susu': [{ unitId: 'u-liter', name: 'liter', conversion: 1000, isBase: false, buyPrice: 18000 }],
     'ing-gula': [{ unitId: 'u-liter', name: 'liter', conversion: 1000, isBase: false, buyPrice: 40000 }],
   };
+  // satuan lain yang bisa diubah dari dashboard; bermula dari contoh di atas
+  type AltUnit = PurchaseUnit & { minPurchase: number };
+  let altUnits = new Map<string, AltUnit[]>();
+  const seedAltUnits = () => { altUnits = new Map(Object.entries(FAKE_ALT_UNITS).map(([k, v]) => [k, v.map((u) => ({ ...u, minPurchase: 1 }))])); };
+  seedAltUnits();
   const baseUnitId = (productId: string) => `u-base-${productId}`;
   function purchaseUnits(productId: string): PurchaseUnit[] {
     const b = stockBal(productId)!;
-    return [{ unitId: baseUnitId(productId), name: b.unit, conversion: 1, isBase: true, buyPrice: costs.get(productId) ?? 0 }, ...(FAKE_ALT_UNITS[productId] ?? [])];
+    return [{ unitId: baseUnitId(productId), name: b.unit, conversion: 1, isBase: true, buyPrice: costs.get(productId) ?? 0 }, ...(altUnits.get(productId) ?? []).map(({ minPurchase: _m, ...u }) => u)];
   }
   const todayKey = () => localDateKey(now(), CTX.timezone);
   const supplierName = (id?: string) => (id ? suppliers.find((x) => x.id === id)?.name ?? '' : '(tanpa pemasok)');
@@ -333,7 +339,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
   function seedStock() {
-    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = []; recipes = new Map();
+    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = []; recipes = new Map(); seedAltUnits();
     suppliers = opts.seed === false ? [] : [
       { id: 'sp-kopi', code: 'SUP-01', name: 'CV Sumber Kopi Nusantara', phone: '081234500001', termDays: 14, isActive: true },
       { id: 'sp-susu', code: 'SUP-02', name: 'UD Susu Segar Jaya', phone: '081234500002', termDays: 7, isActive: true },
@@ -1125,6 +1131,41 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (lines.length) recipes.set(productId, clone(lines)); else recipes.delete(productId);
       if (before !== after) activityLog.unshift({ id: newId(), at: now().toISOString(), action: 'recipe.updated', entity: 'recipe', entityId: productId, name: p.name, actorUserId: 'u-owner', actorEmail: 'pemilik@contoh.id', changes: [{ column: 'lines', from: before.slice(0, 200) || null, to: after.slice(0, 200) || null }] });
       return lines.length;
+    },
+    async listProductUnits(productId) {
+      const b = stockBal(productId);
+      if (!b) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
+      const used = (u: { unitId: string; name: string }) =>
+        (recipes.size > 0 && [...recipes.values()].some((ls) => ls.some((l) => l.ingredientId === productId && (l.unitId === u.unitId || l.unitId === u.name))))
+        || [...pOrders, ...pInvoices].some((o) => o.lines.some((l) => l.productId === productId && l.unitId === u.unitId));
+      const base: ProductUnitRow = { unitId: baseUnitId(productId), name: b.unit, conversion: 1, isBase: true, buyPrice: costs.get(productId) ?? 0, minPurchase: 1, inUse: true };
+      return clone([base, ...(altUnits.get(productId) ?? []).map((u): ProductUnitRow => ({ ...u, inUse: used(u) }))].sort((a, c) => Number(c.isBase) - Number(a.isBase) || a.conversion - c.conversion));
+    },
+    async saveProductUnit(input: ProductUnitInput) {
+      const b = stockBal(input.productId);
+      if (!b) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
+      const problem = productUnitProblem(input, b.unit);
+      if (problem) throw new DataError('invalid', problem);
+      const name = input.unitName.trim();
+      const list = altUnits.get(input.productId) ?? [];
+      const existing = list.find((u) => u.name.toLowerCase() === name.toLowerCase());
+      const rows = await this.listProductUnits(input.productId);
+      if (existing) {
+        if (existing.conversion !== input.conversion && rows.find((r) => r.unitId === existing.unitId)?.inUse) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi isinya tidak bisa diubah.');
+        existing.conversion = input.conversion; existing.buyPrice = input.buyPrice ?? 0; existing.minPurchase = input.minPurchase ?? 1;
+      } else {
+        list.push({ unitId: `u-${name.toLowerCase().replace(/\s+/g, '-')}-${list.length}`, name, conversion: input.conversion, isBase: false, buyPrice: input.buyPrice ?? 0, minPurchase: input.minPurchase ?? 1 });
+        altUnits.set(input.productId, list);
+      }
+    },
+    async removeProductUnit(productId, unitId) {
+      const list = altUnits.get(productId) ?? [];
+      const idx = list.findIndex((u) => u.unitId === unitId);
+      if (idx < 0) return false;
+      const row = (await this.listProductUnits(productId)).find((r) => r.unitId === unitId);
+      if (row?.inUse) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi tidak bisa dihapus.');
+      list.splice(idx, 1);
+      return true;
     },
     async setPriceOverride(productIds, pct) {
       const problem = priceOverridePctProblem(pct);

@@ -11,6 +11,7 @@ import {
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
 import { priceOverridePctProblem } from './price-override';
+import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
@@ -1355,6 +1356,42 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         throw mapDbError(error);
       }
       return Number(data ?? lines.length);
+    },
+
+    async listProductUnits(productId) {
+      const { data, error } = await db().rpc('product_unit_list', { p_product: productId });
+      if (error) {
+        if (/product not found/i.test(error.message ?? '')) throw new DataError('not_found', 'Barang tidak ditemukan.');
+        throw mapDbError(error);
+      }
+      return ((data as Row[] | null) ?? []).map((r): ProductUnitRow => ({ unitId: r.unit_id as string, name: r.unit_name as string, conversion: Number(r.conversion), isBase: !!r.is_base, buyPrice: Number(r.buy_price ?? 0), minPurchase: Number(r.min_purchase ?? 1), inUse: !!r.in_use }));
+    },
+    async saveProductUnit(input: ProductUnitInput) {
+      const problem = productUnitProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { error } = await db().rpc('product_unit_save', { p_product: input.productId, p_unit_name: input.unitName.trim(), p_conversion: input.conversion, p_buy_price: input.buyPrice ?? 0, p_min_purchase: input.minPurchase ?? 1 });
+      if (error) {
+        const m = error.message ?? '';
+        if (/not allowed|no access/i.test(m)) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh mengubah satuan.');
+        if (/product not found/i.test(m)) throw new DataError('not_found', 'Barang tidak ditemukan.');
+        if (/unit in use/i.test(m)) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi isinya tidak bisa diubah.');
+        if (/already the base unit/i.test(m)) throw new DataError('invalid', 'Itu sudah satuan dasar barang ini.');
+        if (/base unit conversion/i.test(m)) throw new DataError('invalid', 'Isi satuan dasar selalu 1.');
+        if (/has no units/i.test(m)) throw new DataError('invalid', 'Jenis barang ini tidak punya satuan ganda.');
+        if (/unit name|conversion must|buy price|minimum purchase/i.test(m)) throw new DataError('invalid', 'Isian satuan ditolak server. Periksa nama, isi, harga beli, dan minimum beli.');
+        throw mapDbError(error);
+      }
+    },
+    async removeProductUnit(productId, unitId) {
+      const { data, error } = await db().rpc('product_unit_remove', { p_product: productId, p_unit: unitId });
+      if (error) {
+        const m = error.message ?? '';
+        if (/not allowed|no access/i.test(m)) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh mengubah satuan.');
+        if (/unit in use/i.test(m)) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi tidak bisa dihapus.');
+        if (/base unit/i.test(m)) throw new DataError('invalid', 'Satuan dasar tidak bisa dihapus.');
+        throw mapDbError(error);
+      }
+      return data === true;
     },
 
     async setPriceOverride(productIds, pct) {
