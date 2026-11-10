@@ -63,6 +63,25 @@ export default function NonCashReconciliationPage() {
     });
   }, [ordersAsync, methodsAsync, actualMap, groupBy]);
 
+  const filledRows = useMemo(() => {
+    if (!reconciliation) return [];
+    return reconciliation.rows.filter(
+      (r) => r.actualAmount !== undefined && r.actualAmount !== null
+    );
+  }, [reconciliation]);
+
+  const filledCount = filledRows.length;
+  const totalFilledActual = useMemo(
+    () => filledRows.reduce((sum, r) => sum + (r.actualAmount ?? 0), 0),
+    [filledRows]
+  );
+  const filledDiff = useMemo(
+    () => filledRows.reduce((sum, r) => sum + (r.diff ?? 0), 0),
+    [filledRows]
+  );
+  const allFilledMatched =
+    filledCount > 0 && filledRows.every((r) => r.status === 'matched');
+
   const handleActualChange = (id: string, rawVal: string) => {
     const clean = rawVal.replace(/[^\d]/g, '');
     setActualMap((prev) => {
@@ -145,17 +164,15 @@ export default function NonCashReconciliationPage() {
         }
       />
 
-      {/* Catatan Penyimpanan Permanen */}
+      {/* Catatan Penyimpanan Sesi */}
       <div
         role="note"
-        className="cg-banner cg-banner--info mb-16 flex items-start gap-8"
+        className="cg-banner cg-banner--info mb-16 flex items-center gap-8 text-sm"
       >
-        <Info className="w-5 h-5 flex-shrink-0 mt-2" aria-hidden />
-        <div className="text-sm">
-          <strong>Penyimpanan Sesi Lokal:</strong> Angka penerimaan bank yang Anda
-          masukkan saat ini disimpan di memori peramban perangkat ini. Fitur
-          penyimpanan permanen berkas rekonsiliasi ke server menyusul.
-        </div>
+        <Info className="w-16 h-16 flex-shrink-0" aria-hidden />
+        <span>
+          Nominal penerimaan bank tersimpan sementara di sesi peramban perangkat ini.
+        </span>
       </div>
 
       {notice && (
@@ -176,75 +193,90 @@ export default function NonCashReconciliationPage() {
 
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16 min-w-0">
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Dicatat Sistem POS
-          </p>
-          <p className="text-xl font-bold cg-num text-[var(--color-accent)]">
-            {formatRp(reconciliation?.totalSystemAmount ?? 0)}
-          </p>
-          <p className="text-xs text-text-muted mt-4">
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Dicatat Sistem POS
+            </span>
+            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
+              {formatRp(reconciliation?.totalSystemAmount ?? 0)}
+            </strong>
+          </div>
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
             {reconciliation?.totalTransactions ?? 0} transaksi non-tunai
-          </p>
+          </span>
         </div>
 
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Diterima di Bank / Penyedia
-          </p>
-          <p className="text-xl font-bold cg-num">
-            {formatRp(reconciliation?.totalActualAmount ?? 0)}
-          </p>
-          <p className="text-xs text-text-muted mt-4">Total input aktual</p>
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Diterima di Bank / Penyedia
+            </span>
+            <strong className="text-xl sm:text-2xl font-bold block truncate text-left text-text cg-num">
+              {filledCount > 0 ? formatRp(totalFilledActual) : '—'}
+            </strong>
+          </div>
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+            {filledCount > 0 ? `${filledCount} metode telah diisi` : 'Belum ada input aktual'}
+          </span>
         </div>
 
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Total Selisih
-          </p>
-          <p
-            className={`text-xl font-bold cg-num ${
-              (reconciliation?.totalDiff ?? 0) === 0
-                ? 'text-[var(--color-accent)]'
-                : (reconciliation?.totalDiff ?? 0) > 0
-                ? 'text-accent'
-                : 'text-danger'
-            }`}
-          >
-            {(reconciliation?.totalDiff ?? 0) > 0 ? '+' : ''}
-            {formatRp(reconciliation?.totalDiff ?? 0)}
-          </p>
-          <p className="text-xs text-text-muted mt-4">
-            {(reconciliation?.totalDiff ?? 0) === 0
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Total Selisih
+            </span>
+            <strong
+              className={`text-xl sm:text-2xl font-bold block truncate text-left cg-num ${
+                filledCount === 0
+                  ? 'text-text'
+                  : filledDiff === 0
+                  ? 'text-accent-strong'
+                  : filledDiff > 0
+                  ? 'text-accent-strong'
+                  : 'text-danger'
+              }`}
+            >
+              {filledCount === 0
+                ? '—'
+                : `${filledDiff > 0 ? '+' : ''}${formatRp(filledDiff)}`}
+            </strong>
+          </div>
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
+            {filledCount === 0
+              ? 'Belum ada nominal bank diisi'
+              : filledDiff === 0
               ? 'Saldo seimbang'
-              : (reconciliation?.totalDiff ?? 0) > 0
+              : filledDiff > 0
               ? 'Penerimaan bank lebih besar'
               : 'Penerimaan bank kurang'}
-          </p>
+          </span>
         </div>
 
-        <div className="cg-card p-16">
-          <p className="text-xs text-text-muted mb-4 uppercase tracking-wider">
-            Status Rekonsiliasi
-          </p>
-          <div className="flex items-center gap-6 mt-4">
-            {reconciliation?.allMatched ? (
-              <span className="cg-badge cg-badge--success flex items-center gap-4 text-xs font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden /> Sudah cocok semua
-              </span>
-            ) : reconciliation?.mismatchCount ? (
-              <span className="cg-badge cg-badge--danger flex items-center gap-4 text-xs font-semibold">
-                <AlertCircle className="w-3.5 h-3.5" aria-hidden /> {reconciliation.mismatchCount} ada selisih
-              </span>
-            ) : (
-              <span className="cg-badge cg-badge--info flex items-center gap-4 text-xs font-semibold">
-                {reconciliation?.unenteredCount ?? 0} belum diisi
-              </span>
-            )}
+        <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+          <div>
+            <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
+              Status Rekonsiliasi
+            </span>
+            <div className="flex items-center gap-6 my-2">
+              {filledCount === 0 ? (
+                <span className="cg-badge text-text-muted text-xs font-semibold">
+                  Belum diisi
+                </span>
+              ) : allFilledMatched ? (
+                <span className="cg-badge cg-badge--success flex items-center gap-4 text-xs font-semibold">
+                  <CheckCircle2 className="w-14 h-14" aria-hidden /> Sudah cocok semua
+                </span>
+              ) : (
+                <span className="cg-badge cg-badge--danger flex items-center gap-4 text-xs font-semibold">
+                  <AlertCircle className="w-14 h-14" aria-hidden /> Ada selisih
+                </span>
+              )}
+            </div>
           </div>
-          <p className="text-xs text-text-muted mt-8">
+          <span className="text-xs text-text-muted block mt-6 truncate text-left">
             {reconciliation?.matchedCount ?? 0} cocok · {reconciliation?.mismatchCount ?? 0} selisih
-          </p>
+          </span>
         </div>
       </div>
 
@@ -316,7 +348,7 @@ export default function NonCashReconciliationPage() {
       ) : (
         <>
           {/* Desktop Table View */}
-          <div className="hidden md:block cg-data-wrap min-w-0">
+          <div className="hidden tablet:block cg-data-wrap min-w-0">
             <table
               className="cg-data min-w-0"
               aria-label="Tabel rekonsiliasi non-tunai"
@@ -359,16 +391,19 @@ export default function NonCashReconciliationPage() {
                     <td className="text-right cg-num font-bold text-sm">
                       {formatRp(row.systemAmount)}
                     </td>
-                    <td className="text-right">
-                      <div className="inline-flex items-center justify-end">
+                    <td className="text-right py-8 px-12">
+                      <div className="flex items-center h-[44px] w-[180px] ml-auto border border-border rounded-lg bg-surface-raised focus-within:border-accent focus-within:ring-1 focus-within:ring-accent overflow-hidden transition-colors">
+                        <span className="pl-10 pr-4 text-xs font-semibold text-text-muted select-none shrink-0">
+                          Rp
+                        </span>
                         <input
                           type="text"
                           inputMode="numeric"
-                          className="cg-input cg-num text-right py-4 px-8 w-36 text-sm"
-                          placeholder="Ketik nominal…"
+                          className="w-full h-full bg-transparent pr-10 text-right cg-num text-sm text-text font-semibold focus:outline-hidden"
+                          placeholder="0"
                           value={
                             row.actualAmount !== undefined
-                              ? row.actualAmount.toString()
+                              ? new Intl.NumberFormat('id-ID').format(row.actualAmount)
                               : ''
                           }
                           onChange={(e) => handleActualChange(row.id, e.target.value)}
@@ -413,7 +448,7 @@ export default function NonCashReconciliationPage() {
           </div>
 
           {/* Mobile Card List View */}
-          <div className="grid gap-12 md:hidden min-w-0" aria-label="Daftar rekonsiliasi mobile">
+          <div className="grid gap-12 tablet:hidden min-w-0" aria-label="Daftar rekonsiliasi mobile">
             {reconciliation.rows.map((row) => (
               <div key={row.id} className="cg-card p-12 min-w-0">
                 <div className="flex justify-between items-start gap-8 mb-8">
@@ -476,26 +511,31 @@ export default function NonCashReconciliationPage() {
                   </div>
                 </div>
 
-                <div className="pt-8 border-t border-[var(--color-border)]">
+                <div className="pt-8 border-t border-border">
                   <label
                     htmlFor={`mob-input-${row.id}`}
                     className="text-xs text-text-muted block mb-4"
                   >
-                    Diterima di Bank / EDC (Rp):
+                    Diterima di Bank / EDC:
                   </label>
-                  <input
-                    id={`mob-input-${row.id}`}
-                    type="text"
-                    inputMode="numeric"
-                    className="cg-input cg-num text-right py-6 px-10 w-full text-sm"
-                    placeholder="Masukkan nominal diterima…"
-                    value={
-                      row.actualAmount !== undefined
-                        ? row.actualAmount.toString()
-                        : ''
-                    }
-                    onChange={(e) => handleActualChange(row.id, e.target.value)}
-                  />
+                  <div className="flex items-center h-[44px] w-full border border-border rounded-lg bg-surface-raised focus-within:border-accent focus-within:ring-1 focus-within:ring-accent overflow-hidden transition-colors">
+                    <span className="pl-12 pr-4 text-xs font-semibold text-text-muted select-none shrink-0">
+                      Rp
+                    </span>
+                    <input
+                      id={`mob-input-${row.id}`}
+                      type="text"
+                      inputMode="numeric"
+                      className="w-full h-full bg-transparent pr-12 text-right cg-num text-sm text-text font-semibold focus:outline-hidden"
+                      placeholder="0"
+                      value={
+                        row.actualAmount !== undefined
+                          ? new Intl.NumberFormat('id-ID').format(row.actualAmount)
+                          : ''
+                      }
+                      onChange={(e) => handleActualChange(row.id, e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
