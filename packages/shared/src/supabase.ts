@@ -4,6 +4,10 @@ import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRu
 import { photoPath, photoProblem } from './photo';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
+import {
+  invoiceOutstanding, purchaseInvoiceProblem, purchaseOrderProblem, purchasePayProblem, purchaseReceiveProblem, supplierProblem,
+  type PayAccount, type PurchaseInvoice, type PurchaseInvoiceInput, type PurchaseInvoiceSummary, type PurchaseItem, type PurchaseLine, type PurchaseOrder, type PurchaseOrderInput, type PurchaseOrderSummary, type PurchasePayInput, type PurchasePayment, type PurchaseReceiveInput, type Supplier, type SupplierInput,
+} from './purchasing';
 
 const PHOTO_BUCKET = 'menu-images';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
@@ -118,6 +122,37 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (/opname not found/i.test(m)) return new DataError('not_found', 'Opname tidak ditemukan.');
     if (/does not track stock/i.test(m)) return new DataError('not_found', 'Ada barang yang tidak ditemukan atau stoknya tidak dilacak.');
     if (/invalid line|duplicate product|too many lines/i.test(m)) return new DataError('invalid', 'Isian opname ditolak server. Periksa jumlah dan item ganda.');
+    return mapDbError(error);
+  }
+
+  /** Baris PO atau faktur dengan nama barang dan satuan dari daftar barang beli. */
+  function poLines(rows: Row[], items: PurchaseItem[], kind: 'order' | 'invoice'): PurchaseLine[] {
+    const item = new Map(items.map((i) => [i.productId, i]));
+    return rows.map((l): PurchaseLine => {
+      const it = item.get(l.product_id as string);
+      const qty = Number(l.qty), price = Number(l.unit_price), disc = Number(l.discount ?? 0);
+      return {
+        id: l.id, productId: l.product_id, name: it?.name ?? '(barang tidak lagi dilacak)', unitId: l.unit_id, unit: it?.units.find((u) => u.unitId === l.unit_id)?.name ?? 'unit',
+        qty, receivedQty: kind === 'invoice' ? Number(l.received_qty) : 0, unitPrice: price, discount: disc, lineTotal: kind === 'invoice' ? Number(l.line_total) : Math.round((qty * price - disc) * 100) / 100,
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+  }
+
+  function mapPurchaseError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur pembelian belum aktif di database (migrasi 0016 belum diterapkan).');
+    if (/not allowed/i.test(m)) return new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengelola pembelian.');
+    if (/order already received|order is cancelled/i.test(m)) return new DataError('order_locked', 'PO ini sudah diterima atau dibatalkan dan tidak bisa diubah.');
+    if (/order is not open/i.test(m)) return new DataError('invalid', 'PO ini tidak bisa dibuatkan faktur (belum dipesan atau sudah selesai).');
+    if (/supplier not found/i.test(m)) return new DataError('not_found', 'Pemasok tidak ditemukan atau sudah nonaktif.');
+    if (/invoice not found/i.test(m)) return new DataError('not_found', 'Faktur tidak ditemukan.');
+    if (/invoice is not open/i.test(m)) return new DataError('invalid', 'Faktur ini tidak bisa dibayar lagi.');
+    if (/payment account must be/i.test(m)) return new DataError('invalid', 'Pilih akun kas atau bank yang aktif.');
+    if (/payment exceeds/i.test(m)) return new DataError('invalid', 'Jumlah bayar melebihi sisa hutang.');
+    if (/received quantity exceeds/i.test(m)) return new DataError('invalid', 'Jumlah diterima melebihi sisa pesanan.');
+    if (/does not track stock/i.test(m)) return new DataError('not_found', 'Ada barang yang tidak ditemukan atau stoknya tidak dilacak.');
+    if (/unit does not belong/i.test(m)) return new DataError('invalid', 'Satuan tidak sesuai dengan barangnya.');
+    if (/invalid line|invalid received|invalid amount|invalid term|negative|too many lines|no lines|larger than/i.test(m)) return new DataError('invalid', 'Isian pembelian ditolak server. Periksa jumlah, harga, diskon, dan baris.');
     return mapDbError(error);
   }
 
@@ -979,6 +1014,166 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteOpname(id) {
       const rows = must(await db().from('stock_opnames').delete().eq('id', id).eq('status', 'draft').select('id')) as Row[] | null;
       if (!rows || rows.length === 0) throw new DataError('not_found', 'Draf opname tidak ditemukan, atau sudah selesai.');
+    },
+
+    // ---------- pemasok dan pembelian ----------
+    async listSuppliers(q) {
+      let query = db().from('suppliers').select('id,code,name,phone,email,address,term_days,is_active').order('name');
+      if (!q?.includeInactive) query = query.eq('is_active', true);
+      const rows = (must(await query.limit(1000)) as Row[] | null) ?? [];
+      const term = q?.search?.trim().toLowerCase();
+      return rows.map((r): Supplier => ({
+        id: r.id, name: r.name, termDays: Number(r.term_days), isActive: !!r.is_active,
+        ...(r.code ? { code: r.code } : {}), ...(r.phone ? { phone: r.phone } : {}), ...(r.email ? { email: r.email } : {}), ...(r.address ? { address: r.address } : {}),
+      })).filter((x) => !term || x.name.toLowerCase().includes(term) || (x.code ?? '').toLowerCase().includes(term)).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async saveSupplier(input: SupplierInput) {
+      const problem = supplierProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const clean = (v?: string) => v?.trim() || null;
+      const fields = { code: clean(input.code), name: input.name.trim(), phone: clean(input.phone), email: clean(input.email), address: clean(input.address), term_days: input.termDays, is_active: input.isActive ?? true, updated_at: now().toISOString() };
+      const res = input.id
+        ? await db().from('suppliers').update(fields).eq('id', input.id).select('id').maybeSingle()
+        : await db().from('suppliers').insert({ id: newId(), org_id: orgId, ...fields }).select('id').single();
+      const row = must(res) as Row | null;
+      if (!row) throw new DataError('forbidden', 'Pemasok tidak ditemukan, atau akunmu tidak boleh mengubahnya.');
+      return (await self.listSuppliers({ includeInactive: true })).find((x) => x.id === row.id)!;
+    },
+    async listPurchaseItems() {
+      const [prods, units, pus, bals] = await Promise.all([
+        fetchAll<Row>((f, t) => db().from('products').select('id,name,kind,base_unit_id').in('kind', ['goods', 'ingredient']).eq('track_stock', true).is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('units').select('id,name').is('deleted_at', null).order('id').range(f, t)),
+        fetchAll<Row>((f, t) => db().from('product_units').select('product_id,unit_id,conversion,is_base,buy_price').is('deleted_at', null).order('id').range(f, t)),
+        (async () => { const { ctx } = await resolve(); const loc = await stockLocation(ctx.outletId); return fetchAll<Row>((f, t) => db().from('stock_balances').select('product_id,avg_cost').eq('location_id', loc).order('product_id').range(f, t)); })(),
+      ]);
+      const unitName = new Map(units.map((u) => [u.id as string, u.name as string]));
+      const avg = new Map(bals.map((b) => [b.product_id as string, Number(b.avg_cost)]));
+      const byProduct = new Map<string, Row[]>();
+      for (const pu of pus) { const a = byProduct.get(pu.product_id as string) ?? []; a.push(pu); byProduct.set(pu.product_id as string, a); }
+      return prods.map((p): PurchaseItem => {
+        const us = (byProduct.get(p.id as string) ?? []).map((pu) => ({ unitId: pu.unit_id as string, name: unitName.get(pu.unit_id as string) ?? 'unit', conversion: Number(pu.conversion), isBase: !!pu.is_base, buyPrice: Number(pu.buy_price ?? 0) }));
+        us.sort((a, b) => Number(b.isBase) - Number(a.isBase) || a.conversion - b.conversion);
+        return { productId: p.id, name: p.name, kind: p.kind === 'ingredient' ? 'ingredient' : 'goods', baseUnit: (p.base_unit_id && unitName.get(p.base_unit_id as string)) || 'unit', avgCost: avg.get(p.id as string) ?? 0, units: us };
+      }).filter((i) => i.units.length > 0).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async listPayAccounts() {
+      const rows = (must(await db().from('accounts').select('id,code,name').eq('category', 'cash_bank').eq('kind', 'detail').eq('is_active', true).order('code')) as Row[] | null) ?? [];
+      return rows.map((r): PayAccount => ({ id: r.id, code: r.code, name: r.name }));
+    },
+    async listPurchaseOrders() {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const [rows, sup] = await Promise.all([
+        db().from('purchase_orders').select('id,number,supplier_id,status,order_date,expected_date,total,purchase_order_lines(id)').eq('location_id', loc).order('created_at', { ascending: false }).limit(300),
+        self.listSuppliers({ includeInactive: true }),
+      ]);
+      const name = new Map(sup.map((x) => [x.id, x.name]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): PurchaseOrderSummary => ({
+        id: r.id, number: r.number, supplierId: r.supplier_id, supplierName: name.get(r.supplier_id as string) ?? '', status: r.status, orderDate: r.order_date, total: Number(r.total), lineCount: ((r.purchase_order_lines ?? []) as Row[]).length,
+        ...(r.expected_date ? { expectedDate: r.expected_date } : {}),
+      }));
+    },
+    async getPurchaseOrder(id) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const o = must(await db().from('purchase_orders').select('id,number,supplier_id,status,order_date,expected_date,discount,tax_amount,other_cost,total,note,purchase_order_lines(id,product_id,unit_id,qty,unit_price,discount)')
+        .eq('id', id).eq('location_id', loc).maybeSingle()) as Row | null;
+      if (!o) return null;
+      const [items, sup] = await Promise.all([self.listPurchaseItems(), self.listSuppliers({ includeInactive: true })]);
+      const lines = poLines((o.purchase_order_lines ?? []) as Row[], items, 'order');
+      return {
+        id: o.id, number: o.number, supplierId: o.supplier_id, supplierName: sup.find((x) => x.id === o.supplier_id)?.name ?? '', status: o.status, orderDate: o.order_date,
+        discount: Number(o.discount), taxAmount: Number(o.tax_amount), otherCost: Number(o.other_cost), total: Number(o.total), lines,
+        ...(o.expected_date ? { expectedDate: o.expected_date } : {}), ...(o.note ? { note: o.note } : {}),
+      } satisfies PurchaseOrder;
+    },
+    async savePurchaseOrder(input: PurchaseOrderInput) {
+      const problem = purchaseOrderProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const { error } = await db().rpc('purchase_order_save', {
+        p_id: input.id, p_location: loc, p_supplier: input.supplierId, p_date: input.orderDate ?? null, p_expected: input.expectedDate || null,
+        p_discount: input.discount, p_tax: input.tax, p_other: input.otherCost, p_note: input.note?.trim() || null, p_status: input.status,
+        p_lines: input.lines.map((l) => ({ product_id: l.productId, unit_id: l.unitId, qty: l.qty, unit_price: l.unitPrice, discount: l.discount ?? 0 })),
+      });
+      if (error) throw mapPurchaseError(error);
+      return (await self.getPurchaseOrder(input.id))!;
+    },
+    async listPurchaseInvoices(q) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      let query = db().from('purchase_invoices').select('id,number,supplier_id,supplier_invoice_no,invoice_date,due_date,status,total,paid_total,purchase_invoice_lines(qty,received_qty)').eq('location_id', loc);
+      if (q?.supplierId) query = query.eq('supplier_id', q.supplierId);
+      if (q?.status) query = query.eq('status', q.status);
+      const [rows, sup] = await Promise.all([query.order('created_at', { ascending: false }).limit(300), self.listSuppliers({ includeInactive: true })]);
+      const name = new Map(sup.map((x) => [x.id, x.name]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): PurchaseInvoiceSummary => {
+        const ls = (r.purchase_invoice_lines ?? []) as Row[];
+        return {
+          id: r.id, number: r.number, supplierName: r.supplier_id ? name.get(r.supplier_id as string) ?? '' : '(tanpa pemasok)', invoiceDate: r.invoice_date, status: r.status,
+          total: Number(r.total), paidTotal: Number(r.paid_total), outstanding: invoiceOutstanding(Number(r.total), Number(r.paid_total)), fullyReceived: ls.every((l) => Number(l.received_qty) >= Number(l.qty)),
+          ...(r.supplier_id ? { supplierId: r.supplier_id } : {}), ...(r.supplier_invoice_no ? { supplierInvoiceNo: r.supplier_invoice_no } : {}), ...(r.due_date ? { dueDate: r.due_date } : {}),
+        };
+      });
+    },
+    async getPurchaseInvoice(id) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const i = must(await db().from('purchase_invoices').select('id,number,supplier_id,order_id,supplier_invoice_no,invoice_date,due_date,term_days,status,subtotal,discount,tax_amount,other_cost,total,paid_total,note,'
+        + 'purchase_invoice_lines(id,product_id,unit_id,qty,received_qty,unit_price,discount,line_total),purchase_payments(id,number,paid_at,account_id,amount,note)').eq('id', id).eq('location_id', loc).maybeSingle()) as Row | null;
+      if (!i) return null;
+      const [items, sup, accs] = await Promise.all([self.listPurchaseItems(), self.listSuppliers({ includeInactive: true }), db().from('accounts').select('id,name')]);
+      const accName = new Map(((must(accs) as Row[] | null) ?? []).map((a) => [a.id as string, a.name as string]));
+      const payments = ((i.purchase_payments ?? []) as Row[]).map((p): PurchasePayment => ({
+        id: p.id, number: p.number, paidAt: p.paid_at, accountName: accName.get(p.account_id as string) ?? '', amount: Number(p.amount), ...(p.note ? { note: p.note } : {}),
+      })).sort((a, b) => a.number.localeCompare(b.number));
+      return {
+        id: i.id, number: i.number, supplierName: i.supplier_id ? sup.find((x) => x.id === i.supplier_id)?.name ?? '' : '(tanpa pemasok)', invoiceDate: i.invoice_date, termDays: Number(i.term_days), status: i.status,
+        subtotal: Number(i.subtotal), discount: Number(i.discount), taxAmount: Number(i.tax_amount), otherCost: Number(i.other_cost), total: Number(i.total), paidTotal: Number(i.paid_total),
+        outstanding: invoiceOutstanding(Number(i.total), Number(i.paid_total)), lines: poLines((i.purchase_invoice_lines ?? []) as Row[], items, 'invoice'), payments,
+        ...(i.supplier_id ? { supplierId: i.supplier_id } : {}), ...(i.order_id ? { orderId: i.order_id } : {}), ...(i.supplier_invoice_no ? { supplierInvoiceNo: i.supplier_invoice_no } : {}),
+        ...(i.due_date ? { dueDate: i.due_date } : {}), ...(i.note ? { note: i.note } : {}),
+      } satisfies PurchaseInvoice;
+    },
+    async createPurchaseInvoice(input: PurchaseInvoiceInput) {
+      const problem = purchaseInvoiceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const { error } = await db().rpc('purchase_invoice_create', {
+        p_id: input.id, p_location: loc, p_supplier: input.supplierId ?? null, p_order: input.orderId ?? null, p_supplier_no: input.supplierInvoiceNo?.trim() || null,
+        p_date: input.invoiceDate ?? null, p_term: input.termDays ?? null, p_discount: input.discount, p_tax: input.tax, p_other: input.otherCost, p_note: input.note?.trim() || null,
+        p_lines: input.lines.map((l) => ({ product_id: l.productId, unit_id: l.unitId, qty: l.qty, unit_price: l.unitPrice, discount: l.discount ?? 0, received_qty: l.receivedQty ?? l.qty })),
+      });
+      if (error) throw mapPurchaseError(error);
+      return (await self.getPurchaseInvoice(input.id))!;
+    },
+    async receivePurchase(input: PurchaseReceiveInput) {
+      const cur = await self.getPurchaseInvoice(input.invoiceId);
+      if (!cur) throw new DataError('not_found', 'Faktur tidak ditemukan.');
+      const problem = purchaseReceiveProblem(input, cur.lines);
+      if (problem) throw new DataError('invalid', problem);
+      const { error } = await db().rpc('purchase_receive', {
+        p_invoice: input.invoiceId, p_receipt: input.id, p_note: input.note?.trim() || null,
+        p_items: input.items.filter((x) => x.qty > 0).map((x) => ({ line_id: x.lineId, qty: x.qty })),
+      });
+      if (error) throw mapPurchaseError(error);
+      return (await self.getPurchaseInvoice(input.invoiceId))!;
+    },
+    async payPurchase(input: PurchasePayInput) {
+      const cur = await self.getPurchaseInvoice(input.invoiceId);
+      if (!cur) throw new DataError('not_found', 'Faktur tidak ditemukan.');
+      if (!cur.payments.some((p) => p.id === input.id)) {
+        const problem = purchasePayProblem(input, cur.outstanding);
+        if (problem) throw new DataError('invalid', problem);
+      }
+      const { error } = await db().rpc('purchase_pay', {
+        p_id: input.id, p_invoice: input.invoiceId, p_account: input.accountId, p_amount: input.amount, p_date: input.paidAt ?? null, p_note: input.note?.trim() || null,
+      });
+      if (error) throw mapPurchaseError(error);
+      return (await self.getPurchaseInvoice(input.invoiceId))!;
     },
 
     // ---------- karyawan dan metode bayar ----------

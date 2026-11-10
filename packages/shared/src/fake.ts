@@ -19,6 +19,10 @@ import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
+import {
+  addDays, invoiceOutstanding, invoiceStatusFor, purchaseInvoiceProblem, purchaseLineTotal, purchaseOrderProblem, purchasePayProblem, purchaseReceiveProblem, purchaseSubtotal, purchaseTotal, purchaseUnitCost, supplierProblem,
+  type PayAccount, type PurchaseInvoice, type PurchaseInvoiceInput, type PurchaseInvoiceSummary, type PurchaseItem, type PurchaseLine, type PurchaseOrder, type PurchaseOrderInput, type PurchasePayInput, type PurchasePayment, type PurchaseReceiveInput, type PurchaseUnit, type Supplier, type SupplierInput,
+} from './purchasing';
 import { applyStockMove, makeStockItem, opnameDifference, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockPostInput } from './stock';
 
 const CTX: OutletContext = {
@@ -108,6 +112,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let moves: StockMove[] = [];
   let stockKeys = new Set<string>();
   let opnames: (StockOpname & { values: Map<string, number> })[] = [];
+  type FLine = { id: string; productId: string; unitId: string; qty: number; receivedQty: number; unitPrice: number; discount: number; lineTotal: number };
+  type FOrder = { id: string; number: string; supplierId: string; status: PurchaseOrder['status']; orderDate: string; expectedDate?: string; discount: number; taxAmount: number; otherCost: number; total: number; note?: string; lines: FLine[] };
+  type FInvoice = { id: string; number: string; supplierId?: string; orderId?: string; supplierInvoiceNo?: string; invoiceDate: string; dueDate?: string; termDays: number; status: PurchaseInvoice['status'];
+    subtotal: number; discount: number; taxAmount: number; otherCost: number; total: number; paidTotal: number; note?: string; lines: FLine[]; payments: PurchasePayment[] };
+  let suppliers: Supplier[] = [];
+  let pOrders: FOrder[] = [];
+  let pInvoices: FInvoice[] = [];
+  let receiptKeys = new Set<string>();
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -166,8 +178,57 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       lines: o.lines.map((l) => ({ ...l, value: o.status === 'final' ? o.values.get(l.productId) ?? 0 : Math.round(l.difference * (costs.get(l.productId) ?? 0)) })),
     });
   }
+  // ---------- pembelian ----------
+  const FAKE_ALT_UNITS: Record<string, PurchaseUnit[]> = {
+    'ing-kopi': [{ unitId: 'u-kg', name: 'kg', conversion: 1000, isBase: false, buyPrice: 320000 }],
+    'ing-susu': [{ unitId: 'u-liter', name: 'liter', conversion: 1000, isBase: false, buyPrice: 18000 }],
+    'ing-gula': [{ unitId: 'u-liter', name: 'liter', conversion: 1000, isBase: false, buyPrice: 40000 }],
+  };
+  const baseUnitId = (productId: string) => `u-base-${productId}`;
+  function purchaseUnits(productId: string): PurchaseUnit[] {
+    const b = stockBal(productId)!;
+    return [{ unitId: baseUnitId(productId), name: b.unit, conversion: 1, isBase: true, buyPrice: costs.get(productId) ?? 0 }, ...(FAKE_ALT_UNITS[productId] ?? [])];
+  }
+  const todayKey = () => localDateKey(now(), CTX.timezone);
+  const supplierName = (id?: string) => (id ? suppliers.find((x) => x.id === id)?.name ?? '' : '(tanpa pemasok)');
+  function checkedLines(lines: PurchaseInvoiceInput['lines']): FLine[] {
+    return lines.map((l) => {
+      if (!stockBal(l.productId)) throw new DataError('not_found', 'Ada barang yang tidak ditemukan atau stoknya tidak dilacak.');
+      if (!purchaseUnits(l.productId).some((u) => u.unitId === l.unitId)) throw new DataError('invalid', 'Satuan tidak sesuai dengan barangnya.');
+      return { id: newId(), productId: l.productId, unitId: l.unitId, qty: l.qty, receivedQty: 0, unitPrice: l.unitPrice, discount: l.discount ?? 0, lineTotal: purchaseLineTotal(l.qty, l.unitPrice, l.discount ?? 0) };
+    });
+  }
+  function lineView(l: FLine): PurchaseLine {
+    const u = purchaseUnits(l.productId).find((x) => x.unitId === l.unitId);
+    return { id: l.id, productId: l.productId, name: stockBal(l.productId)?.name ?? '', unitId: l.unitId, unit: u?.name ?? '', qty: l.qty, receivedQty: l.receivedQty, unitPrice: l.unitPrice, discount: l.discount, lineTotal: l.lineTotal };
+  }
+  function orderView(o: FOrder): PurchaseOrder {
+    return clone({ id: o.id, number: o.number, supplierId: o.supplierId, supplierName: supplierName(o.supplierId), status: o.status, orderDate: o.orderDate, expectedDate: o.expectedDate,
+      discount: o.discount, taxAmount: o.taxAmount, otherCost: o.otherCost, total: o.total, note: o.note, lines: o.lines.map(lineView) });
+  }
+  function invoiceView(i: FInvoice): PurchaseInvoice {
+    return clone({ id: i.id, number: i.number, supplierId: i.supplierId, supplierName: supplierName(i.supplierId), orderId: i.orderId, supplierInvoiceNo: i.supplierInvoiceNo, invoiceDate: i.invoiceDate, dueDate: i.dueDate, termDays: i.termDays,
+      status: i.status, subtotal: i.subtotal, discount: i.discount, taxAmount: i.taxAmount, otherCost: i.otherCost, total: i.total, paidTotal: i.paidTotal, outstanding: invoiceOutstanding(i.total, i.paidTotal),
+      note: i.note, lines: i.lines.map(lineView), payments: i.payments });
+  }
+  function receiveInto(inv: FInvoice, items: { lineId: string; qty: number }[]) {
+    for (const it of items) {
+      if (it.qty <= 0) continue;
+      const l = inv.lines.find((x) => x.id === it.lineId)!;
+      const conv = purchaseUnits(l.productId).find((u) => u.unitId === l.unitId)?.conversion ?? 1;
+      const cost = purchaseUnitCost(l, conv, inv);
+      l.receivedQty = Math.round((l.receivedQty + it.qty) * 10000) / 10000;
+      recordStock(l.productId, Math.round(it.qty * conv * 10000) / 10000, 'purchase_receipt', { unitCost: cost, reason: `Faktur ${inv.number}`, refType: 'purchase_invoice' });
+    }
+  }
+
   function seedStock() {
     ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = [];
+    suppliers = opts.seed === false ? [] : [
+      { id: 'sp-kopi', code: 'SUP-01', name: 'CV Sumber Kopi Nusantara', phone: '081234500001', termDays: 14, isActive: true },
+      { id: 'sp-susu', code: 'SUP-02', name: 'UD Susu Segar Jaya', phone: '081234500002', termDays: 7, isActive: true },
+    ];
+    pOrders = []; pInvoices = []; receiptKeys = new Set();
     if (opts.seed === false) return;
     const opening: [string, number, number][] = [];
     for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
@@ -727,6 +788,102 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (!o) throw new DataError('not_found', 'Opname tidak ditemukan.');
       if (o.status !== 'draft') throw new DataError('order_locked', 'Opname yang sudah selesai tidak bisa dihapus.');
       opnames = opnames.filter((x) => x.id !== id);
+    },
+    async listSuppliers(q) {
+      const term = q?.search?.trim().toLowerCase();
+      return clone(suppliers.filter((x) => (q?.includeInactive || x.isActive) && (!term || x.name.toLowerCase().includes(term) || (x.code ?? '').toLowerCase().includes(term)))
+        .sort((a, b) => a.name.localeCompare(b.name, 'id')));
+    },
+    async saveSupplier(input: SupplierInput) {
+      const problem = supplierProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const name = input.name.trim();
+      if (suppliers.some((x) => x.id !== input.id && x.isActive && x.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Sudah ada pemasok bernama "${name}".`);
+      const clean = (v?: string) => v?.trim() || undefined;
+      const row: Supplier = { id: input.id ?? newId(), code: clean(input.code), name, phone: clean(input.phone), email: clean(input.email), address: clean(input.address), termDays: input.termDays, isActive: input.isActive ?? true };
+      const at = suppliers.findIndex((x) => x.id === row.id);
+      if (input.id && at < 0) throw new DataError('not_found', 'Pemasok tidak ditemukan.');
+      if (at >= 0) suppliers[at] = row; else suppliers.push(row);
+      return clone(row);
+    },
+    async listPurchaseItems() {
+      const ids = [...ingredients.map((i) => i.id), ...products.filter((p) => stockBal(p.id)).map((p) => p.id)];
+      return ids.map((id): PurchaseItem => { const b = stockBal(id)!; return { productId: id, name: b.name, kind: b.kind, baseUnit: b.unit, avgCost: costs.get(id) ?? 0, units: purchaseUnits(id) }; })
+        .sort((a, b) => a.name.localeCompare(b.name, 'id'));
+    },
+    async listPayAccounts(): Promise<PayAccount[]> { return [{ id: 'acc-kas', code: '1-1100', name: 'Kas' }, { id: 'acc-bank', code: '1-1200', name: 'Bank' }]; },
+    async listPurchaseOrders() {
+      return pOrders.map((o) => ({ id: o.id, number: o.number, supplierId: o.supplierId, supplierName: supplierName(o.supplierId), status: o.status, orderDate: o.orderDate, expectedDate: o.expectedDate, total: o.total, lineCount: o.lines.length }))
+        .sort((a, b) => b.number.localeCompare(a.number));
+    },
+    async getPurchaseOrder(id) { const o = pOrders.find((x) => x.id === id); return o ? orderView(o) : null; },
+    async savePurchaseOrder(input: PurchaseOrderInput) {
+      const problem = purchaseOrderProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!suppliers.some((x) => x.id === input.supplierId && x.isActive)) throw new DataError('not_found', 'Pemasok tidak ditemukan.');
+      if (input.status !== 'cancelled' && input.lines.length === 0) throw new DataError('invalid', 'Isi minimal satu barang.');
+      let o = pOrders.find((x) => x.id === input.id);
+      if (o && (o.status === 'received' || o.status === 'partially_received')) throw new DataError('order_locked', 'PO yang sudah diterima tidak bisa diubah.');
+      if (o && o.status === 'cancelled') throw new DataError('order_locked', 'PO yang dibatalkan tidak bisa diubah.');
+      const lines = checkedLines(input.lines);
+      if (purchaseTotal(input.lines, input.discount, input.tax, input.otherCost) < 0) throw new DataError('invalid', 'Diskon melebihi nilai pembelian.');
+      const fields = { supplierId: input.supplierId, status: input.status, orderDate: input.orderDate ?? o?.orderDate ?? todayKey(), expectedDate: input.expectedDate || undefined,
+        discount: input.discount, taxAmount: input.tax, otherCost: input.otherCost, total: purchaseTotal(input.lines, input.discount, input.tax, input.otherCost), note: input.note?.trim() || undefined, lines };
+      if (!o) { o = { id: input.id, number: `PO-${String(pOrders.length + 1).padStart(6, '0')}`, ...fields }; pOrders.push(o); } else Object.assign(o, fields);
+      return orderView(o);
+    },
+    async listPurchaseInvoices(q) {
+      return pInvoices.filter((i) => (!q?.supplierId || i.supplierId === q.supplierId) && (!q?.status || i.status === q.status))
+        .map((i): PurchaseInvoiceSummary => ({ id: i.id, number: i.number, supplierId: i.supplierId, supplierName: supplierName(i.supplierId), supplierInvoiceNo: i.supplierInvoiceNo, invoiceDate: i.invoiceDate, dueDate: i.dueDate,
+          status: i.status, total: i.total, paidTotal: i.paidTotal, outstanding: invoiceOutstanding(i.total, i.paidTotal), fullyReceived: i.lines.every((l) => l.receivedQty >= l.qty) }))
+        .sort((a, b) => b.number.localeCompare(a.number));
+    },
+    async getPurchaseInvoice(id) { const i = pInvoices.find((x) => x.id === id); return i ? invoiceView(i) : null; },
+    async createPurchaseInvoice(input: PurchaseInvoiceInput) {
+      const existing = pInvoices.find((x) => x.id === input.id);
+      if (existing) return invoiceView(existing);
+      const problem = purchaseInvoiceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (input.supplierId && !suppliers.some((x) => x.id === input.supplierId && x.isActive)) throw new DataError('not_found', 'Pemasok tidak ditemukan.');
+      const order = input.orderId ? pOrders.find((o) => o.id === input.orderId) : undefined;
+      if (input.orderId && (!order || (order.status !== 'ordered' && order.status !== 'partially_received'))) throw new DataError('invalid', 'PO ini tidak bisa dibuatkan faktur (belum dipesan atau sudah selesai).');
+      const lines = checkedLines(input.lines);
+      const date = input.invoiceDate ?? todayKey();
+      const term = input.termDays ?? suppliers.find((x) => x.id === input.supplierId)?.termDays ?? 0;
+      const subtotal = purchaseSubtotal(input.lines);
+      const inv: FInvoice = { id: input.id, number: `FPB-${String(pInvoices.length + 1).padStart(6, '0')}`, supplierId: input.supplierId ?? undefined, orderId: input.orderId ?? undefined,
+        supplierInvoiceNo: input.supplierInvoiceNo?.trim() || undefined, invoiceDate: date, dueDate: addDays(date, term), termDays: term, status: 'open', subtotal, discount: input.discount, taxAmount: input.tax,
+        otherCost: input.otherCost, total: purchaseTotal(input.lines, input.discount, input.tax, input.otherCost), paidTotal: 0, note: input.note?.trim() || undefined, lines, payments: [] };
+      receiveInto(inv, input.lines.map((l, i) => ({ lineId: lines[i]!.id, qty: l.receivedQty ?? l.qty })));
+      if (inv.total === 0) inv.status = 'paid';
+      pInvoices.push(inv);
+      if (order) order.status = 'received';
+      return invoiceView(inv);
+    },
+    async receivePurchase(input: PurchaseReceiveInput) {
+      const inv = pInvoices.find((x) => x.id === input.invoiceId);
+      if (!inv) throw new DataError('not_found', 'Faktur tidak ditemukan.');
+      if (receiptKeys.has(input.id)) return invoiceView(inv);
+      const problem = purchaseReceiveProblem(input, inv.lines);
+      if (problem) throw new DataError('invalid', problem);
+      receiptKeys.add(input.id);
+      receiveInto(inv, input.items);
+      return invoiceView(inv);
+    },
+    async payPurchase(input: PurchasePayInput) {
+      const inv = pInvoices.find((x) => x.id === input.invoiceId);
+      if (!inv) throw new DataError('not_found', 'Faktur tidak ditemukan.');
+      if (inv.payments.some((p) => p.id === input.id)) return invoiceView(inv);
+      if (inv.status !== 'open' && inv.status !== 'partially_paid') throw new DataError('invalid', 'Faktur ini tidak bisa dibayar lagi.');
+      const acc = (await self.listPayAccounts()).find((a) => a.id === input.accountId);
+      if (!acc) throw new DataError('invalid', 'Akun kas atau bank tidak ditemukan.');
+      const problem = purchasePayProblem(input, invoiceOutstanding(inv.total, inv.paidTotal));
+      if (problem) throw new DataError('invalid', problem);
+      const n = pInvoices.reduce((c, i) => c + i.payments.length, 0) + 1;
+      inv.payments.push({ id: input.id, number: `BYR-${String(n).padStart(6, '0')}`, paidAt: input.paidAt ?? todayKey(), accountName: acc.name, amount: input.amount, note: input.note?.trim() || undefined });
+      inv.paidTotal = Math.round((inv.paidTotal + input.amount) * 100) / 100;
+      inv.status = invoiceStatusFor(inv.total, inv.paidTotal);
+      return invoiceView(inv);
     },
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },

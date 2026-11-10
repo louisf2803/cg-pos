@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
+import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
@@ -120,6 +121,27 @@ export interface DataLayer {
   finalizeOpname(id: string): Promise<StockOpname>;
   /** Hanya draf. */
   deleteOpname(id: string): Promise<void>;
+
+  /** Pemasok, urut nama. Nonaktif disembunyikan kecuali diminta. */
+  listSuppliers(q?: { includeInactive?: boolean; search?: string }): Promise<Supplier[]>;
+  /** Tambah atau ubah pemasok (pemilik dan manajer). */
+  saveSupplier(input: SupplierInput): Promise<Supplier>;
+  /** Barang yang stoknya dilacak beserta satuan belinya. */
+  listPurchaseItems(): Promise<PurchaseItem[]>;
+  /** Akun kas dan bank untuk membayar faktur. */
+  listPayAccounts(): Promise<PayAccount[]>;
+  listPurchaseOrders(): Promise<PurchaseOrderSummary[]>;
+  getPurchaseOrder(id: string): Promise<PurchaseOrder | null>;
+  /** Buat atau ubah PO (draf atau dipesan). Yang sudah diterima atau dibatalkan tidak bisa diubah. */
+  savePurchaseOrder(input: PurchaseOrderInput): Promise<PurchaseOrder>;
+  listPurchaseInvoices(q?: { supplierId?: string; status?: PurchaseInvoice['status'] }): Promise<PurchaseInvoiceSummary[]>;
+  getPurchaseInvoice(id: string): Promise<PurchaseInvoice | null>;
+  /** Buat faktur (idempoten menurut id): stok masuk untuk yang diterima, hutang dibukukan. Bila dari PO, PO ditandai diterima. */
+  createPurchaseInvoice(input: PurchaseInvoiceInput): Promise<PurchaseInvoice>;
+  /** Penerimaan lanjutan untuk faktur yang belum lengkap. Idempoten menurut id. */
+  receivePurchase(input: PurchaseReceiveInput): Promise<PurchaseInvoice>;
+  /** Bayar faktur (sebagian atau lunas). Idempoten menurut id. */
+  payPurchase(input: PurchasePayInput): Promise<PurchaseInvoice>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;
