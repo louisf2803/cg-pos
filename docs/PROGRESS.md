@@ -154,3 +154,11 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 ## Menunggu keputusan Louis (ringkasan berjalan)
 - Terapkan migrasi 0011 (penjaga peran owner), 0025 (item bebas), 0026 (modal awal bawaan) ke produksi; selama belum, fitur terkait ditandai partial.
 - DOKU/QRIS (ditunda), uji printer thermal fisik, nyalakan PB1, kebijakan stok minus (bawaan: izinkan).
+- Selesai (tugas A23): Tampilan Kasir — Keranjang & Layar Pembayaran (`apps/pos`):
+  1. Header Keranjang: Menampilkan nomor transaksi kecil abu di atas daftar (`#BARU` atau ID pesanan tersimpan). Jenis pesanan dan tombol Pelanggan ditempatkan sebaris dalam dua kolom sama lebar di atas daftar.
+  2. Baris Item Pesanan: Format baris rapi dengan jumlah di kiri, nama produk tebal, ekstra dan catatan kecil di bawah nama, harga di kanan, serta tombol hapus merah bulat di ujung kanan. Stepper dan pengubah harga dibuat ringkas dan muncul saat baris dipilih.
+  3. Dasar Kolom Keranjang: Tiga tombol aksi sebaris (Kosongkan dengan ikon tempat sampah, Diskon dengan ikon label, Simpan dengan ikon disket), tombol sekunder "Kirim ke dapur", dan batang hijau penuh lebar "Bayar" dengan lencana jumlah item di kiri dan total rupiah tebal di kanan.
+  4. Header Layar Pembayaran: Tiga angka metrik sebaris di bagian atas — Total tagihan, Sisa tagihan (merah bila > 0), dan Kembalian (biru). Dilengkapi baris aksi di bawahnya untuk "Pisah bayar" dan "Catatan (segera)".
+  5. Layout 3 Kolom Pembayaran: Rel metode pembayaran di kiri (Tunai, Kartu, Transfer, Gratis, QRIS segera hadir), nominal cepat di tengah untuk metode Tunai (Uang pas, kelipatan 10.000/50.000/100.000, tombol "Lainnya" untuk input manual, serta kotak selisih/kembalian), dan ringkasan pesanan di kanan (nama pelanggan, nomor order, daftar item yang dapat dilipat, subtotal, pajak, diskon, total) dengan batang tombol "Terima pembayaran" di dasar kolom.
+  6. Responsif Mobile (390px): Tampilan pembayaran bertransisi ke mode tumpuk satu kolom dengan ringkasan yang dapat dilipat (`details`), tanpa overflow horizontal.
+  7. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (265 tes vitest), `pnpm -F @cgpos/pos build`, serta uji `scripts/trial-e2e.js` di 390px dan 1280px + audit 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a23/`).
