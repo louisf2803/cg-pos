@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeData, isInclusiveOrder, newId, taxDisplay, taxSettingsProblem } from '../src';
+import { ORDER_TYPES, createFakeData, orderTypeLabel, isInclusiveOrder, newId, taxDisplay, taxSettingsProblem } from '../src';
 
 const mk = () => { const d = createFakeData({ now: () => new Date('2026-11-09T05:00:00Z') }); d.reset(); return d; };
 const items = [{ id: newId(), productId: 'p1', name: 'Kopi', qty: 2, unitPrice: 20000 }];
@@ -48,5 +48,20 @@ describe('pengaturan pajak', () => {
     expect(taxDisplay({ items: [{ qty: 2, unitPrice: 20000 }], subtotal: 40000, discountTotal: 0, taxTotal: 4000 })).toEqual({ inclusive: false, subtotal: 40000, discount: 0, tax: 4000 });
     // ekstra ikut dihitung sebagai harga menu
     expect(isInclusiveOrder({ items: [{ qty: 2, unitPrice: 20000, extras: [{ price: 5000 }] }], subtotal: 40909, taxTotal: 4091 })).toBe(true);
+  });
+});
+
+describe('jenis order', () => {
+  it('empat jenis, label konsisten di pengaturan dan laporan', () => {
+    expect(ORDER_TYPES.map((t) => t.id)).toEqual(['dine_in', 'takeaway', 'delivery', 'service']);
+    for (const t of ORDER_TYPES) expect(orderTypeLabel(t.id)).toBe(t.label);
+  });
+  it('delivery dan jasa tersimpan dengan nama/keterangan', async () => {
+    const d = mk();
+    await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
+    for (const type of ['delivery', 'service'] as const) {
+      const o = await d.saveOrder({ id: newId(), type, label: 'Pak Dedi', items: [{ ...items[0]!, id: newId() }] }, 'e-sari');
+      expect(o).toMatchObject({ type, label: 'Pak Dedi' });
+    }
   });
 });

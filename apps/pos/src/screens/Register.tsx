@@ -11,7 +11,12 @@ import { Orders } from './Orders';
 import { TablePicker } from './TablePicker';
 import { Payment } from './Payment';
 
-const TYPES: { v: OrderType; label: string }[] = [{ v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }];
+const TYPES: { v: OrderType; label: string }[] = [
+  { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
+];
+const LABEL_HINT: Record<OrderType, string> = {
+  dine_in: 'Nama pesanan (opsional)', takeaway: 'Nama pemesan (opsional)', delivery: 'Nama dan tujuan antar (opsional)', service: 'Keterangan jasa (opsional)',
+};
 
 export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; onCloseShift: () => void; onLock: () => void }) {
   const data = useData();
@@ -181,6 +186,11 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
           <div className="cg-tabs" role="tablist" aria-label="Jenis pesanan">
             {TYPES.map((t) => <button key={t.v} role="tab" className="cg-tab" aria-selected={cart.state.type === t.v} onClick={() => cart.dispatch({ t: 'type', type: t.v })}>{t.label}</button>)}
           </div>
+          {cart.state.type !== 'dine_in' && (
+            <label className="cg-field"><span className="cg-sr">{LABEL_HINT[cart.state.type]}</span>
+              <input className="cg-input" placeholder={LABEL_HINT[cart.state.type]} maxLength={60} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: undefined })} />
+            </label>
+          )}
           {cart.state.type === 'dine_in' && (
             <div className="grid gap-8">
               <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setTablePick(true)} aria-label={cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}, ganti meja` : 'Pilih meja'}>
@@ -188,7 +198,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
               </button>
               <div className="grid grid-cols-[1fr_96px] gap-8">
                 <label className="cg-field"><span className="cg-sr">Nama pesanan</span>
-                  <input className="cg-input" placeholder="Nama pesanan (opsional)" maxLength={40} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: cart.state.guestCount })} />
+                  <input className="cg-input" placeholder={LABEL_HINT.dine_in} maxLength={40} value={cart.state.label ?? ''} onChange={(e) => cart.dispatch({ t: 'meta', label: e.target.value, guestCount: cart.state.guestCount })} />
                 </label>
                 <label className="cg-field"><span className="cg-sr">Jumlah tamu</span>
                   <input className="cg-input" inputMode="numeric" placeholder="Tamu" value={cart.state.guestCount ?? ''} onChange={(e) => { const n = parseInt(e.target.value.replace(/\D/g, ''), 10); cart.dispatch({ t: 'meta', label: cart.state.label, guestCount: Number.isFinite(n) && n > 0 ? Math.min(n, 99) : undefined }); }} />

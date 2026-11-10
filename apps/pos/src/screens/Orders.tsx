@@ -60,6 +60,7 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
                   <strong className="break-all">{o.number}</strong>
                   <span className="text-text-muted text-sm">{hhmm(o.openedAt)} · {TYPE[o.type]}</span>
                 </div>
+                {o.label && <p className="break-words text-sm">{o.label}</p>}
                 <details>
                   <summary className="cursor-pointer">{o.items.reduce((n, i) => n + i.qty, 0)} item · <span className="cg-num">{formatRp(o.total)}</span>{partial && <span className="cg-badge cg-badge--warning ml-8">Dibayar sebagian {formatRp(o.paidTotal)}</span>}</summary>
                   <ul className="grid gap-4 mt-8">

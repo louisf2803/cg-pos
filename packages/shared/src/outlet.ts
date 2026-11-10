@@ -8,7 +8,7 @@ export interface OutletOptions {
 }
 export const ROUNDING_STEPS = [0, 50, 100, 500, 1000] as const;
 export const ORDER_TYPES: { id: OrderType; label: string }[] = [
-  { id: 'dine_in', label: 'Makan di tempat' }, { id: 'takeaway', label: 'Bawa pulang' }, { id: 'delivery', label: 'Antar' }, { id: 'service', label: 'Layanan' },
+  { id: 'dine_in', label: 'Makan di tempat' }, { id: 'takeaway', label: 'Bawa pulang' }, { id: 'delivery', label: 'Antar' }, { id: 'service', label: 'Jasa' },
 ];
 
 /** Pesan galat pertama untuk pengaturan outlet, atau null bila sah. Dipakai form dan lapisan data. */

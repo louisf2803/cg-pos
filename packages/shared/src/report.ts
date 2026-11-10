@@ -14,7 +14,7 @@ export interface SalesReport {
   control: { refundCount: number; refundTotal: number; byReason: ReportRow[]; voidCount: number; voidTotal: number; net: number };
 }
 
-const TYPE_LABEL: Record<string, string> = { dine_in: 'Makan di tempat', takeaway: 'Bawa pulang', delivery: 'Antar', service: 'Layanan' };
+const TYPE_LABEL: Record<string, string> = { dine_in: 'Makan di tempat', takeaway: 'Bawa pulang', delivery: 'Antar', service: 'Jasa' };
 export const orderTypeLabel = (t: string) => TYPE_LABEL[t] ?? t;
 
 /** Laporan penjualan dari pesanan lunas. Murni: sama untuk data palsu dan data nyata. */
