@@ -13,7 +13,12 @@ body { overscroll-behavior: none; }
 }
 
 /* Susunan layar kasir: tablet = rail | katalog | panel; HP = tumpuk, panel jadi lembar penuh */
-.reg { position: fixed; inset: 0; grid-template-columns: var(--layout-pos-category-rail) 1fr var(--layout-pos-order-panel); }
+.reg { position: fixed; inset: 0; grid-template-columns: var(--layout-pos-category-rail) 1fr var(--layout-pos-order-panel); grid-template-rows: var(--layout-pos-header) minmax(0, 1fr) auto; }
+/* Desktop: bilah bawah hanya muncul bila ada pesan/galat, supaya tidak ada pita kosong */
+@media (min-width: 600px) {
+  .reg .cg-shell__bar--idle { display: none; }
+  .reg .cg-shell__bar { min-height: 40px; }
+}
 .reg__catalog { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; }
 .reg__search { margin: var(--space-12) var(--space-16) 0; display: block; }
 .reg__close, .reg__show { display: none; }

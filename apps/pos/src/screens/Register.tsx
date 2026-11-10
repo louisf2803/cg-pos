@@ -605,16 +605,16 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                         <div className="flex items-center gap-4">
                           <button
                             type="button"
-                            className="w-28 h-28 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
+                            className="w-32 h-32 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
                             onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })}
                             aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}
                           >
                             {l.qty === 1 ? <Trash2 className="w-12 h-12" /> : <Minus className="w-12 h-12" />}
                           </button>
-                          <span className="w-28 text-center text-xs font-bold tabular-nums">{l.qty}</span>
+                          <span className="w-32 text-center text-xs font-bold tabular-nums">{l.qty}</span>
                           <button
                             type="button"
-                            className="w-28 h-28 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
+                            className="w-32 h-32 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
                             onClick={() => {
                               const pr = prods.status === 'ready' ? prods.data.find((x) => x.id === l.productId) : undefined;
                               if (pr && !stockOk(pr)) return;
@@ -768,7 +768,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         </div>
       </aside>
 
-      <footer className="cg-shell__bar">
+      <footer className={`cg-shell__bar ${!saveErr && !notice ? 'cg-shell__bar--idle' : ''}`}>
         {saveErr && <span role="alert" className="text-danger-strong text-sm flex-1">{saveErr}</span>}
         {!saveErr && notice && <span role="status" className="text-sm flex-1">{notice}</span>}
         <button type="button" className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>

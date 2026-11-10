@@ -198,7 +198,7 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
           )}
           {!method && !partial && (
             <div className="cg-banner cg-banner--info">
-              <span>Pilih metode pembayaran di sebelah kiri untuk melanjutkan.</span>
+              <span>Pilih salah satu metode pembayaran untuk melanjutkan.</span>
             </div>
           )}
 
