@@ -44,7 +44,7 @@ export function PageHeader({
 
   return (
     <div className="flex flex-wrap items-start justify-between gap-12 mb-24">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-[240px]">
         <div className="flex items-center gap-8 flex-wrap">
           <h1 className="text-xl font-bold break-words">{title}</h1>
 

@@ -140,6 +140,21 @@ export function ColumnChooser<TKey extends string>({
     return map;
   }, [columns]);
 
+  // Layar ≥ 600 px: popover tetap (fixed) di bawah tombol supaya tidak terpotong wadah halaman yang pendek.
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  useEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const r = triggerRef.current?.getBoundingClientRect();
+      if (!r || window.innerWidth < 600) { setPos(null); return; }
+      setPos({ top: Math.round(r.bottom + 6), right: Math.max(8, Math.round(window.innerWidth - r.right)) });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
+  }, [open]);
+
   // Tutup bila klik di luar popover atau tekan Escape
   useEffect(() => {
     if (!open) return;
@@ -206,7 +221,8 @@ export function ColumnChooser<TKey extends string>({
           <div
             role="dialog"
             aria-label="Atur kolom tabel"
-            className="fixed tablet:absolute top-1/2 tablet:top-full left-1/2 tablet:left-auto tablet:right-0 -translate-x-1/2 tablet:translate-x-0 -translate-y-1/2 tablet:translate-y-0 tablet:mt-[6px] z-50 w-[calc(100vw-32px)] tablet:w-[320px] max-w-[384px] max-h-[85vh] flex flex-col bg-surface border border-border rounded-xl shadow-xl p-16 text-text"
+            style={pos ? { top: pos.top, right: pos.right, maxHeight: `calc(100vh - ${pos.top + 16}px)` } : undefined}
+            className={`fixed z-50 w-[calc(100vw-32px)] tablet:w-[320px] max-w-[384px] max-h-[85vh] flex flex-col bg-surface border border-border rounded-xl shadow-xl p-16 text-text ${pos ? '' : 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'}`}
           >
             {/* Header Popover */}
             <div className="flex items-start justify-between gap-8 pb-12 border-b border-border shrink-0">
