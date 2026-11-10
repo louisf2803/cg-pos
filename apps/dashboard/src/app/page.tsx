@@ -11,13 +11,15 @@ export default function Beranda() {
   const state = useAsync(async () => {
     const ctx = await data.getContext();
     const r = dayRange(ctx.timezone);
-    const [orders, products, categories, employees, refunds, voided] = await Promise.all([
+    const [orders, products, categories, employees, refunds, voided, alerts] = await Promise.all([
       data.listOrders({ status: 'paid', from: r.from, to: r.to, by: 'closed', all: true }),
       data.listProducts({ includeInactive: true }), data.listCategories(), data.listManagedEmployees(),
       data.listRefundsBetween(r), data.listOrders({ status: 'void', from: r.from, to: r.to, by: 'closed', all: true }),
+      data.listStock({ status: 'alert' }),
     ]);
     const report = buildSalesReport({ orders, products, categories, employees, timezone: ctx.timezone, refunds, voided });
-    const low = products.filter((p) => p.trackStock && p.isActive && p.stock !== undefined).sort((a, b) => a.stock! - b.stock!).slice(0, 5);
+    // stok menipis atau habis dari daftar stok (bahan dan barang), paling sedikit dulu
+    const low = [...alerts].sort((a, b) => a.qty - b.qty || a.name.localeCompare(b.name, 'id')).slice(0, 5);
     return { ctx, r, report, low };
   }, [data]);
 
@@ -41,17 +43,15 @@ export default function Beranda() {
           <p className="text-text-muted">Angka akan muncul begitu kasir menyelesaikan pesanan pertama.</p>
         </div>
       ) : (
-        <div className="grid gap-24">
-          <ReportView report={report} showHours />
-          {low.length > 0 && (
-            <section aria-labelledby="h-stok" className="border border-border rounded-lg bg-surface-raised p-16 min-w-0">
-              <h2 id="h-stok" className="text-lg mb-12">Stok terendah</h2>
-              <ul className="grid gap-8">
-                {low.map((p) => <li key={p.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{p.name}</span><span className="cg-num">{p.stock}</span></li>)}
-              </ul>
-            </section>
-          )}
-        </div>
+        <ReportView report={report} showHours />
+      )}
+      {low.length > 0 && (
+        <section aria-labelledby="h-stok" className="border border-border rounded-lg bg-surface-raised p-16 min-w-0 mt-24">
+          <h2 id="h-stok" className="text-lg mb-12">Stok terendah</h2>
+          <ul className="grid gap-8">
+            {low.map((p) => <li key={p.productId} className="flex justify-between gap-12"><span className="break-words min-w-0">{p.name}</span><span className="cg-num">{p.qty} {p.unit}</span></li>)}
+          </ul>
+        </section>
       )}
     </>
   );
