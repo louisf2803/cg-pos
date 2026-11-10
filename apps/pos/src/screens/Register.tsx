@@ -18,6 +18,8 @@ import { DiscountDialog } from './DiscountDialog';
 const TYPES: { v: OrderType; label: string }[] = [
   { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
 ];
+const FAV = '__favorit';
+const BUNDLE = '__paket';
 const NO_PROMOS: Promotion[] = [];
 const LABEL_HINT: Record<OrderType, string> = {
   dine_in: 'Nama pesanan (opsional)', takeaway: 'Nama pemesan (opsional)', delivery: 'Nama dan tujuan antar (opsional)', service: 'Keterangan jasa (opsional)',
@@ -54,13 +56,17 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
 
+  const hasFav = prods.status === 'ready' && prods.data.some((p) => p.isFavorite);
+  const hasBundle = prods.status === 'ready' && prods.data.some((p) => p.kind === 'bundle');
   const visible = useMemo(() => {
     if (prods.status !== 'ready') return [];
     const s = q.trim().toLowerCase();
     const hit = (p: Product) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s);
     return groupVariants(prods.data).filter((t) => {
       const c = t.kind === 'single' ? t.product.categoryId : t.categoryId;
-      if (cat !== 'all' && c !== cat) return false;
+      if (cat === FAV) { if (!(t.kind === 'single' ? t.product.isFavorite : t.options.some((o) => o.product.isFavorite))) return false; }
+      else if (cat === BUNDLE) { if (!(t.kind === 'single' && t.product.kind === 'bundle')) return false; }
+      else if (cat !== 'all' && c !== cat) return false;
       if (!s) return true;
       return t.kind === 'single' ? hit(t.product) : t.name.toLowerCase().includes(s) || t.options.some((o) => hit(o.product));
     });
@@ -157,6 +163,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
 
       <nav className="cg-shell__rail" aria-label="Kategori">
         <button className="cg-rail-item" aria-current={cat === 'all'} onClick={() => setCat('all')}>Semua</button>
+        {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}>Favorit</button>}
+        {hasBundle && <button className="cg-rail-item" aria-current={cat === BUNDLE} onClick={() => setCat(BUNDLE)}>Paket</button>}
         {cats.status === 'ready' && cats.data.map((c) => (
           <button key={c.id} className="cg-rail-item" aria-current={cat === c.id} onClick={() => setCat(c.id)}>{c.name}</button>
         ))}
