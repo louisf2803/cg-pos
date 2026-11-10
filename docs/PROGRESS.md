@@ -88,10 +88,15 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   6. Keamanan PIN: Tetap tidak menampilkan atau menyimpan PIN dalam bentuk apa pun (hanya dialog input 6 digit terenkripsi server).
   7. Matriks Hak Akses: Dipertahankan di bagian bawah dengan styling token rapi.
   8. Lolos uji: `pnpm -r typecheck`, 242 tes shared vitest, build dashboard 112 halaman, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a16/`).
-
-
 ## Giliran 35 (10 Nov 2026) — review A15/A16 dan pengamatan kasir Majoo
 - A15 (keuangan: Laba Rugi, Arus Kas, Saldo Kas, Neraca) dan A16 (Daftar Karyawan: kartu kuota, filter, modal outlet, mobile) lulus review.sh (typecheck, 226+ tes shared, build) dan Playwright 390/1280/1440 (tanpa overflow, tanpa galat konsol). Lingkup hanya apps/dashboard, packages/shared, docs. Digabung ke main. Temuan kecil -> A25.
 - Pengamatan kasir Majoo di BlueStacks (shift dibuka kas awal 0 sesuai arahan Louis; tidak ada pembayaran, keranjang percobaan dihapus; shift masih terbuka, Louis yang menutup). Catatan di docs/POS-REF.md. Antrean baru A22-A24 untuk apps/pos (tampilan saja, wajib lulus trial-e2e).
 - Insiden: satu klik saya sempat mengenai tombol tutup BlueStacks; dibuka lagi, Louis login ulang sendiri (PIN tidak pernah saya isi).
 - S121: batas jual saat stok habis di kasir (packages/shared/src/stock-limit.ts + tes; Register.tsx). Aktif hanya bila outlet mematikan izinkan stok minus (bawaan tetap izinkan). Server belum menolak (offline-first), ubin ukuran belum dicek. trial-e2e lulus.
+- Selesai (tugas A17): Laporan Karyawan (/laporan/karyawan) dan Laporan Dapur (/laporan/dapur):
+  1. Laporan Karyawan: Mengagregasikan metrik penjualan, jumlah transaksi, rata-rata penjualan per transaksi, pembatalan pesanan (void), pengembalian dana (refund), diskon manual, dan pembayaran gratis (komplimen) per karyawan/kasir dari transaksi yang ada. Dilengkapi 4 kartu KPI, 2 kotak ringkasan potongan khusus, pencarian karyawan, tabel desktop lengkap, tampilan mobile responsif per kartu karyawan, dan unduh CSV.
+  2. Laporan Dapur: Mengagregasikan tiket dapur dari DataLayer (`kitchenBoard`), waktu rata-rata penyajian dari pesanan dikirim sampai siap per stasiun dapur (kategori produk) dan per jam operasional (00-23), sebaran status tiket (Baru, Diproses, Siap, Disajikan), serta tiket batal dari pesanan void. Dilengkapi 4 kartu KPI, tabel rincian stasiun dan jam operasional, tampilan kartu mobile, dan unduh CSV.
+  3. Helper Murni & Tes: `packages/shared/src/staff-report.ts` (`buildStaffReport`) dan `packages/shared/src/kitchen-report.ts` (`buildKitchenReport`), lolos seluruh uji unit baru di `packages/shared/test/staff-report.test.ts` dan `packages/shared/test/kitchen-report.test.ts`. Diekspor di `packages/shared/src/index.ts`.
+  4. Pendaftaran Menu: Ditandai `built: true` di `apps/dashboard/src/lib/nav.ts` untuk rute `/laporan/karyawan` dan `/laporan/dapur`.
+  5. Lolos uji: `pnpm -r typecheck`, 246 tes shared vitest, build dashboard 112 halaman statis, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a17/`).
+

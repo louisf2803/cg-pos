@@ -39,3 +39,6 @@ export * from './csv';
 export * from './period-compare';
 export * from './finance-widget';
 export * from './stock-limit';
+export * from './staff-report';
+export * from './kitchen-report';
+
