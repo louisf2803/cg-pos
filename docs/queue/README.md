@@ -7,7 +7,7 @@ Penting untuk paralel: tiap tugas mulai dari origin/main terbaru (git fetch; buk
 Setiap tugas:  Tiap tugas = satu branch `ag/<id>-<nama>` dari main terbaru (git pull dulu), dikerjakan sampai selesai, di-COMMIT, lalu tandai selesai dengan menambah baris `STATUS: SELESAI <commit>` di akhir file tugas, commit lagi. Lanjut ke tugas berikutnya (branch baru dari branch sebelumnya bila belum di-merge).
 
 Aturan semua tugas:
-- Lingkup: apps/dashboard dan packages/shared (helper murni + tes). JANGAN ubah packages/db, supabase.ts, data.ts, apps/pos.
+- Lingkup: apps/dashboard dan packages/shared (helper murni + tes). JANGAN ubah packages/db, supabase.ts, data.ts, apps/pos. PENGECUALIAN: tugas yang file-nya menulis "LINGKUP KHUSUS: apps/pos" (A22–A24) boleh mengubah apps/pos hanya sebatas yang disebut di file tugas itu, dan harus lulus scripts/trial-e2e.js.
 - Kode & teks tulis sendiri; semua warna lewat token (hijau dominan).
 - Wajib lulus: pnpm -r typecheck, pnpm -F @cgpos/shared test, pnpm -F @cgpos/dashboard build.
 - Playwright 390/1280/1440 px: tanpa overflow horizontal & tanpa galat konsol; screenshot ke docs/shots/<id>/.
