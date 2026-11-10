@@ -4,10 +4,13 @@ import { photoPath, photoProblem } from './photo';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 
 const PHOTO_BUCKET = 'menu-images';
+const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
+const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import type { DataLayer } from './data';
 import { DataError } from './types';
+import { couponInputProblem, normalizeCode, promotionProblem } from './promo';
 import type {
   Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport,
@@ -23,7 +26,7 @@ import { extraGroupProblem, extrasLineTotal } from './extras';
 import { bundleProblem } from './bundle';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
-  buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift, toCustomer,
+  buildOrderPayload, buildRefundPayload, mapDbError, mapOpError, nextSeq, payloadFromStored, summarizeSales, toOrder, toProduct, toShift, toCustomer, toPromotion, toCoupon,
 } from './supabase-map';
 import type { Row } from './supabase-map';
 
@@ -203,6 +206,22 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       paidOrderCount: paidCount.count ?? 0,
       soldLines: items.map((i) => ({ productId: i.product_id as string, name: i.name as string, qty: Number(i.qty), amount: Number(i.line_total) })),
     };
+  }
+
+  /** Pemakaian kupon = baris diskon pada pesanan yang tidak dibatalkan (kolom used_count tidak dipakai: kasir tidak boleh menulisnya). */
+  async function couponUsage(ids: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (ids.length === 0) return out;
+    const lines = (must(await db().from('order_discounts').select('coupon_id,order_id').in('coupon_id', ids)) as Row[] | null) ?? [];
+    if (lines.length === 0) return out;
+    const orderIds = [...new Set(lines.map((l) => l.order_id as string))];
+    const live = new Set<string>();
+    for (let i = 0; i < orderIds.length; i += 100) {
+      const rows = (must(await db().from('orders').select('id').in('id', orderIds.slice(i, i + 100)).neq('status', 'void')) as Row[] | null) ?? [];
+      for (const r of rows) live.add(r.id as string);
+    }
+    for (const l of lines) if (live.has(l.order_id as string)) out.set(l.coupon_id as string, (out.get(l.coupon_id as string) ?? 0) + 1);
+    return out;
   }
 
   /** Nama pelanggan untuk daftar pesanan (satu permintaan tambahan per 50 pelanggan berbeda). */
@@ -719,6 +738,73 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (rows.length === 0) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
     },
 
+    // ---------- promo dan kupon ----------
+    async listPromotions(q = {}) {
+      let qb = db().from('promotions').select(PROMO_COLUMNS).is('deleted_at', null).order('name');
+      if (q.activeOnly) qb = qb.eq('is_active', true);
+      return ((must(await qb) as Row[] | null) ?? []).map(toPromotion);
+    },
+    async savePromotion(input) {
+      const problem = promotionProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const itemKind = input.kind === 'percent_item' || input.kind === 'amount_item' || input.kind === 'free_item';
+      const fields = {
+        name: input.name.trim(), kind: input.kind, value: input.kind === 'free_item' ? 0 : input.value, min_spend: input.minSpend ?? 0,
+        product_ids: itemKind ? input.productIds ?? [] : [], free_product_id: input.kind === 'free_item' ? input.freeProductId ?? null : null,
+        order_types: input.orderTypes ?? ['dine_in', 'takeaway', 'delivery', 'service'], starts_at: input.startsAt || null, ends_at: input.endsAt || null,
+        is_active: input.isActive ?? true,
+      };
+      if (input.id) {
+        const rows = (must(await db().from('promotions').update(fields).eq('id', input.id).is('deleted_at', null).select(PROMO_COLUMNS)) as Row[] | null) ?? [];
+        if (!rows[0]) throw new DataError('not_found', 'Promo tidak ditemukan');
+        return toPromotion(rows[0]);
+      }
+      const { orgId } = await resolve();
+      const rows = must(await db().from('promotions').insert({ ...fields, org_id: orgId }).select(PROMO_COLUMNS)) as Row[] | null;
+      return toPromotion(rows![0]!);
+    },
+    async deletePromotion(id) {
+      const rows = (must(await db().from('promotions').update({ deleted_at: now().toISOString() }).eq('id', id).is('deleted_at', null).select('id')) as Row[] | null) ?? [];
+      if (rows.length === 0) throw new DataError('not_found', 'Promo tidak ditemukan');
+    },
+    async listCoupons(promotionId) {
+      let qb = db().from('coupons').select(COUPON_COLUMNS).order('code');
+      if (promotionId) qb = qb.eq('promotion_id', promotionId);
+      const rows = (must(await qb) as Row[] | null) ?? [];
+      const used = await couponUsage(rows.map((r) => r.id as string));
+      return rows.map((r) => toCoupon(r, used.get(r.id as string) ?? 0));
+    },
+    async saveCoupon(input) {
+      const problem = couponInputProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const code = normalizeCode(input.code);
+      let dup = db().from('coupons').select('id').eq('code', code).limit(1);
+      if (input.id) dup = dup.neq('id', input.id);
+      if ((((must(await dup) as Row[] | null) ?? [])[0])) throw new DataError('invalid', `Kode ${code} sudah dipakai kupon lain.`);
+      const fields = { promotion_id: input.promotionId, code, usage_limit: input.usageLimit ?? null, valid_from: input.validFrom || null, valid_to: input.validTo || null, is_active: input.isActive ?? true };
+      let row: Row | undefined;
+      if (input.id) {
+        row = ((must(await db().from('coupons').update(fields).eq('id', input.id).select(COUPON_COLUMNS)) as Row[] | null) ?? [])[0];
+        if (!row) throw new DataError('not_found', 'Kupon tidak ditemukan');
+      } else {
+        const { orgId } = await resolve();
+        row = ((must(await db().from('coupons').insert({ ...fields, org_id: orgId }).select(COUPON_COLUMNS)) as Row[] | null) ?? [])[0];
+      }
+      return toCoupon(row!, (await couponUsage([row!.id as string])).get(row!.id as string) ?? 0);
+    },
+    async deleteCoupon(id) {
+      if (((await couponUsage([id])).get(id) ?? 0) > 0) throw new DataError('invalid', 'Kupon ini sudah pernah dipakai. Nonaktifkan saja supaya riwayatnya utuh.');
+      const rows = (must(await db().from('coupons').delete().eq('id', id).select('id')) as Row[] | null) ?? [];
+      if (rows.length === 0) throw new DataError('not_found', 'Kupon tidak ditemukan');
+    },
+    async findCoupon(code) {
+      const row = ((must(await db().from('coupons').select(COUPON_COLUMNS).eq('code', normalizeCode(code)).limit(1)) as Row[] | null) ?? [])[0];
+      if (!row) return null;
+      const promo = ((must(await db().from('promotions').select(PROMO_COLUMNS).eq('id', row.promotion_id).is('deleted_at', null).limit(1)) as Row[] | null) ?? [])[0];
+      if (!promo) return null;
+      return { coupon: toCoupon(row, (await couponUsage([row.id as string])).get(row.id as string) ?? 0), promotion: toPromotion(promo) };
+    },
+
     // ---------- karyawan dan metode bayar ----------
     async listEmployees() {
       const { ctx } = await resolve();
@@ -830,7 +916,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (missing) throw new DataError('not_found', 'Ada produk di pesanan yang sudah tidak tersedia');
 
       const calc = computeOrder({
-        orderType: draft.type, orderDiscount: draft.orderDiscount, roundingStep: 0, settings: r.ctx.settings,
+        orderType: draft.type, orderDiscount: draft.orderDiscount ?? (draft.discounts ?? []).reduce((n, d) => n + d.amount, 0), roundingStep: 0, settings: r.ctx.settings,
         items: draft.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, extrasTotal: extrasLineTotal(i.qty, i.extras) })),
         orderTaxes: r.ctx.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate })),
       });
@@ -844,7 +930,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         const payload = buildOrderPayload({
           id: draft.id, number, orderType: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, shiftId: shift?.id,
           cashierId, openedAt: existing ? (existing.opened_at as string) : now().toISOString(),
-          baseVersion: existing ? Number(existing.version) : undefined, calc, orderDiscount: draft.orderDiscount ?? 0,
+          baseVersion: existing ? Number(existing.version) : undefined, calc, orderDiscount: draft.orderDiscount ?? 0, discounts: draft.discounts,
           authorizedBy: cashierId, items,
         });
         try {

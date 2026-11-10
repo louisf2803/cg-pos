@@ -20,7 +20,7 @@ export const NAV: NavGroup[] = [
     label: 'Pelanggan', icon: Users, items: [
       { href: '/pelanggan', label: 'Pelanggan', screen: 'S41', tier: 3, built: true },
       { href: '/loyalty', label: 'Poin dan loyalty', screen: 'S42', tier: 3 },
-      { href: '/promo', label: 'Promo dan kupon', screen: 'S44', tier: 2 },
+      { href: '/promo', label: 'Promo dan kupon', screen: 'S44', tier: 2, built: true },
     ],
   },
   {

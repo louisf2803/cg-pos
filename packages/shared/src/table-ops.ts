@@ -12,6 +12,7 @@ export function orderToDraft(o: Order): OrderDraft {
     id: o.id, type: o.type, tableId: o.tableId, customerId: o.customerId, customerName: o.customerName, label: o.label, guestCount: o.guestCount,
     items: o.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, extras: i.extras })),
     orderDiscount: o.discountTotal > 0 ? o.discountTotal : undefined,
+    discounts: o.discountTotal > 0 ? o.discounts : undefined,
   };
 }
 
@@ -36,6 +37,7 @@ export function mergeDrafts(into: Order, from: Order): OrderDraft {
     customerId: into.customerId ?? from.customerId, customerName: into.customerId ? into.customerName : from.customerName,
     label: into.label ?? from.label,
     orderDiscount: discount > 0 ? discount : undefined,
+    discounts: discount > 0 ? [...(into.discounts ?? []), ...(from.discounts ?? []).map((d) => ({ ...d, id: newId() }))] : undefined,
   };
 }
 

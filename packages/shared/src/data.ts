@@ -1,7 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type {
-  Bundle, BundleInput, Category, Customer, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 
@@ -77,6 +77,19 @@ export interface DataLayer {
   saveCustomer(input: CustomerInput): Promise<Customer>;
   /** Hapus lembut: hilang dari daftar, tetapi pesanan lama tetap menyebut namanya. */
   deleteCustomer(id: string): Promise<void>;
+
+  /** Promo (tanpa yang dihapus), urut nama. `activeOnly` = hanya yang aktif (jadwal tidak diperiksa; kasir memeriksanya). */
+  listPromotions(q?: { activeOnly?: boolean }): Promise<Promotion[]>;
+  savePromotion(input: PromotionInput): Promise<Promotion>;
+  /** Hapus lembut; kupon dan pesanan lama yang memakainya tetap utuh. */
+  deletePromotion(id: string): Promise<void>;
+  /** Kupon beserta jumlah pemakaiannya (dari pesanan yang tidak dibatalkan). */
+  listCoupons(promotionId?: string): Promise<Coupon[]>;
+  saveCoupon(input: CouponInput): Promise<Coupon>;
+  /** Kupon yang sudah pernah dipakai tidak dihapus; nonaktifkan saja. */
+  deleteCoupon(id: string): Promise<void>;
+  /** Cari kupon dari kode (huruf besar kecil sama). Null bila tidak ada. Pemakaiannya sudah terhitung. */
+  findCoupon(code: string): Promise<{ coupon: Coupon; promotion: Promotion } | null>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;

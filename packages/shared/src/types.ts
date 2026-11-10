@@ -69,15 +69,30 @@ export interface Customer {
 export interface CustomerInput {
   id?: string; name: string; phone?: string; email?: string; gender?: 'female' | 'male' | 'other'; birthDate?: string; city?: string; address?: string; note?: string;
 }
+export type PromotionKind = 'percent_order' | 'amount_order' | 'percent_item' | 'amount_item' | 'free_item';
+export interface Promotion {
+  id: string; name: string; kind: PromotionKind; value: number; minSpend: number; productIds: string[]; freeProductId?: string;
+  orderTypes: OrderType[]; startsAt?: string; endsAt?: string; isActive: boolean;
+}
+export interface PromotionInput {
+  id?: string; name: string; kind: PromotionKind; value: number; minSpend?: number; productIds?: string[]; freeProductId?: string;
+  orderTypes?: OrderType[]; startsAt?: string; endsAt?: string; isActive?: boolean;
+}
+export interface Coupon { id: string; promotionId: string; code: string; usageLimit?: number; usedCount: number; validFrom?: string; validTo?: string; isActive: boolean }
+export interface CouponInput { id?: string; promotionId: string; code: string; usageLimit?: number; validFrom?: string; validTo?: string; isActive?: boolean }
+/** Satu potongan tingkat order yang tercatat pada pesanan. */
+export interface DiscountEntry { id: string; source: 'promo' | 'coupon' | 'manual'; promotionId?: string; couponId?: string; label: string; amount: number; authorizedBy?: string }
 export interface Order {
   id: string; number: string; type: OrderType; tableId?: string; customerId?: string; customerName?: string; label?: string; guestCount?: number; shiftId?: string; cashierId: string;
   status: 'open' | 'partially_paid' | 'paid' | 'void';
-  items: OrderItem[];
+  items: OrderItem[]; discounts?: DiscountEntry[];
   subtotal: number; discountTotal: number; serviceCharge: number; taxTotal: number; rounding: number; total: number; paidTotal: number;
   payments: Payment[]; openedAt: string; closedAt?: string;
 }
 export interface OrderDraft {
   id: string; type: OrderType; tableId?: string; customerId?: string; customerName?: string; label?: string; guestCount?: number;
+  /** rincian potongan order; jumlahnya = orderDiscount. Tanpa rincian, potongan dicatat sebagai manual. */
+  discounts?: DiscountEntry[];
   items: { id: string; productId: string; name: string; qty: number; unitPrice: number; note?: string; extras?: ItemExtra[] }[];
   orderDiscount?: number;
 }

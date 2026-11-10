@@ -1,11 +1,12 @@
 import type { DataLayer } from './data';
 import { createTableOps } from './table-ops';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
+import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { DataError } from './types';
 import type {
-  Bundle, BundleInput, Customer, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
 } from './types';
 import { computeOrder } from './order-calc';
@@ -59,6 +60,13 @@ const PRODUCTS: Product[] = [
   P('p13', 'Pisang goreng', 'c-camil', 14000, { sku: 'CM-002', stock: 0 }),
   P('p14', 'Singkong keju', 'c-camil', 16000, { sku: 'CM-003' }),
 ];
+const ALL_TYPES: Promotion['orderTypes'] = ['dine_in', 'takeaway', 'delivery', 'service'];
+const SEED_PROMOS: Promotion[] = [
+  { id: 'pr-10', name: 'Diskon 10% belanja 30 ribu', kind: 'percent_order', value: 10, minSpend: 30000, productIds: [], orderTypes: ALL_TYPES, isActive: true },
+  { id: 'pr-kopi', name: 'Hemat kopi', kind: 'amount_item', value: 3000, minSpend: 0, productIds: ['p1', 'p2'], orderTypes: ALL_TYPES, isActive: true },
+  { id: 'pr-5k', name: 'Potongan 5 ribu', kind: 'amount_order', value: 5000, minSpend: 0, productIds: [], orderTypes: ALL_TYPES, isActive: true },
+];
+const SEED_COUPONS: Coupon[] = [{ id: 'cp-hemat5', promotionId: 'pr-5k', code: 'HEMAT5', usageLimit: 2, usedCount: 0, isActive: true }];
 const SEED_CUSTOMERS: Customer[] = [
   { id: 'cu-budi', name: 'Pak Budi', phone: '081234567801', pointsBalance: 0, createdAt: '2026-10-01T03:00:00Z' },
   { id: 'cu-ani', name: 'Bu Ani', phone: '081234567802', email: 'ani@example.com', gender: 'female', pointsBalance: 0, createdAt: '2026-10-05T03:00:00Z' },
@@ -88,6 +96,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
   let customers: (Customer & { deleted?: boolean })[] = [];
+  let promotions: (Promotion & { deleted?: boolean })[] = [];
+  let coupons: Coupon[] = [];
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -126,7 +136,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       taxRate: products.find((p) => p.id === i.productId)?.taxRate,
     }));
     return computeOrder({
-      orderType: draft.type, items, orderDiscount: draft.orderDiscount,
+      orderType: draft.type, items, orderDiscount: draft.orderDiscount ?? (draft.discounts ?? []).reduce((n, d) => n + d.amount, 0),
       orderTaxes: CTX.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate })),
       settings: CTX.settings, roundingStep: step,
     });
@@ -145,6 +155,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     bundleItems = new Map();
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
     customers = opts.seed === false ? [] : SEED_CUSTOMERS.map((c) => ({ ...c }));
+    promotions = opts.seed === false ? [] : clone(SEED_PROMOS);
+    coupons = opts.seed === false ? [] : clone(SEED_COUPONS);
     if (opts.seed !== false) seedHistory();
   }
 
@@ -186,6 +198,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     const c = customers.find((x) => x.id === o.customerId);
     return { ...o, customerName: c?.name ?? o.customerName };
   };
+
+  const couponUsed = (id: string) => orders.filter((o) => o.status !== 'void').reduce((n, o) => n + (o.discounts ?? []).filter((d) => d.couponId === id).length, 0);
+  const withUsage = (c: Coupon): Coupon => ({ ...c, usedCount: couponUsed(c.id) });
+  const cleanPromo = ({ deleted: _d, ...p }: Promotion & { deleted?: boolean }): Promotion => p;
 
   function shiftInputs(s: Shift): ShiftInputs {
     const mine = orders.filter((o) => o.shiftId === s.id);
@@ -495,6 +511,62 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       c.deleted = true;
     },
 
+    async listPromotions(q = {}) {
+      return clone(promotions.filter((p) => !p.deleted && (!q.activeOnly || p.isActive)).sort((a, b) => a.name.localeCompare(b.name, 'id')).map(cleanPromo));
+    },
+    async savePromotion(input) {
+      const problem = promotionProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (input.kind === 'free_item' && !products.some((p) => p.id === input.freeProductId)) throw new DataError('invalid', 'Produk gratis tidak ditemukan.');
+      const fields: Omit<Promotion, 'id'> = {
+        name: input.name.trim(), kind: input.kind, value: input.kind === 'free_item' ? 0 : input.value, minSpend: input.minSpend ?? 0,
+        productIds: input.kind === 'percent_item' || input.kind === 'amount_item' || input.kind === 'free_item' ? input.productIds ?? [] : [],
+        freeProductId: input.kind === 'free_item' ? input.freeProductId : undefined,
+        orderTypes: input.orderTypes ?? [...ALL_TYPES], startsAt: input.startsAt || undefined, endsAt: input.endsAt || undefined, isActive: input.isActive ?? true,
+      };
+      if (input.id) {
+        const p = promotions.find((x) => x.id === input.id && !x.deleted);
+        if (!p) throw new DataError('not_found', 'Promo tidak ditemukan');
+        Object.assign(p, fields); return clone(cleanPromo(p));
+      }
+      const p: Promotion = { id: newId(), ...fields };
+      promotions.push(p); return clone(p);
+    },
+    async deletePromotion(id) {
+      const p = promotions.find((x) => x.id === id && !x.deleted);
+      if (!p) throw new DataError('not_found', 'Promo tidak ditemukan');
+      p.deleted = true;
+    },
+    async listCoupons(promotionId) {
+      return clone(coupons.filter((c) => !promotionId || c.promotionId === promotionId).map(withUsage).sort((a, b) => a.code.localeCompare(b.code)));
+    },
+    async saveCoupon(input) {
+      const problem = couponInputProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!promotions.some((p) => p.id === input.promotionId && !p.deleted)) throw new DataError('not_found', 'Promo tidak ditemukan');
+      const code = normalizeCode(input.code);
+      if (coupons.some((c) => c.code === code && c.id !== input.id)) throw new DataError('invalid', `Kode ${code} sudah dipakai kupon lain.`);
+      const fields = { promotionId: input.promotionId, code, usageLimit: input.usageLimit, validFrom: input.validFrom || undefined, validTo: input.validTo || undefined, isActive: input.isActive ?? true };
+      if (input.id) {
+        const c = coupons.find((x) => x.id === input.id);
+        if (!c) throw new DataError('not_found', 'Kupon tidak ditemukan');
+        Object.assign(c, fields); return clone(withUsage(c));
+      }
+      const c: Coupon = { id: newId(), usedCount: 0, ...fields };
+      coupons.push(c); return clone(withUsage(c));
+    },
+    async deleteCoupon(id) {
+      const c = coupons.find((x) => x.id === id);
+      if (!c) throw new DataError('not_found', 'Kupon tidak ditemukan');
+      if (couponUsed(id) > 0) throw new DataError('invalid', 'Kupon ini sudah pernah dipakai. Nonaktifkan saja supaya riwayatnya utuh.');
+      coupons = coupons.filter((x) => x.id !== id);
+    },
+    async findCoupon(code) {
+      const c = coupons.find((x) => x.code === normalizeCode(code));
+      const p = c && promotions.find((x) => x.id === c.promotionId && !x.deleted);
+      return c && p ? clone({ coupon: withUsage(c), promotion: cleanPromo(p) }) : null;
+    },
+
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
     async saveEmployee(input: EmployeeInput) {
@@ -570,7 +642,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         shiftId: shift?.id, cashierId, status: 'open', items, subtotal: 0, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0, total: 0, paidTotal: 0,
         payments: [], openedAt: at.toISOString(),
       };
-      Object.assign(o, { type: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
+      const entries: DiscountEntry[] = fitDiscounts(draft.discounts ?? ((draft.orderDiscount ?? 0) > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon manual', amount: draft.orderDiscount! }] : []), calc.discountTotal);
+      Object.assign(o, { discounts: entries, type: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,
         serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal, rounding: 0, total: calc.total });
       if (!existing) orders.push(o);
       return clone(named(o));

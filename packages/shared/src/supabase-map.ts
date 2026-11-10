@@ -1,5 +1,6 @@
 import { DataError } from './types';
-import type { Customer, Order, OrderItem, Payment, Product, SalesSummary, Shift } from './types';
+import { fitDiscounts } from './promo';
+import type { Coupon, Customer, DiscountEntry, Order, Promotion, OrderItem, Payment, Product, SalesSummary, Shift } from './types';
 import type { CalcResult, OrderType } from './order-calc';
 import { localParts } from './order-number';
 import { newId } from './id';
@@ -38,6 +39,27 @@ export function mapOpError(message: string): DataError {
   if (/duplicate key.*number|outlet_id, number/i.test(message)) return new DataError('invalid', 'Nomor pesanan bentrok, coba lagi');
   if (/one_open_per_device|shifts_one_open/i.test(message)) return new DataError('shift_already_open', 'Masih ada shift yang terbuka di perangkat ini');
   return new DataError('invalid', message || 'Server menolak operasi ini');
+}
+
+export function toPromotion(r: Row): Promotion {
+  return {
+    id: r.id, name: r.name, kind: r.kind, value: num(r.value), minSpend: num(r.min_spend), productIds: (r.product_ids ?? []) as string[],
+    ...(r.free_product_id ? { freeProductId: r.free_product_id } : {}), orderTypes: (r.order_types ?? []) as OrderType[],
+    ...(r.starts_at ? { startsAt: r.starts_at } : {}), ...(r.ends_at ? { endsAt: r.ends_at } : {}), isActive: !!r.is_active,
+  };
+}
+export function toCoupon(r: Row, used: number): Coupon {
+  return {
+    id: r.id, promotionId: r.promotion_id, code: r.code, usedCount: used, isActive: !!r.is_active,
+    ...(r.usage_limit != null ? { usageLimit: num(r.usage_limit) } : {}), ...(r.valid_from ? { validFrom: r.valid_from } : {}), ...(r.valid_to ? { validTo: r.valid_to } : {}),
+  };
+}
+const DISCOUNT_LABEL = { manual: 'Diskon manual', coupon: 'Kupon', promo: 'Promo', points: 'Poin' } as const;
+export function toDiscounts(raw: unknown): DiscountEntry[] {
+  return ((raw ?? []) as Row[]).filter((d) => d.source !== 'points').map((d) => ({
+    id: d.id, source: d.source as DiscountEntry['source'], label: DISCOUNT_LABEL[d.source as keyof typeof DISCOUNT_LABEL] ?? 'Diskon', amount: num(d.amount),
+    ...(d.promotion_id ? { promotionId: d.promotion_id } : {}), ...(d.coupon_id ? { couponId: d.coupon_id } : {}), ...(d.authorized_by ? { authorizedBy: d.authorized_by } : {}),
+  }));
 }
 
 export function toCustomer(r: Row): Customer {
@@ -91,7 +113,7 @@ export function toOrder(r: Row): Order {
     }));
   return {
     id: r.id, number: r.number, type: r.order_type as OrderType, tableId: r.table_id ?? undefined, customerId: r.customer_id ?? undefined, label: r.label ?? undefined, guestCount: r.guest_count ?? undefined, shiftId: r.shift_id ?? undefined,
-    cashierId: r.cashier_id, status: r.status, items, subtotal: num(r.subtotal), discountTotal: num(r.discount_total),
+    cashierId: r.cashier_id, status: r.status, items, ...(r.order_discounts ? { discounts: toDiscounts(r.order_discounts) } : {}), subtotal: num(r.subtotal), discountTotal: num(r.discount_total),
     serviceCharge: num(r.service_charge), taxTotal: num(r.tax_total), rounding: num(r.rounding), total: num(r.total),
     paidTotal: num(r.paid_total), payments, openedAt: r.opened_at, closedAt: r.closed_at ?? undefined,
   };
@@ -110,7 +132,7 @@ export function nextSeq(existingNumbers: string[], cachedMax: number): number {
 export interface NewOrderPayloadInput {
   id: string; number: string; orderType: OrderType; tableId?: string | null; customerId?: string | null; label?: string | null; guestCount?: number | null;
   shiftId?: string | null; cashierId: string; openedAt: string; baseVersion?: number;
-  calc: CalcResult; orderDiscount: number; authorizedBy?: string | null;
+  calc: CalcResult; orderDiscount: number; authorizedBy?: string | null; discounts?: DiscountEntry[];
   items: { id: string; productId: string; productUnitId: string; name: string; sku?: string | null; qty: number; unitPrice: number; note?: string | null; extras?: { optionId: string; name: string; price: number }[] }[];
 }
 
@@ -132,9 +154,8 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
       line_total: lineTotal.get(it.id) ?? Math.round(it.qty * it.unitPrice), note: it.note ?? null, is_free: false, sort: idx,
       extras: (it.extras ?? []).map((e) => ({ id: newId(), option_id: e.optionId, name: e.name, price: e.price, qty: it.qty })),
     })),
-    discounts: i.calc.discountTotal > 0
-      ? [{ id: newId(), source: 'manual', points_used: 0, amount: i.calc.discountTotal, authorized_by: i.authorizedBy ?? null }]
-      : [],
+    discounts: i.calc.discountTotal <= 0 ? [] : (i.discounts?.length ? fitDiscounts(i.discounts, i.calc.discountTotal) : [{ id: newId(), source: 'manual' as const, label: '', amount: i.calc.discountTotal, authorizedBy: i.authorizedBy ?? undefined }])
+      .map((d) => ({ id: d.id, source: d.source, promotion_id: d.promotionId ?? null, coupon_id: d.couponId ?? null, points_used: 0, amount: d.amount, authorized_by: d.authorizedBy ?? i.authorizedBy ?? null })),
     tax_lines: i.calc.taxLines.map((t) => ({ tax_id: t.taxId ?? null, name: t.name, rate: t.rate, base_amount: t.base, amount: t.amount })),
   };
 }

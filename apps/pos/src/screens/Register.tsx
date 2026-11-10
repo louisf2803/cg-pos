@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
-import { extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, ShoppingBag, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { extrasLineTotal, extrasPerUnit, formatRp, groupVariants, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
@@ -13,10 +13,12 @@ import { DeviceSettings } from './DeviceSettings';
 import { ShiftSummary } from './ShiftSummary';
 import { Payment } from './Payment';
 import { CustomerPicker } from './CustomerPicker';
+import { DiscountDialog } from './DiscountDialog';
 
 const TYPES: { v: OrderType; label: string }[] = [
   { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
 ];
+const NO_PROMOS: Promotion[] = [];
 const LABEL_HINT: Record<OrderType, string> = {
   dine_in: 'Nama pesanan (opsional)', takeaway: 'Nama pemesan (opsional)', delivery: 'Nama dan tujuan antar (opsional)', service: 'Keterangan jasa (opsional)',
 };
@@ -44,7 +46,9 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [settings, setSettings] = useState(false);
   const [shiftOpen, setShiftOpen] = useState(false);
   const [custPick, setCustPick] = useState(false);
-  const cart = useCart(ctx);
+  const promos = useAsync<Promotion[]>(() => data.listPromotions({ activeOnly: true }).catch(() => []), [data]);
+  const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS);
+  const [discOpen, setDiscOpen] = useState(false);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
 
@@ -72,7 +76,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   async function persist(): Promise<Order> {
     const o = await data.saveOrder({
       id: cart.state.orderId ?? newId(), type: cart.state.type,
-      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, label: cart.state.label?.trim() || undefined,
+      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, orderDiscount: cart.discounts.total || undefined, discounts: cart.discounts.entries.length ? cart.discounts.entries : undefined, label: cart.state.label?.trim() || undefined,
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
       items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras })),
     }, session.employee.id);
@@ -107,9 +111,11 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   if (showOrders) {
     return <Orders ctx={ctx} canResume={cart.state.lines.length === 0} initialTab={ordersTab}
       onClose={() => setShowOrders(false)}
-      onResume={async (o) => {
+      onResume={async (o0) => {
+        const o = (await data.getOrder(o0.id).catch(() => null)) ?? o0;
+        const full = o;
         const tableName = o.tableId ? (await data.listTables().catch(() => [])).find((t) => t.id === o.tableId)?.name : undefined;
-        cart.dispatch({ t: 'load', order: o, tableName }); setShowOrders(false); setPanelOpen(true); setNotice('');
+        cart.dispatch({ t: 'load', order: full, tableName }); setShowOrders(false); setPanelOpen(true); setNotice('');
       }}
       onPay={(o) => setPaying(o)} />;
   }
@@ -241,6 +247,16 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
               );
             })}</ul>}
         </div>
+        {cart.state.lines.length > 0 && (
+          <div className="px-12 pb-8 grid gap-4">
+            <button className="cg-btn cg-btn--secondary cg-btn--block flex justify-between" onClick={() => setDiscOpen(true)}
+              aria-label={cart.discounts.total > 0 ? `Diskon dan promo, terpasang ${formatRp(cart.discounts.total)}` : 'Diskon dan promo'}>
+              <span className="flex items-center gap-8"><Tag className="cg-icon cg-icon--sm" aria-hidden /> Diskon dan promo</span>
+              <span className={cart.discounts.total > 0 ? 'cg-num' : 'text-text-muted text-sm'}>{cart.discounts.total > 0 ? `-${formatRp(cart.discounts.total)}` : 'Opsional'}</span>
+            </button>
+            {cart.discounts.skipped.map((d) => <p key={d.id} role="status" className="text-sm text-danger-strong break-words">{d.label} tidak berlaku lagi: {d.reason}</p>)}
+          </div>
+        )}
         <Totals calc={cart.calc} />
       </aside>
 
@@ -255,6 +271,12 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       </footer>
       {shiftOpen && <ShiftSummary onClose={() => setShiftOpen(false)} onCloseShift={() => { setShiftOpen(false); onCloseShift(); }} />}
       {settings && <DeviceSettings onClose={() => setSettings(false)} />}
+      {discOpen && (
+        <DiscountDialog applied={cart.state.discounts} resolved={cart.discounts} promos={promos.status === 'ready' ? promos.data : NO_PROMOS}
+          cart={{ orderType: cart.state.type, lines: cart.state.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })) }}
+          gross={cart.calc.grossTotal} productName={(id) => (prods.status === 'ready' ? prods.data.find((p) => p.id === id)?.name : undefined)}
+          onAdd={(d) => cart.dispatch({ t: 'discount-add', discount: d })} onRemove={(id) => cart.dispatch({ t: 'discount-remove', id })} onClose={() => setDiscOpen(false)} />
+      )}
       {custPick && <CustomerPicker currentId={cart.state.customerId} onClose={() => setCustPick(false)} onPick={(c) => { cart.dispatch({ t: 'customer', customerId: c?.id, customerName: c?.name }); setCustPick(false); }} />}
       {tablePick && (
         <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}

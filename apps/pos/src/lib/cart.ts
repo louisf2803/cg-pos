@@ -1,9 +1,9 @@
 import { useMemo, useReducer } from 'react';
-import { computeOrder, extrasKey, extrasLineTotal, newId, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product } from '@cgpos/shared';
+import { appliedFromEntries, computeOrder, extrasKey, extrasLineTotal, newId, resolveDiscounts, type AppliedDiscount, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product, type Promotion, type ResolvedDiscounts } from '@cgpos/shared';
 
 export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[] }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
-export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string }
+export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string; discounts: AppliedDiscount[] }
 type Action =
   | { t: 'add'; product: Product; extras?: ItemExtra[] }
   | { t: 'qty'; lineId: string; qty: number }
@@ -11,11 +11,13 @@ type Action =
   | { t: 'table'; tableId?: string; tableName?: string }
   | { t: 'meta'; label?: string; guestCount?: number }
   | { t: 'customer'; customerId?: string; customerName?: string }
+  | { t: 'discount-add'; discount: AppliedDiscount }
+  | { t: 'discount-remove'; id: string }
   | { t: 'load'; order: Order; tableName?: string }
   | { t: 'saved'; orderId: string }
   | { t: 'clear' };
 
-const initial: CartState = { type: 'takeaway', lines: [] };
+const initial: CartState = { type: 'takeaway', lines: [], discounts: [] };
 
 function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
@@ -31,22 +33,30 @@ function reduce(s: CartState, a: Action): CartState {
     case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };
     case 'customer': return { ...s, customerId: a.customerId, customerName: a.customerName };
+    case 'discount-add': return { ...s, discounts: [...s.discounts, a.discount] };
+    case 'discount-remove': return { ...s, discounts: s.discounts.filter((d) => d.id !== a.id) };
     case 'load':
-      return { type: a.order.type, customerId: a.order.customerId, customerName: a.order.customerName, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}) })) };
+      return { discounts: appliedFromEntries(a.order.discounts ?? (a.order.discountTotal > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon', amount: a.order.discountTotal }] : [])), type: a.order.type, customerId: a.order.customerId, customerName: a.order.customerName, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}) })) };
     case 'saved': return { ...s, orderId: a.orderId };
     case 'clear': return initial;
   }
 }
 
-export function useCart(ctx: OutletContext, roundingStep = 0) {
+export function useCart(ctx: OutletContext, roundingStep = 0, promos: Promotion[] = []) {
   const [state, dispatch] = useReducer(reduce, initial);
+  const discounts: ResolvedDiscounts = useMemo(
+    () => resolveDiscounts(state.discounts, promos, {
+      orderType: state.type, lines: state.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })),
+    }, new Date()),
+    [state, promos],
+  );
   const calc: CalcResult = useMemo(
     () => computeOrder({
-      orderType: state.type, orderTaxes: ctx.taxes, settings: ctx.settings, roundingStep,
+      orderType: state.type, orderTaxes: ctx.taxes, settings: ctx.settings, roundingStep, orderDiscount: discounts.total,
       items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })),
     }),
-    [state, ctx, roundingStep],
+    [state, ctx, roundingStep, discounts],
   );
   const count = state.lines.reduce((a, l) => a + l.qty, 0);
-  return { state, calc, count, dispatch };
+  return { state, calc, count, dispatch, discounts };
 }
