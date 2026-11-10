@@ -6,6 +6,7 @@ import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } fro
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { priceOverridePctProblem } from './price-override';
+import type { DiscountUse } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
@@ -1173,6 +1174,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (row?.inUse) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi tidak bisa dihapus.');
       list.splice(idx, 1);
       return true;
+    },
+    async listDiscountUses(range) {
+      return orders.filter((o) => o.status === 'paid' && (o.closedAt ?? o.openedAt) >= range.from && (o.closedAt ?? o.openedAt) < range.to)
+        .flatMap((o) => (o.discounts ?? []).map((d): DiscountUse => ({ orderId: o.id, source: d.source, promotionId: d.promotionId, couponId: d.couponId, points: d.points ?? 0, amount: d.amount, authorizedBy: d.authorizedBy })));
     },
     async listStockLocations(): Promise<StockLocation[]> {
       return [{ id: LOC_OUTLET, name: locNames[LOC_OUTLET]!, kind: 'outlet' }, { id: LOC_GUDANG, name: locNames[LOC_GUDANG]!, kind: 'warehouse' }];

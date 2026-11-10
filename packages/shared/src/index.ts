@@ -33,4 +33,5 @@ export * from './activity';
 export * from './recipe';
 export * from './product-unit';
 export * from './stock-transfer';
+export * from './promo-report';
 export * from './price-override';

@@ -11,6 +11,7 @@ import {
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
 import { priceOverridePctProblem } from './price-override';
+import type { DiscountUse, DiscountSource } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput, type TransferStatus } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
@@ -1405,6 +1406,15 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return data === true;
     },
 
+    async listDiscountUses(range) {
+      const rows = await fetchAll<Row>((f, t) => db().from('order_discounts')
+        .select('id,order_id,source,promotion_id,coupon_id,points_used,amount,authorized_by,orders!inner(status,closed_at)')
+        .eq('orders.status', 'paid').gte('orders.closed_at', range.from).lt('orders.closed_at', range.to).order('id').range(f, t));
+      return rows.map((d): DiscountUse => ({
+        orderId: d.order_id as string, source: d.source as DiscountSource, promotionId: (d.promotion_id as string | null) ?? undefined, couponId: (d.coupon_id as string | null) ?? undefined,
+        points: Number(d.points_used ?? 0), amount: Number(d.amount ?? 0), authorizedBy: (d.authorized_by as string | null) ?? undefined,
+      }));
+    },
     async listStockLocations() {
       const { data, error } = await db().rpc('stock_location_list');
       if (error) throw mapDbError(error);

@@ -8,6 +8,7 @@ import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
 import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
+import type { DiscountUse } from './promo-report';
 import type { StockLocation, StockTransfer, StockTransferInput } from './stock-transfer';
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type {
@@ -255,5 +256,9 @@ export interface DataLayer {
   receiveStockTransfer(id: string): Promise<void>;
   /** Batalkan selama masih dalam perjalanan: stok kembali ke lokasi asal. */
   cancelStockTransfer(id: string): Promise<void>;
+
+  // ---------- laporan promo ----------
+  /** Potongan yang tercatat pada pesanan lunas yang ditutup dalam rentang [from, to). Hanya baca. */
+  listDiscountUses(range: { from: string; to: string }): Promise<DiscountUse[]>;
 }
 

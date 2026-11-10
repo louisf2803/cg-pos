@@ -69,7 +69,7 @@ export const NAV: NavGroup[] = [
       { section: 'Laporan lain', href: '/laporan/produk', label: 'Produk', screen: 'S80', tier: 2 },
       { section: 'Laporan lain', href: '/laporan/jasa', label: 'Jasa', screen: 'S80', tier: 3 },
       { section: 'Laporan lain', href: '/laporan/fasilitas', label: 'Fasilitas', screen: 'S80', tier: 3 },
-      { section: 'Laporan lain', href: '/laporan/promo-loyalti', label: 'Promo dan loyalti', screen: 'S80', tier: 2 },
+      { section: 'Laporan lain', href: '/laporan/promo-loyalti', label: 'Promo dan loyalti', screen: 'S80', tier: 2, built: true },
       { section: 'Laporan lain', href: '/laporan/pajak', label: 'Pajak dan biaya layanan', screen: 'S80', tier: 2, built: true },
       { section: 'Laporan lain', href: '/laporan/kasir', label: 'Kasir dan tutup kasir', screen: 'S80', tier: 2, built: true },
       { section: 'Laporan lain', href: '/laporan/tutup-toko', label: 'Tutup toko', screen: 'S80', tier: 2, built: true },
