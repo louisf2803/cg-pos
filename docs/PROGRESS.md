@@ -240,3 +240,18 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 
 - S126 (goal 90): Filter Promo di rel kategori kasir. Helper murni `promoProductIds` (promo item yang berlaku sekarang untuk jenis order; abaikan nonaktif/kedaluwarsa/belum mulai/jenis order lain/promo semua-produk) + 3 tes; kasir menampilkan "Promo" hanya bila ada produk cocok dan otomatis kembali ke Semua bila promonya hilang. e2e (viewmode-e2e) dan screenshot docs/shots/s126/ lulus. Skor paritas tidak berubah (65,2): baris itu sudah partial, sisa hanya Deposit.
 - Catatan jujur: tiap fitur kasir kecil seperti ini menambah <= 0,3 poin; 90 tidak terjangkau tanpa 10 must-have yang butuh produksi/perangkat/keputusan Louis. Persetujuan migrasi produksi (0011, 0025, 0026, 0027) masih menunggu konfirmasi Supabase dari Louis.
+
+- Selesai (tugas A31): Cetak Barcode Produk (`packages/shared` & `apps/dashboard`):
+  1. Generator Code 128 (Set B) murni di `packages/shared/src/barcode.ts`:
+     - Standar 107 pola 11-modul Code 128 lengkap dengan Start B (104), Stop (106, 13 modul), dan perhitungan checksum modulo 103 (`calculateCode128BChecksum`).
+     - Fungsi `encodeCode128B(text)` dan `generateCode128Svg(text, options)` menghasilkan representasi baris dan vektor SVG murni tanpa pustaka eksternal.
+     - 11 unit tests di `packages/shared/test/barcode.test.ts` (total 293 unit test shared vitest lulus).
+  2. Halaman Cetak Barcode (`/produk/barcode`):
+     - Pilihan preset ukuran stiker: 40 × 30 mm (bawaan), 30 × 20 mm (stiker kecil), dan Gulungan 58 mm (printer kasir / thermal roll).
+     - Pengaturan elemen label: toggle Nama Produk, Harga Jual (Rp), dan Kode SKU (terbaca manusia).
+     - Pemilih produk: pencarian instan, status SKU jelas, tombol "Pilih semua ber-SKU", "Batal pilih", serta pengatur jumlah salinan label per produk (+ / - dan input angka). Produk tanpa SKU otomatis dinonaktifkan dengan tooltip/keterangan yang jelas.
+     - Pratinjau label dinamis berbasis SVG vektor tajam dengan pembatasan teks rapi (`line-clamp-2` untuk nama panjang) dan styling print `@media print` yang mengisolasi area kanvas cetak serta menyembunyikan navigasi dashboard.
+     - Tombol "Cetak label" memicu dialog print peramban (`window.print()`).
+  3. Integrasi Navigasi:
+     - Menu `Cetak barcode` didaftarkan di modul Penjualan > Katalog (`/produk/barcode`, built: true, tier 2).
+  4. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (49 file, 293 tes vitest), `pnpm -F @cgpos/dashboard build` (115 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a31/`).
