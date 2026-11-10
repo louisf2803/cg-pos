@@ -5,6 +5,7 @@ import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, Jour
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type { KitchenStatus, KitchenTicket } from './kitchen';
+import type { PrintStation, PrintStationInput, SentLine } from './station';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
 import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
@@ -216,8 +217,19 @@ export interface DataLayer {
   // ---------- dapur ----------
   /** Papan dapur outlet ini: tiket per pesanan yang baris-barisnya sudah dikirim. `servedMinutes` menambah yang baru disajikan. */
   kitchenBoard(servedMinutes?: number): Promise<KitchenTicket[]>;
-  /** Kirim baris pesanan yang belum terkirim ke dapur (idempoten). Pesanan harus sudah tersimpan di server. */
-  kitchenSend(orderId: string): Promise<{ sent: number }>;
+  /**
+   * Teruskan baris pesanan yang belum terkirim ke stasiun masing-masing (idempoten). Hanya baris yang produknya punya stasiun aktif.
+   * Mengembalikan baris yang BARU diteruskan supaya kasir bisa mencetak tiketnya. Pesanan harus sudah tersimpan di server.
+   */
+  kitchenSend(orderId: string): Promise<{ sent: number; lines: SentLine[] }>;
+  // ---------- stasiun cetak (Dapur, Bar, Label) ----------
+  /** Stasiun outlet ini (termasuk yang nonaktif), urut. Kosong bila belum ada atau database belum menerima migrasi 0029. */
+  listPrintStations(): Promise<PrintStation[]>;
+  savePrintStation(input: PrintStationInput): Promise<PrintStation>;
+  /** Hapus stasiun; produk yang menunjuk ke stasiun ini kembali tanpa stasiun. */
+  removePrintStation(id: string): Promise<void>;
+  /** Petakan produk ke stasiun (atau lepas dengan null): per daftar produk dan/atau semua produk satu kategori. Varian ikut induknya. */
+  assignProductsToStation(input: { stationId: string | null; productIds?: string[]; categoryId?: string }): Promise<{ changed: number }>;
   kitchenSetStatus(itemIds: string[], status: KitchenStatus): Promise<void>;
 
   // ---------- kode otorisasi ----------

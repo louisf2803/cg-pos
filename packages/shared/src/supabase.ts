@@ -10,6 +10,7 @@ import {
 } from './purchasing';
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { normalizeTemplate, stationProblem, type PrintStation, type SentLine, type StationKind } from './station';
 import { priceOverridePctProblem } from './price-override';
 import type { DiscountUse, DiscountSource } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput, type TransferStatus } from './stock-transfer';
@@ -226,6 +227,20 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         debit: Number(l.debit), credit: Number(l.credit), ...(l.memo ? { memo: l.memo as string } : {}) };
     });
   }
+
+  /** Apakah database sudah menerima migrasi 0029 (tabel print_stations)? Dicek sekali per sesi; tanpa itu kolom stasiun tidak dibaca/ditulis. */
+  let stationsProbe: Promise<boolean> | null = null;
+  const stationsAvailable = (): Promise<boolean> => {
+    stationsProbe ??= (async () => { const r = await db().from('print_stations').select('id').limit(1); return !r.error; })().catch(() => false);
+    return stationsProbe;
+  };
+  const productSelect = async (): Promise<string> => PRODUCT_SELECT.replace(',product_units(', (await stationsAvailable()) ? ',print_station_id,product_units(' : ',product_units(');
+  const STATION_NEEDS_MIGRATION = 'Stasiun cetak belum bisa dipakai: database belum menerima migrasi 0029 (menunggu persetujuan Louis).';
+  const toStation = (r: Row): PrintStation => {
+    const kind: StationKind = r.kind === 'label' ? 'label' : 'checker';
+    return { id: r.id as string, name: r.name as string, kind, printMode: (['auto', 'ask', 'off'] as const).find((m) => m === r.print_mode) ?? 'ask', copies: Number(r.copies) || 1,
+      paper: r.paper === '80' ? '80' : '58', template: normalizeTemplate(r.template, kind), sort: Number(r.sort) || 0, isActive: r.is_active !== false };
+  };
 
   function mapKitchenError(error: { code?: string; message?: string }): DataError {
     const m = error.message ?? '';
@@ -630,7 +645,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       must(await db().from('departments').update({ deleted_at: new Date().toISOString(), name: `${cur.name} (dihapus ${id.slice(0, 8)})` }).eq('id', id));
     },
     async listBundles(q = {}) {
-      let qb = db().from('products').select(PRODUCT_SELECT).eq('kind', 'bundle').is('deleted_at', null);
+      let qb = db().from('products').select(await productSelect()).eq('kind', 'bundle').is('deleted_at', null);
       if (!q.includeInactive) qb = qb.eq('is_active', true);
       const rows = (must(await qb.order('name')) as Row[] | null) ?? [];
       if (rows.length === 0) return [];
@@ -724,9 +739,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       must(await db().from('extra_groups').update({ deleted_at: new Date().toISOString() }).eq('id', id));
     },
     async listProducts(q = {}) {
+      const sel = await productSelect();
       const rows = await fetchAll<Row>((f, t) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let qb: any = db().from('products').select(PRODUCT_SELECT).eq('is_sellable', true).in('kind', ['goods', 'service', 'bundle']).is('deleted_at', null);
+        let qb: any = db().from('products').select(sel).eq('is_sellable', true).in('kind', ['goods', 'service', 'bundle']).is('deleted_at', null);
         if (!q.includeInactive) qb = qb.eq('is_active', true).eq('show_in_menu', true);
         if (q.categoryId) qb = qb.eq('category_id', q.categoryId);
         return qb.order('name').order('id').range(f, t);
@@ -744,7 +760,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return data as string;
     },
     async getProduct(id) {
-      const row = must(await db().from('products').select(PRODUCT_SELECT).eq('id', id).maybeSingle()) as Row | null;
+      const row = must(await db().from('products').select(await productSelect()).eq('id', id).maybeSingle()) as Row | null;
       return row ? toProduct(row) : null;
     },
     async saveProduct(input: ProductInput) {
@@ -788,9 +804,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
 
     // ---------- katalog gaya pemilik (produk + varian) ----------
     async listCatalog(q = {}) {
+      const sel = await productSelect();
       const rows = await fetchAll<Row>((f, t) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let qb: any = db().from('products').select(PRODUCT_SELECT).in('kind', ['goods', 'service']).is('deleted_at', null);
+        let qb: any = db().from('products').select(sel).in('kind', ['goods', 'service']).is('deleted_at', null);
         if (q.categoryId) qb = qb.eq('category_id', q.categoryId);
         return qb.order('name').order('id').range(f, t);
       });
@@ -801,12 +818,12 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return list;
     },
     async getCatalogProduct(id) {
-      const row = must(await db().from('products').select(PRODUCT_SELECT).eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
+      const row = must(await db().from('products').select(await productSelect()).eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;
       if (!row) return null;
       const parentId = (row.parent_id as string | null) ?? (row.is_sellable === false ? (row.id as string) : null);
       if (!parentId) return assembleCatalog([toProduct(row)])[0] ?? null;
-      const head = parentId === row.id ? row : (must(await db().from('products').select(PRODUCT_SELECT).eq('id', parentId).maybeSingle()) as Row | null);
-      const kids = (must(await db().from('products').select(PRODUCT_SELECT).eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
+      const head = parentId === row.id ? row : (must(await db().from('products').select(await productSelect()).eq('id', parentId).maybeSingle()) as Row | null);
+      const kids = (must(await db().from('products').select(await productSelect()).eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
       return assembleCatalog([...(head ? [toProduct(head)] : []), ...kids.map(toProduct)])[0] ?? null;
     },
     async saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct> {
@@ -1312,6 +1329,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (error) throw mapKitchenError(error);
       return groupTickets(((data ?? []) as Row[]).map((r): KitchenRow => ({
         itemId: r.item_id, orderId: r.order_id, orderNumber: r.order_number, orderType: r.order_type, name: r.name, qty: Number(r.qty), status: r.status as KitchenStatus, sentAt: r.sent_at, statusAt: r.status_at,
+        ...(r.station_id ? { stationId: r.station_id as string } : {}),
         extras: ((r.extras ?? []) as Row[]).map((e) => ({ name: e.name as string, qty: Number(e.qty) })),
         ...(r.table_name ? { tableName: r.table_name as string } : {}), ...(r.label ? { label: r.label as string } : {}), ...(r.guest_count !== null && r.guest_count !== undefined ? { guestCount: Number(r.guest_count) } : {}),
         ...(r.queue_no !== null && r.queue_no !== undefined ? { queueNo: Number(r.queue_no) } : {}), ...(r.note ? { note: r.note as string } : {}),
@@ -1321,7 +1339,67 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { device } = await resolve();
       const { data, error } = await db().rpc('kitchen_send', { p_order: orderId, p_device: device?.id ?? null });
       if (error) throw mapKitchenError(error);
-      return { sent: Number((data as { sent: number }).sent) };
+      const d = data as { sent: number; lines?: Row[] };
+      const lines: SentLine[] = (d.lines ?? []).map((l) => ({
+        itemId: l.itemId as string, stationId: l.stationId as string, name: l.name as string, qty: Number(l.qty), ...(l.note ? { note: l.note as string } : {}),
+        extras: ((l.extras ?? []) as Row[]).map((e) => ({ name: e.name as string, qty: Number(e.qty) })),
+      }));
+      return { sent: Number(d.sent), lines };
+    },
+    async listPrintStations() {
+      if (!(await stationsAvailable())) return [];
+      const { ctx } = await resolve();
+      const rows = (must(await db().from('print_stations').select('*').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort').order('name')) as Row[] | null) ?? [];
+      return rows.map(toStation);
+    },
+    async savePrintStation(input) {
+      const problem = stationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!(await stationsAvailable())) throw new DataError('invalid', STATION_NEEDS_MIGRATION);
+      const { ctx, orgId } = await resolve();
+      const name = input.name.trim();
+      try {
+        if (input.id) {
+          const cur = must(await db().from('print_stations').select('*').eq('id', input.id).is('deleted_at', null).maybeSingle()) as Row | null;
+          if (!cur) throw new DataError('not_found', 'Stasiun tidak ditemukan');
+          const kind: StationKind = input.kind ?? (cur.kind === 'label' ? 'label' : 'checker');
+          const patch: Row = { name, kind, template: normalizeTemplate({ ...(normalizeTemplate(cur.template, kind)), ...(input.template ?? {}) }, kind) };
+          if (input.printMode) patch.print_mode = input.printMode;
+          if (input.copies !== undefined) patch.copies = input.copies;
+          if (input.paper) patch.paper = input.paper;
+          if (input.sort !== undefined) patch.sort = input.sort;
+          if (input.isActive !== undefined) patch.is_active = input.isActive;
+          const row = must(await db().from('print_stations').update(patch).eq('id', input.id).select('*').maybeSingle()) as Row | null;
+          if (!row) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah stasiun cetak');
+          return toStation(row);
+        }
+        const kind: StationKind = input.kind ?? 'checker';
+        const last = must(await db().from('print_stations').select('sort').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort', { ascending: false }).limit(1)) as Row[] | null;
+        const row = must(await db().from('print_stations').insert({
+          id: newId(), org_id: orgId, outlet_id: ctx.outletId, name, kind, print_mode: input.printMode ?? 'ask', copies: input.copies ?? 1, paper: input.paper ?? '58',
+          template: normalizeTemplate(input.template ?? {}, kind), sort: input.sort ?? (Number(last?.[0]?.sort ?? 0) + 1), is_active: input.isActive ?? true,
+        }).select('*').single()) as Row;
+        return toStation(row);
+      } catch (e) {
+        if (e instanceof DataError && /duplicate|unique|sudah ada/i.test(e.message)) throw new DataError('invalid', `Stasiun "${name}" sudah ada`);
+        throw e;
+      }
+    },
+    async removePrintStation(id) {
+      if (!(await stationsAvailable())) throw new DataError('invalid', STATION_NEEDS_MIGRATION);
+      const rows = (must(await db().from('print_stations').delete().eq('id', id).select('id')) as Row[] | null) ?? [];
+      if (rows.length === 0) throw new DataError('not_found', 'Stasiun tidak ditemukan atau tidak boleh dihapus akun ini');
+    },
+    async assignProductsToStation(input) {
+      if (!(await stationsAvailable())) throw new DataError('invalid', STATION_NEEDS_MIGRATION);
+      const ids = [...new Set(input.productIds ?? [])];
+      if (ids.length === 0 && input.categoryId === undefined) throw new DataError('invalid', 'Pilih produk atau kategori yang mau dipetakan.');
+      if (ids.length > 500) throw new DataError('invalid', 'Terlalu banyak produk sekaligus (maksimal 500).');
+      const filters: string[] = [];
+      if (ids.length) filters.push(`id.in.(${ids.join(',')})`, `parent_id.in.(${ids.join(',')})`);
+      if (input.categoryId !== undefined) filters.push(`category_id.eq.${input.categoryId}`);
+      const rows = (must(await db().from('products').update({ print_station_id: input.stationId }).or(filters.join(',')).neq('kind', 'bundle').is('deleted_at', null).select('id')) as Row[] | null) ?? [];
+      return { changed: rows.length };
     },
     async kitchenSetStatus(itemIds, status) {
       if (itemIds.length === 0) throw new DataError('invalid', 'Pilih baris yang mau diubah.');

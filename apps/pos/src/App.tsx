@@ -5,6 +5,7 @@ import { useAsync } from './lib/use-async';
 import { SessionCtx, type Session } from './lib/session';
 import { useAuth } from './lib/auth';
 import { Login } from './screens/Login';
+import { clearTickets } from './lib/stations';
 import { NoDevice } from './screens/NoDevice';
 import { OpenShift } from './screens/OpenShift';
 import { Register } from './screens/Register';
@@ -34,7 +35,7 @@ function Shell() {
     setLock(null);
     setView('register');
   }, [data]);
-  const logout = useCallback(() => { setSession(null); setLock(null); }, []);
+  const logout = useCallback(() => { setSession(null); setLock(null); clearTickets(); }, []);
   const lockNow = useCallback(() => setLock('manual'), []);
   useIdleLock({ minutes: prefs.idleLockMinutes, enabled: !!session && !lock, onIdle: () => setLock('idle') });
   const setShift = useCallback((shift: Shift | null) => setSession((s) => (s ? { ...s, shift } : s)), []);

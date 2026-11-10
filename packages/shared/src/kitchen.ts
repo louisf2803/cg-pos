@@ -10,7 +10,7 @@ export const KITCHEN_NEXT_LABEL: Partial<Record<KitchenStatus, string>> = { new:
 /** Baris datar dari server, satu per baris pesanan yang sudah dikirim ke dapur. */
 export interface KitchenRow {
   itemId: string; orderId: string; orderNumber: string; orderType: string; tableName?: string; label?: string; guestCount?: number; queueNo?: number;
-  name: string; qty: number; note?: string; extras: { name: string; qty: number }[]; status: KitchenStatus; sentAt: string; statusAt: string;
+  name: string; qty: number; note?: string; extras: { name: string; qty: number }[]; status: KitchenStatus; sentAt: string; statusAt: string; stationId?: string;
 }
 export interface KitchenTicket {
   orderId: string; orderNumber: string; orderType: string; tableName?: string; label?: string; guestCount?: number; queueNo?: number;

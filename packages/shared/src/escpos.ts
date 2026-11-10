@@ -47,7 +47,7 @@ export function twoColumns(left: string, right: string, cols: number): string[] 
   return [...lines, ' '.repeat(Math.max(0, cols - r.length)) + r];
 }
 
-type Piece = { text: string; align?: 'left' | 'center'; bold?: boolean; big?: boolean };
+export type Piece = { text: string; align?: 'left' | 'center'; bold?: boolean; big?: boolean };
 
 const fmtTime = (iso: string, tz: string) =>
   new Intl.DateTimeFormat('id-ID', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));

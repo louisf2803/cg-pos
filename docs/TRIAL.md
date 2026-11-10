@@ -20,6 +20,7 @@ Pengembangan: `pnpm -F @cgpos/pos dev`, `pnpm -F @cgpos/dashboard dev`.
 
 ## Alur yang sudah bisa dicoba
 **Kasir (apps/pos):** pilih karyawan + PIN → buka kasir (modal awal) → cari produk / ketik SKU lalu Enter (contoh `nk-001`) → pilih ekstra/ukuran → **Item bebas** (nama + harga sendiri) → pilih jenis order/meja → **Pisah item** (bayar sebagian item lebih dulu) atau Bayar (tunai, kartu, QRIS tampil "belum diaktifkan") → struk (cetak lewat peramban) → Ringkasan Shift (kas masuk/keluar) → Tutup kasir (hitung uang + PIN).
+**Stasiun cetak (dapur/bar):** tidak ada tombol "Kirim ke dapur" lagi. Produk yang sudah ditetapkan ke stasiun diteruskan otomatis saat pesanan disimpan atau dibayar; tiket tiap stasiun muncul sebagai kartu kecil (Cetak / Lihat / tutup). Di demo, stasiun Dapur dan Bar sudah terisi. Di database nyata fitur ini menunggu migrasi 0029 (belum diterapkan).
 Pengaturan perangkat (ikon gir) memilih tampilan produk: kartu, daftar ringkas, atau mode SKU ritel. Dashboard > Pengaturan > Bisnis dan outlet mengatur teks dan isi struk.
 **Dashboard (apps/dashboard):** tab modul Penjualan, Order Online, Karyawan, Keuangan (+ Appointment/Whatsapp terkunci); beranda ringkasan; laporan penjualan/produk/kasir/pajak/void/refund/meja/promo/persediaan/pelanggan/jam ramai; produk, kategori, ekstra, paket, impor CSV, satuan ganda, stok, opname, transfer stok, pembelian, faktur, pemasok; promo, loyalty; keuangan (akun, jurnal, buku besar, kas, laporan); pengaturan outlet, denah meja, pajak, biaya, karyawan + PIN.
 
@@ -32,7 +33,7 @@ export PGHOST=/tmp/pgsock PGPORT=54329 PGUSER=postgres; bash packages/db/tests/r
 ```
 
 ## Batasan yang diketahui
-- Migrasi 0011, 0025, 0026, 0027 sudah diterapkan ke database produksi (10 Nov 2026, atas persetujuan Louis; terverifikasi lewat katalog, belum dicoba dengan login nyata). Migrasi 0028 (pengerasan hak eksekusi fungsi pemicu) ditulis dan diuji lokal, **menunggu persetujuan Louis**; migrasi berikutnya juga lokal dulu. Fitur yang butuh migrasi belum disetujui ditandai "partial / menunggu diterapkan" di `replica/features.csv`.
+- Migrasi 0011, 0025, 0026, 0027 sudah diterapkan ke database produksi (10 Nov 2026, atas persetujuan Louis; terverifikasi lewat katalog, belum dicoba dengan login nyata). Migrasi 0028 (pengerasan hak eksekusi fungsi pemicu) dan 0029 (stasiun cetak) ditulis dan diuji lokal, **menunggu persetujuan Louis**; migrasi berikutnya juga lokal dulu. Fitur yang butuh migrasi belum disetujui ditandai "partial / menunggu diterapkan" di `replica/features.csv`.
 - QRIS DOKU sengaja belum aktif. Printer thermal Bluetooth teruji dengan perangkat tiruan, belum dengan printer fisik; belum ada printer jaringan/iPhone.
 - Offline: penjualan dan pembayaran tertunda bisa dikirim ulang; belum untuk refund/void/shift offline dan login PIN offline.
 - Belum ada: foto bukti kas, mode tampilan kasir reservasi dan buku menu, split bill dengan hitung ulang promo/harga grosir, denah meja gambar bebas, multi-outlet penuh, layar pelanggan, aplikasi konsumen, reservasi, payroll.

@@ -28,6 +28,7 @@ import { assembleCatalog, variantProductName, variantsProblem } from './variants
 import { roundToStep } from './money';
 import { paymentRefProblem } from './payment-rules';
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { defaultTemplate, normalizeTemplate, stationProblem, type PrintStation, type PrintStationInput, type SentLine } from './station';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf, trialBalanceOf,
   type Account, type AccountInput, type FinLine, type Journal, type JournalInput, type JournalSummary,
@@ -158,7 +159,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let pInvoices: FInvoice[] = [];
   let receiptKeys = new Set<string>();
   let accounts: Account[] = [];
-  const kitchen = new Map<string, { status: KitchenStatus; sentAt: string; statusAt: string }>();
+  const kitchen = new Map<string, { status: KitchenStatus; sentAt: string; statusAt: string; stationId?: string }>();
+  let stations: PrintStation[] = [];
   type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
   // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
   const authCodes: AuthCodeFake[] = [
@@ -396,6 +398,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
+    stations = opts.seed === false ? [] : [
+      { id: 'st-dapur', name: 'Dapur', kind: 'checker', printMode: 'auto', copies: 1, paper: '58', template: defaultTemplate('checker'), sort: 1, isActive: true },
+      { id: 'st-bar', name: 'Bar', kind: 'checker', printMode: 'ask', copies: 1, paper: '58', template: { ...defaultTemplate('checker'), title: 'CHECKER BAR', showGuests: false }, sort: 2, isActive: true },
+    ];
+    if (opts.seed !== false) for (const pr of products) { const c = pr.categoryId; if (c === 'c-kopi' || c === 'c-non') pr.printStationId = 'st-bar'; else if (c === 'c-makan' || c === 'c-camil') pr.printStationId = 'st-dapur'; }
     extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
     bundleItems = new Map();
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
@@ -424,7 +431,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       orders.push({ id: sp.id, number: formatOrderNumber(CTX.outletCode, CTX.deviceCode, at, seqFor(at), CTX.timezone), type: 'dine_in', tableId: sp.table, guestCount: sp.guests, cashierId: 'e-sari', status: 'open',
         items: draftItems.map((d, k) => ({ ...d, lineTotal: calc.lines[k]!.lineTotal })), subtotal: calc.subtotal, discountTotal: calc.discountTotal, serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal,
         rounding: calc.rounding, total: calc.total, paidTotal: 0, payments: [], openedAt: at.toISOString() });
-      for (const d of draftItems) kitchen.set(d.id, { status: 'new', sentAt: at.toISOString(), statusAt: at.toISOString() });
+      for (const d of draftItems) kitchen.set(d.id, { status: 'new', sentAt: at.toISOString(), statusAt: at.toISOString(), ...(products.find((q) => q.id === d.productId)?.printStationId ? { stationId: products.find((q) => q.id === d.productId)!.printStationId! } : {}) });
     }
     {
       const at = new Date(base.getTime() - 90 * 60000);
@@ -1074,7 +1081,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
           if (!k || (k.status === 'served' && new Date(k.statusAt).getTime() <= cut)) continue;
           const table = o.tableId ? tables.find((t) => t.id === o.tableId)?.name : undefined;
           rows.push({ itemId: it.id, orderId: o.id, orderNumber: o.number, orderType: o.type, name: it.name, qty: it.qty, extras: (it.extras ?? []).map((e) => ({ name: e.name, qty: it.qty })),
-            status: k.status, sentAt: k.sentAt, statusAt: k.statusAt, ...(table ? { tableName: table } : {}), ...(o.label ? { label: o.label } : {}), ...(o.guestCount !== undefined ? { guestCount: o.guestCount } : {}), ...(it.note ? { note: it.note } : {}) });
+            status: k.status, sentAt: k.sentAt, statusAt: k.statusAt, ...(k.stationId ? { stationId: k.stationId } : {}), ...(table ? { tableName: table } : {}), ...(o.label ? { label: o.label } : {}), ...(o.guestCount !== undefined ? { guestCount: o.guestCount } : {}), ...(it.note ? { note: it.note } : {}) });
         }
       }
       return clone(groupTickets(rows));
@@ -1083,9 +1090,51 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const o = orders.find((x) => x.id === orderId);
       if (!o) throw new DataError('not_found', 'Pesanan belum tersimpan di server.');
       if (o.status === 'void') throw new DataError('invalid', 'Pesanan ini sudah dibatalkan.');
-      let sent = 0; const at = now().toISOString();
-      for (const it of o.items) if (!kitchen.has(it.id)) { kitchen.set(it.id, { status: 'new', sentAt: at, statusAt: at }); sent += 1; }
-      return { sent };
+      const lines: SentLine[] = []; const at = now().toISOString();
+      for (const it of o.items) {
+        if (kitchen.has(it.id)) continue;
+        const sid = products.find((p) => p.id === it.productId)?.printStationId;
+        const st = sid ? stations.find((x) => x.id === sid && x.isActive) : undefined;
+        if (!st) continue;
+        kitchen.set(it.id, { status: 'new', sentAt: at, statusAt: at, stationId: st.id });
+        lines.push({ itemId: it.id, stationId: st.id, name: it.name, qty: it.qty, ...(it.note ? { note: it.note } : {}), extras: (it.extras ?? []).map((e) => ({ name: e.name, qty: 1 })) });
+      }
+      return { sent: lines.length, lines };
+    },
+    async listPrintStations() { return clone([...stations].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))); },
+    async savePrintStation(input: PrintStationInput) {
+      const problem = stationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const name = input.name.trim();
+      if (stations.some((x) => x.id !== input.id && x.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Stasiun "${name}" sudah ada`);
+      const cur = input.id ? stations.find((x) => x.id === input.id) : undefined;
+      if (input.id && !cur) throw new DataError('not_found', 'Stasiun tidak ditemukan');
+      const kind = input.kind ?? cur?.kind ?? 'checker';
+      const next: PrintStation = {
+        id: cur?.id ?? newId(), name, kind, printMode: input.printMode ?? cur?.printMode ?? 'ask', copies: input.copies ?? cur?.copies ?? 1, paper: input.paper ?? cur?.paper ?? '58',
+        template: normalizeTemplate({ ...(cur?.template ?? defaultTemplate(kind)), ...(input.template ?? {}) }, kind),
+        sort: input.sort ?? cur?.sort ?? (stations.reduce((m, x) => Math.max(m, x.sort), 0) + 1), isActive: input.isActive ?? cur?.isActive ?? true,
+      };
+      if (cur) Object.assign(cur, next); else stations.push(next);
+      return clone(next);
+    },
+    async removePrintStation(id) {
+      if (!stations.some((x) => x.id === id)) throw new DataError('not_found', 'Stasiun tidak ditemukan');
+      stations = stations.filter((x) => x.id !== id);
+      for (const p of products) if (p.printStationId === id) delete p.printStationId;
+    },
+    async assignProductsToStation(input) {
+      if (input.stationId !== null && !stations.some((x) => x.id === input.stationId)) throw new DataError('not_found', 'Stasiun tidak ditemukan');
+      const ids = new Set(input.productIds ?? []);
+      const hit = (p: Product) => ids.has(p.id) || (p.parentId ? ids.has(p.parentId) : false) || (input.categoryId !== undefined && p.categoryId === input.categoryId);
+      let changed = 0;
+      for (const p of products) {
+        if (!hit(p) || p.kind === 'bundle') continue;
+        if ((p.printStationId ?? null) === input.stationId) continue;
+        if (input.stationId === null) delete p.printStationId; else p.printStationId = input.stationId;
+        changed += 1;
+      }
+      return { changed };
     },
     async kitchenSetStatus(itemIds, status) {
       if (itemIds.length === 0) throw new DataError('invalid', 'Pilih baris yang mau diubah.');

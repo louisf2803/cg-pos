@@ -8,13 +8,17 @@ do $$
 declare
   o1 uuid := ctx('o1'); o2 uuid := ctx('o2'); out1 uuid := ctx('out1'); dev uuid := ctx('dev'); ud uuid := ctx('ud');
   oid uuid := gen_random_uuid(); i1 uuid := gen_random_uuid(); i2 uuid := gen_random_uuid(); i3 uuid := gen_random_uuid();
-  mgr uuid := gen_random_uuid(); stranger uuid := gen_random_uuid();
+  mgr uuid := gen_random_uuid(); stranger uuid := gen_random_uuid(); stn uuid := gen_random_uuid();
   pfx text; v jsonb; r jsonb; n int; pl jsonb;
 begin
   select o.code || '/' || d.code || '/' into pfx from devices d join outlets o on o.id = d.outlet_id where d.id = dev;
   insert into auth.users(id, email) values (mgr, 'mgr-kds@x'), (stranger, 'stranger-kds@x');
   insert into org_members(org_id, user_id, role) values (o1, mgr, 'manager'), (o2, stranger, 'owner');
   insert into member_outlets(org_id, user_id, outlet_id) values (o1, mgr, out1);
+
+  -- sejak 0029 hanya produk yang punya stasiun yang diteruskan ke dapur
+  insert into print_stations(id, org_id, outlet_id, name) values (stn, o1, out1, 'Dapur');
+  update products set print_station_id = stn where id in (ctx('kopi'), ctx('air'));
 
   perform set_config('request.jwt.claim.sub', ud::text, true);
   pl := jsonb_build_object('id', oid, 'number', pfx || '261110/951', 'order_type', 'dine_in', 'cashier_id', ctx('emp'), 'opened_at', now(), 'client_created_at', now(),

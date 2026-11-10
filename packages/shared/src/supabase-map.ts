@@ -93,6 +93,7 @@ export function toProduct(r: Row): Product {
     kind: r.kind === 'service' ? 'service' : r.kind === 'bundle' ? 'bundle' : 'goods', trackStock: !!r.track_stock, isActive: !!r.is_active,
     isFavorite: !!r.is_favorite, parentId: r.parent_id ?? null, isSellable: r.is_sellable === false ? false : undefined,
     ...(r.photo_path ? { photoUrl: String(r.photo_path) } : {}),
+    ...(r.print_station_id ? { printStationId: String(r.print_station_id) } : {}),
     ...(r.allow_price_override && num(r.max_price_override_pct) > 0 ? { priceOverridePct: num(r.max_price_override_pct) } : {}),
   };
 }

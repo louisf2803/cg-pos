@@ -13,6 +13,8 @@ export interface Product {
   isSellable?: boolean;
   /** batas persen kasir boleh mengubah harga baris; kosong = tidak boleh */
   priceOverridePct?: number;
+  /** stasiun cetak tujuan (Dapur/Bar/Label); kosong = tidak diteruskan ke dapur */
+  printStationId?: string;
 }
 export interface ProductInput {
   id?: string; name: string; categoryId: string | null; price: number; sku?: string;
@@ -24,7 +26,7 @@ export interface CatalogVariant { id: string; label: string; price: number; sku?
 export interface CatalogProduct {
   id: string; name: string; categoryId: string | null; kind: 'goods' | 'service'; trackStock: boolean; isActive: boolean; isFavorite: boolean;
   /** produk tunggal: harganya; produk berarian: harga varian termurah */
-  price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string; priceOverridePct?: number;
+  price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string; priceOverridePct?: number; printStationId?: string;
 }
 export interface CatalogInput {
   id?: string; name: string; categoryId: string | null; kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChefHat, ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
+import { ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
 import { checkStockLimit, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
+import { forwardNotice, forwardOrder, useTickets } from '../lib/stations';
+import { TicketStrip } from './TicketHost';
 import { useOnline } from '../lib/online';
 import { Modal, ProductPhoto } from '../ui';
 import { Orders } from './Orders';
@@ -42,6 +44,7 @@ function getInitials(name: string): string {
 export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; onCloseShift: () => void; onLock: () => void }) {
   const data = useData();
   const { session } = useSession();
+  const tickets = useTickets();
   const online = useOnline();
   const cats = useAsync(() => data.listCategories(), [data]);
   const prods = useAsync(() => data.listProducts(), [data]);
@@ -179,19 +182,6 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
     finally { setPlacing(false); }
   }
 
-  /** Simpan pesanan lalu kirim barisnya ke layar dapur. Pesanan tetap di layar supaya bisa ditambah atau dibayar. */
-  async function toKitchen() {
-    if (!cart.state.lines.length || placing) return;
-    if (!online) { setNotice(''); setSaveErr('Kirim ke dapur butuh internet.'); return; }
-    setPlacing(true); setSaveErr(''); setNotice('');
-    try {
-      const o = await persist();
-      const r = await data.kitchenSend(o.id);
-      setNotice(r.sent > 0 ? `${r.sent} baris pesanan ${o.number} dikirim ke dapur.` : `Semua baris pesanan ${o.number} sudah ada di dapur.`);
-    } catch (e) { setSaveErr(e instanceof Error ? e.message : 'Gagal mengirim ke dapur.'); }
-    finally { setPlacing(false); }
-  }
-
   async function hold() {
     if (!cart.state.lines.length || placing) return;
     setPlacing(true); setSaveErr(''); setNotice('');
@@ -199,13 +189,15 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       const o = await persist();
       cart.dispatch({ t: 'clear' }); setPanelOpen(false);
       setNotice(`Pesanan ${o.number} disimpan. Lanjutkan dari Daftar Order.`);
+      const f = forwardNotice(await forwardOrder({ data, ctx, order: o, cashierName: session.employee.name, online }));
+      if (f) setNotice(`Pesanan ${o.number} disimpan. ${f}`);
     } catch (e) { setSaveErr(e instanceof Error ? e.message : 'Pesanan gagal disimpan.'); }
     finally { setPlacing(false); }
   }
 
   if (paying) {
     const fromList = showOrders && paying.id !== cart.state.orderId;
-    return <Payment order={paying} ctx={ctx}
+    return <Payment order={paying} ctx={ctx} skipForward={keepCart}
       onBack={() => { if (keepCart) { setKeepCart(false); setNotice(`Pesanan pisah ${paying.number} belum dibayar; ada di Daftar Order.`); } setPaying(null); }}
       onDone={() => {
         if (keepCart) { setKeepCart(false); setPanelOpen(true); setNotice(`Bagian pisah ${paying.number} lunas. Sisa pesanan masih terbuka di keranjang.`); }
@@ -479,6 +471,13 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             );
           })}
         </div>
+        {(saveErr || notice || tickets.length > 0) && (
+          <div className="reg__notes px-16 py-8 flex flex-col gap-8 min-w-0">
+            {saveErr && <span role="alert" className="text-danger-strong text-sm">{saveErr}</span>}
+            {!saveErr && notice && <span role="status" className="text-sm">{notice}</span>}
+            <TicketStrip />
+          </div>
+        )}
       </section>
 
       <aside className="cg-shell__panel reg__panel" aria-label="Pesanan">
@@ -793,18 +792,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             </button>
           </div>
 
-          {/* Tombol sekunder: Kirim ke dapur dan Pisah bayar per item */}
-          <div className="grid grid-cols-2 gap-6">
-            <button
-              type="button"
-              className="cg-btn cg-btn--secondary cg-btn--sm w-full flex items-center justify-center gap-6"
-              disabled={!cart.state.lines.length || placing}
-              onClick={toKitchen}
-              aria-label="Kirim ke dapur"
-            >
-              <ChefHat className="cg-icon cg-icon--xs" aria-hidden />
-              <span>Kirim ke dapur</span>
-            </button>
+          {/* Tombol sekunder: Pisah bayar per item. Pesanan diteruskan ke dapur/bar otomatis saat disimpan atau dibayar. */}
+          <div className="grid grid-cols-1 gap-6">
             <button
               type="button"
               className="cg-btn cg-btn--secondary cg-btn--sm w-full flex items-center justify-center gap-6"
@@ -844,10 +833,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         </div>
       </aside>
 
-      <footer className={`cg-shell__bar ${!saveErr && !notice ? 'cg-shell__bar--idle' : ''}`}>
-        {saveErr && <span role="alert" className="text-danger-strong text-sm flex-1">{saveErr}</span>}
-        {!saveErr && notice && <span role="status" className="text-sm flex-1">{notice}</span>}
-        <button type="button" className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
+      <footer className="cg-shell__bar cg-shell__bar--idle">
+        <button type="button" className="cg-btn cg-btn--secondary reg__show flex-1" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
       </footer>
       {shiftOpen && <ShiftSummary onClose={() => setShiftOpen(false)} onCloseShift={() => { setShiftOpen(false); onCloseShift(); }} />}
       {settings && <DeviceSettings onClose={() => setSettings(false)} />}

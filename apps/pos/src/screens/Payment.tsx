@@ -6,10 +6,12 @@ import { ReceiptDialog } from './Receipt';
 import { useAsync } from '../lib/use-async';
 import { ApproverFields, useApprover } from '../lib/approver';
 import { useSession } from '../lib/session';
+import { forwardNotice, forwardOrder } from '../lib/stations';
+import { TicketStrip } from './TicketHost';
 
 const ICON: Record<PaymentMethod['kind'], typeof Banknote> = { cash: Banknote, noncash: CreditCard, gateway: QrCode, complimentary: Landmark, deposit: Landmark };
 
-export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: OutletContext; onBack: () => void; onDone: () => void }) {
+export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { order: Order; ctx: OutletContext; onBack: () => void; onDone: () => void; /** bagian pisah bayar: barisnya sudah diteruskan lewat pesanan asal */ skipForward?: boolean }) {
   const data = useData();
   const methods = useAsync(() => data.listPaymentMethods(), [data]);
   const [methodId, setMethodId] = useState<string | null>(null);
@@ -23,6 +25,7 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Order | null>(null);
+  const [fwd, setFwd] = useState('');
   const [printing, setPrinting] = useState(false);
   const [isSplit, setIsSplit] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -64,7 +67,10 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
         ref = `${reference.trim()} · disetujui ${name}`.slice(0, PAYMENT_REF_MAX);
       }
       const res = await data.addPayment(order.id, { id: attemptId.current, methodId: method.id, amount, tendered: isCash ? tendered : undefined, reference: ref });
-      if (res.status === 'paid') setDone(res);
+      if (res.status === 'paid') {
+        setDone(res);
+        if (!skipForward) void forwardOrder({ data, ctx, order: res, cashierName: session.employee.name }).then((r) => setFwd(forwardNotice(r)));
+      }
       else { setPartial(res); setCurrent(res); setMethodId(null); setRaw(''); setAmountRaw(''); setReference(''); attemptId.current = newId(); }
     } catch (e) {
       setErr(e instanceof DataError || e instanceof Error ? e.message : 'Pembayaran gagal. Periksa pesanan lalu coba lagi.');
@@ -85,6 +91,8 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
               <p className="cg-money-lg">{formatRp(p.change)}</p>
             </div>
           )}
+          {fwd && <p className="text-sm text-text-muted" data-testid="forward-notice">{fwd}</p>}
+          <TicketStrip className="justify-center" />
           <div className="cg-totals" style={{ padding: 0 }}>
             <div className="cg-totals__row"><span>Total</span><span className="cg-num">{formatRp(done.total)}</span></div>
             {done.rounding !== 0 && <div className="cg-totals__row"><span>Termasuk pembulatan</span><span className="cg-num">{formatRp(done.rounding)}</span></div>}
