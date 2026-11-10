@@ -349,3 +349,27 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+
+- Selesai (tugas A37): Laporan Jasa / Produk Layanan (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/service-report.ts`:
+     - `buildServiceReport`: mengagregasi data penjualan produk yang berjenis `kind === 'service'` dari pesanan berstatus `paid`.
+     - Metrik ringkasan (`ServiceReportSummary`): total penjualan jasa (Rp), jumlah transaksi (pesanan unik yang memuat layanan), total kuantitas jasa terjual, dan penentuan jasa terlaris (`topService`).
+     - Metrik per item (`ServiceItemStat`): nama layanan, SKU, kuantitas, akumulasi pendapatan, harga rata-rata (`revenue / qty`), dan persentase kontribusi terhadap total pendapatan jasa.
+     - Agregasi harian (`ServiceDailyStat`): omset harian, jumlah transaksi, dan kuantitas per tanggal lokal outlet (format `d Mmm`).
+     - Ekspor CSV (`buildServiceReportCsvRows` & `toServiceReportCsv`): pembentukan baris tabular ber-BOM UTF-8 (`\uFEFF`) dengan metadata periode, ringkasan metrik, header tabel, data per layanan, dan baris total akhir.
+     - 5 unit test komprehensif di `packages/shared/test/service-report.test.ts` (total 351 tes vitest lulus).
+  2. Halaman Laporan Jasa (`/laporan/jasa`):
+     - Komponen halaman klien baru di `apps/dashboard/src/app/laporan/jasa/page.tsx` dengan penanda `built: true` di navigasi `apps/dashboard/src/lib/nav.ts`.
+     - Kontrol periode rentang tanggal menggunakan `RangePicker` yang terintegrasi dengan zona waktu outlet.
+     - 3 Kartu Ringkasan KPI: Total Penjualan Jasa (Rp), Jumlah Transaksi, dan Jasa Terlaris (nama, kuantitas, dan omset).
+     - Grafik Batang Harian Responsif (`DailyBarChart`): SVG terukur dengan garis panduan nominal sumbu Y, batang hijau zamrud (`var(--color-chart-bar)`), label tanggal di sumbu X, dan tooltip hover informatif.
+     - Tabel Rincian Per Jasa: kolom Nama Jasa, SKU, Kuantitas, Pendapatan, Harga Rata-rata, serta bar progress mini dan persentase kontribusi omset, dilengkapi baris footer Total.
+     - Tombol Unduh CSV dengan penamaan file aman (`laporan-jasa-<label>.csv`).
+     - Keadaan Kosong (Empty State) informatif saat belum ada transaksi jasa pada periode yang dipilih.
+  3. Kepatuhan Tailwind & Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (hanya memakai breakpoint `tablet:`, `laptop:`, `desktop:`, `wide:`, ukuran terdaftar/eksplisit, dan token CSS monorepo).
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error pada seluruh 5 proyek workspace).
+     - `pnpm -F @cgpos/shared test` (56 file, 351 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis prerendered).
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol untuk keadaan kosong maupun keadaan terisi data (6 tangkapan layar di `docs/shots/a37/`).
