@@ -361,20 +361,20 @@ export default function FinanceDashboardPage() {
             <div className="grid grid-cols-3 gap-8 p-12 rounded-lg bg-surface border border-border mb-16">
               <div>
                 <span className="text-[11px] text-text-muted block">Pendapatan</span>
-                <span className="text-sm font-bold text-accent">
+                <span className="text-sm font-bold text-accent whitespace-nowrap">
                   {formatRp(incomeSummary.revenue)}
                 </span>
               </div>
               <div>
                 <span className="text-[11px] text-text-muted block">Total Beban</span>
-                <span className="text-sm font-bold text-danger">
+                <span className="text-sm font-bold text-danger whitespace-nowrap">
                   {formatRp(incomeSummary.expenses)}
                 </span>
               </div>
               <div>
                 <span className="text-[11px] text-text-muted block">Laba Bersih</span>
                 <span
-                  className={`text-sm font-bold ${
+                  className={`text-sm font-bold whitespace-nowrap ${
                     incomeSummary.netProfit >= 0 ? 'text-success' : 'text-danger'
                   }`}
                 >
@@ -470,20 +470,20 @@ export default function FinanceDashboardPage() {
             <div className="grid grid-cols-3 gap-8 p-12 rounded-lg bg-surface border border-border mb-16">
               <div>
                 <span className="text-[11px] text-text-muted block">Kas Masuk</span>
-                <span className="text-sm font-bold text-success">
+                <span className="text-sm font-bold text-success whitespace-nowrap">
                   {formatRp(cashFlow.inflow)}
                 </span>
               </div>
               <div>
                 <span className="text-[11px] text-text-muted block">Kas Keluar</span>
-                <span className="text-sm font-bold text-danger">
+                <span className="text-sm font-bold text-danger whitespace-nowrap">
                   {formatRp(cashFlow.outflow)}
                 </span>
               </div>
               <div>
                 <span className="text-[11px] text-text-muted block">Saldo Bersih</span>
                 <span
-                  className={`text-sm font-bold ${
+                  className={`text-sm font-bold whitespace-nowrap ${
                     cashFlow.net >= 0 ? 'text-success' : 'text-danger'
                   }`}
                 >
@@ -541,20 +541,20 @@ export default function FinanceDashboardPage() {
         {/* WIDGET 3: KARTU SALDO KAS */}
         <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col">
           <div>
-            <div className="flex items-center justify-between mb-16">
-              <div className="flex items-center gap-8">
-                <div className="p-8 rounded-lg bg-accent/10 text-accent">
+            <div className="flex items-center justify-between gap-12 mb-16">
+              <div className="flex items-center gap-8 min-w-0">
+                <div className="p-8 rounded-lg bg-accent/10 text-accent shrink-0">
                   <Wallet className="cg-icon cg-icon--sm" aria-hidden />
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-text">Saldo Kas & Bank</h2>
-                  <p className="text-xs text-text-muted">Daftar rekening kas dan bank operasional</p>
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-text truncate">Saldo Kas & Bank</h2>
+                  <p className="text-xs text-text-muted truncate">Daftar rekening kas dan bank operasional</p>
                 </div>
               </div>
 
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span className="text-[11px] text-text-muted block">Total Kas & Bank</span>
-                <span className="text-base font-extrabold text-text">
+                <span className="text-base font-extrabold text-text whitespace-nowrap">
                   {formatRp(totalCashBalance)}
                 </span>
               </div>
@@ -570,13 +570,13 @@ export default function FinanceDashboardPage() {
                 {cashAccountsWithBalance.slice(0, 5).map((acc) => (
                   <div
                     key={acc.id}
-                    className="flex items-center justify-between px-10 py-5 rounded-lg bg-surface border border-border text-xs"
+                    className="flex items-center justify-between px-12 py-[8px] min-h-[48px] rounded-lg bg-surface border border-border text-xs gap-12"
                   >
-                    <div className="min-w-0 pr-8">
+                    <div className="min-w-0 flex-1">
                       <span className="font-semibold text-text truncate block leading-tight">{acc.name}</span>
-                      <span className="text-[11px] text-text-muted font-mono">{acc.code}</span>
+                      <span className="text-[11px] text-text-muted font-mono block">{acc.code}</span>
                     </div>
-                    <span className="font-bold text-text shrink-0 cg-num">
+                    <span className="font-bold text-text shrink-0 cg-num text-right whitespace-nowrap ml-auto">
                       {formatRp(acc.balance)}
                     </span>
                   </div>
@@ -631,25 +631,25 @@ export default function FinanceDashboardPage() {
               <div className="p-12 rounded-lg bg-surface border border-border flex items-center justify-between">
                 <div>
                   <span className="text-xs font-medium text-text-muted block">Total Aset (Aktiva)</span>
-                  <span className="text-base font-bold text-text mt-2 block">
+                  <span className="text-base font-bold text-text mt-2 block whitespace-nowrap">
                     {formatRp(balanceTotals.assets)}
                   </span>
                 </div>
-                <span className="px-8 py-2 rounded-md bg-accent/10 text-accent font-semibold text-xs">
-                  Aktiva
+                <span className="px-8 py-2 rounded-md bg-accent/10 text-accent font-semibold text-xs whitespace-nowrap">
+                  100% Total
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-12">
                 <div className="p-12 rounded-lg bg-surface border border-border">
                   <span className="text-xs font-medium text-text-muted block">Liabilitas (Kewajiban)</span>
-                  <span className="text-sm font-bold text-warning mt-2 block">
+                  <span className="text-sm font-bold text-warning mt-2 block whitespace-nowrap">
                     {formatRp(balanceTotals.liabilities)}
                   </span>
                 </div>
                 <div className="p-12 rounded-lg bg-surface border border-border">
                   <span className="text-xs font-medium text-text-muted block">Ekuitas (Modal)</span>
-                  <span className="text-sm font-bold text-text mt-2 block">
+                  <span className="text-sm font-bold text-text mt-2 block whitespace-nowrap">
                     {formatRp(balanceTotals.equity)}
                   </span>
                 </div>
@@ -685,7 +685,7 @@ export default function FinanceDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-16 pt-10 border-t border-border flex justify-end">
+          <div className="mt-8 pt-8 border-t border-border flex justify-end">
             <Link
               href="/keuangan/laporan?tab=neraca"
               className="text-xs font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-4 transition-colors"
