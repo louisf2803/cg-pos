@@ -50,22 +50,62 @@ function formatYLabel(val: number): string {
   return `${sign}${abs}`;
 }
 
-/** Menghasilkan kurva cubic bezier mulus (spline) */
+/** Menghasilkan kurva monotone cubic bezier (tidak pernah melampaui/overshoot nilai ekstrem atau turun di bawah nol) */
 function createSmoothPath(points: { x: number; y: number }[]): string {
-  if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0]!.x} ${points[0]!.y}`;
+  const n = points.length;
+  if (n === 0) return '';
+  if (n === 1) return `M ${points[0]!.x.toFixed(2)} ${points[0]!.y.toFixed(2)}`;
+  if (n === 2) return `M ${points[0]!.x.toFixed(2)} ${points[0]!.y.toFixed(2)} L ${points[1]!.x.toFixed(2)} ${points[1]!.y.toFixed(2)}`;
 
-  let d = `M ${points[0]!.x} ${points[0]!.y}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] || points[i]!;
+  // 1. Hitung delta dan gradien segmen
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dX = points[i + 1]!.x - points[i]!.x;
+    const dY = points[i + 1]!.y - points[i]!.y;
+    dx.push(dX);
+    slope.push(dX === 0 ? 0 : dY / dX);
+  }
+
+  // 2. Hitung tangen awal (m)
+  const m: number[] = new Array(n).fill(0);
+  m[0] = slope[0]!;
+  m[n - 1] = slope[n - 2]!;
+  for (let i = 1; i < n - 1; i++) {
+    if (slope[i - 1]! * slope[i]! <= 0) {
+      m[i] = 0;
+    } else {
+      m[i] = (slope[i - 1]! + slope[i]!) / 2;
+    }
+  }
+
+  // 3. Fritsch-Carlson condition untuk menjamin monotonisitas (mencegah overshoot)
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+    } else {
+      const alpha = m[i]! / slope[i]!;
+      const beta = m[i + 1]! / slope[i]!;
+      const dist = alpha * alpha + beta * beta;
+      if (dist > 9) {
+        const tau = 3 / Math.sqrt(dist);
+        m[i] = tau * alpha * slope[i]!;
+        m[i + 1] = tau * beta * slope[i]!;
+      }
+    }
+  }
+
+  // 4. Bangun path SVG dengan cubic bezier terkontrol
+  let d = `M ${points[0]!.x.toFixed(2)} ${points[0]!.y.toFixed(2)}`;
+  for (let i = 0; i < n - 1; i++) {
     const p1 = points[i]!;
     const p2 = points[i + 1]!;
-    const p3 = points[i + 2] || p2;
-
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    const dX = dx[i]!;
+    const cp1x = p1.x + dX / 3;
+    const cp1y = p1.y + (m[i]! * dX) / 3;
+    const cp2x = p2.x - dX / 3;
+    const cp2y = p2.y - (m[i + 1]! * dX) / 3;
 
     d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
@@ -279,9 +319,9 @@ export default function FinanceDashboardPage() {
       />
 
       {/* Grid Utama 4 Widget Keuangan: 2 Grafik di atas, 2 Kartu di bawah */}
-      <div className="grid grid-cols-1 laptop:grid-cols-2 gap-20">
+      <div className="grid grid-cols-1 laptop:grid-cols-2 gap-20 items-start">
         {/* WIDGET 1: LABA RUGI */}
-        <div className="p-20 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
+        <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col">
           <div>
             {/* Header Widget */}
             <div className="flex flex-wrap items-center justify-between gap-8 mb-16">
@@ -378,7 +418,7 @@ export default function FinanceDashboardPage() {
             />
           </div>
 
-          <div className="mt-16 pt-10 border-t border-border flex justify-end">
+          <div className="mt-8 pt-8 border-t border-border flex justify-end">
             <Link
               href="/keuangan/laporan?tab=laba-rugi"
               className="text-xs font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-4 transition-colors"
@@ -390,7 +430,7 @@ export default function FinanceDashboardPage() {
         </div>
 
         {/* WIDGET 2: ARUS KAS */}
-        <div className="p-20 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
+        <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col">
           <div>
             {/* Header Widget */}
             <div className="flex flex-wrap items-center justify-between gap-8 mb-16">
@@ -487,7 +527,7 @@ export default function FinanceDashboardPage() {
             />
           </div>
 
-          <div className="mt-16 pt-10 border-t border-border flex justify-end">
+          <div className="mt-8 pt-8 border-t border-border flex justify-end">
             <Link
               href="/keuangan/laporan?tab=arus-kas"
               className="text-xs font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-4 transition-colors"
@@ -499,7 +539,7 @@ export default function FinanceDashboardPage() {
         </div>
 
         {/* WIDGET 3: KARTU SALDO KAS */}
-        <div className="p-20 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
+        <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col">
           <div>
             <div className="flex items-center justify-between mb-16">
               <div className="flex items-center gap-8">
@@ -526,14 +566,14 @@ export default function FinanceDashboardPage() {
                 Belum ada akun kas dan bank terdaftar
               </div>
             ) : (
-              <div className="space-y-8">
+              <div className="space-y-4">
                 {cashAccountsWithBalance.slice(0, 5).map((acc) => (
                   <div
                     key={acc.id}
-                    className="flex items-center justify-between p-10 rounded-lg bg-surface border border-border text-xs"
+                    className="flex items-center justify-between px-10 py-5 rounded-lg bg-surface border border-border text-xs"
                   >
                     <div className="min-w-0 pr-8">
-                      <span className="font-semibold text-text truncate block">{acc.name}</span>
+                      <span className="font-semibold text-text truncate block leading-tight">{acc.name}</span>
                       <span className="text-[11px] text-text-muted font-mono">{acc.code}</span>
                     </div>
                     <span className="font-bold text-text shrink-0 cg-num">
@@ -545,7 +585,7 @@ export default function FinanceDashboardPage() {
             )}
           </div>
 
-          <div className="mt-16 pt-10 border-t border-border flex justify-end">
+          <div className="mt-8 pt-8 border-t border-border flex justify-end">
             <Link
               href="/keuangan/kas"
               className="text-xs font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-4 transition-colors"
@@ -557,7 +597,7 @@ export default function FinanceDashboardPage() {
         </div>
 
         {/* WIDGET 4: KARTU NERACA */}
-        <div className="p-20 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
+        <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col">
           <div>
             <div className="flex items-center justify-between mb-16">
               <div className="flex items-center gap-8">
@@ -595,9 +635,9 @@ export default function FinanceDashboardPage() {
                     {formatRp(balanceTotals.assets)}
                   </span>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center font-bold text-xs">
-                  A
-                </div>
+                <span className="px-8 py-2 rounded-md bg-accent/10 text-accent font-semibold text-xs">
+                  Aktiva
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-12">
