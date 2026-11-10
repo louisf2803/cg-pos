@@ -275,3 +275,4 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   3. Integrasi Navigasi:
      - Menu `Cetak barcode` didaftarkan di modul Penjualan > Katalog (`/produk/barcode`, built: true, tier 2).
   4. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (49 file, 293 tes vitest), `pnpm -F @cgpos/dashboard build` (115 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a31/`).
+- S128 (Claude) — review & merge A31 (cetak barcode, /produk/barcode): lingkup benar (apps/dashboard, docs); lulus review.sh; layout 390/1280/1440 tanpa overflow/galat. Memperbaiki prefix mati (`md: sm: lg:` → tablet:/laptop:) dan kunci spasi tak terdefinisi (w-36/w-10/px-10 → eksplisit) yang kini ditolak penjaga lint-tailwind. Nit mobile (stepper Jumlah terpotong) masuk A43. Tangkapan: docs/shots/rv31/.
