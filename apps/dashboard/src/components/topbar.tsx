@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -17,11 +17,23 @@ import {
   User,
   X,
   Lock,
+  ArrowRight,
+  CheckCircle,
+  RefreshCw,
 } from 'lucide-react';
+import {
+  formatStockAlertSeenValue,
+  getStockAlertSeenKey,
+  groupStockAlerts,
+  isStockAlertSeen,
+  type StockAlertGroup,
+  type StockItem,
+} from '@cgpos/shared';
 import { MODUL, getModuleForPath } from '@/lib/nav';
 import { useAuth } from '@/lib/auth';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
+import { todayKey } from '@/components/fin-common';
 import { useShell } from './shell-context';
 
 export function Topbar() {
@@ -41,13 +53,101 @@ export function Topbar() {
 
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  // Status dan data notifikasi stok
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [stockStatus, setStockStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('loading');
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [isSeenToday, setIsSeenToday] = useState(false);
 
   const moreRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const bellBtnRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const primaryCloseBtnRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+
+  // Ambil data stok untuk notifikasi
+  const fetchStock = useCallback(async () => {
+    try {
+      const list = await data.listStock();
+      setStockItems(list);
+      setStockStatus('ready');
+      setStockError(null);
+    } catch (err: unknown) {
+      setStockStatus('error');
+      setStockError(err instanceof Error ? err.message : 'Gagal memuat data stok');
+    }
+  }, [data]);
+
+  // Polling tiap 60 detik saat tab terlihat
+  useEffect(() => {
+    fetchStock();
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchStock();
+      }
+    }, 60000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchStock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchStock]);
+
+  // Pengelompokan notifikasi stok
+  const stockAlerts = useMemo(() => groupStockAlerts(stockItems), [stockItems]);
+
+  // Periksa status 'sudah dilihat' dari localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const key = getStockAlertSeenKey(todayKey());
+      const val = localStorage.getItem(key);
+      setIsSeenToday(isStockAlertSeen(val, stockAlerts.totalCount));
+    } catch {
+      setIsSeenToday(false);
+    }
+  }, [stockAlerts.totalCount]);
+
+  // Toggle notifikasi dan tandai sudah dilihat
+  const toggleNotif = () => {
+    const next = !notifOpen;
+    setNotifOpen(next);
+    if (next) {
+      try {
+        const key = getStockAlertSeenKey(todayKey());
+        localStorage.setItem(key, formatStockAlertSeenValue(stockAlerts.totalCount));
+        setIsSeenToday(true);
+      } catch {
+        // Abaikan bila di lingkungan non-storage
+      }
+    }
+  };
+
+  // Keyboard accessibility: Escape untuk menutup popover notifikasi dan kembalikan fokus
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setNotifOpen(false);
+        bellBtnRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [notifOpen]);
 
   const contextAsync = useAsync(() => data.getContext(), [data]);
   const currentModule = getModuleForPath(path, activeModuleHint);
@@ -60,6 +160,9 @@ export function Topbar() {
       }
       if (userRef.current && !userRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -284,27 +387,141 @@ export function Topbar() {
 
         {/* Right: Notifications, Business name, User profile, Menu ⋮ (Always visible at 1280px & 1440px) */}
         <div className="flex items-center gap-12 shrink-0">
-          {/* Notification bell with conditional indicator */}
-          <button
-            type="button"
-            className="relative p-8 rounded-full text-text-muted hover:text-text hover:bg-surface transition-colors shrink-0"
-            aria-label="Pemberitahuan baru"
-            title="Pemberitahuan"
-            onClick={() =>
-              setInfoModal({
-                title: 'Pemberitahuan',
-                message: 'Tidak ada pemberitahuan baru saat ini. Seluruh operasional berjalan normal.',
-              })
-            }
-          >
-            <Bell className="cg-icon" aria-hidden />
-            {hasUnreadNotification && (
-              <span
-                className="absolute top-6 right-6 w-2 h-2 rounded-full bg-danger ring-2 ring-surface-raised"
-                aria-hidden
-              />
+          {/* Notification bell with interactive stock alerts popover */}
+          <div className="relative shrink-0" ref={notifRef}>
+            <button
+              ref={bellBtnRef}
+              type="button"
+              data-testid="notif-bell-btn"
+              className="relative p-8 rounded-full text-text-muted hover:text-text hover:bg-surface transition-colors shrink-0 cursor-pointer"
+              aria-label={
+                stockAlerts.totalCount > 0
+                  ? `Pemberitahuan stok: ${stockAlerts.totalCount} item memerlukan perhatian`
+                  : 'Pemberitahuan stok'
+              }
+              aria-haspopup="dialog"
+              aria-expanded={notifOpen}
+              title="Pemberitahuan stok"
+              onClick={toggleNotif}
+            >
+              <Bell className="cg-icon" aria-hidden />
+              {stockAlerts.totalCount > 0 && !isSeenToday && (
+                <span
+                  data-testid="notif-badge"
+                  className="absolute -top-[4px] -right-[4px] min-w-[18px] h-[18px] px-[4px] rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-surface leading-none"
+                  aria-hidden
+                >
+                  {stockAlerts.totalCount > 99 ? '99+' : stockAlerts.totalCount}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <div
+                role="dialog"
+                aria-label="Pemberitahuan stok"
+                data-testid="notif-popover"
+                className="absolute right-0 mt-8 w-[340px] max-w-[calc(100vw-32px)] bg-surface border border-border rounded-xl shadow-xl z-50 p-16 text-text flex flex-col"
+              >
+                {/* Header Popover */}
+                <div className="flex items-center justify-between pb-12 border-b border-border mb-12">
+                  <div className="flex items-center gap-8">
+                    <span className="font-semibold text-sm">Pemberitahuan Stok</span>
+                    {stockAlerts.totalCount > 0 && (
+                      <span className="cg-badge cg-badge--danger text-xs font-semibold">
+                        {stockAlerts.totalCount}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotifOpen(false);
+                      bellBtnRef.current?.focus();
+                    }}
+                    className="text-text-muted hover:text-text p-4 rounded-md transition-colors"
+                    aria-label="Tutup notifikasi"
+                  >
+                    <X className="w-16 h-16" />
+                  </button>
+                </div>
+
+                {/* Konten Berdasarkan Keadaan: memuat, galat, kosong, atau ada notifikasi */}
+                {stockStatus === 'loading' ? (
+                  <div className="py-16 text-center text-xs text-text-muted" aria-busy="true">
+                    <RefreshCw className="w-16 h-16 animate-spin mx-auto mb-8 text-primary" />
+                    <span>Memeriksa stok...</span>
+                  </div>
+                ) : stockStatus === 'error' ? (
+                  <div className="p-12 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                    <p className="font-semibold mb-4">Gagal memuat notifikasi</p>
+                    <p className="text-text-muted mb-8">{stockError}</p>
+                    <button
+                      type="button"
+                      className="cg-btn cg-btn--secondary text-xs py-[4px] px-8"
+                      onClick={fetchStock}
+                    >
+                      Coba lagi
+                    </button>
+                  </div>
+                ) : !stockAlerts.hasAlerts ? (
+                  <div className="py-16 px-8 text-center text-xs text-text-muted">
+                    <CheckCircle className="w-24 h-24 text-success mx-auto mb-8" />
+                    <p className="font-semibold text-text text-sm mb-4">Semua stok aman</p>
+                    <p>Tidak ada bahan atau produk yang habis, minus, atau di bawah batas minimum.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-8 max-h-[320px] overflow-y-auto">
+                    {stockAlerts.groups.map((g: StockAlertGroup) => (
+                      <Link
+                        key={g.status}
+                        href={g.href}
+                        onClick={() => setNotifOpen(false)}
+                        className="p-12 rounded-lg border border-border hover:border-primary hover:bg-surface-muted transition-colors flex flex-col gap-4 text-xs group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-text group-hover:text-primary transition-colors">
+                            {g.label}
+                          </span>
+                          <span className={`cg-badge ${g.badgeClass}`}>
+                            {g.count} item
+                          </span>
+                        </div>
+                        <p className="text-text-muted line-clamp-2">
+                          {g.items.slice(0, 3).map((it: StockItem) => it.name).join(', ')}
+                          {g.items.length > 3 ? ` dan ${g.items.length - 3} lainnya` : ''}
+                        </p>
+                        <div className="flex items-center justify-end text-primary text-[11px] font-medium mt-[4px]">
+                          <span>Buka halaman stok →</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {/* Footer link ke daftar stok */}
+                <div className="pt-12 mt-12 border-t border-border flex items-center justify-between text-xs">
+                  <Link
+                    href="/inventori/stok"
+                    onClick={() => setNotifOpen(false)}
+                    className="text-primary hover:underline font-medium flex items-center gap-4"
+                  >
+                    <span>Buka daftar stok</span>
+                    <ArrowRight className="w-12 h-12" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={fetchStock}
+                    className="text-text-muted hover:text-text flex items-center gap-4 cursor-pointer"
+                    title="Perbarui data stok sekarang"
+                  >
+                    <RefreshCw className="w-12 h-12" />
+                    <span>Segarkan</span>
+                  </button>
+                </div>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* Business & User badge (shrink-0, clearly displayed) */}
           <div className="hidden laptop:flex flex-col text-right justify-center shrink-0 min-w-0">

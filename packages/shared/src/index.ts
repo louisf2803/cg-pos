@@ -49,4 +49,5 @@ export * from './cash-entry';
 export * from './reconcile';
 export * from './barcode';
 export * from './columns';
+export * from './stock-alerts';
 

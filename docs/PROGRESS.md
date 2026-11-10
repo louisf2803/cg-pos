@@ -299,3 +299,29 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   5. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (301 tes vitest), `pnpm -F @cgpos/dashboard build` (115 halaman statis), lint Tailwind `scripts/lint-tailwind.sh`, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (15 tangkapan layar di `docs/shots/a32/`).
 - S132 (Claude) — review & merge A32 (atur kolom + ekspor laporan Penjualan/Per periode/Karyawan): lingkup benar (apps/dashboard, packages/shared, docs); lulus review.sh setelah kuperbaiki: prefix mati `md:` di laporan/karyawan, kunci spasi tak terdefinisi (`mt-6`, `mt-2`). Cacat tampilan yang lolos dari tes AG: (1) `PageHeader` memberi blok judul `flex-1` basis 0 sehingga di 390 px judul halaman terhimpit tombol aksi (huruf bertumpuk) — kini `basis-[240px]` (berlaku untuk semua halaman dashboard); (2) popover Atur kolom `absolute` terpotong wadah halaman yang pendek di ≥600 px (tombol Reset/Selesai tak terjangkau) — kini `fixed` dengan posisi dihitung dari tombol. Playwright 390/1280/1440: tanpa overflow/galat; tangkapan docs/shots/rv32/ sudah kulihat.
 - S133 (Claude) — migrasi produksi atas persetujuan Louis ("Migrasi lanjutkan aja", 11 Nov 2026 01:23 WIB, menjawab usulan menerapkan 0028, 0029, 0030): diterapkan satu per satu, semuanya `success`: 0028_owner_guard_revoke, 0029_print_stations, 0030_note_presets (tanpa begin/commit, dibungkus apply_migration). Verifikasi baca-saja: anon dan authenticated tidak lagi bisa mengeksekusi `employees_owner_guard()`; tabel `pos.print_stations` dan `pos.note_presets` ada, RLS aktif, anon tanpa akses, 0 baris; kolom `products.print_station_id` dan `kitchen_items.station_id` ada; 0 produk terpetakan (tidak ada data produksi diubah/diisi; stasiun belum dibuat — menunggu layar A44 atau Louis). Penasihat keamanan: SECURITY DEFINER dapat dieksekusi authenticated turun 43→42; tidak ada temuan baru dari tabel baru; sisa temuan (public.* RLS/search_path, 42 RPC pos, leaked password) sudah ada sebelumnya dan schema public tidak disentuh. Belum dicoba dengan login nyata. Daftar migrasi produksi kini sampai 0030 (0001–0030 lengkap).
+
+- Selesai (tugas A35): Notifikasi Stok di Dashboard (Lonceng Topbar) (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/stock-alerts.ts`:
+     - `groupStockAlerts`: mengelompokkan item stok yang membutuhkan perhatian dari `StockItem[]`:
+       - Stok minus (`negative`, `< 0`, lencana merah, tautan `/inventori/stok?status=negative`).
+       - Stok habis (`out`, `== 0`, lencana merah, tautan `/inventori/stok?status=out`).
+       - Stok menipis (`low`, `<= minQty`, lencana peringatan amber, tautan `/inventori/stok?status=low`).
+     - `getStockAlertSeenKey`, `isStockAlertSeen`, dan `formatStockAlertSeenValue`: pengelolaan status "sudah dilihat" harian berbasis tanggal lokal outlet di `localStorage`. Lencana notifikasi otomatis tampil kembali jika jumlah stok yang bermasalah bertambah dibanding saat terakhir dilihat.
+     - 4 unit tests di `packages/shared/test/stock-alerts.test.ts` (suite 53 file, 328 tes vitest lulus).
+  2. Komponen Popover Lonceng di Topbar (`apps/dashboard/src/components/topbar.tsx`):
+     - Lencana Jumlah Merah: menampilkan hitungan total item bermasalah (`99+` bila sangat banyak), yang hilang saat pengguna membuka notifikasi pada hari tersebut.
+     - Polling Otomatis 60 Detik: penyegaran data stok otomatis setiap 60 detik yang dijeda saat tab tidak terlihat (`visibilitychange`).
+     - Tampilan Popover Interaktif:
+       - Keadaan Memuat: spinner berputar halus.
+       - Keadaan Galat: pesan kesalahan jelas dengan tombol "Coba lagi".
+       - Keadaan Aman: ikon centang hijau ramah ("Semua stok aman").
+       - Keadaan Ada Notifikasi: kartu kelompok (Stok minus, Stok habis, Stok menipis) dengan jumlah item, cuplikan 3 nama produk teratas, dan tombol navigasi langsung ke halaman stok berfilter.
+       - Footer: tautan "Buka daftar stok" dan tombol "Segarkan".
+     - Aksesibilitas Keyboard: tombol Escape menutup popover dan mengembalikan fokus ke ikon lonceng; klik di luar popover menutup panel.
+  3. Integrasi Halaman Stok (`/inventori/stok`):
+     - Membaca parameter URL `?status=` untuk secara otomatis mengaktifkan filter status yang sesuai saat pengguna mengklik kartu dari notifikasi.
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (53 file, 328 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a35/`).
