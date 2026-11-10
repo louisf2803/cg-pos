@@ -16,3 +16,13 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Untuk: Layar `/keuangan/transfer` agar dapat membedakan secara pasti transaksi pemindahan kas/bank dari jurnal manual biasa tanpa mengandalkan teks deskripsi.
 - Bentuk yang diinginkan: `JournalSource` mencakup `'transfer'` saat disimpan lewat dialog pindah saldo, sehingga dapat difilter lewat `data.listJournal({ sourceType: 'transfer' })`.
 - Sementara: Layar membaca jurnal manual (`sourceType: 'manual'`) dan menyaring berdasarkan deskripsi / kata kunci "Pindah saldo", "Transfer", atau "Mutasi kas".
+
+## /pengaturan/struk — 2026-11-11
+- Butuh: Kolom database dan dukungan DataLayer untuk:
+  1. `receipt_logo_url` (unggah/tautan gambar logo outlet untuk dicetak di kepala struk thermal)
+  2. `receipt_show_qr` (opsi cetak kode QR pembayaran dinamis di struk)
+  3. `receipt_default_paper` (pilihan lebar kertas bawaan outlet: 58 mm vs 80 mm)
+- Untuk: Layar `/pengaturan/struk` (A47 editor tampilan struk pelanggan).
+- Bentuk yang diinginkan: Kolom di tabel `outlet_options` atau properti dalam `OutletOptions` / `ReceiptTemplate`.
+- Sementara: Ditampilkan sebagai opsi nonaktif berlabel "Segera" di tab Header dan Body pada editor struk.
+

@@ -361,7 +361,7 @@ export const MODUL: NavModule[] = [
         icon: Sliders,
         items: [
           { href: '/pengaturan/stok', label: 'Notifikasi dan batas stok', screen: 'S60', tier: 2 },
-          { href: '/pengaturan/struk', label: 'Tampilan struk', screen: 'S53', tier: 2 },
+          { href: '/pengaturan/struk', label: 'Tampilan struk', screen: 'S53', tier: 2, built: true },
           { href: '/dapur', label: 'Layar dapur', screen: 'S60', tier: 3, built: true },
         ],
       },
