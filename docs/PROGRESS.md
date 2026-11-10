@@ -349,3 +349,30 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+
+- Selesai (tugas A44): Pengaturan Stasiun Cetak & Editor Templat Tiket (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/station.ts`:
+     - Menambahkan opsi dan helper metadata: `PRINT_MODE_OPTIONS`, `STATION_KIND_OPTIONS`, `printModeLabel`, `stationKindLabel`.
+     - 2 unit test baru di `packages/shared/test/station.test.ts` (total 348 tes vitest lulus).
+  2. Layar `/pengaturan/stasiun-cetak` (`apps/dashboard/src/app/pengaturan/stasiun-cetak/page.tsx`):
+     - Daftar stasiun: kartu informatif per stasiun (nama, jenis Checker/Label, mode cetak Otomatis/Tanyakan/Mati, jumlah salinan, lebar kertas 58/80 mm, ukuran huruf tema, jumlah produk terhubung, dan status aktif).
+     - Keadaan kosong (Empty state): pesan ramah dengan 2 tombol aksi ("Buat Dapur dan Bar" yang langsung memanggil `savePrintStation` untuk dua stasiun bawaan, dan "Buat stasiun sendiri").
+     - Formulir Dialog (`StationFormModal`):
+       - Input nama stasiun (maks 40 huruf, validasi langsung dengan `stationProblem`).
+       - Pilihan jenis stasiun (Checker Dapur/Bar vs Label Cup/Kemasan).
+       - Pilihan mode cetak di kasir (Otomatis, Tanyakan, Mati) dengan penjelasan lengkap.
+       - Jumlah salinan tiket (1–5 rangkap) dan lebar kertas printer (58 mm / 80 mm).
+       - Saklar status aktif stasiun.
+       - Editor templat tiket terintegrasi: judul atas tiket, teks bawah tiket, pilihan ukuran huruf tiket / tema (Normal, Sedang, Besar sesuai pembaruan 11 Nov), serta sakelar tampil/sembunyi 10 atribut (nomor pesanan, jenis order, meja, tamu, kasir, waktu, catatan, ekstra, cetak tebal, garis pemisah).
+       - Pratinjau langsung tiket pesanan monospace (`<pre>`) di samping formulir pada desktop/tablet dan di bawah pada mobile, menggunakan `checkerPieces`/`labelPieceSets` + `sampleTicket()` dan `paperCols(paper)`. Aman di 390px tanpa meluap.
+       - Aksi hapus stasiun dengan modal konfirmasi dan peringatan pelepasan produk terhubung.
+       - Penanganan galat server menggunakan komponen `cg-banner` danger.
+     - Navigasi: menambahkan `{ href: '/pengaturan/stasiun-cetak', label: 'Stasiun cetak', screen: 'S53', tier: 2, built: true }` pada grup Operasional & Cetak di `apps/dashboard/src/lib/nav.ts`.
+  3. Kepatuhan Tailwind Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (55 file, 348 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a44/`).
+
