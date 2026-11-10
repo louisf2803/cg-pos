@@ -19,6 +19,7 @@ const PHOTO_BUCKET = 'menu-images';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
+import { paymentRefProblem } from './payment-rules';
 import { buildShiftReport, type ShiftInputs, type ShiftReportRow } from './shift-report';
 import type { DataLayer } from './data';
 import { DataError } from './types';
@@ -55,7 +56,7 @@ const PRODUCT_SELECT =
 const ORDER_SELECT =
   'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at,order_item_extras(option_id,name,price,qty)),' +
-  'payments(id,method_id,amount,tendered,change_given,status,paid_at,payment_methods(name,kind))';
+  'payments(id,method_id,amount,tendered,change_given,status,paid_at,reference,payment_methods(name,kind))';
 /** Untuk membangun ulang payload op: semua kolom yang dibutuhkan _apply_op. */
 const ORDER_RAW_SELECT =
   'id,number,order_type,table_id,customer_id,guest_count,label,note,queue_no,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,client_created_at,' +
@@ -1528,6 +1529,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const method = must(await db().from('payment_methods').select('id,kind,name').eq('id', pay.methodId).maybeSingle()) as Row | null;
       if (!method) throw new DataError('not_found', 'Metode bayar tidak ditemukan');
       if (method.kind === 'gateway') throw new DataError('invalid', 'Pembayaran QRIS (DOKU) belum diaktifkan');
+      const refProblem = paymentRefProblem(method.kind as PaymentMethod['kind'], pay.reference);
+      if (refProblem) throw new DataError('invalid', refProblem);
 
       // pembulatan mengikuti metode, ditentukan pada pembayaran pertama (pesanan masih open -> boleh upsert ulang)
       const ops: { type: string; entityId?: string; payload: unknown }[] = [];
@@ -1549,7 +1552,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         payload: {
           id: pay.id, order_id: orderId, method_id: pay.methodId, shift_id: shift?.id ?? raw.shift_id ?? null,
           amount: pay.amount, tendered: pay.tendered ?? pay.amount, paid_at: pay.paidAt ?? now().toISOString(),
-          created_by: raw.cashier_id,
+          reference: pay.reference?.trim() || null, created_by: raw.cashier_id,
         },
       });
       await pushOps(deviceId, ops);

@@ -19,6 +19,7 @@ export * from './escpos';
 export * from './table-ops';
 export * from './permissions';
 export * from './shift-report';
+export * from './payment-rules';
 export * from './photo';
 export * from './customer';
 export * from './promo';

@@ -60,7 +60,7 @@ export interface ExtraGroupInput {
   id?: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect?: number | null;
   options: { id?: string; name: string; price: number }[]; productIds: string[];
 }
-export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string }
+export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string; reference?: string }
 /** Pelanggan. pointsBalance = saldo poin loyalti (diisi server). */
 export interface Customer {
   id: string; code?: string; name: string; phone?: string; email?: string; gender?: 'female' | 'male' | 'other'; birthDate?: string;
@@ -110,7 +110,8 @@ export interface RefundInput {
   id: string; orderId: string; methodId: string; items: { orderItemId: string; qty: number }[];
   reason: string; note?: string; restock: boolean; authorizedBy: string;
 }
-export interface PaymentInput { id: string; methodId: string; amount: number; tendered?: number; paidAt?: string }
+/** reference = nomor struk EDC / bukti transfer (opsional) atau alasan gratis (wajib untuk komplimen) */
+export interface PaymentInput { id: string; methodId: string; amount: number; tendered?: number; paidAt?: string; reference?: string }
 
 export interface SalesRange { from: string; to: string }
 export interface SalesSummary {

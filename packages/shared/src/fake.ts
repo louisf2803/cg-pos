@@ -19,6 +19,7 @@ import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
+import { paymentRefProblem } from './payment-rules';
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf, trialBalanceOf,
@@ -94,6 +95,7 @@ const METHODS: PaymentMethod[] = [
   { id: 'm-qris', code: 'QRIS', name: 'QRIS', kind: 'gateway', requiresOnline: true },
   { id: 'm-edc', code: 'EDC', name: 'Kartu', kind: 'noncash', requiresOnline: false },
   { id: 'm-trf', code: 'TRF', name: 'Transfer bank', kind: 'noncash', requiresOnline: false },
+  { id: 'm-free', code: 'FREE', name: 'Gratis', kind: 'complimentary', requiresOnline: false },
 ];
 
 
@@ -379,6 +381,17 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         items: draftItems.map((d, k) => ({ ...d, lineTotal: calc.lines[k]!.lineTotal })), subtotal: calc.subtotal, discountTotal: calc.discountTotal, serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal,
         rounding: calc.rounding, total: calc.total, paidTotal: 0, payments: [], openedAt: at.toISOString() });
       for (const d of draftItems) kitchen.set(d.id, { status: 'new', sentAt: at.toISOString(), statusAt: at.toISOString() });
+    }
+    {
+      const at = new Date(base.getTime() - 90 * 60000);
+      const pr = products.find((q) => q.id === 'p3')!;
+      const it = { id: 'demo-free-0', productId: 'p3', name: pr.name, qty: 1, unitPrice: pr.price };
+      const calc = recompute({ id: 'demo-free', type: 'takeaway', items: [it] }, 0);
+      const m = method('m-free');
+      orders.push({ id: 'demo-free', number: formatOrderNumber(CTX.outletCode, CTX.deviceCode, at, seqFor(at), CTX.timezone), type: 'takeaway', cashierId: 'e-sari', status: 'paid',
+        items: [{ ...it, lineTotal: calc.lines[0]!.lineTotal }], subtotal: calc.subtotal, discountTotal: 0, serviceCharge: calc.serviceCharge, taxTotal: calc.taxTotal, rounding: 0, total: calc.total, paidTotal: calc.total,
+        payments: [{ id: 'demo-free-pay', methodId: m.id, methodName: m.name, kind: m.kind, amount: calc.total, change: 0, paidAt: at.toISOString(), reference: 'Kompensasi keluhan pelanggan' }],
+        openedAt: at.toISOString(), closedAt: at.toISOString() });
     }
     // satu kasir lagi masih bertugas, supaya keadaan "belum bisa tutup toko" terlihat
     shifts.push({ id: 'demo-shift-open', cashierId: 'e-budi', openedAt: new Date(base.getTime() - 2 * 3600_000).toISOString(), openingCash: 150000, status: 'open' });
@@ -1184,6 +1197,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (o.status === 'void') throw new DataError('order_locked', 'Pesanan sudah dibatalkan');
       if (o.payments.some((p) => p.id === pay.id)) return clone(named(o));                // idempoten
       const m = method(pay.methodId);
+      const refProblem = paymentRefProblem(m.kind, pay.reference);
+      if (refProblem) throw new DataError('invalid', refProblem);
       // pembulatan mengikuti metode; dihitung pada pembayaran yang melunasi
       const step = m.kind === 'cash' ? CTX.settings.roundingCashStep : CTX.settings.roundingNoncashStep;
       let total = o.total, rounding = o.rounding;
@@ -1193,7 +1208,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const tendered = pay.tendered ?? pay.amount;
       const change = Math.max(tendered - pay.amount, 0);                          // sama dengan server (tendered - amount)
       const at = pay.paidAt ?? now().toISOString();
-      o.payments.push({ id: pay.id, methodId: m.id, methodName: m.name, kind: m.kind, amount: pay.amount, tendered, change: m.kind === 'cash' ? change : 0, paidAt: at });
+      o.payments.push({ id: pay.id, methodId: m.id, methodName: m.name, kind: m.kind, amount: pay.amount, tendered, change: m.kind === 'cash' ? change : 0, paidAt: at, ...(pay.reference?.trim() ? { reference: pay.reference.trim() } : {}) });
       o.total = total; o.rounding = rounding; o.paidTotal += pay.amount;
       o.status = o.paidTotal >= o.total ? 'paid' : 'partially_paid';
       if (o.status === 'paid') {

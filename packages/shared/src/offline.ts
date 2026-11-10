@@ -187,7 +187,7 @@ export function createOfflineData(inner: DataLayer, opts: Options): OfflineData 
     if (pay.amount <= 0 || pay.amount > total - o.paidTotal) throw new DataError('bad_amount', 'Jumlah melebihi sisa tagihan');
     const tendered = pay.tendered ?? pay.amount;
     const at = pay.paidAt ?? now().toISOString();
-    o.payments.push({ id: pay.id, methodId: m.id, methodName: m.name, kind: m.kind, amount: pay.amount, tendered, change: m.kind === 'cash' ? Math.max(tendered - pay.amount, 0) : 0, paidAt: at });
+    o.payments.push({ id: pay.id, methodId: m.id, methodName: m.name, kind: m.kind, amount: pay.amount, tendered, change: m.kind === 'cash' ? Math.max(tendered - pay.amount, 0) : 0, paidAt: at, ...(pay.reference?.trim() ? { reference: pay.reference.trim() } : {}) });
     o.total = total; o.rounding = rounding; o.paidTotal += pay.amount;
     o.status = o.paidTotal >= o.total ? 'paid' : 'partially_paid';
     if (o.status === 'paid') o.closedAt = at;

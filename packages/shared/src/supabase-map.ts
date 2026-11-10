@@ -113,7 +113,7 @@ export function toOrder(r: Row): Order {
     .map((p) => ({
       id: p.id, methodId: p.method_id, methodName: p.payment_methods?.name ?? '', kind: p.payment_methods?.kind ?? 'cash',
       amount: num(p.amount), tendered: p.tendered === null || p.tendered === undefined ? undefined : num(p.tendered),
-      change: num(p.change_given), paidAt: p.paid_at,
+      change: num(p.change_given), paidAt: p.paid_at, ...(p.reference ? { reference: p.reference as string } : {}),
     }));
   return {
     id: r.id, number: r.number, type: r.order_type as OrderType, tableId: r.table_id ?? undefined, customerId: r.customer_id ?? undefined, label: r.label ?? undefined, guestCount: r.guest_count ?? undefined, shiftId: r.shift_id ?? undefined,
