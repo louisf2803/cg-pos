@@ -177,3 +177,12 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 - Cacat yang kuperbaiki sendiri (tes lulus tapi tampilan salah): (1) `w-28/h-28` pada tombol stepper keranjang jatuh ke skala bawaan Tailwind = 112px, kini 32px; (2) bilah bawah kasir kosong menyisakan pita putih 72px di desktop, kini disembunyikan bila tak ada pesan/galat; (3) teks "di sebelah kiri" di layar bayar salah di mobile, kini netral.
 - Catatan kecil untuk tugas berikut: chip tab aktif di Daftar Order mobile kurang menonjol; ikon Kartu dan Transfer bank sama.
 - Paritas fitur tidak berubah (baris sudah `yes`; ini polesan tampilan).
+
+- Selesai (tugas A26): Produk Layanan / Jasa di Form Produk & Daftar Produk Dashboard (`apps/dashboard`):
+  1. Form Produk (`ProductForm`): Menambahkan segmented control "Barang" atau "Jasa" (`.cg-tabs` / `.cg-tab`) pada form tambah dan ubah produk. Bawaan adalah "Barang", dan saat mengubah produk terisi otomatis dari data produk (`initial.kind`).
+  2. Kondisi Jasa: Saat jenis "Jasa" dipilih, isian "Lacak stok" disembunyikan/dinonaktifkan, `trackStock` dikirim sebagai `false`, dan penjelasan satu kalimat ditampilkan ("Jasa tidak punya stok, langsung terjual saat dipesan.").
+  3. Daftar Produk (`/produk`): Menambahkan lencana kecil hijau tosca "Jasa" (`.cg-badge--accent`) di samping nama produk untuk produk berjenis jasa; menambahkan filter segmented control jenis ("Semua" / "Barang" / "Jasa") di atas daftar katalog.
+  4. Validasi Resep & Konfirmasi Stok: Produk jasa divalidasi tidak boleh memiliki resep bahan (bila produk memiliki resep di `data.listRecipes()`, perpindahan ke jenis Jasa ditolak dengan pesan jelas); jika mengubah produk Barang yang sudah memiliki stok tercatat (`data.listStock() > 0`) ke Jasa, dialog konfirmasi modal (`ConfirmServiceDialog`) ditampilkan untuk mengonfirmasi penonaktifan pelacakan stok.
+  5. Integritas DataLayer: `fake.ts` dan `supabase.ts` telah mendukung penuh penyimpanan `kind: 'goods' | 'service'` dan pembacaan katalog tanpa perlu mengubah `data.ts` atau skema database.
+  6. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (46 file, 270 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (13 tangkapan layar di `docs/shots/a26/`).
+

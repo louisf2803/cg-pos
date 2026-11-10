@@ -6,6 +6,7 @@ import { DataError, formatRp, newId, parseRp, priceOverridePctProblem, variantsP
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox } from '@/components/page';
+import { useDialog } from '@/components/fin-common';
 import { prepareProductPhoto } from '@/lib/image';
 
 interface Row { key: string; id?: string; label: string; price: string; sku: string; isActive: boolean }
@@ -13,11 +14,34 @@ const newRow = (r: Partial<Row> = {}): Row => ({ key: newId(), label: '', price:
 
 class PhotoFailed extends Error {}
 
+function ConfirmServiceDialog({ count, onCancel, onConfirm }: { count: number; onCancel: () => void; onConfirm: () => void }) {
+  const d = useDialog(onCancel);
+  return (
+    <dialog {...d.props} aria-labelledby="confirm-jasa-title">
+      <div className="grid gap-12 p-16">
+        <h3 id="confirm-jasa-title" className="text-lg font-bold">Ubah jenis menjadi Jasa?</h3>
+        <p className="text-sm text-text-muted">
+          Produk ini masih memiliki stok tercatat ({count} unit). Jasa tidak memiliki stok dan langsung terjual saat dipesan. Pelacakan stok akan dinonaktifkan.
+        </p>
+        <div className="flex justify-end gap-8 mt-8">
+          <button type="button" className="cg-btn cg-btn--secondary" onClick={onCancel}>
+            Batal
+          </button>
+          <button type="button" className="cg-btn cg-btn--primary" onClick={onConfirm}>
+            Ya, ubah ke Jasa
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 /** Form produk gaya Majoo: satu produk, boleh punya varian (S/M/L, dst.) dengan harga dan SKU masing-masing. */
 export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const data = useData();
   const router = useRouter();
   const cats = useAsync(() => data.listCategories(), [data]);
+  const [kind, setKind] = useState<'goods' | 'service'>(initial?.kind ?? 'goods');
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
   const [price, setPrice] = useState(initial && initial.variants.length === 0 ? String(initial.price) : '');
@@ -29,6 +53,7 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const [overridePct, setOverridePct] = useState(initial?.priceOverridePct ? String(initial.priceOverridePct) : '');
   const [err, setErr] = useState<{ field?: string; msg: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const firstNew = useRef<HTMLInputElement | null>(null);
   // foto: 'keep' = tidak diubah; 'new' = dipasang setelah produk tersimpan; 'remove' = dihapus setelah tersimpan
   const [photo, setPhoto] = useState<{ kind: 'keep' } | { kind: 'remove' } | { kind: 'new'; input: ProductPhotoInput; previewUrl: string }>({ kind: 'keep' });
@@ -36,6 +61,23 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const savedId = useRef<string | undefined>(initial?.id);
   const shownPhoto = photo.kind === 'new' ? photo.previewUrl : photo.kind === 'remove' ? undefined : initial?.photoUrl;
+
+  const productMeta = useAsync(async () => {
+    if (!initial?.id) return { hasStock: false, stockQty: 0, hasRecipe: false };
+    const [stocks, recipes] = await Promise.all([
+      data.listStock({ kind: 'goods' }),
+      data.listRecipes(),
+    ]);
+    const ids = new Set([initial.id, ...(initial.variants?.map((v) => v.id) ?? [])]);
+    const matchedStock = stocks.filter((s) => ids.has(s.productId));
+    const stockQty = matchedStock.reduce((sum, s) => sum + Math.max(0, s.qty), 0);
+    const hasRecipe = recipes.some((r) => ids.has(r.id) && r.lines.length > 0);
+    return {
+      hasStock: stockQty > 0,
+      stockQty,
+      hasRecipe,
+    };
+  }, [data, initial?.id]);
 
   async function pickPhoto(file: File | undefined) {
     if (!file) return;
@@ -52,10 +94,36 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
     if (on && rows.length === 0) setRows([newRow({ label: 'S', price }), newRow({ label: 'M', price }), newRow({ label: 'L', price })]);
   }
 
+  function requestKind(next: 'goods' | 'service') {
+    if (next === kind) return;
+    setErr(null);
+    if (next === 'service') {
+      const meta = productMeta.status === 'ready' ? productMeta.data : null;
+      if (meta?.hasRecipe) {
+        setErr({ msg: 'Produk jasa tidak boleh punya resep. Hapus resep terlebih dahulu di menu Inventori > Resep.' });
+        return;
+      }
+      if (initial && initial.kind !== 'service' && meta?.hasStock) {
+        setConfirmOpen(true);
+        return;
+      }
+      setKind('service');
+      setTrackStock(false);
+    } else {
+      setKind('goods');
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
     if (!name.trim()) return setErr({ field: 'name', msg: 'Nama produk wajib diisi.' });
+    if (kind === 'service') {
+      const meta = productMeta.status === 'ready' ? productMeta.data : null;
+      if (meta?.hasRecipe) {
+        return setErr({ msg: 'Produk jasa tidak boleh punya resep. Hapus resep terlebih dahulu di menu Inventori > Resep.' });
+      }
+    }
     const variants = hasVariants ? rows.map((r) => ({ id: r.id, label: r.label, price: parseRp(r.price), sku: r.sku.trim() || undefined, isActive: r.isActive })) : [];
     if (hasVariants) {
       if (variants.length === 0) return setErr({ msg: 'Tambahkan minimal satu varian, atau matikan pilihan varian.' });
@@ -70,7 +138,7 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
     try {
       const saved = await data.saveCatalogProduct({
         id: savedId.current, name, categoryId: categoryId || null, price: hasVariants ? 0 : parseRp(price), sku: hasVariants ? undefined : sku.trim() || undefined,
-        trackStock, isActive, isFavorite: initial?.isFavorite, kind: initial?.kind, variants,
+        trackStock: kind === 'service' ? false : trackStock, isActive, isFavorite: initial?.isFavorite, kind, variants,
       });
       if (pct > 0 || initial?.priceOverridePct) await data.setPriceOverride(saved.variants.length ? saved.variants.map((v) => v.id) : [saved.id], pct);
       savedId.current = saved.id;      // bila foto gagal, simpan ulang memperbarui produk yang sama, bukan membuat ganda
@@ -94,6 +162,33 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
           <input id="nama" className="cg-input" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={err?.field === 'name'} aria-describedby={err?.field === 'name' ? 'e-nama' : undefined} autoFocus />
           {err?.field === 'name' && <p id="e-nama" className="cg-error">{err.msg}</p>}
         </div>
+
+        <div className="cg-field">
+          <span className="cg-label" id="pf-jenis-label">Jenis produk</span>
+          <div className="cg-tabs w-fit" role="radiogroup" aria-labelledby="pf-jenis-label">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={kind === 'goods'}
+              aria-selected={kind === 'goods'}
+              className="cg-tab"
+              onClick={() => requestKind('goods')}
+            >
+              Barang
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={kind === 'service'}
+              aria-selected={kind === 'service'}
+              className="cg-tab"
+              onClick={() => requestKind('service')}
+            >
+              Jasa
+            </button>
+          </div>
+        </div>
+
         <div className="cg-field">
           <label className="cg-label" htmlFor="kategori">Kategori</label>
           <select id="kategori" className="cg-input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -172,13 +267,35 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
           <input id="pf-override" className="cg-input cg-num" style={{ maxWidth: 160 }} inputMode="decimal" placeholder="0 = tidak boleh" value={overridePct} onChange={(e) => { setOverridePct(e.target.value.replace(/[^\d.,]/g, '')); setErr(null); }} aria-invalid={err?.field === 'override'} />
           <p className="text-sm text-text-muted">Kosong atau 0: harga tetap. Isi 20 bila kasir boleh menaikkan atau menurunkan harga sampai 20% dari harga daftar, misalnya untuk menu yang dihitung per timbangan atau tawar-menawar.</p>
           {err?.field === 'override' && <p className="cg-error" role="alert">{err.msg}</p>}</div>
-        <label className="flex items-center gap-8"><input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} /> Lacak stok produk ini</label>
+
+        {kind === 'service' ? (
+          <div className="rounded-lg border border-border bg-surface-raised p-12 text-sm text-text-muted" role="note">
+            Jasa tidak punya stok, langsung terjual saat dipesan.
+          </div>
+        ) : (
+          <label className="flex items-center gap-8">
+            <input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} /> Lacak stok produk ini
+          </label>
+        )}
+
         {initial && <label className="flex items-center gap-8"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Produk aktif (tampil di kasir)</label>}
         <div className="flex gap-8">
           <button className="cg-btn cg-btn--primary" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan produk'}</button>
           <button type="button" className="cg-btn cg-btn--secondary" onClick={() => router.push('/produk')}>Batal</button>
         </div>
       </form>
+
+      {confirmOpen && (
+        <ConfirmServiceDialog
+          count={productMeta.status === 'ready' ? productMeta.data.stockQty : 0}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            setKind('service');
+            setTrackStock(false);
+          }}
+        />
+      )}
     </>
   );
 }

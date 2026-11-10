@@ -11,6 +11,7 @@ export default function DaftarProduk() {
   const data = useData();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [kindFilter, setKindFilter] = useState<'' | 'goods' | 'service'>('');
   const [inactive, setInactive] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -27,6 +28,12 @@ export default function DaftarProduk() {
     finally { setBusy(null); }
   }
   const flip = (id: string) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  const items = (state.status === 'ready' ? state.data.items : []).filter((p) => {
+    if (kindFilter === 'goods') return p.kind !== 'service';
+    if (kindFilter === 'service') return p.kind === 'service';
+    return true;
+  });
 
   return (
     <>
@@ -50,6 +57,35 @@ export default function DaftarProduk() {
           <span className="cg-sr">Cari produk</span>
           <input className="cg-input" type="search" placeholder="Cari nama, varian, atau SKU" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
+        <div className="cg-tabs" role="tablist" aria-label="Filter jenis produk">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={kindFilter === ''}
+            className="cg-tab"
+            onClick={() => setKindFilter('')}
+          >
+            Semua
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={kindFilter === 'goods'}
+            className="cg-tab"
+            onClick={() => setKindFilter('goods')}
+          >
+            Barang
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={kindFilter === 'service'}
+            className="cg-tab"
+            onClick={() => setKindFilter('service')}
+          >
+            Jasa
+          </button>
+        </div>
         <label className="flex items-center gap-8">
           <span className="cg-sr">Kategori</span>
           <select className="cg-input" value={cat} onChange={(e) => setCat(e.target.value)}>
@@ -64,9 +100,9 @@ export default function DaftarProduk() {
       {err && <p className="cg-banner cg-banner--danger mb-16" role="alert">{err}</p>}
       {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
       {state.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2, 3, 4].map((i) => <div key={i} className="cg-skeleton" style={{ height: 48 }} />)}</div>}
-      {state.status === 'ready' && (state.data.items.length === 0 ? (
+      {state.status === 'ready' && (items.length === 0 ? (
         <div className="cg-empty">
-          <p><strong>{q ? `Tidak ada produk untuk “${q}”.` : 'Belum ada produk.'}</strong></p>
+          <p><strong>{q ? `Tidak ada produk untuk “${q}”.` : kindFilter === 'service' ? 'Belum ada produk jasa.' : kindFilter === 'goods' ? 'Belum ada produk barang.' : 'Belum ada produk.'}</strong></p>
           {!q && <Link href="/produk/baru" className="cg-btn cg-btn--primary">Tambah produk pertama</Link>}
         </div>
       ) : (
@@ -74,7 +110,7 @@ export default function DaftarProduk() {
           <table className="cg-data">
             <thead><tr><th>Nama</th><th>Kategori</th><th>SKU</th><th className="cg-num">Harga</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
             <tbody>
-              {state.data.items.map((p) => {
+              {items.map((p) => {
                 const grouped = p.variants.length > 0;
                 const expanded = open.has(p.id);
                 return (
@@ -84,7 +120,7 @@ export default function DaftarProduk() {
                         {grouped
                           ? <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-expanded={expanded} onClick={() => flip(p.id)} aria-label={`${expanded ? 'Tutup' : 'Buka'} varian ${p.name}`}>{expanded ? <ChevronDown className="cg-icon cg-icon--sm" aria-hidden /> : <ChevronRight className="cg-icon cg-icon--sm" aria-hidden />}</button>
                           : null}
-                        {p.photoUrl && <img className="cg-thumb" src={p.photoUrl} alt="" loading="lazy" width={40} height={40} />}{p.name} {grouped && <span className="cg-badge">{p.variants.length} varian</span>} {!p.isActive && <span className="cg-badge">Nonaktif</span>}
+                        {p.photoUrl && <img className="cg-thumb" src={p.photoUrl} alt="" loading="lazy" width={40} height={40} />}{p.name} {p.kind === 'service' && <span className="cg-badge cg-badge--accent">Jasa</span>} {grouped && <span className="cg-badge">{p.variants.length} varian</span>} {!p.isActive && <span className="cg-badge">Nonaktif</span>}
                       </td>
                       <td className="whitespace-nowrap">{state.data.cats.find((c) => c.id === p.categoryId)?.name ?? '—'}</td>
                       <td className="text-text-muted whitespace-nowrap">{grouped ? '—' : p.sku ?? '—'}</td>
