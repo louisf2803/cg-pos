@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
-import { formatRp, localParts, toCsv, type Order } from '@cgpos/shared';
+import { formatRp, localParts, toCsv, type ColumnDef, type Order } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { ColumnChooser, useColumnPrefs } from '@/components/column-chooser';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { useRange } from '@/lib/use-range';
@@ -20,6 +21,29 @@ interface PeriodRow {
   discounts: number;
   avgTicket: number;
 }
+
+type PeriodColKey =
+  | 'period'
+  | 'txCount'
+  | 'txPct'
+  | 'avgTicket'
+  | 'subtotal'
+  | 'discounts'
+  | 'totalSales'
+  | 'salesPct'
+  | 'bar';
+
+const PERIOD_COLUMNS: ColumnDef<PeriodColKey>[] = [
+  { key: 'period', label: 'Periode', align: 'left' },
+  { key: 'txCount', label: 'Jumlah transaksi', align: 'right' },
+  { key: 'txPct', label: 'Porsi transaksi (%)', align: 'right' },
+  { key: 'avgTicket', label: 'Rata-rata nilai', align: 'right' },
+  { key: 'subtotal', label: 'Subtotal', defaultVisible: false, align: 'right' },
+  { key: 'discounts', label: 'Diskon', defaultVisible: false, align: 'right' },
+  { key: 'totalSales', label: 'Total penjualan', align: 'right' },
+  { key: 'salesPct', label: 'Porsi nilai (%)', align: 'right' },
+  { key: 'bar', label: 'Grafik proporsi', align: 'left' },
+];
 
 function getPeriodInfo(
   isoDate: string,
@@ -64,6 +88,141 @@ function getPeriodInfo(
   return { key, label };
 }
 
+function getPeriodCsvVal(
+  key: PeriodColKey,
+  r: PeriodRow,
+  totalCount: number,
+  totalAmount: number
+): string | number {
+  const countPct = totalCount > 0 ? ((r.count / totalCount) * 100).toFixed(1) : '0.0';
+  const amountPct = totalAmount > 0 ? ((r.total / totalAmount) * 100).toFixed(1) : '0.0';
+  switch (key) {
+    case 'period':
+      return r.label;
+    case 'txCount':
+      return r.count;
+    case 'txPct':
+      return `${countPct}%`;
+    case 'avgTicket':
+      return r.avgTicket;
+    case 'subtotal':
+      return r.subtotal;
+    case 'discounts':
+      return r.discounts;
+    case 'totalSales':
+      return r.total;
+    case 'salesPct':
+      return `${amountPct}%`;
+    case 'bar':
+      return `${amountPct}%`;
+  }
+}
+
+function getPeriodTotalCsvVal(
+  key: PeriodColKey,
+  totalCount: number,
+  totalAmount: number,
+  totalSubtotal: number,
+  totalDiscounts: number
+): string | number {
+  switch (key) {
+    case 'period':
+      return 'Total';
+    case 'txCount':
+      return totalCount;
+    case 'txPct':
+      return '100%';
+    case 'avgTicket':
+      return totalCount > 0 ? Math.round(totalAmount / totalCount) : 0;
+    case 'subtotal':
+      return totalSubtotal;
+    case 'discounts':
+      return totalDiscounts;
+    case 'totalSales':
+      return totalAmount;
+    case 'salesPct':
+      return '100%';
+    case 'bar':
+      return '100%';
+  }
+}
+
+function renderPeriodCell(
+  key: PeriodColKey,
+  r: PeriodRow,
+  totalCount: number,
+  totalAmount: number,
+  maxAmount: number
+) {
+  const countPct = totalCount > 0 ? ((r.count / totalCount) * 100).toFixed(1) : '0.0';
+  const amountPct = totalAmount > 0 ? ((r.total / totalAmount) * 100).toFixed(1) : '0.0';
+  const barWidth = maxAmount > 0 ? Math.round((r.total / maxAmount) * 100) : 0;
+
+  switch (key) {
+    case 'period':
+      return (
+        <td key={key} className="font-medium whitespace-nowrap">
+          {r.label}
+        </td>
+      );
+    case 'txCount':
+      return (
+        <td key={key} className="cg-num">
+          {r.count}
+        </td>
+      );
+    case 'txPct':
+      return (
+        <td key={key} className="cg-num text-text-muted">
+          {countPct}%
+        </td>
+      );
+    case 'avgTicket':
+      return (
+        <td key={key} className="cg-num">
+          {formatRp(r.avgTicket)}
+        </td>
+      );
+    case 'subtotal':
+      return (
+        <td key={key} className="cg-num">
+          {formatRp(r.subtotal)}
+        </td>
+      );
+    case 'discounts':
+      return (
+        <td key={key} className="cg-num text-danger">
+          {r.discounts > 0 ? `-${formatRp(r.discounts)}` : 'Rp 0'}
+        </td>
+      );
+    case 'totalSales':
+      return (
+        <td key={key} className="cg-num font-semibold text-primary">
+          {formatRp(r.total)}
+        </td>
+      );
+    case 'salesPct':
+      return (
+        <td key={key} className="cg-num text-text-muted">
+          {amountPct}%
+        </td>
+      );
+    case 'bar':
+      return (
+        <td key={key} style={{ minWidth: 140 }}>
+          <div className="flex items-center gap-8">
+            <span className="block h-[12px] w-full rounded-pill bg-accent-soft" aria-hidden>
+              <span className="block h-full rounded-pill bg-accent" style={{ width: `${barWidth}%` }} />
+            </span>
+            <span className="text-xs text-text-muted w-[36px] text-right cg-num">
+              {amountPct}%
+            </span>
+          </div>
+        </td>
+      );
+  }
+}
+
 export default function PeriodReportPage() {
   const data = useData();
   const ctx = useAsync(() => data.getContext(), [data]);
@@ -71,6 +230,8 @@ export default function PeriodReportPage() {
   const { value, setValue, range, today } = useRange(tz);
   const [grain, setGrain] = useState<Granularity>('harian');
   const [q, setQ] = useState('');
+
+  const colPrefs = useColumnPrefs('laporan_periode', PERIOD_COLUMNS);
 
   const state = useAsync(
     () =>
@@ -98,18 +259,27 @@ export default function PeriodReportPage() {
 
     for (const o of orders) {
       const timeStr = o.closedAt ?? o.openedAt;
+      if (!timeStr) continue;
+
       const { key, label } = getPeriodInfo(timeStr, tz, grain);
-      const cur = map.get(key) ?? { label, count: 0, total: 0, subtotal: 0, discounts: 0 };
-      cur.count += 1;
-      cur.total += o.total;
-      cur.subtotal += o.subtotal;
-      cur.discounts += o.discountTotal;
-      map.set(key, cur);
+      const existing = map.get(key) || {
+        label,
+        count: 0,
+        total: 0,
+        subtotal: 0,
+        discounts: 0,
+      };
+
+      existing.count += 1;
+      existing.total += o.total;
+      existing.subtotal += o.subtotal;
+      existing.discounts += o.discountTotal;
+      map.set(key, existing);
     }
 
-    const list: PeriodRow[] = [];
+    const result: PeriodRow[] = [];
     for (const [key, val] of map.entries()) {
-      list.push({
+      result.push({
         key,
         label: val.label,
         count: val.count,
@@ -120,12 +290,15 @@ export default function PeriodReportPage() {
       });
     }
 
-    return list.sort((a, b) => a.key.localeCompare(b.key));
+    result.sort((a, b) => b.key.localeCompare(a.key));
+    return result;
   }, [orders, tz, grain]);
 
-  const totalAmount = useMemo(() => rows.reduce((acc, r) => acc + r.total, 0), [rows]);
-  const totalCount = useMemo(() => rows.reduce((acc, r) => acc + r.count, 0), [rows]);
-  const maxAmount = useMemo(() => Math.max(1, ...rows.map((r) => r.total)), [rows]);
+  const totalAmount = useMemo(() => rows.reduce((a, r) => a + r.total, 0), [rows]);
+  const totalCount = useMemo(() => rows.reduce((a, r) => a + r.count, 0), [rows]);
+  const totalSubtotal = useMemo(() => rows.reduce((a, r) => a + r.subtotal, 0), [rows]);
+  const totalDiscounts = useMemo(() => rows.reduce((a, r) => a + r.discounts, 0), [rows]);
+  const maxAmount = useMemo(() => (rows.length > 0 ? Math.max(...rows.map((r) => r.total)) : 0), [rows]);
 
   const filteredRows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -139,45 +312,21 @@ export default function PeriodReportPage() {
   }, [rows]);
 
   function downloadCsv() {
-    if (rows.length === 0) return;
-    const rowsCsv: (string | number)[][] = [
-      [
-        'Periode',
-        'Jumlah Transaksi',
-        'Porsi Transaksi (%)',
-        'Rata-rata Transaksi',
-        'Subtotal',
-        'Diskon',
-        'Total Penjualan',
-        'Porsi Penjualan (%)',
-      ],
-    ];
+    if (rows.length === 0 || !colPrefs.hasVisible) return;
+    const head = colPrefs.activeColumns.map((c) => c.label);
+    const rowsCsv: (string | number)[][] = [head];
 
     for (const r of rows) {
-      const countPct = totalCount > 0 ? ((r.count / totalCount) * 100).toFixed(1) : '0.0';
-      const amountPct = totalAmount > 0 ? ((r.total / totalAmount) * 100).toFixed(1) : '0.0';
-      rowsCsv.push([
-        r.label,
-        r.count,
-        `${countPct}%`,
-        r.avgTicket,
-        r.subtotal,
-        r.discounts,
-        r.total,
-        `${amountPct}%`,
-      ]);
+      rowsCsv.push(
+        colPrefs.activeColumns.map((c) => getPeriodCsvVal(c.key, r, totalCount, totalAmount))
+      );
     }
 
-    rowsCsv.push([
-      'Total',
-      totalCount,
-      '100%',
-      totalCount > 0 ? Math.round(totalAmount / totalCount) : 0,
-      rows.reduce((a, r) => a + r.subtotal, 0),
-      rows.reduce((a, r) => a + r.discounts, 0),
-      totalAmount,
-      '100%',
-    ]);
+    rowsCsv.push(
+      colPrefs.activeColumns.map((c) =>
+        getPeriodTotalCsvVal(c.key, totalCount, totalAmount, totalSubtotal, totalDiscounts)
+      )
+    );
 
     const blob = new Blob([toCsv(rowsCsv)], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -194,13 +343,23 @@ export default function PeriodReportPage() {
         title="Laporan per periode"
         subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : range.label}
         actions={
-          <button
-            className="cg-btn cg-btn--secondary"
-            onClick={downloadCsv}
-            disabled={rows.length === 0}
-          >
-            <Download className="cg-icon" aria-hidden /> Unduh CSV
-          </button>
+          <div className="flex items-center gap-8">
+            <ColumnChooser
+              columns={PERIOD_COLUMNS}
+              prefs={colPrefs.prefs}
+              onToggle={colPrefs.toggle}
+              onMoveUp={colPrefs.moveUp}
+              onMoveDown={colPrefs.moveDown}
+              onReset={colPrefs.reset}
+            />
+            <button
+              className="cg-btn cg-btn--secondary"
+              onClick={downloadCsv}
+              disabled={!colPrefs.hasVisible || rows.length === 0}
+            >
+              <Download className="cg-icon" aria-hidden /> Unduh CSV
+            </button>
+          </div>
         }
       />
 
@@ -300,7 +459,16 @@ export default function PeriodReportPage() {
             </div>
           </dl>
 
-          {rows.length === 0 ? (
+          {!colPrefs.hasVisible ? (
+            <div className="cg-empty py-32">
+              <p>
+                <strong>Semua kolom disembunyikan.</strong>
+              </p>
+              <p className="text-text-muted mt-4">
+                Klik tombol <strong>Atur kolom</strong> untuk memilih kolom yang ingin ditampilkan.
+              </p>
+            </div>
+          ) : rows.length === 0 ? (
             <div className="cg-empty">
               <p>
                 <strong>Belum ada transaksi penjualan pada rentang ini.</strong>
@@ -324,62 +492,80 @@ export default function PeriodReportPage() {
                 <table className="cg-data" style={{ minWidth: 0 }}>
                   <thead>
                     <tr>
-                      <th>Periode</th>
-                      <th className="cg-num">Transaksi</th>
-                      <th className="cg-num">Porsi Transaksi</th>
-                      <th className="cg-num">Rata-rata Nilai</th>
-                      <th className="cg-num">Total Penjualan</th>
-                      <th className="cg-num">Porsi Nilai</th>
-                      <th style={{ minWidth: 140 }}>Proporsi</th>
+                      {colPrefs.activeColumns.map((c) => (
+                        <th
+                          key={c.key}
+                          className={c.align === 'right' ? 'cg-num' : ''}
+                          style={c.key === 'bar' ? { minWidth: 140 } : undefined}
+                        >
+                          {c.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.map((r) => {
-                      const countPct =
-                        totalCount > 0 ? ((r.count / totalCount) * 100).toFixed(1) : '0.0';
-                      const amountPct =
-                        totalAmount > 0 ? ((r.total / totalAmount) * 100).toFixed(1) : '0.0';
-                      const barWidth = Math.round((r.total / maxAmount) * 100);
-
-                      return (
-                        <tr key={r.key}>
-                          <td className="font-medium">{r.label}</td>
-                          <td className="cg-num">{r.count}</td>
-                          <td className="cg-num text-text-muted">{countPct}%</td>
-                          <td className="cg-num">{formatRp(r.avgTicket)}</td>
-                          <td className="cg-num font-semibold">{formatRp(r.total)}</td>
-                          <td className="cg-num text-text-muted">{amountPct}%</td>
-                          <td>
-                            <div className="flex items-center gap-8">
-                              <span
-                                className="block h-[12px] w-full rounded-pill bg-accent-soft"
-                                aria-hidden
-                              >
-                                <span
-                                  className="block h-full rounded-pill bg-accent"
-                                  style={{ width: `${barWidth}%` }}
-                                />
-                              </span>
-                              <span className="text-xs text-text-muted w-[36px] text-right cg-num">
-                                {amountPct}%
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {filteredRows.map((r) => (
+                      <tr key={r.key}>
+                        {colPrefs.activeColumns.map((c) =>
+                          renderPeriodCell(c.key, r, totalCount, totalAmount, maxAmount)
+                        )}
+                      </tr>
+                    ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-border font-semibold">
-                      <td>Total</td>
-                      <td className="cg-num">{totalCount}</td>
-                      <td className="cg-num">100%</td>
-                      <td className="cg-num">
-                        {formatRp(totalCount > 0 ? Math.round(totalAmount / totalCount) : 0)}
-                      </td>
-                      <td className="cg-num">{formatRp(totalAmount)}</td>
-                      <td className="cg-num">100%</td>
-                      <td />
+                      {colPrefs.activeColumns.map((c) => {
+                        switch (c.key) {
+                          case 'period':
+                            return <td key={c.key}>Total</td>;
+                          case 'txCount':
+                            return (
+                              <td key={c.key} className="cg-num">
+                                {totalCount}
+                              </td>
+                            );
+                          case 'txPct':
+                            return (
+                              <td key={c.key} className="cg-num">
+                                100%
+                              </td>
+                            );
+                          case 'avgTicket':
+                            return (
+                              <td key={c.key} className="cg-num">
+                                {formatRp(
+                                  totalCount > 0 ? Math.round(totalAmount / totalCount) : 0
+                                )}
+                              </td>
+                            );
+                          case 'subtotal':
+                            return (
+                              <td key={c.key} className="cg-num">
+                                {formatRp(totalSubtotal)}
+                              </td>
+                            );
+                          case 'discounts':
+                            return (
+                              <td key={c.key} className="cg-num text-danger">
+                                {totalDiscounts > 0 ? `-${formatRp(totalDiscounts)}` : 'Rp 0'}
+                              </td>
+                            );
+                          case 'totalSales':
+                            return (
+                              <td key={c.key} className="cg-num">
+                                {formatRp(totalAmount)}
+                              </td>
+                            );
+                          case 'salesPct':
+                            return (
+                              <td key={c.key} className="cg-num">
+                                100%
+                              </td>
+                            );
+                          case 'bar':
+                            return <td key={c.key} />;
+                        }
+                      })}
                     </tr>
                   </tfoot>
                 </table>

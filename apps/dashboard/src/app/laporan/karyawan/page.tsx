@@ -2,19 +2,204 @@
 
 import { useMemo, useState } from 'react';
 import { Download, Search, UserCheck } from 'lucide-react';
-import { buildStaffReport, formatRole, formatRp, toCsv, type StaffReportRow } from '@cgpos/shared';
+import {
+  buildStaffReport,
+  formatRole,
+  formatRp,
+  toCsv,
+  type ColumnDef,
+  type StaffReportRow,
+  type StaffReportTotals,
+} from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { ColumnChooser, useColumnPrefs } from '@/components/column-chooser';
 import { useReport } from '@/lib/use-report';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID').format(n);
+
+type StaffColKey =
+  | 'name'
+  | 'role'
+  | 'transactionCount'
+  | 'totalSales'
+  | 'avgSalesPerTx'
+  | 'voidCount'
+  | 'voidTotal'
+  | 'refundCount'
+  | 'refundTotal'
+  | 'manualDiscountCount'
+  | 'manualDiscountTotal'
+  | 'complimentaryCount'
+  | 'complimentaryTotal';
+
+const STAFF_COLUMNS: ColumnDef<StaffColKey>[] = [
+  { key: 'name', label: 'Karyawan', align: 'left' },
+  { key: 'role', label: 'Peran', defaultVisible: false, align: 'left' },
+  { key: 'transactionCount', label: 'Jumlah transaksi', align: 'right' },
+  { key: 'totalSales', label: 'Total penjualan', align: 'right' },
+  { key: 'avgSalesPerTx', label: 'Rata-rata penjualan', align: 'right' },
+  { key: 'voidCount', label: 'Jumlah void', align: 'right' },
+  { key: 'voidTotal', label: 'Total void', align: 'right' },
+  { key: 'refundCount', label: 'Jumlah refund', align: 'right' },
+  { key: 'refundTotal', label: 'Total refund', align: 'right' },
+  { key: 'manualDiscountCount', label: 'Diskon manual (pesanan)', defaultVisible: false, align: 'right' },
+  { key: 'manualDiscountTotal', label: 'Total diskon manual', align: 'right' },
+  { key: 'complimentaryCount', label: 'Komplimen (transaksi)', defaultVisible: false, align: 'right' },
+  { key: 'complimentaryTotal', label: 'Total komplimen', align: 'right' },
+];
+
+function getStaffCsvVal(key: StaffColKey, r: StaffReportRow): string | number {
+  switch (key) {
+    case 'name':
+      return r.name;
+    case 'role':
+      return formatRole(r.role);
+    case 'transactionCount':
+      return r.transactionCount;
+    case 'totalSales':
+      return r.totalSales;
+    case 'avgSalesPerTx':
+      return r.avgSalesPerTx;
+    case 'voidCount':
+      return r.voidCount;
+    case 'voidTotal':
+      return r.voidTotal;
+    case 'refundCount':
+      return r.refundCount;
+    case 'refundTotal':
+      return r.refundTotal;
+    case 'manualDiscountCount':
+      return r.manualDiscountCount;
+    case 'manualDiscountTotal':
+      return r.manualDiscountTotal;
+    case 'complimentaryCount':
+      return r.complimentaryCount;
+    case 'complimentaryTotal':
+      return r.complimentaryTotal;
+  }
+}
+
+function getStaffTotalCsvVal(key: StaffColKey, totals: StaffReportTotals): string | number {
+  switch (key) {
+    case 'name':
+      return 'TOTAL KESELURUHAN';
+    case 'role':
+      return '';
+    case 'transactionCount':
+      return totals.transactionCount;
+    case 'totalSales':
+      return totals.totalSales;
+    case 'avgSalesPerTx':
+      return totals.avgSalesPerTx;
+    case 'voidCount':
+      return totals.voidCount;
+    case 'voidTotal':
+      return totals.voidTotal;
+    case 'refundCount':
+      return totals.refundCount;
+    case 'refundTotal':
+      return totals.refundTotal;
+    case 'manualDiscountCount':
+      return totals.manualDiscountCount;
+    case 'manualDiscountTotal':
+      return totals.manualDiscountTotal;
+    case 'complimentaryCount':
+      return totals.complimentaryCount;
+    case 'complimentaryTotal':
+      return totals.complimentaryTotal;
+  }
+}
+
+function renderStaffCell(key: StaffColKey, r: StaffReportRow) {
+  switch (key) {
+    case 'name':
+      return (
+        <td key={key} className="py-12 px-16 font-medium text-text">
+          <div className="flex items-center gap-8">
+            <UserCheck className="w-16 h-16 text-primary shrink-0" aria-hidden />
+            <div>
+              <span className="font-semibold block">{r.name}</span>
+              <span className="text-xs text-text-muted">{formatRole(r.role)}</span>
+            </div>
+          </div>
+        </td>
+      );
+    case 'role':
+      return (
+        <td key={key} className="py-12 px-16 text-xs text-text-muted">
+          {formatRole(r.role)}
+        </td>
+      );
+    case 'transactionCount':
+      return <td key={key} className="py-12 px-16 text-right cg-num">{num(r.transactionCount)}</td>;
+    case 'totalSales':
+      return (
+        <td key={key} className="py-12 px-16 text-right font-semibold cg-num text-primary">
+          {formatRp(r.totalSales)}
+        </td>
+      );
+    case 'avgSalesPerTx':
+      return <td key={key} className="py-12 px-16 text-right cg-num">{formatRp(r.avgSalesPerTx)}</td>;
+    case 'voidCount':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num text-danger">
+          {r.voidCount > 0 ? num(r.voidCount) : '—'}
+        </td>
+      );
+    case 'voidTotal':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num text-danger">
+          {r.voidTotal > 0 ? formatRp(r.voidTotal) : '—'}
+        </td>
+      );
+    case 'refundCount':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num text-amber-600">
+          {r.refundCount > 0 ? num(r.refundCount) : '—'}
+        </td>
+      );
+    case 'refundTotal':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num text-amber-600">
+          {r.refundTotal > 0 ? formatRp(r.refundTotal) : '—'}
+        </td>
+      );
+    case 'manualDiscountCount':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num">
+          {r.manualDiscountCount > 0 ? `${num(r.manualDiscountCount)} pesanan` : '—'}
+        </td>
+      );
+    case 'manualDiscountTotal':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num font-medium">
+          {r.manualDiscountTotal > 0 ? formatRp(r.manualDiscountTotal) : '—'}
+        </td>
+      );
+    case 'complimentaryCount':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num">
+          {r.complimentaryCount > 0 ? `${num(r.complimentaryCount)} trx` : '—'}
+        </td>
+      );
+    case 'complimentaryTotal':
+      return (
+        <td key={key} className="py-12 px-16 text-right cg-num font-medium">
+          {r.complimentaryTotal > 0 ? formatRp(r.complimentaryTotal) : '—'}
+        </td>
+      );
+  }
+}
 
 export default function StaffReportPage() {
   const data = useData();
   const { ctx, value, setValue, range, today, state } = useReport();
   const [search, setSearch] = useState('');
+
+  const colPrefs = useColumnPrefs('laporan_karyawan', STAFF_COLUMNS);
 
   const extra = useAsync(async () => {
     const [refunds, voided, empList] = await Promise.all([
@@ -45,53 +230,16 @@ export default function StaffReportPage() {
   }, [report, search]);
 
   function downloadCsv() {
-    if (!report) return;
-    const head = [
-      'Nama Karyawan',
-      'Peran',
-      'Jumlah Transaksi',
-      'Total Penjualan',
-      'Rata-rata per Transaksi',
-      'Transaksi Void',
-      'Total Void',
-      'Transaksi Refund',
-      'Total Refund',
-      'Diskon Manual (Order)',
-      'Total Diskon Manual',
-      'Pembayaran Gratis (Trx)',
-      'Total Komplimen',
-    ];
-    const line = (r: StaffReportRow) => [
-      r.name,
-      formatRole(r.role),
-      r.transactionCount,
-      r.totalSales,
-      r.avgSalesPerTx,
-      r.voidCount,
-      r.voidTotal,
-      r.refundCount,
-      r.refundTotal,
-      r.manualDiscountCount,
-      r.manualDiscountTotal,
-      r.complimentaryCount,
-      r.complimentaryTotal,
-    ];
-    const totalLine = [
-      'TOTAL KESELURUHAN',
-      '',
-      report.totals.transactionCount,
-      report.totals.totalSales,
-      report.totals.avgSalesPerTx,
-      report.totals.voidCount,
-      report.totals.voidTotal,
-      report.totals.refundCount,
-      report.totals.refundTotal,
-      report.totals.manualDiscountCount,
-      report.totals.manualDiscountTotal,
-      report.totals.complimentaryCount,
-      report.totals.complimentaryTotal,
-    ];
-    const csvContent = toCsv([head, ...report.rows.map(line), [], totalLine]);
+    if (!report || !colPrefs.hasVisible) return;
+    const head = colPrefs.activeColumns.map((c) => c.label);
+    const rows = filteredRows.map((r) =>
+      colPrefs.activeColumns.map((c) => getStaffCsvVal(c.key, r))
+    );
+    const totalLine = colPrefs.activeColumns.map((c) =>
+      getStaffTotalCsvVal(c.key, report.totals)
+    );
+
+    const csvContent = toCsv([head, ...rows, [], totalLine]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -101,32 +249,40 @@ export default function StaffReportPage() {
     URL.revokeObjectURL(url);
   }
 
-  const err = ctx.status === 'error' ? ctx : state.status === 'error' ? state : extra.status === 'error' ? extra : null;
-  const loading = ctx.status === 'loading' || state.status === 'loading' || extra.status === 'loading';
-
   return (
-    <div className="space-y-24 min-w-0">
+    <div className="space-y-20 min-w-0">
       <PageHeader
         title="Laporan karyawan"
-        subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : 'Kinerja penjualan, transaksi, void, dan potongan per kasir'}
+        subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : range.label}
         actions={
-          <button
-            type="button"
-            className="cg-btn cg-btn--secondary"
-            onClick={downloadCsv}
-            disabled={!report || (report.totals.transactionCount === 0 && report.totals.voidCount === 0)}
-          >
-            <Download className="w-16 h-16 mr-8" aria-hidden /> Unduh CSV
-          </button>
+          <div className="flex items-center gap-8">
+            <ColumnChooser
+              columns={STAFF_COLUMNS}
+              prefs={colPrefs.prefs}
+              onToggle={colPrefs.toggle}
+              onMoveUp={colPrefs.moveUp}
+              onMoveDown={colPrefs.moveDown}
+              onReset={colPrefs.reset}
+            />
+            <button
+              className="cg-btn cg-btn--secondary"
+              onClick={downloadCsv}
+              disabled={!colPrefs.hasVisible || !report || filteredRows.length === 0}
+            >
+              <Download className="cg-icon" aria-hidden /> Unduh CSV
+            </button>
+          </div>
         }
       />
 
       <RangePicker value={value} today={today} onChange={setValue} />
 
-      {err && <ErrorBox message={err.message} onRetry={err.reload} />}
+      {ctx.status === 'error' && <ErrorBox message={ctx.message} onRetry={ctx.reload} />}
+      {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
+      {extra.status === 'error' && <ErrorBox message={extra.message} onRetry={extra.reload} />}
 
-      {loading && (
-        <div className="grid gap-12" aria-busy="true" aria-label="Memuat laporan karyawan">
+      {(ctx.status === 'loading' || state.status === 'loading' || extra.status === 'loading') && (
+        <div className="space-y-16" aria-busy="true" aria-label="Memuat laporan">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton h-72 rounded-lg" />
@@ -202,149 +358,116 @@ export default function StaffReportPage() {
               </div>
             </div>
 
-            {/* Tampilan Desktop (Tabel) */}
-            <div className="hidden md:block overflow-x-auto min-w-0">
-              <table className="w-full text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface-raised border-b border-border text-xs text-text-muted uppercase">
-                    <th className="py-12 px-16 font-medium">Karyawan</th>
-                    <th className="py-12 px-16 font-medium text-right">Transaksi</th>
-                    <th className="py-12 px-16 font-medium text-right">Penjualan</th>
-                    <th className="py-12 px-16 font-medium text-right">Rata-rata</th>
-                    <th className="py-12 px-16 font-medium text-right">Void</th>
-                    <th className="py-12 px-16 font-medium text-right">Refund</th>
-                    <th className="py-12 px-16 font-medium text-right">Diskon manual</th>
-                    <th className="py-12 px-16 font-medium text-right">Komplimen</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+            {!colPrefs.hasVisible ? (
+              <div className="cg-empty py-32">
+                <p>
+                  <strong>Semua kolom disembunyikan.</strong>
+                </p>
+                <p className="text-text-muted mt-4">
+                  Klik tombol <strong>Atur kolom</strong> untuk memilih kolom yang ingin ditampilkan.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Tampilan Desktop (Tabel) */}
+                <div className="hidden md:block overflow-x-auto min-w-0">
+                  <table className="w-full text-sm text-left border-collapse">
+                    <thead>
+                      <tr className="bg-surface-raised border-b border-border text-xs text-text-muted uppercase">
+                        {colPrefs.activeColumns.map((c) => (
+                          <th
+                            key={c.key}
+                            className={`py-12 px-16 font-medium ${
+                              c.align === 'right' ? 'text-right' : 'text-left'
+                            }`}
+                          >
+                            {c.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filteredRows.map((r) => (
+                        <tr key={r.key} className="hover:bg-surface-raised/50 transition-colors">
+                          {colPrefs.activeColumns.map((c) => renderStaffCell(c.key, r))}
+                        </tr>
+                      ))}
+                      {filteredRows.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={colPrefs.activeColumns.length}
+                            className="py-24 text-center text-text-muted"
+                          >
+                            Tidak ada karyawan yang cocok dengan pencarian &quot;{search}&quot;.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Tampilan Mobile (< 768px: Kartu Responsif) */}
+                <div className="md:hidden divide-y divide-border min-w-0">
                   {filteredRows.map((r) => (
-                    <tr key={r.key} className="hover:bg-surface-raised/50 transition-colors">
-                      <td className="py-12 px-16 font-medium text-text">
-                        <div className="flex items-center gap-8">
+                    <div key={r.key} className="p-16 space-y-12 min-w-0">
+                      <div className="flex items-center justify-between gap-8 min-w-0">
+                        <div className="flex items-center gap-8 min-w-0">
                           <UserCheck className="w-16 h-16 text-primary shrink-0" aria-hidden />
-                          <div>
-                            <span className="font-semibold block">{r.name}</span>
+                          <div className="truncate">
+                            <strong className="text-sm block truncate">{r.name}</strong>
                             <span className="text-xs text-text-muted">{formatRole(r.role)}</span>
                           </div>
                         </div>
-                      </td>
-                      <td className="py-12 px-16 text-right cg-num">{num(r.transactionCount)}</td>
-                      <td className="py-12 px-16 text-right font-semibold cg-num text-primary">{formatRp(r.totalSales)}</td>
-                      <td className="py-12 px-16 text-right cg-num">{formatRp(r.avgSalesPerTx)}</td>
-                      <td className="py-12 px-16 text-right">
-                        {r.voidCount > 0 ? (
-                          <div>
-                            <span className="text-danger font-medium cg-num">{num(r.voidCount)}</span>
-                            <span className="block text-xs text-text-muted cg-num">{formatRp(r.voidTotal)}</span>
-                          </div>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="py-12 px-16 text-right">
-                        {r.refundCount > 0 ? (
-                          <div>
-                            <span className="text-amber-600 font-medium cg-num">{num(r.refundCount)}</span>
-                            <span className="block text-xs text-text-muted cg-num">{formatRp(r.refundTotal)}</span>
-                          </div>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="py-12 px-16 text-right">
-                        {r.manualDiscountTotal > 0 ? (
-                          <div>
-                            <span className="cg-num font-medium">{formatRp(r.manualDiscountTotal)}</span>
-                            <span className="block text-xs text-text-muted cg-num">{num(r.manualDiscountCount)} pesanan</span>
-                          </div>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="py-12 px-16 text-right">
-                        {r.complimentaryTotal > 0 ? (
-                          <div>
-                            <span className="cg-num font-medium">{formatRp(r.complimentaryTotal)}</span>
-                            <span className="block text-xs text-text-muted cg-num">{num(r.complimentaryCount)} trx</span>
-                          </div>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredRows.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="py-24 text-center text-text-muted">
-                        Tidak ada karyawan yang cocok dengan pencarian &quot;{search}&quot;.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs text-text-muted block">Penjualan</span>
+                          <strong className="text-sm text-primary cg-num">{formatRp(r.totalSales)}</strong>
+                        </div>
+                      </div>
 
-            {/* Tampilan Mobile (< 768px: Kartu Responsif) */}
-            <div className="md:hidden divide-y divide-border min-w-0">
-              {filteredRows.map((r) => (
-                <div key={r.key} className="p-16 space-y-12 min-w-0">
-                  <div className="flex items-center justify-between gap-8 min-w-0">
-                    <div className="flex items-center gap-8 min-w-0">
-                      <UserCheck className="w-16 h-16 text-primary shrink-0" aria-hidden />
-                      <div className="truncate">
-                        <strong className="text-sm block truncate">{r.name}</strong>
-                        <span className="text-xs text-text-muted">{formatRole(r.role)}</span>
+                      <div className="grid grid-cols-2 gap-8 text-xs bg-surface-raised p-8 rounded-lg min-w-0">
+                        <div>
+                          <span className="text-text-muted block">Transaksi</span>
+                          <span className="font-semibold cg-num">{num(r.transactionCount)} trx</span>
+                        </div>
+                        <div>
+                          <span className="text-text-muted block">Rata-rata / trx</span>
+                          <span className="font-semibold cg-num">{formatRp(r.avgSalesPerTx)}</span>
+                        </div>
+                        <div>
+                          <span className="text-text-muted block">Void</span>
+                          <span className={r.voidCount > 0 ? 'text-danger font-medium cg-num' : 'text-text-muted'}>
+                            {r.voidCount > 0 ? `${num(r.voidCount)} (${formatRp(r.voidTotal)})` : '—'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-text-muted block">Refund</span>
+                          <span className={r.refundCount > 0 ? 'text-amber-600 font-medium cg-num' : 'text-text-muted'}>
+                            {r.refundCount > 0 ? `${num(r.refundCount)} (${formatRp(r.refundTotal)})` : '—'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-text-muted block">Diskon manual</span>
+                          <span className="cg-num">
+                            {r.manualDiscountTotal > 0 ? `${formatRp(r.manualDiscountTotal)} (${num(r.manualDiscountCount)})` : '—'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-text-muted block">Komplimen</span>
+                          <span className="cg-num">
+                            {r.complimentaryTotal > 0 ? `${formatRp(r.complimentaryTotal)} (${num(r.complimentaryCount)})` : '—'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-xs text-text-muted block">Penjualan</span>
-                      <strong className="text-sm text-primary cg-num">{formatRp(r.totalSales)}</strong>
+                  ))}
+                  {filteredRows.length === 0 && (
+                    <div className="p-24 text-center text-text-muted text-sm">
+                      Tidak ada karyawan yang cocok dengan pencarian &quot;{search}&quot;.
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-8 text-xs bg-surface-raised p-8 rounded-lg min-w-0">
-                    <div>
-                      <span className="text-text-muted block">Transaksi</span>
-                      <span className="font-semibold cg-num">{num(r.transactionCount)} trx</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">Rata-rata / trx</span>
-                      <span className="font-semibold cg-num">{formatRp(r.avgSalesPerTx)}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">Void</span>
-                      <span className={r.voidCount > 0 ? 'text-danger font-medium cg-num' : 'text-text-muted'}>
-                        {r.voidCount > 0 ? `${num(r.voidCount)} (${formatRp(r.voidTotal)})` : '—'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">Refund</span>
-                      <span className={r.refundCount > 0 ? 'text-amber-600 font-medium cg-num' : 'text-text-muted'}>
-                        {r.refundCount > 0 ? `${num(r.refundCount)} (${formatRp(r.refundTotal)})` : '—'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">Diskon manual</span>
-                      <span className="cg-num">
-                        {r.manualDiscountTotal > 0 ? `${formatRp(r.manualDiscountTotal)} (${num(r.manualDiscountCount)})` : '—'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted block">Komplimen</span>
-                      <span className="cg-num">
-                        {r.complimentaryTotal > 0 ? `${formatRp(r.complimentaryTotal)} (${num(r.complimentaryCount)})` : '—'}
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              ))}
-              {filteredRows.length === 0 && (
-                <div className="p-24 text-center text-text-muted text-sm">
-                  Tidak ada karyawan yang cocok dengan pencarian &quot;{search}&quot;.
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}
