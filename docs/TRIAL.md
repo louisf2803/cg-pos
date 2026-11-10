@@ -33,7 +33,7 @@ export PGHOST=/tmp/pgsock PGPORT=54329 PGUSER=postgres; bash packages/db/tests/r
 ```
 
 ## Batasan yang diketahui
-- Migrasi 0011, 0025, 0026, 0027 sudah diterapkan ke database produksi (10 Nov 2026, atas persetujuan Louis; terverifikasi lewat katalog, belum dicoba dengan login nyata). Migrasi 0028 (pengerasan hak eksekusi fungsi pemicu), 0029 (stasiun cetak), dan 0030 (catatan siap pakai) ditulis dan diuji lokal, **menunggu persetujuan Louis**; migrasi berikutnya juga lokal dulu. Fitur yang butuh migrasi belum disetujui ditandai "partial / menunggu diterapkan" di `replica/features.csv`.
+- Migrasi 0001–0030 sudah diterapkan ke database produksi (0011, 0025–0027 pada 10 Nov 2026 dan 0028–0030 pada 11 Nov 2026, atas persetujuan Louis; terverifikasi lewat katalog, belum dicoba dengan login nyata). Migrasi berikutnya diuji lokal dulu dan menunggu persetujuan. Fitur yang butuh migrasi belum disetujui ditandai "partial / menunggu diterapkan" di `replica/features.csv`.
 - QRIS DOKU sengaja belum aktif. Printer thermal Bluetooth teruji dengan perangkat tiruan, belum dengan printer fisik; belum ada printer jaringan/iPhone.
 - Offline: penjualan dan pembayaran tertunda bisa dikirim ulang; belum untuk refund/void/shift offline dan login PIN offline.
 - Belum ada: foto bukti kas, mode tampilan kasir reservasi dan buku menu, split bill dengan hitung ulang promo/harga grosir, denah meja gambar bebas, multi-outlet penuh, layar pelanggan, aplikasi konsumen, reservasi, payroll.
