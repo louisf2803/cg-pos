@@ -65,7 +65,7 @@ export const NAV: NavGroup[] = [
       { section: 'Penjualan', href: '/laporan/void', label: 'Void', screen: 'S80', tier: 2 },
       { section: 'Penjualan', href: '/laporan/refund', label: 'Refund', screen: 'S80', tier: 2 },
       { section: 'Laporan lain', href: '/laporan/dapur', label: 'Dapur', screen: 'S80', tier: 3 },
-      { section: 'Laporan lain', href: '/laporan/meja', label: 'Meja', screen: 'S80', tier: 2 },
+      { section: 'Laporan lain', href: '/laporan/meja', label: 'Meja', screen: 'S80', tier: 2, built: true },
       { section: 'Laporan lain', href: '/laporan/produk', label: 'Produk', screen: 'S80', tier: 2 },
       { section: 'Laporan lain', href: '/laporan/jasa', label: 'Jasa', screen: 'S80', tier: 3 },
       { section: 'Laporan lain', href: '/laporan/fasilitas', label: 'Fasilitas', screen: 'S80', tier: 3 },

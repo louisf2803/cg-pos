@@ -77,3 +77,19 @@ describe('laporan pajak dan biaya layanan', () => {
     expect(buildTaxReport([], 'Asia/Jakarta').totals.count).toBe(0);
   });
 });
+
+describe('laporan meja', () => {
+  it('mengelompokkan per meja dan lantai, tamu, rata-rata, dan pesanan tanpa meja', async () => {
+    const { buildTableReport } = await import('../src');
+    const o = (id: string, total: number, tableId?: string, guestCount?: number) => ({ id, status: 'paid', total, tableId, guestCount } as never);
+    const tables = [{ id: 't1', floorId: 'f1', name: 'A1', sort: 1 }, { id: 't2', floorId: 'f1', name: 'A2', sort: 2 }, { id: 't3', floorId: null, name: 'Teras', sort: 3 }];
+    const r = buildTableReport([o('1', 100000, 't1', 4), o('2', 50000, 't1', 2), o('3', 30000, 't2', 1), o('4', 20000), o('5', 10000, 'hilang', 1), { id: 'x', status: 'void', total: 999999, tableId: 't1', guestCount: 9 } as never], tables, [{ id: 'f1', name: 'Lantai 1', sort: 1 }]);
+    expect(r.rows.map((x) => x.total)).toEqual([...r.rows.map((x) => x.total)].sort((a, b) => b - a));
+    expect(r.rows[0]).toMatchObject({ label: 'A1', visits: 2, guests: 6, total: 150000, avgPerVisit: 75000, avgPerGuest: 25000 });
+    expect(r.byFloor.find((x) => x.label === 'Lantai 1')).toMatchObject({ visits: 3, total: 180000 });
+    expect(r.rows.find((x) => x.key === 'none')).toMatchObject({ visits: 1, guests: 0, avgPerGuest: null });
+    expect(r.rows.find((x) => x.key === 'hilang')!.label).toBe('Meja dihapus');
+    expect(r.totals).toMatchObject({ visits: 5, total: 210000 });
+    expect(buildTableReport([], tables, []).totals.visits).toBe(0);
+  });
+});

@@ -1,4 +1,4 @@
-import type { Category, Employee, Order, Product, Refund } from './types';
+import type { Category, DiningTable, Employee, Floor, Order, Product, Refund } from './types';
 import { localDateKey } from './order-number';
 import { summarizeSales } from './supabase-map';
 import type { SalesSummary } from './types';
@@ -87,4 +87,28 @@ export function buildTaxReport(paid: Order[], timezone: string): TaxReport {
     add(totals, o);
   }
   return { totals, byDay: [...day.values()].sort((a, b) => a.key.localeCompare(b.key)), byType: [...type.values()].sort((a, b) => b.total - a.total) };
+}
+
+export interface TableReportRow { key: string; label: string; floor: string; visits: number; guests: number; total: number; avgPerVisit: number; avgPerGuest: number | null }
+export interface TableReport { totals: TableReportRow; rows: TableReportRow[]; byFloor: TableReportRow[] }
+
+/** Laporan meja dari pesanan lunas: tiap meja = berapa kali dipakai, tamu, penjualan. Pesanan tanpa meja dikelompokkan sendiri. Murni. */
+export function buildTableReport(paid: Order[], tables: DiningTable[], floors: Floor[]): TableReport {
+  const floorName = new Map(floors.map((f) => [f.id, f.name]));
+  const tableById = new Map(tables.map((t) => [t.id, t]));
+  const mk = (key: string, label: string, floor: string): TableReportRow => ({ key, label, floor, visits: 0, guests: 0, total: 0, avgPerVisit: 0, avgPerGuest: null });
+  const finish = (r: TableReportRow): TableReportRow => ({ ...r, avgPerVisit: r.visits ? Math.round(r.total / r.visits) : 0, avgPerGuest: r.guests ? Math.round(r.total / r.guests) : null });
+  const add = (r: TableReportRow, o: Order) => { r.visits += 1; r.guests += o.guestCount ?? 0; r.total += o.total; };
+  const byTable = new Map<string, TableReportRow>(), byFloor = new Map<string, TableReportRow>(), totals = mk('total', 'Total', '');
+  for (const o of paid.filter((x) => x.status === 'paid')) {
+    const t = o.tableId ? tableById.get(o.tableId) : undefined;
+    const key = o.tableId ? (t ? t.id : o.tableId) : 'none';
+    const fl = !o.tableId ? 'Tanpa meja' : t?.floorId ? floorName.get(t.floorId) ?? 'Lantai dihapus' : 'Tanpa lantai';
+    const label = !o.tableId ? 'Tanpa meja (bawa pulang, antar, jasa)' : t ? t.name : 'Meja dihapus';
+    add(byTable.get(key) ?? byTable.set(key, mk(key, label, fl)).get(key)!, o);
+    add(byFloor.get(fl) ?? byFloor.set(fl, mk(fl, fl, fl)).get(fl)!, o);
+    add(totals, o);
+  }
+  const sorter = (a: TableReportRow, b: TableReportRow) => b.total - a.total || a.label.localeCompare(b.label, 'id');
+  return { totals: finish(totals), rows: [...byTable.values()].map(finish).sort(sorter), byFloor: [...byFloor.values()].map(finish).sort(sorter) };
 }
