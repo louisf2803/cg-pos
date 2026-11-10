@@ -218,3 +218,17 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 - A26 (produk jasa, dashboard) dan A27 (laporan karyawan/dapur: label peran Indonesia lewat `formatRole`, kolom cari rapat, keterangan kartu membungkus di 390px, KPI seragam). Lingkup sesuai (apps/dashboard, packages/shared pure, docs). `formatRole` hanya pemetaan label, tidak menyentuh izin (kubaca diff-nya).
 - Lulus: review.sh; Playwright 1440/390 tanpa overflow dan tanpa galat konsol; screenshot docs/shots/rv26/ kulihat; uji fungsional sendiri: pilih Jasa menyembunyikan "Lacak stok", produk jasa tersimpan dan tampil di daftar.
 - Paritas: Produk layanan (jasa) no -> partial.
+- Selesai (tugas A28): Perapian Halaman Analisa (`apps/dashboard`):
+  1. Waktu Teramai Penjualan (/analisa/waktu-teramai-penjualan):
+     - Heatmap 24 jam x 7 hari diperbaiki menjadi baris rapat tinggi 36px (`h-[36px]`), ikon kalender dihapus (cukup teks nama hari).
+     - 24 kolom jam muat penuh tanpa scroll horizontal di viewport >=1280px dan 1440px menggunakan tabel berstruktur tetap (`table-fixed`), label jam tiap 3 jam (00, 03, 06, 09, 12, 15, 18, 21), serta scroll horizontal mandiri di dalam kartu pada layar sempit/mobile.
+     - Sel heatmap berupa kotak persegi kecil bergradasi intensitas warna hijau token (`bg-accent` / `rgba(14, 128, 68, ...)`), angka transaksi & nominal ditempatkan rapi di `title` (tooltip) dan `aria-label` yang dapat diakses pembaca layar serta keyboard navigation (Tab/Enter/Space).
+     - Penggantian bagian "Distribusi transaksi tiap hari" yang berantakan dengan daftar batang horizontal per hari (Senin s/d Minggu) yang proporsional, menampilkan jumlah transaksi dan total rupiah sejajar rata kanan.
+     - Saklar "Nominal rupiah" yang sebelumnya berupa kotak putih kosong diperbaiki menjadi segmented control jelas "Transaksi" | "Nominal" dengan warna aksen hijau tosca berstatus ARIA tablist.
+  2. Perputaran Stok (/analisa/perputaran-stok):
+     - Chip filter status ("Semua", "Cepat", "Normal", "Lambat", "Macet") diperbaiki kontras warnanya agar memenuhi standar kontras AA: teks putih kontras tinggi di atas latar hijau aksen/merah/kuning saat aktif, dan teks gelap tegas di atas kartu putih netral saat tidak aktif.
+     - Standardisasi kartu KPI ke pola beranda: label di atas, angka besar bold rata kiri di bawahnya, compact padding `p-12 sm:p-16`.
+     - Penghapusan seluruh penggunaan kelas `primary` yang tidak terdefinisi dan penggantian dengan token `accent` / `accent-strong`.
+  3. Pembulatan Wajar Kartu KPI:
+     - Kartu KPI "Rata-rata per hari" di semua halaman analisa dibulatkan secara wajar: 1 angka desimal jika nilai rata-rata < 10 (misal `1,4 transaksi`), dan bilangan bulat jika >= 10.
+  4. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (278 tes vitest), `pnpm -F @cgpos/dashboard build` (114 halaman statis), serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (11 tangkapan layar di `docs/shots/a28/`).

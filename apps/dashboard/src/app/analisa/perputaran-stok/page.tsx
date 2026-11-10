@@ -162,7 +162,11 @@ export default function StockTurnoverPage() {
             />
             <StatCard
               label="Rata-rata rasio perputaran"
-              value={`${report.summary.avgTurnoverRatio}×`}
+              value={`${
+                report.summary.avgTurnoverRatio < 10
+                  ? new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(report.summary.avgTurnoverRatio)
+                  : num(Math.round(report.summary.avgTurnoverRatio))
+              }×`}
               subtext={`Dari total ${num(report.summary.totalItems)} barang dipantau`}
               testId="rata-rata-rasio"
             />
@@ -170,7 +174,7 @@ export default function StockTurnoverPage() {
 
           {/* Kotak Petunjuk Formula */}
           <div className="p-12 border border-border rounded-lg bg-surface flex items-start gap-10 text-xs text-text-muted">
-            <HelpCircle className="w-16 h-16 text-primary shrink-0 mt-2" aria-hidden />
+            <HelpCircle className="w-16 h-16 text-accent-strong shrink-0 mt-2" aria-hidden />
             <div>
               <strong>Cara membaca analisa perputaran stok:</strong>
               <div className="mt-2 space-y-2">
@@ -228,7 +232,7 @@ export default function StockTurnoverPage() {
                     <tr key={r.productId} className="hover:bg-surface-raised/50 transition-colors">
                       <td className="py-12 px-16 font-medium text-text">
                         <div className="flex items-center gap-8">
-                          <Boxes className="w-16 h-16 text-primary shrink-0" aria-hidden />
+                          <Boxes className="w-16 h-16 text-accent-strong shrink-0" aria-hidden />
                           <div>
                             <span className="font-semibold block">{r.name}</span>
                             <span className="text-xs text-text-muted capitalize">
@@ -239,7 +243,7 @@ export default function StockTurnoverPage() {
                       </td>
                       <td className="py-12 px-16 text-right cg-num font-mono">{num(r.currentStock)} {r.unit}</td>
                       <td className="py-12 px-16 text-right cg-num font-mono text-text-muted">{r.avgStock} {r.unit}</td>
-                      <td className="py-12 px-16 text-right font-semibold cg-num text-primary">
+                      <td className="py-12 px-16 text-right font-semibold cg-num text-accent-strong">
                         {num(r.soldQty)} {r.unit}
                       </td>
                       <td className="py-12 px-16 text-right font-bold cg-num text-base">
@@ -274,7 +278,7 @@ export default function StockTurnoverPage() {
                 <div key={r.productId} className="p-16 space-y-12 min-w-0">
                   <div className="flex items-center justify-between gap-8 min-w-0">
                     <div className="flex items-center gap-8 min-w-0">
-                      <Boxes className="w-16 h-16 text-primary shrink-0" aria-hidden />
+                      <Boxes className="w-16 h-16 text-accent-strong shrink-0" aria-hidden />
                       <div className="truncate">
                         <strong className="text-sm block truncate">{r.name}</strong>
                         <span className="text-xs text-text-muted capitalize">
@@ -292,7 +296,7 @@ export default function StockTurnoverPage() {
                     </div>
                     <div>
                       <span className="text-text-muted block">Terjual</span>
-                      <span className="font-semibold cg-num text-primary">{num(r.soldQty)} {r.unit}</span>
+                      <span className="font-semibold cg-num text-accent-strong">{num(r.soldQty)} {r.unit}</span>
                     </div>
                     <div>
                       <span className="text-text-muted block">Rasio perputaran</span>
@@ -323,13 +327,13 @@ export default function StockTurnoverPage() {
 function StatusBadge({ status, label }: { status: StockTurnoverRow['status']; label: string }) {
   let badgeClass = 'bg-surface-raised text-text-muted border-border';
   if (status === 'fast_moving') {
-    badgeClass = 'bg-primary/10 text-primary border-primary/20 font-semibold';
+    badgeClass = 'bg-accent-soft text-accent-strong border-accent/20 font-semibold';
   } else if (status === 'normal') {
-    badgeClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
+    badgeClass = 'bg-surface-raised text-text border-border font-medium';
   } else if (status === 'slow_moving') {
-    badgeClass = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
+    badgeClass = 'bg-warning-soft text-warning-strong border-warning-strong/20 font-semibold';
   } else if (status === 'dead_stock') {
-    badgeClass = 'bg-danger/10 text-danger border-danger/20 font-semibold';
+    badgeClass = 'bg-danger-soft text-danger-strong border-danger/20 font-semibold';
   }
 
   return (
@@ -352,20 +356,26 @@ function FilterTab({
   onClick: () => void;
   color?: 'primary' | 'amber' | 'danger';
 }) {
-  let activeClass = 'bg-primary text-white shadow-xs';
-  if (color === 'amber' && active) activeClass = 'bg-amber-600 text-white shadow-xs';
-  if (color === 'danger' && active) activeClass = 'bg-danger text-white shadow-xs';
+  let activeClass = 'bg-accent text-on-accent shadow-xs font-semibold';
+  if (color === 'amber' && active) activeClass = 'bg-warning-strong text-white shadow-xs font-semibold';
+  if (color === 'danger' && active) activeClass = 'bg-danger text-on-danger shadow-xs font-semibold';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-10 py-5 rounded-lg text-xs font-medium transition-colors flex items-center gap-6 ${
-        active ? activeClass : 'bg-surface-raised text-text-muted hover:text-text'
+      className={`px-10 py-5 rounded-lg text-xs transition-colors flex items-center gap-6 border ${
+        active
+          ? `${activeClass} border-transparent`
+          : 'bg-surface-raised text-text border-border hover:bg-surface hover:text-text font-medium'
       }`}
     >
       <span>{label}</span>
-      <span className={`text-[10px] px-6 py-1 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-surface text-text-muted'}`}>
+      <span
+        className={`text-[10px] px-6 py-1 rounded-full font-bold ${
+          active ? 'bg-white/20 text-white' : 'bg-surface text-text-muted border border-border/50'
+        }`}
+      >
         {count}
       </span>
     </button>
@@ -386,12 +396,17 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0">
-      <span className="text-xs text-text-muted font-medium block mb-4 truncate">{label}</span>
-      <strong className={`text-lg block cg-num truncate ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
-        {value}
-      </strong>
-      {subtext && <span className="text-xs text-text-muted block mt-2 truncate">{subtext}</span>}
+    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+      <div>
+        <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left">{label}</span>
+        <strong
+          className={`text-xl sm:text-2xl font-bold block truncate text-left ${primary ? 'text-accent-strong' : 'text-text'}`}
+          data-testid={testId}
+        >
+          {value}
+        </strong>
+      </div>
+      {subtext && <span className="text-xs text-text-muted block mt-6 truncate text-left">{subtext}</span>}
     </div>
   );
 }
