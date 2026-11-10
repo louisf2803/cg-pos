@@ -24,6 +24,8 @@ export function Sidebar() {
   const path = usePathname();
   const data = useData();
   const {
+    selectedOutlet,
+    setSelectedOutlet,
     mobileNavOpen,
     setMobileNavOpen,
     sidebarCollapsed,
@@ -35,7 +37,6 @@ export function Sidebar() {
   } = useShell();
 
   // Outlet state
-  const [selectedOutlet, setSelectedOutlet] = useState<string>('semua');
   const [outletMenuOpen, setOutletMenuOpen] = useState(false);
 
   // Favorites state

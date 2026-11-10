@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 const SIDEBAR_COLLAPSED_KEY = 'cgpos.dashboard.sidebar_collapsed';
 
 interface ShellContextType {
+  selectedOutlet: string;
+  setSelectedOutlet: (id: string) => void;
   mobileNavOpen: boolean;
   setMobileNavOpen: (open: boolean) => void;
   sidebarCollapsed: boolean;
@@ -19,6 +21,7 @@ interface ShellContextType {
 const ShellContext = createContext<ShellContextType | null>(null);
 
 export function ShellProvider({ children }: { children: ReactNode }) {
+  const [selectedOutlet, setSelectedOutlet] = useState<string>('semua');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsedState] = useState<boolean>(false);
   const [lockedFeature, setLockedFeature] = useState<string | null>(null);
@@ -52,6 +55,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   return (
     <ShellContext.Provider
       value={{
+        selectedOutlet,
+        setSelectedOutlet,
         mobileNavOpen,
         setMobileNavOpen,
         sidebarCollapsed,
