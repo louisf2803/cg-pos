@@ -4,3 +4,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Token khusus kerangka navigasi dashboard (A12) */
+:root {
+  --color-sidebar-teal: #00565B;
+  --color-sidebar-teal-hover: #00474B;
+  --color-sidebar-teal-active: #00383B;
+  --color-sidebar-stripe-yellow: #F9A825;
+  --color-sidebar-text-light: #E0F2F1;
+  --color-sidebar-text-muted: #80CBC4;
+}
+
+/* Kelas utilitas navigasi sidebar tosca */
+.cg-sidebar-tosca {
+  background-color: var(--color-sidebar-teal);
+  color: var(--color-sidebar-text-light);
+}
+
+.cg-sidebar-item {
+  color: var(--color-sidebar-text-light);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.cg-sidebar-item:hover {
+  background-color: var(--color-sidebar-teal-hover);
+  color: #FFFFFF;
+}
+
+.cg-sidebar-item[aria-current="page"] {
+  background-color: var(--color-sidebar-teal-active);
+  color: #FFFFFF;
+  border-right: 4px solid var(--color-sidebar-stripe-yellow);
+}
