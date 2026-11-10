@@ -108,3 +108,4 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   6. Lolos uji: `pnpm -r typecheck`, 258 tes shared vitest, build dashboard 114 halaman statis, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (9 tangkapan layar di `docs/shots/a18/`).
 
 - Review A17 (Laporan karyawan + Laporan dapur, helper murni staff-report/kitchen-report + tes): review.sh lulus (typecheck, tes shared, build), Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol, lingkup hanya dashboard/shared/docs. Digabung ke main. Temuan kecil (peran berbahasa Inggris, placeholder cari, teks terpotong di mobile) -> A27.
+- Review A18 (Analisa: waktu teramai penjualan, waktu teramai produk, perputaran stok; shared analysis.ts + tes): review.sh lulus, tanpa overflow/galat konsol, data cocok dengan demo. Digabung ke main. Kekurangan tampilan (heatmap terpotong dan baris terlalu tinggi, chip filter kontras rendah) -> A28.
