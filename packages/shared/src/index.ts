@@ -27,3 +27,4 @@ export * from './stock';
 export * from './purchasing';
 export * from './finance';
 export * from './kitchen';
+export * from './csv';

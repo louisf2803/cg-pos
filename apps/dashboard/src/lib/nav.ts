@@ -18,7 +18,7 @@ export const NAV: NavGroup[] = [
   {
     label: 'Penjualan', icon: ShoppingBag, items: [
       { section: 'Produk', href: '/produk', label: 'Produk', screen: 'S33', tier: 1, built: true },
-      { section: 'Produk', href: '/produk/impor', label: 'Impor dan ekspor produk', screen: 'S33', tier: 2 },
+      { section: 'Produk', href: '/produk/impor', label: 'Impor dan ekspor produk', screen: 'S33', tier: 2, built: true },
       { section: 'Produk', href: '/kategori', label: 'Kategori dan departemen', screen: 'S34', tier: 1, built: true },
       { section: 'Produk', href: '/ekstra', label: 'Produk ekstra', screen: 'S35', tier: 1, built: true },
       { section: 'Produk', href: '/paket', label: 'Paket', screen: 'S36', tier: 1, built: true },

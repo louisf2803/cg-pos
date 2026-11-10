@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Fragment, useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Search } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronRight, Plus, Search } from 'lucide-react';
 import { formatRp } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
@@ -33,7 +33,16 @@ export default function DaftarProduk() {
       <PageHeader
         title="Produk"
         subtitle="Katalog yang tampil di kasir. Produk dengan varian (S, M, L) cukup satu baris."
-        actions={<Link href="/produk/baru" className="cg-btn cg-btn--primary"><Plus className="cg-icon" aria-hidden /> Tambah produk</Link>}
+        actions={
+          <div className="flex flex-wrap items-center gap-8">
+            <Link href="/produk/impor" className="cg-btn cg-btn--secondary">
+              <ArrowUpDown className="cg-icon" aria-hidden /> Impor / Ekspor
+            </Link>
+            <Link href="/produk/baru" className="cg-btn cg-btn--primary">
+              <Plus className="cg-icon" aria-hidden /> Tambah produk
+            </Link>
+          </div>
+        }
       />
       <div className="flex flex-wrap items-center gap-12 mb-16">
         <label className="cg-search flex-1 min-w-[220px]">
