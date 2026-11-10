@@ -139,3 +139,15 @@ function done_balance(o: { total: number; paidTotal: number; rounding: number })
   // sisa setelah pembayaran sebagian, termasuk pembulatan tunai pada pembayaran pertama non-tunai = 0
   return o.total - o.paidTotal;
 }
+
+describe('catatan per item', () => {
+  it('tersimpan bersama pesanan dan terbaca kembali', async () => {
+    const d = createFakeData();
+    const emp = (await d.listEmployees())[0]!;
+    await d.openShift?.({ id: 'sh-note', openingCash: 100000, cashierId: emp.id } as never).catch(() => undefined);
+    const p = (await d.listProducts())[0]!;
+    const saved = await d.saveOrder({ id: 'o-note', type: 'takeaway', items: [{ id: 'i1', productId: p.id, name: p.name, qty: 1, unitPrice: p.price, note: 'tanpa es' }] }, emp.id);
+    expect(saved.items[0]!.note).toBe('tanpa es');
+    expect((await d.getOrder('o-note'))!.items[0]!.note).toBe('tanpa es');
+  });
+});

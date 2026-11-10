@@ -24,7 +24,7 @@ body { overscroll-behavior: none; }
   .reg .cg-shell__header { gap: var(--space-8); }
 }
 .reg__pay { white-space: nowrap; }
-@media (max-width: 599px) { .reg__pay { flex: 1; } }
+@media (max-width: 599px) { .reg__pay { flex: 1; } .reg__lbl { display: none; } }
 
 /* ---------- struk ---------- */
 .receipt { font-family: ui-monospace, 'Courier New', monospace; font-size: 12px; line-height: 1.35; color: #000; background: #fff; padding: 8px; }

@@ -1,12 +1,13 @@
 import { useMemo, useReducer } from 'react';
 import { appliedFromEntries, computeOrder, extrasKey, extrasLineTotal, newId, resolveDiscounts, type AppliedDiscount, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product, type Promotion, type ResolvedDiscounts } from '@cgpos/shared';
 
-export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[] }
+export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string; discounts: AppliedDiscount[] }
 type Action =
   | { t: 'add'; product: Product; extras?: ItemExtra[] }
   | { t: 'qty'; lineId: string; qty: number }
+  | { t: 'note'; lineId: string; note: string }
   | { t: 'type'; type: OrderType }
   | { t: 'table'; tableId?: string; tableName?: string }
   | { t: 'meta'; label?: string; guestCount?: number }
@@ -23,12 +24,13 @@ function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {
       // baris yang sama = produk sama dan pilihan Ekstra sama persis
-      const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras));
+      const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras) && !l.note);
       if (ex) return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: l.qty + 1 } : l)) };
       return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, ...(a.extras?.length ? { extras: a.extras } : {}) }] };
     }
     case 'qty':
       return { ...s, lines: a.qty <= 0 ? s.lines.filter((l) => l.id !== a.lineId) : s.lines.map((l) => (l.id === a.lineId ? { ...l, qty: a.qty } : l)) };
+    case 'note': return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, note: a.note.slice(0, 120) || undefined } : l)) };
     case 'type': return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
     case 'table': return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta': return { ...s, label: a.label, guestCount: a.guestCount };
@@ -37,7 +39,7 @@ function reduce(s: CartState, a: Action): CartState {
     case 'discount-add': return { ...s, discounts: [...s.discounts, a.discount] };
     case 'discount-remove': return { ...s, discounts: s.discounts.filter((d) => d.id !== a.id) };
     case 'load':
-      return { discounts: appliedFromEntries(a.order.discounts ?? (a.order.discountTotal > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon', amount: a.order.discountTotal }] : [])), type: a.order.type, customerId: a.order.customerId, customerName: a.order.customerName, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}) })) };
+      return { discounts: appliedFromEntries(a.order.discounts ?? (a.order.discountTotal > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon', amount: a.order.discountTotal }] : [])), type: a.order.type, customerId: a.order.customerId, customerName: a.order.customerName, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}), ...(i.note ? { note: i.note } : {}) })) };
     case 'saved': return { ...s, orderId: a.orderId };
     case 'clear': return initial;
   }

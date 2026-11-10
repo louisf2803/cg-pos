@@ -47,6 +47,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
   const [shiftOpen, setShiftOpen] = useState(false);
   const [custPick, setCustPick] = useState(false);
   const promos = useAsync<Promotion[]>(() => data.listPromotions({ activeOnly: true }).catch(() => []), [data]);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
   const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS);
   const [discOpen, setDiscOpen] = useState(false);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
@@ -78,7 +79,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
       id: cart.state.orderId ?? newId(), type: cart.state.type,
       tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, orderDiscount: cart.discounts.total || undefined, discounts: cart.discounts.entries.length ? cart.discounts.entries : undefined, label: cart.state.label?.trim() || undefined,
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
-      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras })),
+      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras, note: l.note?.trim() || undefined })),
     }, session.employee.id);
     cart.dispatch({ t: 'saved', orderId: o.id });
     return o;
@@ -251,6 +252,12 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
                   <span className="cg-line__name break-words min-w-0">{l.name}{l.extras?.length ? <span className="block text-text-muted text-sm font-normal">{l.extras.map((e) => e.name).join(', ')}</span> : null}</span>
                   <span className="cg-line__amount cg-num">{formatRp(total)}</span>
                   <span className="cg-line__sub">{l.qty} × {formatRp(l.unitPrice + extrasPerUnit(l.extras))}</span>
+                  {noteFor === l.id
+                    ? <input className="cg-input" style={{ gridColumn: '1 / -1', marginTop: 8 }} autoFocus maxLength={120} placeholder="Catatan untuk dapur, mis. tanpa es" aria-label={`Catatan ${l.name}`}
+                      value={l.note ?? ''} onChange={(e) => cart.dispatch({ t: 'note', lineId: l.id, note: e.target.value })}
+                      onBlur={() => setNoteFor(null)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); setNoteFor(null); } }} />
+                    : <button className="cg-btn cg-btn--ghost cg-btn--sm break-words text-left" style={{ gridColumn: '1 / -1', justifySelf: 'start' }} onClick={() => setNoteFor(l.id)}
+                      aria-label={l.note ? `Ubah catatan ${l.name}: ${l.note}` : `Tambah catatan ${l.name}`}>{l.note ? `Catatan: ${l.note}` : '+ Catatan'}</button>}
                   <span className="cg-stepper" style={{ gridColumn: '1 / -1', justifySelf: 'start', marginTop: 8 }}>
                     <button onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })} aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}>{l.qty === 1 ? <Trash2 className="cg-icon cg-icon--sm" aria-hidden /> : <Minus className="cg-icon cg-icon--sm" aria-hidden />}</button>
                     <output aria-label={`Jumlah ${l.name}`}>{l.qty}</output>
@@ -277,8 +284,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         {saveErr && <span role="alert" className="text-danger-strong text-sm flex-1">{saveErr}</span>}
         {!saveErr && notice && <span role="status" className="text-sm flex-1">{notice}</span>}
         <button className="cg-btn cg-btn--secondary reg__show" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
-        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={toKitchen}><ChefHat className="cg-icon cg-icon--sm" aria-hidden /> Kirim ke dapur</button>
-        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={hold}><Save className="cg-icon cg-icon--sm" aria-hidden /> Simpan</button>
+        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={toKitchen} aria-label="Kirim ke dapur"><ChefHat className="cg-icon cg-icon--sm" aria-hidden /><span className="reg__lbl">Kirim ke dapur</span></button>
+        <button className="cg-btn cg-btn--secondary" disabled={!cart.state.lines.length || placing} onClick={hold} aria-label="Simpan"><Save className="cg-icon cg-icon--sm" aria-hidden /><span className="reg__lbl">Simpan</span></button>
         <button className="cg-btn cg-btn--primary cg-btn--lg ml-auto reg__pay" disabled={!cart.state.lines.length || placing} aria-busy={placing} onClick={pay}>
           Bayar {cart.state.lines.length ? formatRp(cart.calc.total) : ''}
         </button>
