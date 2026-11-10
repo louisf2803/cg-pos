@@ -32,4 +32,5 @@ export * from './auth-code';
 export * from './activity';
 export * from './recipe';
 export * from './product-unit';
+export * from './stock-transfer';
 export * from './price-override';

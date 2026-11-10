@@ -11,6 +11,7 @@ import {
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
 import { priceOverridePctProblem } from './price-override';
+import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput, type TransferStatus } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
@@ -109,6 +110,16 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
   };
 
   /** Lokasi stok outlet (satu per outlet; dibuat saat outlet dibuat). */
+  function transferError(m: string, error: Parameters<typeof mapDbError>[0]): DataError {
+    if (/not allowed|no access/i.test(m)) return new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh memindahkan stok.');
+    if (/transfer not found/i.test(m)) return new DataError('not_found', 'Transfer tidak ditemukan.');
+    if (/not in transit/i.test(m)) return new DataError('invalid', 'Transfer ini tidak sedang dalam perjalanan.');
+    if (/location not found/i.test(m)) return new DataError('not_found', 'Lokasi tidak ditemukan.');
+    if (/must differ/i.test(m)) return new DataError('invalid', 'Lokasi asal dan tujuan tidak boleh sama.');
+    if (/does not track stock/i.test(m)) return new DataError('invalid', 'Ada barang yang stoknya tidak dilacak.');
+    if (/invalid line|duplicate product|lines required|too many lines/i.test(m)) return new DataError('invalid', 'Isi barang dan jumlah ditolak server. Periksa kembali.');
+    return mapDbError(error);
+  }
   const locCache = new Map<string, string>();
   async function stockLocation(outletId: string): Promise<string> {
     const hit = locCache.get(outletId);
@@ -1392,6 +1403,36 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         throw mapDbError(error);
       }
       return data === true;
+    },
+
+    async listStockLocations() {
+      const { data, error } = await db().rpc('stock_location_list');
+      if (error) throw mapDbError(error);
+      return ((data as Row[] | null) ?? []).map((r): StockLocation => ({ id: r.id as string, name: r.name as string, kind: r.kind === 'warehouse' ? 'warehouse' : 'outlet' }));
+    },
+    async listStockTransfers() {
+      const { data, error } = await db().rpc('stock_transfer_list', { p_limit: 100 });
+      if (error) throw mapDbError(error);
+      return ((data as Row[] | null) ?? []).map((r): StockTransfer => ({
+        id: r.id as string, number: r.number as string, status: r.status as TransferStatus, fromId: r.from_id as string, fromName: r.from_name as string, toId: r.to_id as string, toName: r.to_name as string,
+        note: (r.note as string | null) ?? undefined, createdAt: r.created_at as string,
+        lines: ((r.lines as Row[] | null) ?? []).map((l) => ({ productId: l.product_id as string, name: l.name as string, qty: Number(l.qty), receivedQty: Number(l.received_qty) })),
+      }));
+    },
+    async createStockTransfer(input: StockTransferInput) {
+      const problem = transferProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { data, error } = await db().rpc('stock_transfer_create', { p_id: input.id, p_from: input.fromId, p_to: input.toId, p_note: input.note?.trim() || null, p_lines: input.lines.map((l) => ({ product_id: l.productId, qty: l.qty })) });
+      if (error) throw transferError(error.message ?? '', error);
+      return { number: String((data as Row | null)?.number ?? '') };
+    },
+    async receiveStockTransfer(id) {
+      const { error } = await db().rpc('stock_transfer_receive', { p_id: id });
+      if (error) throw transferError(error.message ?? '', error);
+    },
+    async cancelStockTransfer(id) {
+      const { error } = await db().rpc('stock_transfer_cancel', { p_id: id });
+      if (error) throw transferError(error.message ?? '', error);
     },
 
     async setPriceOverride(productIds, pct) {

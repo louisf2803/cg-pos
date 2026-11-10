@@ -8,6 +8,7 @@ import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
 import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
+import type { StockLocation, StockTransfer, StockTransferInput } from './stock-transfer';
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
@@ -242,5 +243,17 @@ export interface DataLayer {
   saveProductUnit(input: ProductUnitInput): Promise<void>;
   /** Arsipkan satuan lain yang belum dipakai. Mengembalikan false bila tidak ada. */
   removeProductUnit(productId: string, unitId: string): Promise<boolean>;
+
+  // ---------- transfer stok ----------
+  /** Lokasi stok aktif (outlet dan gudang) yang boleh dikelola. */
+  listStockLocations(): Promise<StockLocation[]>;
+  /** Transfer terbaru dulu. */
+  listStockTransfers(): Promise<StockTransfer[]>;
+  /** Kirim: stok keluar dari lokasi asal sekarang, status dalam perjalanan. Id yang sama dikirim ulang tidak menggandakan. */
+  createStockTransfer(input: StockTransferInput): Promise<{ number: string }>;
+  /** Terima: stok masuk ke lokasi tujuan dengan biaya rata-rata saat dikirim. */
+  receiveStockTransfer(id: string): Promise<void>;
+  /** Batalkan selama masih dalam perjalanan: stok kembali ke lokasi asal. */
+  cancelStockTransfer(id: string): Promise<void>;
 }
 

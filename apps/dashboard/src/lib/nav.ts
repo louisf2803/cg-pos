@@ -37,7 +37,7 @@ export const NAV: NavGroup[] = [
       { section: 'Kelola stok', href: '/inventori/satuan', label: 'Satuan barang', screen: 'S54', tier: 2, built: true },
       { section: 'Kelola stok', href: '/inventori/terbuang', label: 'Stok terbuang', screen: 'S56', tier: 2 },
       { section: 'Kelola stok', href: '/inventori/produksi', label: 'Produksi stok', screen: 'S57', tier: 3 },
-      { section: 'Kelola stok', href: '/inventori/transfer', label: 'Transfer stok', screen: 'S54', tier: 2 },
+      { section: 'Kelola stok', href: '/inventori/transfer', label: 'Transfer stok', screen: 'S54', tier: 2, built: true },
       { section: 'Pembelian stok', href: '/inventori/permintaan', label: 'Permintaan barang', screen: 'S50', tier: 2 },
       { section: 'Pembelian stok', href: '/inventori/pembelian', label: 'Pemesanan stok', screen: 'S51', tier: 2, built: true },
       { section: 'Pembelian stok', href: '/inventori/faktur', label: 'Faktur pembelian', screen: 'S52', tier: 2, built: true },

@@ -6,6 +6,7 @@ import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } fro
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { priceOverridePctProblem } from './price-override';
+import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
@@ -248,6 +249,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   // satuan lain yang bisa diubah dari dashboard; bermula dari contoh di atas
   type AltUnit = PurchaseUnit & { minPurchase: number };
   let altUnits = new Map<string, AltUnit[]>();
+  // transfer stok: outlet ini dan satu gudang tiruan yang stoknya terpisah
+  const LOC_OUTLET = 'loc-outlet', LOC_GUDANG = 'loc-gudang';
+  const locNames: Record<string, string> = { [LOC_OUTLET]: 'Outlet utama', [LOC_GUDANG]: 'Gudang pusat' };
+  let whQty = new Map<string, number>();
+  type FTransfer = Omit<StockTransfer, 'lines'> & { lines: (StockTransfer['lines'][number] & { cost: number })[] };
+  let transfers: FTransfer[] = [];
   const seedAltUnits = () => { altUnits = new Map(Object.entries(FAKE_ALT_UNITS).map(([k, v]) => [k, v.map((u) => ({ ...u, minPurchase: 1 }))])); };
   seedAltUnits();
   const baseUnitId = (productId: string) => `u-base-${productId}`;
@@ -339,7 +346,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
   function seedStock() {
-    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = []; recipes = new Map(); seedAltUnits();
+    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = []; recipes = new Map(); seedAltUnits(); whQty = new Map(); transfers = [];
     suppliers = opts.seed === false ? [] : [
       { id: 'sp-kopi', code: 'SUP-01', name: 'CV Sumber Kopi Nusantara', phone: '081234500001', termDays: 14, isActive: true },
       { id: 'sp-susu', code: 'SUP-02', name: 'UD Susu Segar Jaya', phone: '081234500002', termDays: 7, isActive: true },
@@ -1166,6 +1173,52 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (row?.inUse) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi tidak bisa dihapus.');
       list.splice(idx, 1);
       return true;
+    },
+    async listStockLocations(): Promise<StockLocation[]> {
+      return [{ id: LOC_OUTLET, name: locNames[LOC_OUTLET]!, kind: 'outlet' }, { id: LOC_GUDANG, name: locNames[LOC_GUDANG]!, kind: 'warehouse' }];
+    },
+    async listStockTransfers() {
+      return clone(transfers.map(({ lines, ...t }) => ({ ...t, lines: lines.map(({ cost: _c, ...l }) => l) })));
+    },
+    async createStockTransfer(input: StockTransferInput) {
+      const dup = transfers.find((t) => t.id === input.id);
+      if (dup) return { number: dup.number };
+      const problem = transferProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!locNames[input.fromId] || !locNames[input.toId]) throw new DataError('not_found', 'Lokasi tidak ditemukan.');
+      const lines = input.lines.map((l) => {
+        const b = stockBal(l.productId);
+        if (!b) throw new DataError('invalid', 'Ada barang yang stoknya tidak dilacak.');
+        return { productId: l.productId, name: b.name, qty: l.qty, receivedQty: 0, cost: costs.get(l.productId) ?? 0 };
+      });
+      for (const l of lines) {
+        if (input.fromId === LOC_OUTLET) recordStock(l.productId, -l.qty, 'transfer_out', { reason: `Transfer ke ${locNames[input.toId]}`, refType: 'transfer' });
+        else whQty.set(l.productId, (whQty.get(l.productId) ?? 0) - l.qty);
+      }
+      const number = `TRF-${String(transfers.length + 1).padStart(6, '0')}`;
+      transfers.unshift({ id: input.id, number, status: 'in_transit', fromId: input.fromId, fromName: locNames[input.fromId]!, toId: input.toId, toName: locNames[input.toId]!, note: input.note?.trim() || undefined, createdAt: now().toISOString(), lines });
+      return { number };
+    },
+    async receiveStockTransfer(id) {
+      const t = transfers.find((x) => x.id === id);
+      if (!t) throw new DataError('not_found', 'Transfer tidak ditemukan.');
+      if (t.status !== 'in_transit') throw new DataError('invalid', 'Transfer ini tidak sedang dalam perjalanan.');
+      for (const l of t.lines) {
+        if (t.toId === LOC_OUTLET) recordStock(l.productId, l.qty, 'transfer_in', { unitCost: l.cost, reason: `Transfer ${t.number}`, refType: 'transfer' });
+        else whQty.set(l.productId, (whQty.get(l.productId) ?? 0) + l.qty);
+        l.receivedQty = l.qty;
+      }
+      t.status = 'received';
+    },
+    async cancelStockTransfer(id) {
+      const t = transfers.find((x) => x.id === id);
+      if (!t) throw new DataError('not_found', 'Transfer tidak ditemukan.');
+      if (t.status !== 'in_transit') throw new DataError('invalid', 'Transfer ini tidak sedang dalam perjalanan.');
+      for (const l of t.lines) {
+        if (t.fromId === LOC_OUTLET) recordStock(l.productId, l.qty, 'transfer_in', { unitCost: l.cost, reason: `Transfer ${t.number} dibatalkan`, refType: 'transfer' });
+        else whQty.set(l.productId, (whQty.get(l.productId) ?? 0) + l.qty);
+      }
+      t.status = 'cancelled';
     },
     async setPriceOverride(productIds, pct) {
       const problem = priceOverridePctProblem(pct);

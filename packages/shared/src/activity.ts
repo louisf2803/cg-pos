@@ -15,7 +15,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   payment_method: 'Metode pembayaran', outlet: 'Outlet', outlet_settings: 'Pengaturan outlet', employee: 'Karyawan', tax: 'Pajak',
   promotion: 'Promo', coupon: 'Kupon', extra_group: 'Produk ekstra', floor: 'Lantai', table: 'Meja', supplier: 'Pemasok',
   account: 'Akun keuangan', loyalty_rules: 'Aturan loyalti', price_schedule: 'Jadwal harga', customer_group: 'Grup pelanggan',
-  member: 'Akses pengguna', recipe: 'Resep', order: 'Pesanan', gateway: 'Pembayaran online', loyalty: 'Loyalti',
+  member: 'Akses pengguna', recipe: 'Resep', stock_transfer: 'Transfer stok', order: 'Pesanan', gateway: 'Pembayaran online', loyalty: 'Loyalti',
 };
 /** Pilihan penyaring di layar: hanya benda yang dicatat oleh pemicu database. */
 export const ACTIVITY_FILTERS: { id: string; label: string }[] = Object.entries(ENTITY_LABEL)
