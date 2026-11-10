@@ -111,7 +111,7 @@ export function MergeTableDialog({ order, names, onClose, onDone }: { order: Ord
         <p role="alert" className="min-h-[24px] text-danger-strong">{error}</p>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Batal</button>
-          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || !from || ap.staffLoading || (ap.needsPin && ap.pin.length !== 6)}>{busy ? 'Menggabungkan…' : 'Gabungkan'}</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || !from || ap.staffLoading || !ap.credentialReady}>{busy ? 'Menggabungkan…' : 'Gabungkan'}</button>
         </div>
       </form>
     </Modal>

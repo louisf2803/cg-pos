@@ -205,12 +205,12 @@ export function createOfflineData(inner: DataLayer, opts: Options): OfflineData 
     const ids = new Set(mine.map((o) => o.id));
     return [...mine.map((o) => clone(o)), ...remote.filter((o) => !ids.has(o.id))].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
   };
-  api.voidUnpaidOrder = async (orderId: string, reason: string, by: string) => {
+  api.voidUnpaidOrder = async (orderId: string, reason: string, by: string, authMethod?: 'pin' | 'code') => {
     if (local[orderId] || hasPending(orderId)) {
       if (isOnline()) await flush();
       if (local[orderId] || hasPending(orderId)) throw new DataError('network', 'Pesanan ini belum terkirim ke server. Sinkronkan dulu atau hapus dari daftar tertunda.');
     }
-    return inner.voidUnpaidOrder(orderId, reason, by);
+    return inner.voidUnpaidOrder(orderId, reason, by, authMethod);
   };
   api.closeShift = async (input: Parameters<DataLayer['closeShift']>[0]) => {
     if (queue.length > 0) {

@@ -107,7 +107,7 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
 
 function VoidDialog({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: (number: string) => void }) {
   const data = useData();
-  const ap = useApprover('void_order');
+  const ap = useApprover('void_order', { allowCode: true, orderId: order.id });
   const [reason, setReason] = useState(REASONS[0]!);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -119,9 +119,9 @@ function VoidDialog({ order, onClose, onDone }: { order: Order; onClose: () => v
     if (reason === 'Lainnya' && !note.trim()) return setError('Tulis alasannya.');
     setBusy(true); setError('');
     try {
-      const by = await ap.authorize();
-      if (!by) { setBusy(false); return setError('PIN salah.'); }
-      await data.voidUnpaidOrder(order.id, reason === 'Lainnya' ? note.trim() : note.trim() ? `${reason}: ${note.trim()}` : reason, by);
+      const by = await ap.authorizeWith();
+      if (!by) { setBusy(false); return setError(ap.usingCode ? 'Kode salah, sudah dipakai, atau kedaluwarsa.' : 'PIN salah.'); }
+      await data.voidUnpaidOrder(order.id, reason === 'Lainnya' ? note.trim() : note.trim() ? `${reason}: ${note.trim()}` : reason, by.id, by.method);
       onDone(order.number);
     } catch (err) { setError(err instanceof Error ? err.message : 'Pesanan gagal dibatalkan.'); setBusy(false); }
   }
@@ -144,7 +144,7 @@ function VoidDialog({ order, onClose, onDone }: { order: Order; onClose: () => v
         <p role="alert" className="min-h-[24px] text-danger-strong">{error}</p>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Jangan batalkan</button>
-          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || ap.staffLoading || (ap.needsPin && ap.pin.length !== 6)}>{busy ? 'Membatalkan…' : 'Batalkan pesanan'}</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || ap.staffLoading || !ap.credentialReady}>{busy ? 'Membatalkan…' : 'Batalkan pesanan'}</button>
         </div>
       </form>
     </Modal>
@@ -238,7 +238,7 @@ function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () =>
         <p role="alert" className="min-h-[24px] text-danger-strong">{error}</p>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Tutup</button>
-          {!nothingLeft && <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || total <= 0 || !method || ap.staffLoading || (ap.needsPin && ap.pin.length !== 6)}>{busy ? 'Mencatat…' : `Refund ${formatRp(total)}`}</button>}
+          {!nothingLeft && <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || total <= 0 || !method || ap.staffLoading || !ap.credentialReady}>{busy ? 'Mencatat…' : `Refund ${formatRp(total)}`}</button>}
         </div>
       </form>
     </Modal>
@@ -299,7 +299,7 @@ function DiscardDialog({ entry, onClose, onDone }: { entry: PendingEntry; onClos
         <p role="alert" className="min-h-[24px] text-danger-strong">{error}</p>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Jangan hapus</button>
-          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || ap.staffLoading || (ap.needsPin && ap.pin.length !== 6)}>{busy ? 'Menghapus…' : 'Hapus transaksi'}</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || ap.staffLoading || !ap.credentialReady}>{busy ? 'Menghapus…' : 'Hapus transaksi'}</button>
         </div>
       </form>
     </Modal>

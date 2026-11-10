@@ -5,6 +5,7 @@ import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, 
 import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
+import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
@@ -151,6 +152,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let receiptKeys = new Set<string>();
   let accounts: Account[] = [];
   const kitchen = new Map<string, { status: KitchenStatus; sentAt: string; statusAt: string }>();
+  type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
+  // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
+  const authCodes: AuthCodeFake[] = [
+    { id: 'demo-code-void', code: '24681357', permission: 'void_order', note: 'Contoh untuk demo', issuedAt: now().toISOString(), expiresAt: new Date(now().getTime() + 86400000).toISOString() },
+    { id: 'demo-code-free', code: '13572468', permission: 'complimentary', note: 'Contoh untuk demo', issuedAt: now().toISOString(), expiresAt: new Date(now().getTime() + 86400000).toISOString() },
+  ];
+  let authCodeFails: number[] = [];
   let stored: FakeEntry[] = [];
   const seqOf = new Map<string, number>();
   let extraGroups: ExtraGroup[] = [];
@@ -1041,6 +1049,38 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (itemIds.length === 0) throw new DataError('invalid', 'Pilih baris yang mau diubah.');
       const at = now().toISOString();
       for (const id of itemIds) { const k = kitchen.get(id); if (k && k.status !== status) { k.status = status; k.statusAt = at; } }
+    },
+    async issueAuthCode(input) {
+      if (!Number.isInteger(input.ttlMinutes) || input.ttlMinutes < 1 || input.ttlMinutes > 240) throw new DataError('invalid', 'Masa berlaku kode antara 1 dan 240 menit.');
+      const code = String(Math.floor(Math.random() * 10 ** AUTH_CODE_LENGTH)).padStart(AUTH_CODE_LENGTH, '0');
+      const at = now();
+      const row = { id: newId(), code, permission: input.permission, note: input.note?.trim().slice(0, 120) || undefined, issuedAt: at.toISOString(), expiresAt: new Date(at.getTime() + input.ttlMinutes * 60000).toISOString() } as AuthCodeFake;
+      authCodes.unshift(row);
+      return { id: row.id, code, expiresAt: row.expiresAt } satisfies IssuedAuthCode;
+    },
+    async listAuthCodes() {
+      const t = now().toISOString();
+      return authCodes.map((c): AuthCodeRow => ({
+        id: c.id, permission: c.permission, note: c.note, issuedBy: 'e-owner', issuerEmail: 'pemilik@contoh.id', issuedAt: c.issuedAt, expiresAt: c.expiresAt,
+        status: c.usedAt ? 'used' : c.revokedAt ? 'revoked' : c.expiresAt <= t ? 'expired' : 'active',
+        ...(c.usedAt ? { usedAt: c.usedAt } : {}), ...(c.revokedAt ? { revokedAt: c.revokedAt } : {}),
+      }));
+    },
+    async revokeAuthCode(id) {
+      const c = authCodes.find((x) => x.id === id);
+      if (!c) throw new DataError('not_found', 'Kode tidak ditemukan.');
+      if (c.usedAt || c.revokedAt) return false;
+      c.revokedAt = now().toISOString();
+      return true;
+    },
+    async useAuthCode(code, permission: AuthCodePermission) {
+      const t = now(); const cutoff = t.getTime() - 10 * 60000;
+      authCodeFails = authCodeFails.filter((x) => x > cutoff);
+      if (authCodeFails.length >= 5) return null;
+      const c = authCodes.find((x) => x.code === normalizeAuthCode(code) && x.permission === permission && !x.usedAt && !x.revokedAt && x.expiresAt > t.toISOString());
+      if (!c) { authCodeFails.push(t.getTime()); return null; }
+      c.usedAt = t.toISOString(); authCodeFails = [];
+      return 'e-owner';
     },
     async listAccounts() { return clone([...accounts].sort((a, b) => a.code.localeCompare(b.code))); },
     async saveAccount(input: AccountInput) {

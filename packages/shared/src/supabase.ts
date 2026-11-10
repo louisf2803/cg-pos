@@ -10,6 +10,7 @@ import {
 } from './purchasing';
 
 import { groupTickets, type KitchenRow, type KitchenStatus } from './kitchen';
+import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
 import {
   accountProblem, balanceSheetOf, balanceSheetTotals, cashFlowOf, incomeStatementOf, journalProblem, ledgerOf,
   type Account, type AccountCategory, type AccountInput, type FinLine, type Journal, type JournalInput, type JournalSummary, type PayableRow, type StatementRow, type TrialRow,
@@ -217,6 +218,15 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (/order not found/i.test(m)) return new DataError('not_found', 'Pesanan belum tersimpan di server. Simpan pesanan dulu.');
     if (/order is not active/i.test(m)) return new DataError('invalid', 'Pesanan ini sudah dibatalkan atau ditutup.');
     if (/invalid status|no items|too many items/i.test(m)) return new DataError('invalid', 'Pengubahan status ditolak server.');
+    return mapDbError(error);
+  }
+
+  function mapAuthCodeError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur kode otorisasi belum aktif di database (migrasi 0020 belum diterapkan).');
+    if (/no access/i.test(m)) return new DataError('forbidden', 'Hanya pemilik, admin, atau manajer outlet ini yang boleh mengelola kode otorisasi.');
+    if (/not your device/i.test(m)) return new DataError('forbidden', 'Perangkat ini tidak dikenali server.');
+    if (/ttl must be|invalid permission/i.test(m)) return new DataError('invalid', 'Pengaturan kode ditolak server.');
     return mapDbError(error);
   }
 
@@ -1263,6 +1273,34 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { error } = await db().rpc('kitchen_set_status', { p_items: itemIds, p_status: status });
       if (error) throw mapKitchenError(error);
     },
+    async issueAuthCode(input) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('auth_code_issue', { p_outlet: ctx.outletId, p_permission: input.permission, p_ttl_minutes: input.ttlMinutes, p_note: input.note?.trim() || null });
+      if (error) throw mapAuthCodeError(error);
+      const r = data as { id: string; code: string; expires_at: string };
+      return { id: r.id, code: r.code, expiresAt: r.expires_at };
+    },
+    async listAuthCodes() {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('auth_code_list', { p_outlet: ctx.outletId, p_limit: 50 });
+      if (error) throw mapAuthCodeError(error);
+      return ((data ?? []) as Row[]).map((r): AuthCodeRow => ({
+        id: r.id, permission: r.permission as AuthCodePermission, status: r.status as AuthCodeRow['status'], issuedBy: r.issued_by, issuedAt: r.issued_at, expiresAt: r.expires_at,
+        ...(r.note ? { note: r.note as string } : {}), ...(r.issuer_email ? { issuerEmail: r.issuer_email as string } : {}), ...(r.used_at ? { usedAt: r.used_at as string } : {}),
+        ...(r.used_order_number ? { usedOrderNumber: r.used_order_number as string } : {}), ...(r.revoked_at ? { revokedAt: r.revoked_at as string } : {}),
+      }));
+    },
+    async revokeAuthCode(id) {
+      const { data, error } = await db().rpc('auth_code_revoke', { p_id: id });
+      if (error) throw mapAuthCodeError(error);
+      return data === true;
+    },
+    async useAuthCode(code, permission, orderId) {
+      const { r } = await requireDevice();
+      const { data, error } = await db().rpc('auth_code_use', { p_device: r.device!.id, p_code: normalizeAuthCode(code), p_permission: permission, p_order: orderId ?? null });
+      if (error) throw mapAuthCodeError(error);
+      return typeof data === 'string' ? data : null;
+    },
 
     // ---------- keuangan ----------
     async listAccounts() {
@@ -1588,7 +1626,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       await pushOps(deviceId, [{ type: 'refund.add', entityId: input.id, payload }]);
       return (await self.listRefunds(order.id)).find((x) => x.id === input.id)!;
     },
-    async voidUnpaidOrder(orderId, reason, authorizedBy) {
+    async voidUnpaidOrder(orderId, reason, authorizedBy, authMethod = 'pin') {
       const { deviceId } = await requireDevice();
       const o = must(await db().from('orders').select('id,status,paid_total').eq('id', orderId).maybeSingle()) as Row | null;
       if (!o) throw new DataError('not_found', 'Pesanan tidak ditemukan');
@@ -1597,7 +1635,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       }
       await pushOps(deviceId, [{
         type: 'order.void', entityId: orderId,
-        payload: { order_id: orderId, authorized_by: authorizedBy, auth_method: 'pin', reason, voided_by: authorizedBy, voided_at: now().toISOString() },
+        payload: { order_id: orderId, authorized_by: authorizedBy, auth_method: authMethod, reason, voided_by: authorizedBy, voided_at: now().toISOString() },
       }]);
       return (await self.getOrder(orderId))!;
     },

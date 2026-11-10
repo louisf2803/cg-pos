@@ -16,7 +16,7 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
   const [raw, setRaw] = useState('');
   const [amountRaw, setAmountRaw] = useState('');
   const [reference, setReference] = useState('');
-  const approver = useApprover('complimentary');
+  const approver = useApprover('complimentary', { allowCode: true, orderId: order.id });
   const { session } = useSession();
   const [current, setCurrent] = useState<Order>(order);
   const [partial, setPartial] = useState<Order | null>(null);
@@ -56,9 +56,9 @@ export function Payment({ order, ctx, onBack, onDone }: { order: Order; ctx: Out
       let ref = reference.trim() || undefined;
       if (method.kind === 'complimentary') {
         // gratis butuh persetujuan manajer/pemilik; namanya ikut dicatat supaya bisa ditelusuri di laporan
-        const approvedBy = await approver.authorize();
-        if (!approvedBy) { setErr(approver.mode === 'deny' ? 'Peran kamu tidak boleh memberi gratis. Minta manajer atau pemilik.' : 'Persetujuan gagal: PIN salah.'); return; }
-        const name = approver.approvers.find((x) => x.id === approvedBy)?.name ?? session.employee.name;
+        const approvedBy = await approver.authorizeWith();
+        if (!approvedBy) { setErr(approver.mode === 'deny' ? 'Peran kamu tidak boleh memberi gratis. Minta manajer atau pemilik.' : approver.usingCode ? 'Persetujuan gagal: kode salah, sudah dipakai, atau kedaluwarsa.' : 'Persetujuan gagal: PIN salah.'); return; }
+        const name = approvedBy.method === 'code' ? 'dengan kode otorisasi' : approver.approvers.find((x) => x.id === approvedBy.id)?.name ?? session.employee.name;
         ref = `${reference.trim()} · disetujui ${name}`.slice(0, PAYMENT_REF_MAX);
       }
       const res = await data.addPayment(order.id, { id: attemptId.current, methodId: method.id, amount, tendered: isCash ? tendered : undefined, reference: ref });

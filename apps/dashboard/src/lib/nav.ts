@@ -111,6 +111,7 @@ export const NAV: NavGroup[] = [
       { section: 'Produk dan inventori', href: '/pengaturan/stok', label: 'Notifikasi dan batas stok', screen: 'S60', tier: 2 },
       { section: 'Produk dan inventori', href: '/pengaturan/struk', label: 'Tampilan struk', screen: 'S53', tier: 2 },
       { section: 'Akses', href: '/pengaturan/karyawan', label: 'Karyawan dan akses', screen: 'S43', tier: 1, built: true },
+      { section: 'Akses', href: '/pengaturan/kode-otorisasi', label: 'Kode otorisasi', screen: 'S43', tier: 2, built: true },
       { section: 'Akses', href: '/pengaturan/log', label: 'Log aktivitas', screen: 'S43', tier: 2 },
       { section: 'Perangkat', href: '/pengaturan/sinkron', label: 'Sinkronisasi', screen: 'S23', tier: 2 },
     ],

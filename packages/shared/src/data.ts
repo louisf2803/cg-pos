@@ -5,6 +5,7 @@ import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, Jour
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type { KitchenStatus, KitchenTicket } from './kitchen';
+import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -192,7 +193,8 @@ export interface DataLayer {
   listRefunds(orderId: string): Promise<Refund[]>;
   /** Semua refund dalam rentang tanggal (untuk laporan penjualan bersih dan kontrol). */
   listRefundsBetween(range: SalesRange): Promise<Refund[]>;
-  voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string): Promise<Order>;
+  /** authMethod: 'pin' (bawaan) atau 'code' bila pemberi izin memakai kode otorisasi; dicatat di riwayat void. */
+  voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string, authMethod?: 'pin' | 'code'): Promise<Order>;
   getOrder(id: string): Promise<Order | null>;
   /** `by: 'closed'` memfilter dengan tanggal tutup (untuk laporan); `all` mengambil semua, tanpa batas 200. */
   listOrders(q?: { status?: Order['status']; customerId?: string; from?: string; to?: string; limit?: number; by?: 'opened' | 'closed'; all?: boolean }): Promise<Order[]>;
@@ -205,5 +207,15 @@ export interface DataLayer {
   /** Kirim baris pesanan yang belum terkirim ke dapur (idempoten). Pesanan harus sudah tersimpan di server. */
   kitchenSend(orderId: string): Promise<{ sent: number }>;
   kitchenSetStatus(itemIds: string[], status: KitchenStatus): Promise<void>;
+
+  // ---------- kode otorisasi ----------
+  /** Dashboard: terbitkan kode sekali pakai untuk outlet ini (pemilik/admin/manajer). Teks kode hanya dikembalikan di sini. */
+  issueAuthCode(input: { permission: AuthCodePermission; ttlMinutes: number; note?: string }): Promise<IssuedAuthCode>;
+  /** Dashboard: riwayat kode outlet ini, terbaru dulu (tanpa teks kode). */
+  listAuthCodes(): Promise<AuthCodeRow[]>;
+  /** Dashboard: batalkan kode yang belum dipakai. Mengembalikan false bila sudah dipakai atau dibatalkan. */
+  revokeAuthCode(id: string): Promise<boolean>;
+  /** Kasir (perangkat): tukar kode dengan identitas penerbit; null bila salah, kedaluwarsa, sudah dipakai, atau perangkat dikunci karena terlalu banyak salah. Hanya online. */
+  useAuthCode(code: string, permission: AuthCodePermission, orderId?: string): Promise<string | null>;
 }
 
