@@ -32,6 +32,10 @@ export interface DataLayer {
   deleteTable(id: string): Promise<void>;
   /** Semua meja dengan pesanan yang sedang memakainya, untuk denah di kasir. */
   listTableStatus(): Promise<TableStatus[]>;
+  /** Pindahkan pesanan yang belum dibayar ke meja kosong lain. */
+  moveOrderTable(orderId: string, toTableId: string): Promise<Order>;
+  /** Satukan item pesanan `fromId` ke pesanan `intoId` (keduanya meja, belum dibayar); pesanan sumber dibatalkan dengan catatan. */
+  mergeOrders(input: { intoId: string; fromId: string; authorizedBy: string }): Promise<Order>;
   listCategories(): Promise<Category[]>;
   saveCategory(input: { id?: string; name: string; departmentId?: string | null }): Promise<Category>;
   /** Hapus kategori. Produk di dalamnya menjadi "tanpa kategori". */

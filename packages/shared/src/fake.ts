@@ -1,4 +1,5 @@
 import type { DataLayer } from './data';
+import { createTableOps } from './table-ops';
 import { DataError } from './types';
 import type {
   Bundle, BundleInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
@@ -239,6 +240,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (t.order) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${t.order.number}. Selesaikan dulu pesanannya`);
       tables = tables.filter((x) => x.id !== id);
     },
+    moveOrderTable: (orderId, toTableId) => tableOps.moveOrderTable(orderId, toTableId),
+    mergeOrders: (input) => tableOps.mergeOrders(input),
     async listTableStatus(): Promise<TableStatus[]> {
       const live = orders.filter((o) => o.tableId && (o.status === 'open' || o.status === 'partially_paid'));
       return clone([...tables].sort((a, b) => a.sort - b.sort).map((t): TableStatus => {
@@ -591,5 +594,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       } satisfies SalesSummary;
     },
   };
+  const tableOps = createTableOps({
+    getOrder: (id) => self.getOrder(id), saveOrder: (d, c) => self.saveOrder(d, c),
+    voidUnpaidOrder: (id, r, by) => self.voidUnpaidOrder(id, r, by), listTableStatus: () => self.listTableStatus(),
+  });
   return self;
 }

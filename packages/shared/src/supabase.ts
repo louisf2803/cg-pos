@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createTableOps } from './table-ops';
 import type { DataLayer } from './data';
 import { DataError } from './types';
 import type {
@@ -306,6 +307,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (busy.order) throw new DataError('invalid', `Meja ini sedang dipakai pesanan ${busy.order.number}. Selesaikan dulu pesanannya`);
       must(await db().from('tables').update({ deleted_at: new Date().toISOString() }).eq('id', id));
     },
+    moveOrderTable: (orderId, toTableId) => tableOps.moveOrderTable(orderId, toTableId),
+    mergeOrders: (input) => tableOps.mergeOrders(input),
     async listTableStatus() {
       const tables = await self.listTables();
       const rows = must(await db().from('orders').select('id,number,table_id,label,guest_count,total,opened_at').not('table_id', 'is', null).in('status', ['open', 'partially_paid']).order('opened_at')) as Row[] | null;
@@ -884,5 +887,9 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       return summarizeSales(paid, ctx.timezone);
     },
   };
+  const tableOps = createTableOps({
+    getOrder: (id) => self.getOrder(id), saveOrder: (d, c) => self.saveOrder(d, c),
+    voidUnpaidOrder: (id, r, by) => self.voidUnpaidOrder(id, r, by), listTableStatus: () => self.listTableStatus(),
+  });
   return self;
 }

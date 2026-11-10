@@ -1,11 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { ArrowLeft, Ban, CreditCard, Play, Printer, Undo2 } from 'lucide-react';
+import { ArrowLeft, Ban, CreditCard, Merge, MoveRight, Play, Printer, Undo2 } from 'lucide-react';
 import { formatRp, type PendingEntry, refundAmounts, refundableLines, newId, type Employee, type Order, type OutletContext, type Refund } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useSession } from '../lib/session';
 import { Modal } from '../ui';
 import { ReceiptDialog } from './Receipt';
+import { MergeTableDialog, MoveTableDialog } from './TableMove';
+import { useApprover, ApproverFields } from '../lib/approver';
 
 const REASONS = ['Salah input pesanan', 'Pelanggan batal', 'Pesanan ganda', 'Lainnya'];
 const REFUND_REASONS = ['Pesanan salah', 'Produk bermasalah', 'Pelanggan batal', 'Lainnya'];
@@ -25,6 +27,10 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
   }, [data, tab]);
   const [refunding, setRefunding] = useState<Order | null>(null);
   const [voiding, setVoiding] = useState<Order | null>(null);
+  const [moving, setMoving] = useState<Order | null>(null);
+  const [merging, setMerging] = useState<Order | null>(null);
+  const tableList = useAsync(() => data.listTables(), [data]);
+  const names = useMemo<Record<string, string>>(() => (tableList.status === 'ready' ? Object.fromEntries(tableList.data.map((t) => [t.id, t.name])) : {}), [tableList]);
   const [bill, setBill] = useState<Order | null>(null);
   const [notice, setNotice] = useState('');
 
@@ -58,7 +64,7 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
               <li key={o.id} className="border border-border rounded-lg bg-surface-raised p-16 grid gap-12">
                 <div className="flex flex-wrap items-baseline justify-between gap-8">
                   <strong className="break-all">{o.number}</strong>
-                  <span className="text-text-muted text-sm">{hhmm(o.openedAt)} · {TYPE[o.type]}</span>
+                  <span className="text-text-muted text-sm">{hhmm(o.openedAt)} · {TYPE[o.type]}{o.tableId && names[o.tableId] ? ` · Meja ${names[o.tableId]}` : ''}</span>
                 </div>
                 {o.label && <p className="break-words text-sm">{o.label}</p>}
                 <details>
@@ -78,6 +84,8 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
                       {!partial && <button className="cg-btn cg-btn--secondary" disabled={!canResume} onClick={() => onResume(o)}><Play className="cg-icon cg-icon--sm" aria-hidden /> Lanjutkan</button>}
                       <button className="cg-btn cg-btn--ghost" onClick={() => setBill(o)}><Printer className="cg-icon cg-icon--sm" aria-hidden /> Tagihan</button>
                       <button className="cg-btn cg-btn--primary" onClick={() => onPay(o)}><CreditCard className="cg-icon cg-icon--sm" aria-hidden /> Bayar</button>
+                      {!partial && o.type === 'dine_in' && o.tableId && <button className="cg-btn cg-btn--ghost" onClick={() => setMoving(o)}><MoveRight className="cg-icon cg-icon--sm" aria-hidden /> Pindah meja</button>}
+                      {!partial && o.type === 'dine_in' && o.tableId && <button className="cg-btn cg-btn--ghost" onClick={() => setMerging(o)}><Merge className="cg-icon cg-icon--sm" aria-hidden /> Gabung meja</button>}
                       {!partial && <button className="cg-btn cg-btn--ghost ml-auto" onClick={() => setVoiding(o)}><Ban className="cg-icon cg-icon--sm" aria-hidden /> Batalkan</button>}
                     </>
                   )}
@@ -89,47 +97,10 @@ export function Orders({ ctx, canResume, initialTab = 'waiting', onClose, onResu
       )}
       {refunding && <RefundDialog order={refunding} onClose={() => setRefunding(null)} onDone={(r) => { setRefunding(null); setNotice(`Refund ${r.number} ${formatRp(r.total)} tercatat via ${r.methodName}.`); list.reload(); }} />}
       {bill && <ReceiptDialog order={bill} ctx={ctx} kind={tab === 'paid' ? 'receipt' : 'bill'} onClose={() => setBill(null)} />}
+      {moving && <MoveTableDialog order={moving} tableName={names[moving.tableId ?? ''] ?? '—'} onClose={() => setMoving(null)} onDone={(o, to) => { setMoving(null); setNotice(`Pesanan ${o.number} dipindah ke meja ${to}.`); list.reload(); }} />}
+      {merging && <MergeTableDialog order={merging} names={names} onClose={() => setMerging(null)} onDone={(o, from) => { setMerging(null); setNotice(`Pesanan ${from.number} digabung ke ${o.number} (meja ${names[o.tableId ?? ''] ?? '—'}).`); list.reload(); }} />}
       {voiding && <VoidDialog order={voiding} onClose={() => setVoiding(null)} onDone={(n) => { setVoiding(null); setNotice(`Pesanan ${n} dibatalkan.`); list.reload(); }} />}
     </div>
-  );
-}
-
-/** Pemberi izin (manajer/pemilik) dan PIN-nya. Bila belum ada satu pun, PIN tidak diminta. */
-function useApprover() {
-  const data = useData();
-  const { session } = useSession();
-  const staff = useAsync(() => data.listEmployees(), [data]);
-  const approvers = useMemo<Employee[]>(() => (staff.status === 'ready' ? staff.data.filter((e) => e.role === 'owner' || e.role === 'manager') : []), [staff]);
-  const [approverId, setApproverId] = useState('');
-  const [pin, setPin] = useState('');
-  const approver = approvers.find((e) => e.id === approverId) ?? approvers.find((e) => e.id === session.employee.id) ?? approvers[0];
-  /** Mengembalikan id pemberi izin, atau null bila PIN salah. */
-  async function authorize(): Promise<string | null> {
-    if (approvers.length === 0) return session.employee.id;
-    if (!approver || !(await data.verifyPin(approver.id, pin))) { setPin(''); return null; }
-    return approver.id;
-  }
-  return { staffLoading: staff.status === 'loading', staffReady: staff.status === 'ready', approvers, approver, setApproverId, pin, setPin, needsPin: approvers.length > 0, authorize };
-}
-type Approver = ReturnType<typeof useApprover>;
-
-function ApproverFields({ a, idPrefix, what }: { a: Approver; idPrefix: string; what: string }) {
-  if (!a.needsPin) return a.staffReady ? <p className="text-text-muted text-sm">Belum ada manajer atau pemilik terdaftar, jadi {what} belum memerlukan PIN. Atur peran di dashboard.</p> : null;
-  return (
-    <>
-      {a.approvers.length > 1 && (
-        <div className="cg-field">
-          <label className="cg-label" htmlFor={`${idPrefix}-pemberi`}>Disetujui oleh</label>
-          <select id={`${idPrefix}-pemberi`} className="cg-input" value={a.approver?.id} onChange={(e) => a.setApproverId(e.target.value)}>
-            {a.approvers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </select>
-        </div>
-      )}
-      <div className="cg-field">
-        <label className="cg-label" htmlFor={`${idPrefix}-pin`}>PIN {a.approver?.name}</label>
-        <input id={`${idPrefix}-pin`} className="cg-input" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={a.pin} onChange={(e) => a.setPin(e.target.value.replace(/\D/g, ''))} />
-      </div>
-    </>
   );
 }
 

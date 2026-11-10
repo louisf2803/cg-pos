@@ -16,3 +16,4 @@ export * from './extras';
 export * from './bundle';
 export * from './offline';
 export * from './escpos';
+export * from './table-ops';
