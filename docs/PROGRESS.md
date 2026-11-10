@@ -169,3 +169,11 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   4. Kolom Cari & Modal Filter: Kolom pencarian untuk nomor struk, nama pelanggan, atau nama meja, serta modal filter untuk menyaring status pesanan (Terbuka, Sebagian, Lunas, Batal) dan jenis pesanan (Makan di tempat, Bawa pulang, Antar, Jasa).
   5. Seluruh alur trial E2E kasir (`trial-e2e.js`) tetap terjaga dan lulus sepenuhnya di viewport 1280px dan 390px.
   6. Lolos uji: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (265 tes vitest), `pnpm -F @cgpos/pos build`, serta audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (screenshot di `docs/shots/a24/`).
+
+
+## Review A23 + A24 (kasir: keranjang, pembayaran, menu samping, Daftar Order, Penjualan) — digabung
+- Lingkup sesuai (hanya apps/pos + docs). Konflik hanya di PROGRESS.md; `stockOk/checkStockLimit` dan prefill modal awal (S122) utuh.
+- Lulus: typecheck, 270 tes shared, build dashboard + POS, trial-e2e 13/13, tanpa galat konsol, tanpa gulir mendatar di 390/1280/1440 (screenshot di docs/shots/a23a24/, sudah kulihat satu per satu).
+- Cacat yang kuperbaiki sendiri (tes lulus tapi tampilan salah): (1) `w-28/h-28` pada tombol stepper keranjang jatuh ke skala bawaan Tailwind = 112px, kini 32px; (2) bilah bawah kasir kosong menyisakan pita putih 72px di desktop, kini disembunyikan bila tak ada pesan/galat; (3) teks "di sebelah kiri" di layar bayar salah di mobile, kini netral.
+- Catatan kecil untuk tugas berikut: chip tab aktif di Daftar Order mobile kurang menonjol; ikon Kartu dan Transfer bank sama.
+- Paritas fitur tidak berubah (baris sudah `yes`; ini polesan tampilan).
