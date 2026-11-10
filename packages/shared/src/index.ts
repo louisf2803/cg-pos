@@ -48,4 +48,5 @@ export * from './analysis';
 export * from './cash-entry';
 export * from './reconcile';
 export * from './barcode';
+export * from './ledger-multi';
 
