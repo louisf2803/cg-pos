@@ -1,0 +1,229 @@
+'use client';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ClipboardCheck, Plus, Save, Trash2 } from 'lucide-react';
+import { formatRp, newId, opnameDifference, opnameProblem, type StockItem, type StockOpname } from '@cgpos/shared';
+import { useData } from '@/lib/data';
+import { useAsync } from '@/lib/use-async';
+import { ErrorBox, PageHeader } from '@/components/page';
+
+const fmtQty = (n: number) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(n);
+const fmtWhen = (iso: string) => new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+const signed = (n: number) => (n > 0 ? `+${fmtQty(n)}` : fmtQty(n));
+const signedRp = (n: number) => (n > 0 ? `+${formatRp(n)}` : n < 0 ? `-${formatRp(-n)}` : formatRp(0));
+
+type View = { kind: 'list' } | { kind: 'edit'; id: string } | { kind: 'show'; id: string };
+
+export default function OpnamePage() {
+  const data = useData();
+  const list = useAsync(() => data.listOpnames(), [data]);
+  const [view, setView] = useState<View>({ kind: 'list' });
+  const [notice, setNotice] = useState('');
+  const back = (msg?: string) => { setView({ kind: 'list' }); if (msg) setNotice(msg); list.reload(); };
+
+  if (view.kind === 'edit') return <Editor id={view.id} onBack={back} onFinal={(id, msg) => { setNotice(msg); list.reload(); setView({ kind: 'show', id }); }} />;
+  if (view.kind === 'show') return <Viewer id={view.id} onBack={() => back()} />;
+  return (
+    <>
+      <PageHeader title="Stok opname" subtitle="Hitung stok fisik, bandingkan dengan sistem, lalu sesuaikan stok sesuai selisihnya"
+        actions={<button className="cg-btn cg-btn--primary" onClick={() => { setNotice(''); setView({ kind: 'edit', id: newId() }); }}><Plus className="cg-icon" aria-hidden /> Opname baru</button>} />
+      {notice && <p role="status" className="cg-banner cg-banner--info mb-16">{notice}</p>}
+      {list.status === 'error' && <ErrorBox message={list.message} onRetry={list.reload} />}
+      {list.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 56 }} />)}</div>}
+      {list.status === 'ready' && (list.data.length === 0 ? (
+        <div className="cg-empty"><p><strong>Belum ada opname.</strong></p><p className="text-text-muted">Opname membantu mencocokkan stok di sistem dengan hitungan di rak dan gudang.</p>
+          <button className="cg-btn cg-btn--primary" onClick={() => setView({ kind: 'edit', id: newId() })}>Mulai opname pertama</button></div>
+      ) : (
+        <div className="cg-data-wrap">
+          <table className="cg-data">
+            <thead><tr><th>Nomor</th><th>Dihitung</th><th>Status</th><th className="text-right">Item</th><th className="text-right">Berselisih</th><th>Catatan</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
+            <tbody>
+              {list.data.map((o) => (
+                <tr key={o.id}>
+                  <td><strong>{o.number}</strong></td>
+                  <td className="text-sm whitespace-nowrap">{fmtWhen(o.countedAt)}</td>
+                  <td><span className={`cg-badge ${o.status === 'final' ? 'cg-badge--accent' : ''}`}>{o.status === 'final' ? 'Selesai' : 'Draf'}</span></td>
+                  <td className="text-right cg-num">{o.lineCount}</td>
+                  <td className="text-right cg-num">{o.diffCount}</td>
+                  <td className="break-words max-w-[240px] text-sm">{o.note ?? ''}</td>
+                  <td className="text-right whitespace-nowrap"><button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => { setNotice(''); setView({ kind: o.status === 'draft' ? 'edit' : 'show', id: o.id }); }} aria-label={`${o.status === 'draft' ? 'Lanjutkan' : 'Lihat'} ${o.number}`}>{o.status === 'draft' ? 'Lanjutkan' : 'Lihat'}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) => void; onFinal: (id: string, msg: string) => void }) {
+  const data = useData();
+  const state = useAsync(async () => ({ items: await data.listStock(), opname: await data.getOpname(id) }), [data, id]);
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [note, setNote] = useState('');
+  const [search, setSearch] = useState('');
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [exists, setExists] = useState(false);
+  const loaded = state.status === 'ready' ? state.data : null;
+  useEffect(() => {
+    if (!loaded) return;
+    if (loaded.opname) {
+      setCounts(Object.fromEntries(loaded.opname.lines.map((l) => [l.productId, String(l.countedQty)])));
+      setNote(loaded.opname.note ?? ''); setExists(true);
+    }
+  }, [loaded]);
+  const system = useMemo(() => new Map((loaded?.opname?.lines ?? []).map((l) => [l.productId, l.systemQty])), [loaded]);
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (loaded?.items ?? []).filter((i) => !q || i.name.toLowerCase().includes(q));
+  }, [loaded, search]);
+
+  const sysOf = (i: StockItem) => system.get(i.productId) ?? i.qty;
+  const parsed = (i: StockItem): number | null => {
+    const raw = counts[i.productId];
+    if (raw === undefined || raw.trim() === '') return null;
+    const n = Number(raw.replace(',', '.'));
+    return Number.isFinite(n) ? n : NaN;
+  };
+  const lines = (loaded?.items ?? []).flatMap((i) => { const n = parsed(i); return n === null ? [] : [{ productId: i.productId, countedQty: n }]; });
+  const diffs = (loaded?.items ?? []).flatMap((i) => { const n = parsed(i); return n === null || Number.isNaN(n) ? [] : [{ i, d: opnameDifference(sysOf(i), n) }]; }).filter((x) => x.d !== 0);
+  const diffValue = diffs.reduce((n, x) => n + Math.round(x.d * x.i.avgCost), 0);
+
+  async function persist(): Promise<StockOpname | null> {
+    const input = { id, note: note.trim() || undefined, lines };
+    const problem = opnameProblem(input);
+    if (problem) { setErr(problem); return null; }
+    try { const o = await data.saveOpname(input); setExists(true); return o; }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Draf gagal disimpan.'); return null; }
+  }
+  async function saveDraft() {
+    if (busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    const o = await persist();
+    setBusy(false);
+    if (o) setMsg(`Draf ${o.number} disimpan (${o.lines.length} item).`);
+  }
+  async function finalize() {
+    if (busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    const o = await persist();
+    if (!o) { setBusy(false); setConfirm(false); return; }
+    try { const f = await data.finalizeOpname(id); onFinal(id, `Opname ${f.number} selesai. ${f.lines.filter((l) => l.difference !== 0).length} item disesuaikan.`); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Opname gagal diselesaikan.'); setBusy(false); setConfirm(false); }
+  }
+  async function remove() {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try { await data.deleteOpname(id); onBack('Draf opname dihapus.'); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Draf gagal dihapus.'); setBusy(false); }
+  }
+  const invalid = (loaded?.items ?? []).some((i) => Number.isNaN(parsed(i)));
+
+  return (
+    <>
+      <PageHeader title={loaded?.opname ? `Opname ${loaded.opname.number}` : 'Opname baru'} subtitle="Isi jumlah hitung fisik untuk item yang dihitung. Item yang dikosongkan tidak ikut disesuaikan."
+        actions={<button className="cg-btn cg-btn--ghost" onClick={() => onBack()}><ArrowLeft className="cg-icon" aria-hidden /> Kembali</button>} />
+      {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
+      {state.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2, 3].map((i) => <div key={i} className="cg-skeleton" style={{ height: 56 }} />)}</div>}
+      {loaded && (
+        <>
+          <div className="flex flex-wrap gap-8 mb-12 items-end">
+            <div className="cg-field grow" style={{ minWidth: 180 }}><label className="cg-label" htmlFor="op-cari">Cari item</label>
+              <input id="op-cari" className="cg-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nama barang" /></div>
+            <div className="cg-field grow" style={{ minWidth: 180 }}><label className="cg-label" htmlFor="op-catatan">Catatan</label>
+              <input id="op-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setCounts((c) => ({ ...c, ...Object.fromEntries(rows.filter((i) => (c[i.productId] ?? '').trim() === '').map((i) => [i.productId, String(sysOf(i))])) }))}>Isi kosong dengan jumlah sistem</button>
+          </div>
+          {rows.length === 0 ? <div className="cg-empty"><p><strong>Tidak ada item yang cocok.</strong></p></div> : (
+            <div className="cg-data-wrap">
+              <table className="cg-data" aria-label="Hitung fisik">
+                <thead><tr><th>Item</th><th className="text-right">Sistem</th><th className="text-right">Hitung fisik</th><th className="text-right">Selisih</th><th className="text-right">Nilai</th></tr></thead>
+                <tbody>
+                  {rows.map((i) => {
+                    const n = parsed(i);
+                    const d = n === null || Number.isNaN(n) ? null : opnameDifference(sysOf(i), n);
+                    return (
+                      <tr key={i.productId}>
+                        <td className="break-words max-w-[240px]"><strong>{i.name}</strong><span className="block text-sm text-text-muted">{i.unit}</span></td>
+                        <td className="text-right cg-num whitespace-nowrap">{fmtQty(sysOf(i))}</td>
+                        <td className="text-right"><input className="cg-input" style={{ width: 110, textAlign: 'right' }} inputMode="decimal" maxLength={16} aria-label={`Hitung fisik ${i.name}`}
+                          aria-invalid={n !== null && Number.isNaN(n)} value={counts[i.productId] ?? ''} onChange={(e) => { setCounts((c) => ({ ...c, [i.productId]: e.target.value.replace(/[^\d.,]/g, '') })); setErr(''); setMsg(''); }} /></td>
+                        <td className={`text-right cg-num ${d !== null && d < 0 ? 'text-danger-strong' : ''}`}>{d === null ? '—' : signed(d)}</td>
+                        <td className="text-right cg-num">{d === null || d === 0 ? '—' : signedRp(Math.round(d * i.avgCost))}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="mt-12" data-testid="ringkasan-opname"><strong className="cg-num">{lines.length}</strong> item dihitung · <strong className="cg-num">{diffs.length}</strong> berselisih · perkiraan nilai selisih <strong className="cg-num">{signedRp(diffValue)}</strong></p>
+          {err && <p role="alert" className="text-danger-strong mt-8">{err}</p>}
+          {msg && <p role="status" className="mt-8">{msg}</p>}
+          <div className="flex flex-wrap gap-8 mt-12">
+            <button className="cg-btn cg-btn--secondary" onClick={() => void saveDraft()} disabled={busy || invalid}><Save className="cg-icon" aria-hidden /> Simpan draf</button>
+            <button className="cg-btn cg-btn--primary" onClick={() => setConfirm(true)} disabled={busy || invalid || lines.length === 0}><ClipboardCheck className="cg-icon" aria-hidden /> Selesaikan opname</button>
+            {exists && <button className="cg-btn cg-btn--ghost" onClick={() => void remove()} disabled={busy}><Trash2 className="cg-icon" aria-hidden /> Hapus draf</button>}
+          </div>
+          {invalid && <p className="text-danger-strong text-sm mt-8" role="alert">Ada jumlah yang bukan angka.</p>}
+        </>
+      )}
+      {confirm && <ConfirmDialog count={diffs.length} total={lines.length} value={diffValue} busy={busy} onCancel={() => setConfirm(false)} onOk={() => void finalize()} />}
+    </>
+  );
+}
+
+function ConfirmDialog({ count, total, value, busy, onCancel, onOk }: { count: number; total: number; value: number; busy: boolean; onCancel: () => void; onOk: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { ref.current?.showModal(); }, []);
+  return (
+    <dialog ref={ref} className="cg-modal" style={{ margin: 'auto' }} onClose={onCancel} aria-labelledby="judul-selesai">
+      <div className="grid gap-12">
+        <h2 id="judul-selesai" className="cg-modal__title">Selesaikan opname?</h2>
+        <p>{total} item dihitung, {count} berselisih (perkiraan nilai {signedRp(value)}). Stok akan disesuaikan sebesar selisih dan tidak bisa dibatalkan atau diubah lagi.</p>
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={() => ref.current?.close()}>Batal</button>
+          <button type="button" className="cg-btn cg-btn--primary" disabled={busy} aria-busy={busy} onClick={onOk}>{busy ? 'Menyelesaikan…' : 'Ya, selesaikan'}</button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+function Viewer({ id, onBack }: { id: string; onBack: () => void }) {
+  const data = useData();
+  const state = useAsync(() => data.getOpname(id), [data, id]);
+  return (
+    <>
+      <PageHeader title={state.status === 'ready' && state.data ? `Opname ${state.data.number}` : 'Opname'} subtitle="Opname yang sudah selesai tidak bisa diubah"
+        actions={<button className="cg-btn cg-btn--ghost" onClick={onBack}><ArrowLeft className="cg-icon" aria-hidden /> Kembali</button>} />
+      {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
+      {state.status === 'loading' && <div className="cg-skeleton" style={{ height: 120 }} aria-busy="true" aria-label="Memuat" />}
+      {state.status === 'ready' && !state.data && <div className="cg-empty"><p><strong>Opname tidak ditemukan.</strong></p></div>}
+      {state.status === 'ready' && state.data && (
+        <>
+          <p className="mb-12 text-sm text-text-muted">Dihitung {fmtWhen(state.data.countedAt)}{state.data.finalizedAt ? ` · selesai ${fmtWhen(state.data.finalizedAt)}` : ''}{state.data.note ? ` · ${state.data.note}` : ''}</p>
+          <div className="cg-data-wrap">
+            <table className="cg-data" aria-label="Hasil opname">
+              <thead><tr><th>Item</th><th className="text-right">Sistem</th><th className="text-right">Fisik</th><th className="text-right">Selisih</th><th className="text-right">Nilai</th></tr></thead>
+              <tbody>
+                {state.data.lines.map((l) => (
+                  <tr key={l.productId}>
+                    <td className="break-words max-w-[240px]"><strong>{l.name}</strong><span className="block text-sm text-text-muted">{l.unit}</span></td>
+                    <td className="text-right cg-num">{fmtQty(l.systemQty)}</td><td className="text-right cg-num">{fmtQty(l.countedQty)}</td>
+                    <td className={`text-right cg-num ${l.difference < 0 ? 'text-danger-strong' : ''}`}>{l.difference === 0 ? '—' : signed(l.difference)}</td>
+                    <td className="text-right cg-num">{l.difference === 0 ? '—' : signedRp(l.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-12">Total nilai selisih <strong className="cg-num" data-testid="total-selisih">{signedRp(state.data.lines.reduce((n, l) => n + l.value, 0))}</strong></p>
+        </>
+      )}
+    </>
+  );
+}

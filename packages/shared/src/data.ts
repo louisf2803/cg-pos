@@ -1,7 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
-import type { StockFilter, StockItem, StockMove, StockPostInput } from './stock';
+import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport,
@@ -110,6 +110,16 @@ export interface DataLayer {
   listStockMoves(productId: string, q?: { limit?: number }): Promise<StockMove[]>;
   /** Batas stok minimum untuk peringatan (kosong = tanpa peringatan). Pemilik dan manajer. */
   setStockMin(productId: string, min: number | null): Promise<void>;
+
+  /** Opname outlet ini, terbaru dulu. */
+  listOpnames(): Promise<StockOpnameSummary[]>;
+  getOpname(id: string): Promise<StockOpname | null>;
+  /** Buat atau ubah draf (pemilik dan manajer). Jumlah sistem tiap item dicatat saat item itu pertama masuk draf. Opname final tidak bisa diubah. */
+  saveOpname(input: StockOpnameInput): Promise<StockOpname>;
+  /** Selesaikan draf: stok disesuaikan sebesar selisih (fisik - sistem saat dihitung). Sekali saja. */
+  finalizeOpname(id: string): Promise<StockOpname>;
+  /** Hanya draf. */
+  deleteOpname(id: string): Promise<void>;
 
   listEmployees(): Promise<Employee[]>;
   verifyPin(employeeId: string, pin: string): Promise<boolean>;

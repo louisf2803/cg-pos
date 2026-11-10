@@ -19,7 +19,7 @@ import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import { roundToStep } from './money';
-import { applyStockMove, makeStockItem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockPostInput } from './stock';
+import { applyStockMove, makeStockItem, opnameDifference, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockPostInput } from './stock';
 
 const CTX: OutletContext = {
   orgName: 'Kopi Contoh', outletId: 'outlet-1', outletCode: 'OUT1', outletName: 'Outlet Contoh', timezone: 'Asia/Jakarta', deviceCode: 'A',
@@ -107,6 +107,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let mins = new Map<string, number>();
   let moves: StockMove[] = [];
   let stockKeys = new Set<string>();
+  let opnames: (StockOpname & { values: Map<string, number> })[] = [];
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
@@ -159,8 +160,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     const b = stockBal(id)!;
     return makeStockItem({ productId: id, name: b.name, kind: b.kind, unit: b.unit, qty: b.qty, avgCost: costs.get(id) ?? 0, minQty: mins.get(id) });
   }
+  function opnameView(o: StockOpname & { values: Map<string, number> }): StockOpname {
+    return clone({
+      id: o.id, number: o.number, status: o.status, countedAt: o.countedAt, finalizedAt: o.finalizedAt, note: o.note,
+      lines: o.lines.map((l) => ({ ...l, value: o.status === 'final' ? o.values.get(l.productId) ?? 0 : Math.round(l.difference * (costs.get(l.productId) ?? 0)) })),
+    });
+  }
   function seedStock() {
-    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set();
+    ingredients = []; costs = new Map(); mins = new Map(); moves = []; stockKeys = new Set(); opnames = [];
     if (opts.seed === false) return;
     const opening: [string, number, number][] = [];
     for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
@@ -676,6 +683,50 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (!stockBal(productId)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
       if (min !== null && (!Number.isFinite(min) || min < 0)) throw new DataError('invalid', 'Batas minimum tidak boleh negatif.');
       if (min === null) mins.delete(productId); else mins.set(productId, min);
+    },
+    async listOpnames() {
+      return opnames.map((o) => ({ id: o.id, number: o.number, status: o.status, countedAt: o.countedAt, finalizedAt: o.finalizedAt, note: o.note, lineCount: o.lines.length, diffCount: o.lines.filter((l) => l.difference !== 0).length }))
+        .sort((a, b) => b.number.localeCompare(a.number));
+    },
+    async getOpname(id) { const o = opnames.find((x) => x.id === id); return o ? opnameView(o) : null; },
+    async saveOpname(input: StockOpnameInput) {
+      const problem = opnameProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      let o = opnames.find((x) => x.id === input.id);
+      if (o && o.status !== 'draft') throw new DataError('order_locked', 'Opname yang sudah selesai tidak bisa diubah.');
+      for (const l of input.lines) if (!stockBal(l.productId)) throw new DataError('not_found', 'Ada barang yang tidak ditemukan atau stoknya tidak dilacak.');
+      if (!o) {
+        o = { id: input.id, number: `OPN-${String(opnames.length + 1).padStart(6, '0')}`, status: 'draft', countedAt: now().toISOString(), lines: [], values: new Map() };
+        opnames.push(o);
+      }
+      o.note = input.note?.trim() || undefined;
+      const prev = new Map(o.lines.map((l) => [l.productId, l]));
+      o.lines = input.lines.map((l) => {
+        const b = stockBal(l.productId)!;
+        const system = prev.get(l.productId)?.systemQty ?? b.qty;                    // jumlah sistem tetap yang pertama dicatat
+        return { productId: l.productId, name: b.name, unit: b.unit, systemQty: system, countedQty: l.countedQty, difference: opnameDifference(system, l.countedQty), value: 0 };
+      });
+      return opnameView(o);
+    },
+    async finalizeOpname(id) {
+      const o = opnames.find((x) => x.id === id);
+      if (!o) throw new DataError('not_found', 'Opname tidak ditemukan.');
+      if (o.status !== 'draft') throw new DataError('order_locked', 'Opname ini sudah diselesaikan.');
+      if (o.lines.length === 0) throw new DataError('invalid', 'Isi hitung fisik minimal satu item sebelum menyelesaikan opname.');
+      for (const l of o.lines) {
+        if (l.difference === 0) continue;
+        const before = moves.length;
+        recordStock(l.productId, l.difference, 'opname_adjust', { reason: `Opname ${o.number}`, refType: 'opname' });
+        o.values.set(l.productId, moves.length > before ? moves[0]!.totalCost : 0);
+      }
+      o.status = 'final'; o.finalizedAt = now().toISOString();
+      return opnameView(o);
+    },
+    async deleteOpname(id) {
+      const o = opnames.find((x) => x.id === id);
+      if (!o) throw new DataError('not_found', 'Opname tidak ditemukan.');
+      if (o.status !== 'draft') throw new DataError('order_locked', 'Opname yang sudah selesai tidak bisa dihapus.');
+      opnames = opnames.filter((x) => x.id !== id);
     },
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },

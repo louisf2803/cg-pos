@@ -121,3 +121,60 @@ describe('stok: data palsu', () => {
     expect((await d.listStock({ search: 'susu' }))[0]!.qty).toBeCloseTo(sum, 4);
   });
 });
+
+describe('stok opname: data palsu', () => {
+  const find = async (d: ReturnType<typeof mk>, q: string) => (await d.listStock({ search: q }))[0]!;
+
+  it('draf: jumlah sistem dicatat, simpan ulang mempertahankannya, item yang dibuang hilang', async () => {
+    const d = mk();
+    const kopi = await find(d, 'arabika'); const susu = await find(d, 'susu');
+    const id = newId();
+    const a = await d.saveOpname({ id, note: 'akhir bulan', lines: [{ productId: kopi.productId, countedQty: 4800 }, { productId: susu.productId, countedQty: 12000 }] });
+    expect(a).toMatchObject({ number: 'OPN-000001', status: 'draft', note: 'akhir bulan' });
+    expect(a.lines.find((l) => l.productId === kopi.productId)).toMatchObject({ systemQty: 5000, countedQty: 4800, difference: -200, value: -200 * kopi.avgCost });
+    // penjualan/koreksi setelah dihitung tidak mengubah jumlah sistem yang tercatat
+    await d.postStock({ id: newId(), productId: kopi.productId, kind: 'adjust_out', qty: 100 });
+    const b = await d.saveOpname({ id, lines: [{ productId: kopi.productId, countedQty: 4700 }] });
+    expect(b.lines).toHaveLength(1);
+    expect(b.lines[0]).toMatchObject({ systemQty: 5000, countedQty: 4700, difference: -300 });
+    expect((await d.listOpnames())[0]).toMatchObject({ id, status: 'draft', lineCount: 1, diffCount: 1 });
+  });
+
+  it('selesai: stok disesuaikan sebesar selisih, kartu stok mencatat, final terkunci', async () => {
+    const d = mk();
+    const kopi = await find(d, 'arabika'); const gula = await find(d, 'gula');
+    const id = newId();
+    await d.saveOpname({ id, lines: [{ productId: kopi.productId, countedQty: 4700 }, { productId: gula.productId, countedQty: gula.qty }] });
+    await d.postStock({ id: newId(), productId: kopi.productId, kind: 'adjust_out', qty: 100 });        // 5000 -> 4900 setelah dihitung
+    const fin = await d.finalizeOpname(id);
+    expect(fin.status).toBe('final');
+    expect(fin.finalizedAt).toBeTruthy();
+    expect((await find(d, 'arabika')).qty).toBe(4600);                 // 4900 + (4700 - 5000)
+    expect((await find(d, 'gula')).qty).toBe(gula.qty);                 // selisih nol: tanpa gerakan
+    const card = await d.listStockMoves(kopi.productId);
+    expect(card[0]).toMatchObject({ kind: 'opname_adjust', qtyDelta: -300, refType: 'opname', reason: 'Opname OPN-000001' });
+    expect((await d.listStockMoves(gula.productId)).every((m) => m.kind !== 'opname_adjust')).toBe(true);
+    expect(fin.lines.find((l) => l.productId === kopi.productId)!.value).toBe(-300 * kopi.avgCost);
+    await expect(d.finalizeOpname(id)).rejects.toThrow(/sudah diselesaikan/);
+    await expect(d.saveOpname({ id, lines: [] })).rejects.toThrow(/tidak bisa diubah/);
+    await expect(d.deleteOpname(id)).rejects.toThrow(/tidak bisa dihapus/);
+  });
+
+  it('masukan salah, draf kosong, hapus draf, nomor berurutan', async () => {
+    const d = mk();
+    const kopi = await find(d, 'arabika');
+    await expect(d.saveOpname({ id: newId(), lines: [{ productId: kopi.productId, countedQty: -1 }] })).rejects.toThrow(/negatif/);
+    await expect(d.saveOpname({ id: newId(), lines: [{ productId: kopi.productId, countedQty: 1 }, { productId: kopi.productId, countedQty: 2 }] })).rejects.toThrow(/dua kali/);
+    await expect(d.saveOpname({ id: newId(), lines: [{ productId: 'nope', countedQty: 1 }] })).rejects.toThrow(/tidak ditemukan/);
+    expect(await d.listOpnames()).toHaveLength(0);
+    const a = newId(); const b = newId();
+    await d.saveOpname({ id: a, lines: [] });
+    await d.saveOpname({ id: b, lines: [{ productId: kopi.productId, countedQty: 1 }] });
+    expect((await d.listOpnames()).map((o) => o.number)).toEqual(['OPN-000002', 'OPN-000001']);
+    await expect(d.finalizeOpname(a)).rejects.toThrow(/minimal satu item/);
+    await d.deleteOpname(a);
+    expect((await d.listOpnames()).map((o) => o.id)).toEqual([b]);
+    expect(await d.getOpname(a)).toBeNull();
+    await expect(d.deleteOpname(a)).rejects.toThrow(/tidak ditemukan/);
+  });
+});

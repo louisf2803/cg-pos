@@ -91,3 +91,40 @@ export function applyStockMove(bal: { qty: number; avgCost: number }, delta: num
   }
   return { qty: round4(bal.qty + delta), avgCost: bal.avgCost, unitCost: bal.avgCost, totalCost: round4(delta * bal.avgCost) };
 }
+
+// ---------- stok opname ----------
+
+export interface StockOpnameLine {
+  productId: string; name: string; unit: string;
+  /** jumlah menurut sistem saat baris ini pertama dicatat */
+  systemQty: number; countedQty: number; difference: number;
+  /** nilai selisih: opname final = biaya gerakan yang tercatat; draf = perkiraan (selisih x biaya rata-rata kini) */
+  value: number;
+}
+export interface StockOpname {
+  id: string; number: string; status: 'draft' | 'final'; countedAt: string; finalizedAt?: string; note?: string; lines: StockOpnameLine[];
+}
+export interface StockOpnameSummary {
+  id: string; number: string; status: 'draft' | 'final'; countedAt: string; finalizedAt?: string; note?: string; lineCount: number; diffCount: number;
+}
+export interface StockOpnameInput {
+  /** dibuat perangkat; simpan ulang dengan id yang sama memperbarui draf */
+  id: string; note?: string; lines: { productId: string; countedQty: number }[];
+}
+
+export const MAX_OPNAME_LINES = 3000;
+export const opnameDifference = (systemQty: number, countedQty: number) => round4(countedQty - systemQty);
+
+export function opnameProblem(i: StockOpnameInput): string | null {
+  if (i.lines.length > MAX_OPNAME_LINES) return `Satu opname paling banyak ${MAX_OPNAME_LINES} item.`;
+  if (i.note && i.note.trim().length > 200) return 'Catatan terlalu panjang (maksimal 200 huruf).';
+  const seen = new Set<string>();
+  for (const l of i.lines) {
+    if (seen.has(l.productId)) return 'Ada item yang dihitung dua kali.';
+    seen.add(l.productId);
+    if (!Number.isFinite(l.countedQty) || l.countedQty < 0) return 'Jumlah hitung fisik tidak boleh negatif.';
+    if (round4(l.countedQty) !== l.countedQty) return 'Jumlah hitung paling banyak 4 angka di belakang koma.';
+    if (l.countedQty > 1_000_000_000) return 'Jumlah terlalu besar.';
+  }
+  return null;
+}

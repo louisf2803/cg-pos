@@ -3,7 +3,7 @@ import { createTableOps } from './table-ops';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { photoPath, photoProblem } from './photo';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
-import { makeStockItem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind } from './stock';
+import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
 
 const PHOTO_BUCKET = 'menu-images';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
@@ -107,6 +107,18 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       productId: p.id as string, name: p.name as string, kind: p.kind === 'ingredient' ? 'ingredient' : 'goods', unit: (p.base_unit_id && unitName.get(p.base_unit_id as string)) || 'unit',
       qty: Number(b?.qty ?? 0), avgCost: Number(b?.avg_cost ?? 0), ...(p.stock_alert_min !== null && p.stock_alert_min !== undefined ? { minQty: Number(p.stock_alert_min) } : {}),
     });
+  }
+
+  function mapOpnameError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur opname belum aktif di database (migrasi 0015 belum diterapkan).');
+    if (/not allowed/i.test(m)) return new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengelola opname.');
+    if (/finalized|already finalized/i.test(m)) return new DataError('order_locked', 'Opname ini sudah selesai dan tidak bisa diubah.');
+    if (/opname has no lines/i.test(m)) return new DataError('invalid', 'Isi hitung fisik minimal satu item sebelum menyelesaikan opname.');
+    if (/opname not found/i.test(m)) return new DataError('not_found', 'Opname tidak ditemukan.');
+    if (/does not track stock/i.test(m)) return new DataError('not_found', 'Ada barang yang tidak ditemukan atau stoknya tidak dilacak.');
+    if (/invalid line|duplicate product|too many lines/i.test(m)) return new DataError('invalid', 'Isian opname ditolak server. Periksa jumlah dan item ganda.');
+    return mapDbError(error);
   }
 
   async function load(): Promise<Resolved> {
@@ -907,6 +919,66 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (min !== null && (!Number.isFinite(min) || min < 0)) throw new DataError('invalid', 'Batas minimum tidak boleh negatif.');
       const row = must(await db().from('products').update({ stock_alert_min: min }).eq('id', productId).select('id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Barang tidak ditemukan, atau akunmu tidak boleh mengubahnya.');
+    },
+
+    async listOpnames() {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const rows = must(await db().from('stock_opnames').select('id,number,status,counted_at,finalized_at,note,stock_opname_lines(difference)')
+        .eq('location_id', loc).order('created_at', { ascending: false }).limit(200)) as Row[] | null;
+      return (rows ?? []).map((r): StockOpnameSummary => {
+        const lines = (r.stock_opname_lines ?? []) as Row[];
+        return {
+          id: r.id, number: r.number, status: r.status, countedAt: r.counted_at, lineCount: lines.length, diffCount: lines.filter((l) => Number(l.difference) !== 0).length,
+          ...(r.finalized_at ? { finalizedAt: r.finalized_at } : {}), ...(r.note ? { note: r.note } : {}),
+        };
+      });
+    },
+    async getOpname(id) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const o = must(await db().from('stock_opnames').select('id,number,status,counted_at,finalized_at,note,stock_opname_lines(product_id,system_qty,counted_qty,difference)')
+        .eq('id', id).eq('location_id', loc).maybeSingle()) as Row | null;
+      if (!o) return null;
+      const lines = (o.stock_opname_lines ?? []) as Row[];
+      const [items, mv] = await Promise.all([
+        self.listStock(),
+        o.status === 'final'
+          ? fetchAll<Row>((f, t) => db().from('stock_movements').select('product_id,total_cost').eq('ref_type', 'opname').eq('ref_id', id).order('id').range(f, t))
+          : Promise.resolve([] as Row[]),
+      ]);
+      const item = new Map(items.map((i) => [i.productId, i]));
+      const cost = new Map(mv.map((m) => [m.product_id as string, Number(m.total_cost)]));
+      const out: StockOpnameLine[] = lines.map((l) => {
+        const it = item.get(l.product_id as string);
+        const diff = Number(l.difference);
+        return {
+          productId: l.product_id as string, name: it?.name ?? '(barang tidak lagi dilacak)', unit: it?.unit ?? 'unit', systemQty: Number(l.system_qty), countedQty: Number(l.counted_qty), difference: diff,
+          value: o.status === 'final' ? cost.get(l.product_id as string) ?? 0 : Math.round(diff * (it?.avgCost ?? 0)),
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+      return { id: o.id, number: o.number, status: o.status, countedAt: o.counted_at, lines: out, ...(o.finalized_at ? { finalizedAt: o.finalized_at } : {}), ...(o.note ? { note: o.note } : {}) };
+    },
+    async saveOpname(input: StockOpnameInput) {
+      const problem = opnameProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const { error } = await db().rpc('stock_opname_save', {
+        p_id: input.id, p_location: loc, p_note: input.note?.trim() || null,
+        p_lines: input.lines.map((l) => ({ product_id: l.productId, counted_qty: l.countedQty })),
+      });
+      if (error) throw mapOpnameError(error);
+      return (await self.getOpname(input.id))!;
+    },
+    async finalizeOpname(id) {
+      const { error } = await db().rpc('stock_opname_finalize', { p_id: id });
+      if (error) throw mapOpnameError(error);
+      return (await self.getOpname(id))!;
+    },
+    async deleteOpname(id) {
+      const rows = must(await db().from('stock_opnames').delete().eq('id', id).eq('status', 'draft').select('id')) as Row[] | null;
+      if (!rows || rows.length === 0) throw new DataError('not_found', 'Draf opname tidak ditemukan, atau sudah selesai.');
     },
 
     // ---------- karyawan dan metode bayar ----------
