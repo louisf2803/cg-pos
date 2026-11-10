@@ -98,9 +98,9 @@ export const MODUL: NavModule[] = [
         label: 'Analisa Laporan',
         icon: LineChart,
         items: [
-          { href: '/laporan/jam-ramai', label: 'Waktu teramai penjualan', screen: 'S85', tier: 2, built: true },
-          { href: '/analisa/produk', label: 'Waktu teramai produk', screen: 'S85', tier: 3 },
-          { href: '/analisa/perputaran-stok', label: 'Perputaran stok', screen: 'S85', tier: 3 },
+          { href: '/analisa/waktu-teramai-penjualan', label: 'Waktu teramai penjualan', screen: 'S85', tier: 2, built: true },
+          { href: '/analisa/waktu-teramai-produk', label: 'Waktu teramai produk', screen: 'S85', tier: 3, built: true },
+          { href: '/analisa/perputaran-stok', label: 'Perputaran stok', screen: 'S85', tier: 3, built: true },
           { href: '/analisa/kepuasan', label: 'Kepuasan pelanggan', screen: 'S85', tier: 3 },
         ],
       },
