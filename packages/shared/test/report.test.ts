@@ -59,3 +59,21 @@ describe('laporan: komplimen', () => {
     expect(r.complimentary.rows[1].reason).toBe('Uji rasa · disetujui Sari');
   });
 });
+
+describe('laporan pajak dan biaya layanan', () => {
+  it('menjumlahkan per hari dan jenis order dari pesanan lunas saja', async () => {
+    const { buildTaxReport } = await import('../src');
+    const o = (id: string, type: string, status: string, at: string, subtotal: number, discountTotal: number, serviceCharge: number, taxTotal: number, rounding: number, total: number) =>
+      ({ id, type, status, closedAt: at, openedAt: at, subtotal, discountTotal, serviceCharge, taxTotal, rounding, total, items: [], payments: [] }) as unknown as import('../src').Order;
+    const r = buildTaxReport([
+      o('1', 'dine_in', 'paid', '2026-11-09T03:00:00Z', 100000, 10000, 4500, 9450, 50, 104000),
+      o('2', 'takeaway', 'paid', '2026-11-09T05:00:00Z', 50000, 0, 0, 5000, 0, 55000),
+      o('3', 'dine_in', 'paid', '2026-11-10T03:00:00Z', 20000, 0, 0, 2000, 0, 22000),
+      o('4', 'dine_in', 'void', '2026-11-10T04:00:00Z', 99000, 0, 0, 9900, 0, 108900),
+    ], 'Asia/Jakarta');
+    expect(r.totals).toMatchObject({ count: 3, afterDiscount: 160000, serviceCharge: 4500, tax: 16450, rounding: 50, total: 181000 });
+    expect(r.byDay.map((d) => [d.key, d.count, d.tax])).toEqual([['2026-11-09', 2, 14450], ['2026-11-10', 1, 2000]]);
+    expect(r.byType[0]).toMatchObject({ label: 'Makan di tempat', count: 2, total: 126000 });
+    expect(buildTaxReport([], 'Asia/Jakarta').totals.count).toBe(0);
+  });
+});

@@ -71,3 +71,20 @@ export function toCsv(rows: (string | number)[][]): string {
   };
   return '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n');
 }
+
+export interface TaxRow { key: string; label: string; count: number; afterDiscount: number; serviceCharge: number; tax: number; rounding: number; total: number }
+export interface TaxReport { totals: TaxRow; byDay: TaxRow[]; byType: TaxRow[] }
+
+/** Laporan pajak dan biaya layanan dari pesanan lunas. Murni. afterDiscount = subtotal - diskon (nilai sebelum biaya layanan dan pajak). */
+export function buildTaxReport(paid: Order[], timezone: string): TaxReport {
+  const empty = (key: string, label: string): TaxRow => ({ key, label, count: 0, afterDiscount: 0, serviceCharge: 0, tax: 0, rounding: 0, total: 0 });
+  const add = (r: TaxRow, o: Order) => { r.count += 1; r.afterDiscount += o.subtotal - o.discountTotal; r.serviceCharge += o.serviceCharge; r.tax += o.taxTotal; r.rounding += o.rounding; r.total += o.total; };
+  const day = new Map<string, TaxRow>(), type = new Map<string, TaxRow>(), totals = empty('total', 'Total');
+  for (const o of paid.filter((x) => x.status === 'paid')) {
+    const dk = localDateKey(new Date(o.closedAt ?? o.openedAt), timezone);
+    add(day.get(dk) ?? day.set(dk, empty(dk, dk)).get(dk)!, o);
+    add(type.get(o.type) ?? type.set(o.type, empty(o.type, orderTypeLabel(o.type))).get(o.type)!, o);
+    add(totals, o);
+  }
+  return { totals, byDay: [...day.values()].sort((a, b) => a.key.localeCompare(b.key)), byType: [...type.values()].sort((a, b) => b.total - a.total) };
+}
