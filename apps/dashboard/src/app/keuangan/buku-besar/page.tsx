@@ -125,7 +125,7 @@ export default function LedgerPage() {
         <div className="flex flex-col tablet:flex-row tablet:items-end justify-between gap-16 min-w-0">
           {/* Pemilih Banyak Akun */}
           <div className="flex-1 min-w-0">
-            <label className="cg-label block mb-6 font-medium text-xs text-text-muted">
+            <label className="cg-label block mb-[6px] font-medium text-xs text-text-muted">
               Pilih Akun ({selectedIds.length} terpilih)
             </label>
             <div className="relative">
@@ -159,7 +159,7 @@ export default function LedgerPage() {
                   <div
                     role="dialog"
                     aria-label="Pilih akun buku besar"
-                    className="absolute left-0 top-full mt-6 z-40 w-full tablet:w-[380px] max-w-[calc(100vw-32px)] bg-surface border border-border rounded-xl shadow-xl p-12 text-text flex flex-col max-h-[420px]"
+                    className="absolute left-0 top-full mt-[6px] z-40 w-full tablet:w-[380px] max-w-[calc(100vw-32px)] bg-surface border border-border rounded-xl shadow-xl p-12 text-text flex flex-col max-h-[420px]"
                   >
                     {/* Header Pencarian Akun */}
                     <div className="relative mb-8 shrink-0">
@@ -264,7 +264,7 @@ export default function LedgerPage() {
 
           {/* Filter Tanggal */}
           <div className="shrink-0 min-w-0">
-            <label className="cg-label block mb-6 font-medium text-xs text-text-muted">
+            <label className="cg-label block mb-[6px] font-medium text-xs text-text-muted">
               Periode Pembukuan
             </label>
             <DateSpan from={span.from} to={span.to} onChange={setSpan} idPrefix="bb" />
@@ -273,7 +273,7 @@ export default function LedgerPage() {
 
         {/* Chips Akun Terpilih */}
         {selectedIds.length > 0 && selectedIds.length < postableAccounts.length && (
-          <div className="flex flex-wrap gap-6 pt-8 border-t border-border">
+          <div className="flex flex-wrap gap-[6px] pt-8 border-t border-border">
             {selectedIds.map((id) => {
               const acc = postableAccounts.find((a) => a.id === id);
               if (!acc) return null;
@@ -446,11 +446,11 @@ export default function LedgerPage() {
                           <tr key={`${r.entryId}-${i}`}>
                             <td className="text-sm whitespace-nowrap">{fmtDate(r.date)}</td>
                             <td className="break-words max-w-[340px]">
-                              <div className="flex items-center gap-6 flex-wrap">
+                              <div className="flex items-center gap-[6px] flex-wrap">
                                 <strong>{r.number}</strong>
                                 <span className="cg-badge">{sourceLabel(r.sourceType)}</span>
                               </div>
-                              <span className="block text-xs text-text-muted mt-2">
+                              <span className="block text-xs text-text-muted mt-[2px]">
                                 {r.description}
                                 {r.memo ? ` · ${r.memo}` : ''}
                               </span>
