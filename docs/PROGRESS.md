@@ -349,3 +349,33 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a34/`).
 - S137 (Claude) — review & merge A34 (arus kas metode tidak langsung): lingkup benar (dashboard, shared, docs); konflik index.ts/PROGRESS.md diselesaikan (simpan keduanya); review.sh SEMUA LULUS. Cacat tampilan yang lolos dari tes AG: tabel arus kas tidak langsung memakai lebar minimum 520 px bawaan `cg-data`, sehingga di 390 px kolom jumlah (Rp 49.500 dst.) terdorong keluar layar dan baru terlihat bila digeser; kini lebar minimum dimatikan untuk tabel dua kolom ini (label membungkus, jumlah tetap terlihat). Playwright 390/1280/1440 tanpa overflow dan tanpa galat konsol; tangkapan docs/shots/rv34/ kulihat. Catatan: halaman Laporan keuangan lain yang memakai `cg-data` dua kolom mungkin punya masalah sama di 390 px — perlu diperiksa.
 - S138 (Claude) — penelusuran lanjutan aplikasi Android Majoo (11 Nov 2026, lihat saja): Laporan punya 11 halaman: Ringkasan Penjualan (kartu Total Penjualan, Total Transaksi, Laba Kotor, Total Produk, Terima Pembayaran, Refund, Order/Transaksi, Komisi + grafik per jam; filter periode cepat + panah mundur/maju + pilih outlet), 10 Laporan Teratas (Produk Terlaris, Laba Kotor per produk, Stok Terendah, Stok Minimum, Komisi Produk, Komisi Transaksi, Jenis Order; kartu bergeser), Komisi (Nominal, Komisi Produk, Komisi Penjualan + cari), Void (filter jenis order + cari), Kasir (daftar shift: waktu buka, saldo awal, kasir, waktu tutup, saldo akhir, aksi; filter status), Kas Kasir (Pemasukan, Pengeluaran, Total Refund, Total Kas Kasir, Total Penjualan; daftar Modal Awal/Uang Masuk; tombol + Transaksi), Produk Terjual, Jenis Bayar (Total Transaksi, Total Penjualan, Total Jenis Pembayaran; kolom jumlah/persen transaksi dan penjualan), Kepuasan Pelanggan, Lainnya (tautan ke dashboard web), Penjualan Deposit. Penjualan: total, kolom Jenis/Nama/No Transaksi/Waktu/Kasir/Pembayaran, filter + cari. Inventori: Faktur Pembelian, Stok Opname, Terima Mutasi Stok, Stok Terbuang. Absensi: kamera selfie, pilih karyawan, PIN 6 angka, Clock In/Clock Out ("wajib di perangkat yang sama"), tombol Daftar Kehadiran (cari + filter). Tidak kuisi PIN, tidak melakukan clock in. Dibanding CG POS: laporan yang ada sudah mencakup hampir semua; selisih nyata: Komisi, Kepuasan Pelanggan, Absensi, kartu bergeser "10 Laporan Teratas" (bisa jadi tugas AG), ringkasan penjualan per jam di aplikasi kasir.
+
+- Selesai (tugas A39): Riwayat Ekspor CSV (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/export-history.ts`:
+     - Tipe data `ExportRecord` dan `ExportInput` memuat `id`, `reportName`, `period`, `timestamp`, `rowCount`, `sizeBytes`, `fileName`, `sourceUrl`, dan `params`.
+     - `recordExport`: menambahkan ekspor baru di posisi paling atas (terbaru), deduplikasi rekaman serupa/id sama, dan membatasi maksimal 50 entri.
+     - `deleteExport`: menghapus entri riwayat berdasarkan id.
+     - `clearExportHistory`: mengosongkan seluruh riwayat.
+     - `formatFileSize`: format ukuran dalam satuan B, KB, atau MB dalam bahasa Indonesia dengan koma desimal.
+     - `formatExportDate`: format cap waktu ke waktu lokal Asia/Jakarta (WIB).
+     - `validateAndMigrateExportHistory`: validasi dan normalisasi aman dari input mentah atau JSON korup.
+     - `loadExportHistoryFromStorage` & `saveExportHistoryToStorage`: pembungkus akses storage aman yang menangani galat storage (QuotaExceededError / SecurityError).
+     - 12 unit test di `packages/shared/test/export-history.test.ts` (total 358 tes vitest lolos).
+  2. Pengintegrasian Unduh CSV di `apps/dashboard/src/lib/export.ts`:
+     - `downloadCsvWithHistory`: fungsi unduh CSV yang otomatis mencatat rekaman ke localStorage dan memancarkan event `cgpos-export-history-changed`.
+     - Diintegrasikan ke halaman laporan penjualan dan laporan per periode.
+  3. Halaman UI di `/pengaturan/ekspor` & `/laporan/ekspor`:
+     - Kartu KPI ringkasan: Total ekspor tersimpan, Total baris data, dan Ukuran kumulatif.
+     - Kontrol pencarian dan filter teks nama laporan/berkas.
+     - Tabel lengkap responsif untuk desktop & tablet, serta kartu terstruktur untuk mobile (<= 768px).
+     - Tombol "Buka Laporan" dengan parameter periode dan tombol "Hapus" per baris.
+     - Tombol dan dialog modal konfirmasi "Bersihkan riwayat".
+     - Penanganan keadaan kosong (`cg-empty`) dan banner galat akses penyimpanan lokal.
+     - Menu navigasi `nav.ts` ditandai `built: true` di Pengaturan dan Laporan.
+  4. Lolos Uji & Audit:
+     - `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+     - `pnpm -r typecheck` (0 error).
+     - `pnpm -F @cgpos/shared test` (56 file, 358 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (117 halaman statis lolos).
+     - Audit Playwright di 1440px, 1280px, dan 390px (0 overflow, 0 galat konsol; tangkapan layar di `docs/shots/a39/`).
+
