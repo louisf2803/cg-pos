@@ -1,3 +1,4 @@
+import { Monitor } from 'lucide-react';
 import {
   accessFor,
   IDLE_LOCK_CHOICES,
@@ -7,6 +8,7 @@ import {
   type Access,
 } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
+import { openCustomerDisplayWindow } from '../lib/customer-display';
 import { APP_MODES, devicePrefs, useDevicePrefs, VIEW_MODES } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { useAsync } from '../lib/use-async';
@@ -100,6 +102,22 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
             </label>
           ))}
         </fieldset>
+
+        <section aria-labelledby="layar-pelanggan-set" className="p-12 border border-border rounded grid gap-8 bg-surface">
+          <div className="flex flex-wrap items-center justify-between gap-8">
+            <div className="min-w-0">
+              <h3 id="layar-pelanggan-set" className="text-base font-semibold">Layar Pelanggan Eksternal</h3>
+              <p className="text-sm text-text-muted">Buka jendela kedua untuk monitor menghadap pelanggan; tersinkron otomatis dari kasir.</p>
+            </div>
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm"
+              onClick={() => openCustomerDisplayWindow()}
+            >
+              <Monitor className="cg-icon cg-icon--sm" aria-hidden /> Buka layar pelanggan
+            </button>
+          </div>
+        </section>
 
         <section aria-labelledby="hak-akses">
           <h3 id="hak-akses" className="text-base mb-8">Hak akses {session.employee.name} ({ROLE_LABEL[role]})</h3>

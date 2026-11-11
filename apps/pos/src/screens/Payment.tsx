@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Banknote, Printer, CheckCircle2, CreditCard, Landmark, QrCode } from 'lucide-react';
-import { DataError, PAYMENT_REF_MAX, formatRp, newId, parseRp, paymentRefField, paymentRefProblem, quickCashAmounts, roundToStep, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
+import { DataError, PAYMENT_REF_MAX, formatRp, newId, orderTypeLabel, parseRp, paymentRefField, paymentRefProblem, quickCashAmounts, roundToStep, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
+import { publishCustomerDisplay } from '../lib/customer-display';
 import { ReceiptDialog } from './Receipt';
 import { useAsync } from '../lib/use-async';
 import { ApproverFields, useApprover } from '../lib/approver';
@@ -47,6 +48,43 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
   const tendered = raw === '' ? amount : parseRp(raw);
   const shortfall = Math.max(amount - tendered, 0);
   const change = Math.max(tendered - amount, 0);
+
+  useEffect(() => {
+    const activeOrder = done ?? current;
+    const lines = activeOrder.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      ...(item.extras?.length ? { extrasLabel: item.extras.map((e) => e.name).join(', ') } : {}),
+      lineTotal: item.lineTotal,
+    }));
+    const lastPay = done ? done.payments[done.payments.length - 1] : undefined;
+    publishCustomerDisplay({
+      version: 1,
+      outletName: ctx.outletName,
+      outletAddress: ctx.address,
+      cashierName: session.employee.name,
+      phase: done ? 'paid' : 'paying',
+      orderNumber: activeOrder.number,
+      orderTypeLabel: orderTypeLabel(activeOrder.type),
+      customerName: activeOrder.customerName ?? activeOrder.label,
+      lines,
+      subtotal: activeOrder.subtotal,
+      discountTotal: activeOrder.discountTotal,
+      serviceCharge: activeOrder.serviceCharge,
+      taxTotal: activeOrder.taxTotal,
+      rounding: done ? done.rounding : rounding,
+      total: done ? done.total : target,
+      paidTotal: activeOrder.paidTotal,
+      remainingDue: done ? 0 : due,
+      paymentMethod: done ? done.payments.map((x) => x.methodName).join(' + ') : method?.name,
+      ...(lastPay?.tendered !== undefined ? { tendered: lastPay.tendered } : {}),
+      ...(lastPay ? { change: lastPay.change } : {}),
+      welcomeMessage: ctx.receiptHeader,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [ctx, session.employee.name, done, current, rounding, target, due, method]);
 
   async function confirm() {
     if (!method) return;
