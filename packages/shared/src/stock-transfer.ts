@@ -13,7 +13,12 @@ export const TRANSFER_MAX_LINES = 200;
 const dec4 = (n: number) => Math.abs(n - Math.round(n * 1e4) / 1e4) < 1e-9;
 
 /** Pesan galat berbahasa Indonesia, atau null bila layak dikirim. */
-export function transferProblem(i: Pick<StockTransferInput, 'fromId' | 'toId' | 'lines'>): string | null {
+export interface StockTransferCheckOptions {
+  allowNegative?: boolean;
+  stockByProduct?: ReadonlyMap<string, number>;
+}
+
+export function transferProblem(i: Pick<StockTransferInput, 'fromId' | 'toId' | 'lines'>, opts?: StockTransferCheckOptions): string | null {
   if (!i.fromId || !i.toId) return 'Pilih lokasi asal dan tujuan.';
   if (i.fromId === i.toId) return 'Lokasi asal dan tujuan tidak boleh sama.';
   if (i.lines.length === 0) return 'Tambahkan minimal satu barang.';
@@ -26,6 +31,16 @@ export function transferProblem(i: Pick<StockTransferInput, 'fromId' | 'toId' | 
     if (!Number.isFinite(l.qty) || l.qty <= 0) return 'Jumlah tiap barang harus lebih dari 0.';
     if (l.qty > 1_000_000_000) return 'Jumlah terlalu besar.';
     if (!dec4(l.qty)) return 'Jumlah paling banyak 4 angka di belakang koma.';
+  }
+  if (opts?.allowNegative === false && opts.stockByProduct) {
+    for (const l of i.lines) {
+      const avail = opts.stockByProduct.get(l.productId);
+      if (avail !== undefined && Math.round((avail - l.qty) * 10000) < 0) {
+        return avail <= 0
+          ? 'Ada barang yang stoknya habis dan outlet melarang stok minus.'
+          : `Jumlah transfer melebihi sisa stok asal (${avail}); outlet melarang stok minus.`;
+      }
+    }
   }
   return null;
 }

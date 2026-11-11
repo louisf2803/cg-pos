@@ -72,11 +72,21 @@ export function makeStockItem(base: Omit<StockItem, 'value' | 'status'>): StockI
   return { ...base, value: base.qty > 0 ? Math.round(base.qty * base.avgCost) : 0, status: stockStatus(base.qty, base.minQty) };
 }
 
-export function stockPostProblem(i: StockPostInput): string | null {
+export interface StockPostCheckOptions {
+  allowNegative?: boolean;
+  currentQty?: number;
+}
+
+export function stockPostProblem(i: StockPostInput, opts?: StockPostCheckOptions): string | null {
   if (!MANUAL_STOCK_KINDS.includes(i.kind)) return 'Jenis gerakan stok tidak dikenal.';
   if (!Number.isFinite(i.qty) || i.qty <= 0) return 'Isi jumlah lebih dari 0.';
   if (round4(i.qty) !== i.qty) return 'Jumlah paling banyak 4 angka di belakang koma.';
   if (i.qty > 1_000_000_000) return 'Jumlah terlalu besar.';
+  if (i.kind !== 'adjust_in' && opts?.allowNegative === false && opts.currentQty !== undefined && round4(opts.currentQty - i.qty) < 0) {
+    return opts.currentQty <= 0
+      ? 'Stok habis dan outlet melarang stok minus.'
+      : `Stok hanya tersisa ${opts.currentQty}; outlet melarang stok minus.`;
+  }
   if (i.unitCost !== undefined) {
     if (i.kind !== 'adjust_in') return 'Harga hanya untuk stok masuk.';
     if (!Number.isFinite(i.unitCost) || i.unitCost < 0 || i.unitCost > 1_000_000_000) return 'Harga per satuan tidak valid.';

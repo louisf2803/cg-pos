@@ -120,6 +120,35 @@ describe('stok: data palsu', () => {
     const sum = (await d.listStockMoves(g.productId, { limit: 999 })).reduce((n, m) => n + m.qtyDelta, 0);
     expect((await d.listStock({ search: 'susu' }))[0]!.qty).toBeCloseTo(sum, 4);
   });
+
+  it('allowNegativeStock=false menolak stok keluar/rusak melebihi sisa tetapi mengizinkan masuk dan retry idempoten', async () => {
+    expect(stockPostProblem({ id: 'k1', productId: 'p8', kind: 'adjust_out', qty: 4 }, { allowNegative: false, currentQty: 3 })).toMatch(/melarang stok minus/);
+    expect(stockPostProblem({ id: 'k2', productId: 'p13', kind: 'waste', qty: 1 }, { allowNegative: false, currentQty: 0 })).toMatch(/habis/);
+    expect(stockPostProblem({ id: 'k3', productId: 'p13', kind: 'adjust_in', qty: 2 }, { allowNegative: false, currentQty: -5 })).toBeNull();
+    expect(stockPostProblem({ id: 'k4', productId: 'p8', qty: 4, kind: 'adjust_out' }, { allowNegative: true, currentQty: 3 })).toBeNull();
+
+    const d = mk();
+    const s = await d.getOutletSettings();
+    await d.saveOutletOptions({ ...s.options, allowNegativeStock: false });
+
+    const air0 = (await d.listStock({ search: 'Air mineral' }))[0]!;
+    expect(air0.qty).toBe(3);
+    await expect(d.postStock({ id: newId(), productId: air0.productId, kind: 'adjust_out', qty: 4 })).rejects.toMatchObject({ code: 'invalid' });
+    await expect(d.postStock({ id: newId(), productId: air0.productId, kind: 'waste', qty: 3.5 })).rejects.toMatchObject({ code: 'invalid' });
+    expect((await d.listStock({ search: 'Air mineral' }))[0]!.qty).toBe(3);
+
+    // Menghabiskan tepat sisa stok boleh, dan retry idempoten saat saldo 0 tetap mengembalikan hasil
+    const spendKey = newId();
+    const zeroed = await d.postStock({ id: spendKey, productId: air0.productId, kind: 'adjust_out', qty: 3, reason: 'Habiskan stok' });
+    expect(zeroed.qty).toBe(0);
+    const retried = await d.postStock({ id: spendKey, productId: air0.productId, kind: 'adjust_out', qty: 3 });
+    expect(retried.qty).toBe(0);
+
+    // Saat stok 0, keluar ditolak, masuk tetap boleh
+    await expect(d.postStock({ id: newId(), productId: air0.productId, kind: 'adjust_out', qty: 1 })).rejects.toMatchObject({ code: 'invalid' });
+    const restocked = await d.postStock({ id: newId(), productId: air0.productId, kind: 'adjust_in', qty: 5 });
+    expect(restocked.qty).toBe(5);
+  });
 });
 
 describe('stok opname: data palsu', () => {

@@ -29,7 +29,10 @@ export default function StockPage() {
   const [kind, setKind] = useState<'' | StockItem['kind']>('');
   const [status, setStatus] = useState<'' | StockFilter>('');
   const [category, setCategory] = useState('');
-  const state = useAsync(() => data.listStock(), [data]);
+  const state = useAsync(async () => {
+    const [items, settings] = await Promise.all([data.listStock(), data.getOutletSettings()]);
+    return { items, allowNegativeStock: settings.options.allowNegativeStock };
+  }, [data]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -40,12 +43,14 @@ export default function StockPage() {
   }, []);
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const [notice, setNotice] = useState('');
+  const stockData = state.status === 'ready' ? state.data.items : null;
+  const allowNegativeStock = state.status === 'ready' ? state.data.allowNegativeStock : true;
   const rows = useMemo(() => {
-    if (state.status !== 'ready') return [];
+    if (!stockData) return [];
     const q = search.trim().toLowerCase();
-    return state.data.filter((i) => (!kind || i.kind === kind) && (!status || (status === 'alert' ? i.status !== 'ok' : i.status === status)) && (!category || i.categoryName === category) && (!q || i.name.toLowerCase().includes(q)));
-  }, [state, search, kind, status, category]);
-  const all = state.status === 'ready' ? state.data : [];
+    return stockData.filter((i) => (!kind || i.kind === kind) && (!status || (status === 'alert' ? i.status !== 'ok' : i.status === status)) && (!category || i.categoryName === category) && (!q || i.name.toLowerCase().includes(q)));
+  }, [stockData, search, kind, status, category]);
+  const all = stockData ?? [];
   const totalValue = all.reduce((n, i) => n + i.value, 0);
   const alerts = all.filter((i) => i.status !== 'ok').length;
   const categories = useMemo(() => Array.from(new Set(all.map((i) => i.categoryName).filter((n): n is string => !!n))).sort((a, b) => a.localeCompare(b, 'id')), [all]);
@@ -112,13 +117,13 @@ export default function StockPage() {
           )}
         </>
       )}
-      {dlg?.kind === 'post' && <PostDialog item={dlg.item} mode={dlg.mode} onClose={() => setDlg(null)} onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }} />}
+      {dlg?.kind === 'post' && <PostDialog item={dlg.item} mode={dlg.mode} allowNegativeStock={allowNegativeStock} onClose={() => setDlg(null)} onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }} />}
       {dlg?.kind === 'card' && <CardDialog item={dlg.item} onClose={() => { setDlg(null); }} onChanged={state.reload} />}
     </>
   );
 }
 
-function PostDialog({ item, mode: first, onClose, onDone }: { item: StockItem; mode: ManualStockKind; onClose: () => void; onDone: (msg: string) => void }) {
+function PostDialog({ item, mode: first, allowNegativeStock, onClose, onDone }: { item: StockItem; mode: ManualStockKind; allowNegativeStock: boolean; onClose: () => void; onDone: (msg: string) => void }) {
   const data = useData();
   const d = useDialog(onClose);
   const [mode, setMode] = useState<ManualStockKind>(first);
@@ -134,7 +139,7 @@ function PostDialog({ item, mode: first, onClose, onDone }: { item: StockItem; m
     e.preventDefault();
     if (busy) return;
     const input = { id: key.current, productId: item.productId, kind: mode, qty: n, ...(mode === 'adjust_in' && cost.trim() !== '' ? { unitCost: Number(cost.replace(/\D/g, '')) } : {}), reason: reason.trim() || undefined };
-    const problem = stockPostProblem(input);
+    const problem = stockPostProblem(input, { allowNegative: allowNegativeStock, currentQty: item.qty });
     if (problem) return setErr(problem);
     setBusy(true); setErr('');
     try { const r = await data.postStock(input); onDone(`${MODE_LABEL[mode]} ${item.name}: ${fmtQty(n)} ${item.unit}. Stok sekarang ${fmtQty(r.qty)} ${item.unit}.`); }
@@ -157,7 +162,11 @@ function PostDialog({ item, mode: first, onClose, onDone }: { item: StockItem; m
         )}
         <div className="cg-field"><label className="cg-label" htmlFor="stok-alasan">Alasan (opsional)</label>
           <input id="stok-alasan" className="cg-input" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} /></div>
-        {Number.isFinite(n) && n > 0 && willBe < 0 && <p role="status" className="cg-banner cg-banner--warning" data-testid="peringatan-minus">Stok akan menjadi minus ({fmtQty(willBe)} {item.unit}). Tetap boleh disimpan.</p>}
+        {mode !== 'adjust_in' && Number.isFinite(n) && n > 0 && willBe < 0 && (
+          allowNegativeStock
+            ? <p role="status" className="cg-banner cg-banner--warning" data-testid="peringatan-minus">Stok akan menjadi minus ({fmtQty(willBe)} {item.unit}). Tetap boleh disimpan.</p>
+            : <p role="status" className="cg-banner cg-banner--danger" data-testid="peringatan-minus">Stok tidak cukup ({fmtQty(willBe)} {item.unit}). Pengaturan outlet melarang stok minus.</p>
+        )}
         <p role="alert" className="min-h-[24px] text-danger-strong">{err}</p>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Batal</button>
