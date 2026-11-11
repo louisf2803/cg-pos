@@ -325,9 +325,9 @@ function StatusBadge({ status, label }: { status: StockTurnoverRow['status']; la
   if (status === 'fast_moving') {
     badgeClass = 'bg-primary/10 text-primary border-primary/20 font-semibold';
   } else if (status === 'normal') {
-    badgeClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
+    badgeClass = 'bg-success/10 text-success border-success/20';
   } else if (status === 'slow_moving') {
-    badgeClass = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
+    badgeClass = 'bg-warning/10 text-warning border-warning/20';
   } else if (status === 'dead_stock') {
     badgeClass = 'bg-danger/10 text-danger border-danger/20 font-semibold';
   }
@@ -352,9 +352,9 @@ function FilterTab({
   onClick: () => void;
   color?: 'primary' | 'amber' | 'danger';
 }) {
-  let activeClass = 'bg-primary text-white shadow-xs';
-  if (color === 'amber' && active) activeClass = 'bg-amber-600 text-white shadow-xs';
-  if (color === 'danger' && active) activeClass = 'bg-danger text-white shadow-xs';
+  let activeClass = 'bg-primary text-on-accent shadow-xs';
+  if (color === 'amber' && active) activeClass = 'bg-warning text-on-accent shadow-xs';
+  if (color === 'danger' && active) activeClass = 'bg-danger text-on-accent shadow-xs';
 
   return (
     <button

@@ -161,13 +161,13 @@ function renderStaffCell(key: StaffColKey, r: StaffReportRow) {
       );
     case 'refundCount':
       return (
-        <td key={key} className="py-12 px-16 text-right cg-num text-amber-600">
+        <td key={key} className="py-12 px-16 text-right cg-num text-warning">
           {r.refundCount > 0 ? num(r.refundCount) : '—'}
         </td>
       );
     case 'refundTotal':
       return (
-        <td key={key} className="py-12 px-16 text-right cg-num text-amber-600">
+        <td key={key} className="py-12 px-16 text-right cg-num text-warning">
           {r.refundTotal > 0 ? formatRp(r.refundTotal) : '—'}
         </td>
       );
@@ -699,7 +699,7 @@ export default function StaffReportPage() {
                         </div>
                         <div>
                           <span className="text-text-muted block">Refund</span>
-                          <span className={r.refundCount > 0 ? 'text-amber-600 font-medium cg-num' : 'text-text-muted'}>
+                          <span className={r.refundCount > 0 ? 'text-warning font-medium cg-num' : 'text-text-muted'}>
                             {r.refundCount > 0 ? `${num(r.refundCount)} (${formatRp(r.refundTotal)})` : '—'}
                           </span>
                         </div>
