@@ -20,14 +20,21 @@ import {
 import {
   MAX_TABLE_LABEL_LENGTH,
   clampTablePosition,
+  createDecorElement,
   defaultGridPositions,
   formatRp,
+  newId,
+  sanitizeDecorElements,
   sanitizeTableSettings,
   summarizeTableSettings,
   tableSettingsProblem,
+  type CustomTableShape,
+  type DecorElement,
+  type DecorElementType,
   type DiningTable,
   type Floor,
   type FloorLayoutMode,
+  type MinBillBehavior,
   type TablePosition,
   type TableSettings,
   type TableStatus,
@@ -39,7 +46,7 @@ import { useShell } from '@/components/shell-context';
 
 type Dlg =
   | { kind: 'floor'; item?: Floor }
-  | { kind: 'table'; floorId: string; item?: DiningTable }
+  | { kind: 'table'; floorId: string; item?: DiningTable; defaultShape?: CustomTableShape }
   | { kind: 'del-floor'; item: Floor; count: number }
   | { kind: 'del-table'; item: DiningTable };
 
@@ -47,6 +54,32 @@ const INACTIVE_STORAGE_KEY = 'cgpos_inactive_tables';
 const LAYOUT_MODE_STORAGE_KEY = 'cgpos_floor_layout_mode';
 const TABLE_POSITIONS_STORAGE_KEY = 'cgpos_custom_table_positions';
 const TABLE_SETTINGS_STORAGE_KEY = 'cgpos_table_settings';
+const TABLE_SHAPES_STORAGE_KEY = 'cgpos_custom_table_shapes';
+const DECOR_ELEMENTS_STORAGE_KEY = 'cgpos_custom_decor_elements';
+
+const MIN_BILL_MODES: readonly { value: MinBillBehavior; label: string; desc: string }[] = [
+  {
+    value: 'wajib',
+    label: 'Wajib dipenuhi',
+    desc: 'Pembayaran di kasir belum dapat diselesaikan sebelum total tagihan mencapai nominal minimum.',
+  },
+  {
+    value: 'izinkan',
+    label: 'Izinkan di bawah minimum',
+    desc: 'Kasir tetap dapat memproses pembayaran di bawah batas minimum dengan catatan informasi saja.',
+  },
+  {
+    value: 'tambah_selisih',
+    label: 'Tambahkan selisih otomatis',
+    desc: 'Selisih antara nominal minimum dan total tagihan otomatis ditambahkan sebagai biaya tambahan.',
+  },
+];
+
+const DECOR_LABEL_MAP: Record<DecorElementType, string> = {
+  tanaman: 'Tanaman',
+  dinding: 'Dinding',
+  pintu: 'Pintu',
+};
 
 function readJsonStorage<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -103,6 +136,22 @@ function loadAllTableSettings(): Record<string, TableSettings> {
     }
   }
   return out;
+}
+
+function loadTableShapes(): Record<string, CustomTableShape> {
+  const parsed = readJsonStorage<Record<string, unknown>>(TABLE_SHAPES_STORAGE_KEY, {});
+  const out: Record<string, CustomTableShape> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (v === 'persegi' || v === 'persegi_panjang' || v === 'bulat') {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function loadDecorElements(): DecorElement[] {
+  const parsed = readJsonStorage<unknown>(DECOR_ELEMENTS_STORAGE_KEY, []);
+  return sanitizeDecorElements(parsed);
 }
 
 function loadInactiveTableIds(): Set<string> {
@@ -163,6 +212,14 @@ export default function DenahDanMeja() {
   const [tableSettingsMap, setTableSettingsMap] = useState<Record<string, TableSettings>>(() =>
     loadAllTableSettings()
   );
+  const [tableShapes, setTableShapes] = useState<Record<string, CustomTableShape>>(() =>
+    loadTableShapes()
+  );
+  const [decorElements, setDecorElements] = useState<DecorElement[]>(() =>
+    loadDecorElements()
+  );
+  const [selectedDecorId, setSelectedDecorId] = useState<string | null>(null);
+  const [draggingDecorId, setDraggingDecorId] = useState<string | null>(null);
   const [draftSettings, setDraftSettings] = useState<TableSettings>(() =>
     sanitizeTableSettings()
   );
@@ -317,8 +374,98 @@ export default function DenahDanMeja() {
     const nextPositions = { ...draftPositions, ...resolvedPositions };
     setDraftPositions(nextPositions);
     writeJsonStorage(TABLE_POSITIONS_STORAGE_KEY, nextPositions);
+    writeJsonStorage(DECOR_ELEMENTS_STORAGE_KEY, decorElements);
     setHasUnsavedPositions(false);
-    setPositionStatusMsg('Posisi meja tersimpan secara lokal (Pratinjau).');
+    setPositionStatusMsg('Posisi meja dan elemen dekoratif tersimpan secara lokal (Pratinjau).');
+  };
+
+  const displayedDecor = useMemo(() => {
+    if (selectedFloorId === 'all') return decorElements;
+    return decorElements.filter((d) => !d.floorId || d.floorId === selectedFloorId);
+  }, [decorElements, selectedFloorId]);
+
+  const handleAddDecor = (type: DecorElementType) => {
+    const idx = displayedDecor.length;
+    const xPct = 14 + (idx % 5) * 18;
+    const yPct = 76 - Math.floor(idx / 5) * 18;
+    const el = createDecorElement(
+      newId(),
+      type,
+      xPct,
+      yPct,
+      selectedFloorId !== 'all' ? selectedFloorId : undefined,
+    );
+    const next = [...decorElements, el];
+    setDecorElements(next);
+    writeJsonStorage(DECOR_ELEMENTS_STORAGE_KEY, next);
+    setSelectedDecorId(el.id);
+    setPositionStatusMsg(`Elemen dekoratif "${DECOR_LABEL_MAP[type]}" ditambahkan (Pratinjau lokal).`);
+  };
+
+  const handleDeleteDecor = (id: string) => {
+    const next = decorElements.filter((d) => d.id !== id);
+    setDecorElements(next);
+    writeJsonStorage(DECOR_ELEMENTS_STORAGE_KEY, next);
+    if (selectedDecorId === id) setSelectedDecorId(null);
+    setPositionStatusMsg('Elemen dekoratif dihapus dari kanvas.');
+  };
+
+  const startDecorDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    decor: DecorElement,
+  ) => {
+    if (e.button !== 0 || !canvasRef.current) return;
+    if ((e.target as HTMLElement).closest('button[data-decor-delete]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedDecorId(decor.id);
+    const rect = canvasRef.current.getBoundingClientRect();
+    const usableW = Math.max(1, rect.width - 108);
+    const usableH = Math.max(1, rect.height - 84);
+    const orig = { xPct: decor.xPct, yPct: decor.yPct };
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
+    let latestDecorList = decorElements;
+    setDraggingDecorId(decor.id);
+    setPositionStatusMsg(null);
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 4) moved = true;
+      if (!moved) return;
+      const nextPos = clampTablePosition({
+        xPct: orig.xPct + (dx / usableW) * 100,
+        yPct: orig.yPct + (dy / usableH) * 100,
+      });
+      setDecorElements((prev) => {
+        const updated = prev.map((item) =>
+          item.id === decor.id ? { ...item, xPct: nextPos.xPct, yPct: nextPos.yPct } : item,
+        );
+        latestDecorList = updated;
+        return updated;
+      });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      setDraggingDecorId(null);
+    };
+
+    const onUp = () => {
+      cleanup();
+      if (moved) {
+        writeJsonStorage(DECOR_ELEMENTS_STORAGE_KEY, latestDecorList);
+        setPositionStatusMsg('Posisi elemen dekoratif tersimpan secara lokal (Pratinjau).');
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   const handleResetPositionsToGrid = () => {
@@ -716,6 +863,65 @@ export default function DenahDanMeja() {
                     </div>
                   </div>
 
+                  <div className="flex flex-wrap items-center justify-between gap-12 p-12 rounded-xl border border-border bg-surface-raised">
+                    <div className="grid gap-8 min-w-0">
+                      <p className="text-xs font-semibold text-text">
+                        Palet Denah Kustom (Pratinjau lokal)
+                      </p>
+                      <div className="flex flex-wrap items-center gap-8">
+                        <span className="text-[11px] font-medium text-text-muted uppercase">
+                          Bentuk Meja:
+                        </span>
+                        {(
+                          [
+                            ['persegi', '+ Meja Persegi'],
+                            ['persegi_panjang', '+ Meja Panjang'],
+                            ['bulat', '+ Meja Bulat'],
+                          ] as const
+                        ).map(([shape, label]) => (
+                          <button
+                            key={shape}
+                            type="button"
+                            className="cg-btn cg-btn--secondary cg-btn--sm"
+                            onClick={() =>
+                              setDlg({
+                                kind: 'table',
+                                floorId:
+                                  selectedFloorId !== 'all'
+                                    ? selectedFloorId
+                                    : floors[0]?.id ?? '',
+                                defaultShape: shape,
+                              })
+                            }
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-8">
+                        <span className="text-[11px] font-medium text-text-muted uppercase">
+                          Elemen Dekoratif:
+                        </span>
+                        {(
+                          [
+                            ['tanaman', '+ Tanaman'],
+                            ['dinding', '+ Dinding'],
+                            ['pintu', '+ Pintu'],
+                          ] as const
+                        ).map(([kind, label]) => (
+                          <button
+                            key={kind}
+                            type="button"
+                            className="cg-btn cg-btn--ghost cg-btn--sm border border-border"
+                            onClick={() => handleAddDecor(kind)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
                   {positionStatusMsg && (
                     <div className="cg-banner cg-banner--info text-xs" role="status">
                       {positionStatusMsg}
@@ -726,6 +932,7 @@ export default function DenahDanMeja() {
                     <div
                       ref={canvasRef}
                       aria-label="Kanvas Denah Kustom"
+                      onClick={() => setSelectedDecorId(null)}
                       className="relative w-full min-w-[600px] tablet:min-w-full min-h-[460px] tablet:min-h-[540px] overflow-hidden select-none touch-none"
                       style={{
                         backgroundImage:
@@ -738,6 +945,13 @@ export default function DenahDanMeja() {
                       const pos = resolvedPositions[t.id] ?? { xPct: 8, yPct: 8 };
                       const tags = summarizeTableSettings(tableSettingsMap[t.id]);
                       const isDragging = draggingTableId === t.id;
+                      const shape = tableShapes[t.id] ?? 'persegi';
+                      const shapeSizeClass =
+                        shape === 'bulat'
+                          ? 'w-[112px] h-[112px] rounded-full text-center items-center justify-center'
+                          : shape === 'persegi_panjang'
+                            ? 'w-[156px] h-[92px] rounded-xl text-left justify-between'
+                            : 'w-[124px] h-[108px] rounded-xl text-left justify-between';
                       return (
                         <button
                           key={t.id}
@@ -745,16 +959,19 @@ export default function DenahDanMeja() {
                           data-table-id={t.id}
                           data-pos-x={pos.xPct}
                           data-pos-y={pos.yPct}
+                          data-table-shape={shape}
                           onPointerDown={(e) => startCardDrag(e, t)}
                           onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDecorId(null);
                             if (suppressClickRef.current) return;
                             openDrawer(t, e.currentTarget);
                           }}
                           style={{
-                            left: `calc(8px + (${pos.xPct} / 100) * (100% - 148px))`,
-                            top: `calc(8px + (${pos.yPct} / 100) * (100% - 116px))`,
+                            left: `calc(8px + (${pos.xPct} / 100) * (100% - 164px))`,
+                            top: `calc(8px + (${pos.yPct} / 100) * (100% - 120px))`,
                           }}
-                          className={`absolute w-[132px] h-[100px] p-8 rounded-xl border text-left flex flex-col justify-between transition-shadow focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent cursor-grab active:cursor-grabbing ${
+                          className={`absolute p-8 border flex flex-col transition-shadow focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent cursor-grab active:cursor-grabbing ${shapeSizeClass} ${
                             isDragging ? 'z-20 shadow-lg ring-2 ring-accent' : 'z-10 hover:shadow-sm'
                           } ${
                             status === 'terisi'
@@ -803,6 +1020,81 @@ export default function DenahDanMeja() {
                             </span>
                           </div>
                         </button>
+                      );
+                    })}
+
+                    {displayedDecor.map((el) => {
+                      const isSelected = selectedDecorId === el.id;
+                      const isDraggingEl = draggingDecorId === el.id;
+                      const decorBoxClass =
+                        el.type === 'dinding'
+                          ? 'w-[120px] h-[44px] rounded-md bg-border/60 border-text-muted/50'
+                          : el.type === 'pintu'
+                            ? 'w-[84px] h-[56px] rounded-t-full border-dashed border-accent bg-surface'
+                            : 'w-[84px] h-[68px] rounded-full border-success/60 bg-success-soft';
+
+                      return (
+                        <div
+                          key={el.id}
+                          role="group"
+                          data-decor-id={el.id}
+                          data-decor-type={el.type}
+                          data-pos-x={el.xPct}
+                          data-pos-y={el.yPct}
+                          aria-label={`Elemen dekoratif ${DECOR_LABEL_MAP[el.type]}`}
+                          onPointerDown={(e) => startDecorDrag(e, el)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDecorId(el.id);
+                          }}
+                          style={{
+                            left: `calc(8px + (${el.xPct} / 100) * (100% - 132px))`,
+                            top: `calc(8px + (${el.yPct} / 100) * (100% - 88px))`,
+                          }}
+                          className={`absolute border flex flex-col items-center justify-center gap-[2px] p-4 select-none touch-none cursor-grab active:cursor-grabbing ${decorBoxClass} ${
+                            isDraggingEl || isSelected
+                              ? 'z-20 ring-2 ring-accent shadow-sm'
+                              : 'z-[12] hover:border-accent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            {el.type === 'tanaman' && (
+                              <span
+                                className="inline-block w-8 h-8 rounded-full bg-success"
+                                aria-hidden
+                              />
+                            )}
+                            {el.type === 'dinding' && (
+                              <span
+                                className="inline-block w-16 h-[4px] rounded-sm bg-text-muted"
+                                aria-hidden
+                              />
+                            )}
+                            {el.type === 'pintu' && (
+                              <span
+                                className="inline-block w-8 h-8 rounded-t-full border border-accent-strong"
+                                aria-hidden
+                              />
+                            )}
+                            <span className="text-[11px] font-semibold text-text whitespace-nowrap">
+                              {DECOR_LABEL_MAP[el.type]}
+                            </span>
+                          </div>
+                          {isSelected && (
+                            <button
+                              type="button"
+                              data-decor-delete="true"
+                              aria-label={`Hapus elemen ${DECOR_LABEL_MAP[el.type]}`}
+                              className="cg-btn cg-btn--ghost cg-btn--sm text-danger text-[10px] min-h-[22px] px-[6px]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteDecor(el.id);
+                              }}
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                     </div>
@@ -1245,25 +1537,71 @@ export default function DenahDanMeja() {
                     />
                   </label>
                   {draftSettings.minBillEnabled && (
-                    <label className="grid gap-4">
-                      <span className="text-xs text-text-muted">Nominal minimum (Rp)</span>
-                      <input
-                        type="number"
-                        min={1}
-                        step={1000}
-                        className="cg-input cg-num"
-                        aria-label="Nominal Minimum Tagihan"
-                        value={draftSettings.minBill}
-                        onChange={(e) => {
-                          setSettingsError(null);
-                          setSettingsSavedMsg(null);
-                          setDraftSettings((prev) => ({
-                            ...prev,
-                            minBill: Number.parseInt(e.target.value || '0', 10),
-                          }));
-                        }}
-                      />
-                    </label>
+                    <div className="grid gap-12">
+                      <label className="grid gap-4">
+                        <span className="text-xs text-text-muted">Nominal minimum (Rp)</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1000}
+                          className="cg-input cg-num"
+                          aria-label="Nominal Minimum Tagihan"
+                          value={draftSettings.minBill}
+                          onChange={(e) => {
+                            setSettingsError(null);
+                            setSettingsSavedMsg(null);
+                            setDraftSettings((prev) => ({
+                              ...prev,
+                              minBill: Number.parseInt(e.target.value || '0', 10),
+                            }));
+                          }}
+                        />
+                      </label>
+
+                      <fieldset className="grid gap-8">
+                        <legend className="text-xs font-medium text-text-muted mb-4">
+                          Perilaku jika tagihan di bawah minimum (Pratinjau lokal)
+                        </legend>
+                        {MIN_BILL_MODES.map((opt) => {
+                          const currentMode = draftSettings.minBillMode ?? 'izinkan';
+                          const selected = currentMode === opt.value;
+                          return (
+                            <label
+                              key={opt.value}
+                              className={`flex items-start gap-8 p-8 rounded-lg border cursor-pointer transition-colors ${
+                                selected
+                                  ? 'border-accent bg-accent-soft'
+                                  : 'border-border bg-surface hover:border-accent'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="min-bill-mode"
+                                value={opt.value}
+                                checked={selected}
+                                onChange={() => {
+                                  setSettingsError(null);
+                                  setSettingsSavedMsg(null);
+                                  setDraftSettings((prev) => ({
+                                    ...prev,
+                                    minBillMode: opt.value,
+                                  }));
+                                }}
+                                className="mt-[2px] accent-accent cursor-pointer shrink-0"
+                              />
+                              <span className="grid gap-[2px] min-w-0">
+                                <span className="text-xs font-semibold text-text">
+                                  {opt.label}
+                                </span>
+                                <span className="text-[11px] text-text-muted">
+                                  {opt.desc}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </fieldset>
+                    </div>
                   )}
                 </div>
 
@@ -1380,8 +1718,20 @@ export default function DenahDanMeja() {
         <NameDialog
           dlg={dlg}
           floors={st.status === 'ready' ? st.data.floors : []}
+          initialShape={
+            dlg.kind === 'table'
+              ? dlg.defaultShape ?? (dlg.item ? tableShapes[dlg.item.id] : undefined) ?? 'persegi'
+              : 'persegi'
+          }
           onClose={() => setDlg(null)}
-          onSaved={done}
+          onSaved={(savedTableId, shape) => {
+            if (savedTableId && shape) {
+              const next = { ...tableShapes, [savedTableId]: shape };
+              setTableShapes(next);
+              writeJsonStorage(TABLE_SHAPES_STORAGE_KEY, next);
+            }
+            done();
+          }}
         />
       )}
       {dlg && (dlg.kind === 'del-floor' || dlg.kind === 'del-table') && (
@@ -1402,19 +1752,22 @@ function useModal() {
 function NameDialog({
   dlg,
   floors,
+  initialShape,
   onClose,
   onSaved,
 }: {
   dlg: Extract<Dlg, { kind: 'floor' | 'table' }>;
   floors: Floor[];
+  initialShape: CustomTableShape;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (savedTableId?: string, shape?: CustomTableShape) => void;
 }) {
   const data = useData();
   const ref = useModal();
   const isTable = dlg.kind === 'table';
   const [name, setName] = useState(dlg.item?.name ?? '');
   const [floorId, setFloorId] = useState(dlg.kind === 'table' ? dlg.floorId : '');
+  const [shape, setShape] = useState<CustomTableShape>(initialShape);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const noun = isTable ? 'meja' : 'lantai';
@@ -1426,9 +1779,13 @@ function NameDialog({
     setBusy(true);
     setError(null);
     try {
-      if (isTable) await data.saveTable({ id: dlg.item?.id, floorId, name });
-      else await data.saveFloor({ id: dlg.item?.id, name });
-      onSaved();
+      if (isTable) {
+        const saved = await data.saveTable({ id: dlg.item?.id, floorId, name });
+        onSaved(saved.id, shape);
+      } else {
+        await data.saveFloor({ id: dlg.item?.id, name });
+        onSaved();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan.');
       setBusy(false);
@@ -1461,23 +1818,40 @@ function NameDialog({
           />
         </div>
         {isTable && (
-          <div className="cg-field">
-            <label className="cg-label" htmlFor="lantai-denah">
-              Lantai
-            </label>
-            <select
-              id="lantai-denah"
-              className="cg-input"
-              value={floorId}
-              onChange={(e) => setFloorId(e.target.value)}
-            >
-              {floors.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div className="cg-field">
+              <label className="cg-label" htmlFor="lantai-denah">
+                Lantai
+              </label>
+              <select
+                id="lantai-denah"
+                className="cg-input"
+                value={floorId}
+                onChange={(e) => setFloorId(e.target.value)}
+              >
+                {floors.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="cg-field">
+              <label className="cg-label" htmlFor="bentuk-meja-denah">
+                Bentuk di Denah Kustom (Pratinjau)
+              </label>
+              <select
+                id="bentuk-meja-denah"
+                className="cg-input"
+                value={shape}
+                onChange={(e) => setShape(e.target.value as CustomTableShape)}
+              >
+                <option value="persegi">Persegi</option>
+                <option value="persegi_panjang">Persegi panjang</option>
+                <option value="bulat">Bulat</option>
+              </select>
+            </div>
+          </>
         )}
         <p role="alert" className="min-h-[24px] text-danger-strong">
           {error}

@@ -4,12 +4,15 @@ import {
   MAX_TABLE_LABEL_LENGTH,
   clampPct,
   clampTablePosition,
+  createDecorElement,
   defaultGridPositions,
   formatTableLabel,
   isValidTablePosition,
+  sanitizeDecorElements,
   sanitizeTableSettings,
   summarizeTableSettings,
   tableSettingsProblem,
+  type TableSettings,
 } from '../src/table-layout';
 
 describe('table-layout helpers', () => {
@@ -128,6 +131,62 @@ describe('table-layout helpers', () => {
     expect(tags[0]).toBe('VIP Pojok');
     expect(tags[1]).toBe('90 mnt (ingat -10)');
     expect(tags[2]).toContain('150');
+  });
+
+  it('defaults legacy settings without minBillMode to izinkan and validates modes when enabled', () => {
+    const legacy = sanitizeTableSettings({
+      minBillEnabled: true,
+      minBill: 100000,
+    });
+    expect(legacy.minBillMode).toBe('izinkan');
+    expect(tableSettingsProblem(legacy)).toBeNull();
+
+    // Only relevant when minBillEnabled is true: invalid mode ignored when disabled
+    const disabledWithWeirdMode = {
+      ...DEFAULT_TABLE_SETTINGS,
+      minBillEnabled: false,
+      minBillMode: 'invalid' as TableSettings['minBillMode'],
+    };
+    expect(tableSettingsProblem(disabledWithWeirdMode)).toBeNull();
+
+    const enabledWithWeirdMode = {
+      ...DEFAULT_TABLE_SETTINGS,
+      minBillEnabled: true,
+      minBill: 50000,
+      minBillMode: 'invalid' as TableSettings['minBillMode'],
+    };
+    expect(tableSettingsProblem(enabledWithWeirdMode)).toBe(
+      'Mode perilaku minimum tagihan tidak valid.',
+    );
+
+    const wajibTags = summarizeTableSettings({
+      ...DEFAULT_TABLE_SETTINGS,
+      minBillEnabled: true,
+      minBill: 75000,
+      minBillMode: 'wajib',
+    });
+    expect(wajibTags[0]).toContain('Wajib');
+  });
+
+  it('creates and sanitizes decorative canvas elements safely', () => {
+    const el = createDecorElement('dec-1', 'tanaman', 120, -10, 'floor-1');
+    expect(el).toEqual({
+      id: 'dec-1',
+      type: 'tanaman',
+      xPct: 100,
+      yPct: 0,
+      floorId: 'floor-1',
+    });
+
+    const cleaned = sanitizeDecorElements([
+      el,
+      { id: 'dec-2', type: 'dinding', xPct: 35, yPct: 45 },
+      { id: 'bad', type: 'unknown', xPct: 10, yPct: 10 },
+      null,
+      { id: '', type: 'pintu', xPct: 20, yPct: 20 },
+    ]);
+    expect(cleaned).toHaveLength(2);
+    expect(cleaned.map((c) => c.type)).toEqual(['tanaman', 'dinding']);
   });
 });
 

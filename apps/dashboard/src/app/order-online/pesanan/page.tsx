@@ -1,14 +1,16 @@
 'use client';
 import { useState } from 'react';
-import { ShoppingCart, RefreshCw, Filter } from 'lucide-react';
+import { Globe, ShoppingCart, RefreshCw, Filter } from 'lucide-react';
 import { PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { OrderOnlineChannelsPanel } from '@/components/order-online-channels';
 import { useReport } from '@/lib/use-report';
 
 type OrderOnlineStatus = 'masuk' | 'diproses' | 'dikirim' | 'diterima' | 'selesai' | 'batal';
 
 export default function PesananOnlinePage() {
   const { ctx, value, setValue, range, today } = useReport();
+  const [mainTab, setMainTab] = useState<'pesanan' | 'kanal'>('pesanan');
   const [activeStatus, setActiveStatus] = useState<OrderOnlineStatus>('masuk');
   const [selectedChannel, setSelectedChannel] = useState('semua');
   const [q, setQ] = useState('');
@@ -34,14 +36,39 @@ export default function PesananOnlinePage() {
     <div className="grid gap-16 min-w-0">
       <PageHeader
         title="Pesanan Online"
-        subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : 'Kelola pesanan dari saluran pesan-antar dan order mandiri'}
+        subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : 'Kelola pesanan dari saluran pesan-antar dan order mandiri CG Order'}
         actions={
-          <button className="cg-btn cg-btn--secondary" onClick={() => window.location.reload()}>
+          <button type="button" className="cg-btn cg-btn--secondary" onClick={() => window.location.reload()}>
             <RefreshCw className="cg-icon" aria-hidden /> Segarkan
           </button>
         }
       />
 
+      <div className="cg-tabs w-fit max-w-full overflow-x-auto" role="tablist" aria-label="Menu Order Online CG Order">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mainTab === 'pesanan'}
+          className="cg-tab inline-flex items-center gap-8 whitespace-nowrap"
+          onClick={() => setMainTab('pesanan')}
+        >
+          <ShoppingCart className="cg-icon cg-icon--sm" aria-hidden /> Pesanan Masuk
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mainTab === 'kanal'}
+          className="cg-tab inline-flex items-center gap-8 whitespace-nowrap"
+          onClick={() => setMainTab('kanal')}
+        >
+          <Globe className="cg-icon cg-icon--sm" aria-hidden /> Status Kanal
+        </button>
+      </div>
+
+      {mainTab === 'kanal' ? (
+        <OrderOnlineChannelsPanel />
+      ) : (
+        <>
       <RangePicker value={value} today={today} onChange={setValue} />
 
       {/* Filter Bar */}
@@ -142,10 +169,12 @@ export default function PesananOnlinePage() {
           </div>
           <h2 className="text-lg font-semibold mb-4">Belum ada pesanan online masuk</h2>
           <p className="text-text-muted max-w-md text-sm">
-            Pesanan dari saluran online terintegrasi (GrabFood, GoFood, ShopeeFood, atau Order Mandiri QR) akan langsung muncul di halaman ini secara waktu-nyata.
+            Pesanan dari saluran online terintegrasi (CG Order QR, Mitra Pesan-Antar, atau Aplikasi Konsumen) akan langsung muncul di halaman ini secara waktu-nyata.
           </p>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

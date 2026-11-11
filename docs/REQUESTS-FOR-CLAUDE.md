@@ -59,8 +59,9 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
      - `posY?: number` (`pos_y`, 0-100%)
      - `timeLimitEnabled?: boolean`, `timeLimitMinutes?: number` (`time_limit_minutes`)
      - `reminderEnabled?: boolean`, `reminderBeforeMinutes?: number` (`reminder_before_minutes`)
-     - `minBillEnabled?: boolean`, `minBill?: number` (`min_bill`)
+     - `minBillEnabled?: boolean`, `minBill?: number` (`min_bill`), `minBillMode?: 'wajib' | 'izinkan' | 'tambah_selisih'` (`min_bill_mode`, bawaan `'izinkan'`)
      - `labelEnabled?: boolean`, `label?: string` (maks 20 huruf)
+     - `shape?: 'persegi' | 'persegi_panjang' | 'bulat'` dan elemen dekoratif kanvas non-meja per lantai/outlet (`decorElements: { id, type: 'tanaman'|'dinding'|'pintu', xPct, yPct, floorId? }[]`)
 - Untuk: Layar `/pengaturan/denah` (pemilih Grid Meja vs Denah Kustom dengan drag posisi dan 4 toggle pengaturan per meja).
 - Bentuk yang diinginkan:
   - Perluasan `OutletOptions` + `saveOutletOptions` (atau `updateFloorMode(outletId, mode)`),
@@ -105,8 +106,77 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - **BELUM ditulis sebagai tugas Antigravity** karena beberapa status (terutama "biru = duduk belum pesan" dan "ungu = struk sementara sudah dicetak") butuh KEPUTUSAN SKEMA dari Claude dulu: `Order` saat ini tidak punya cara membedakan "meja aktif tanpa order" dari "tidak ada siapa-siapa" (perlu entitas baru semacam "sesi meja" terpisah dari `Order`, atau field `seatedAt` di `TableStatus`), dan tidak ada state "struk sementara dicetak" yang terlacak terpisah dari status pembayaran (`status: 'open'|'partially_paid'|'paid'|'void'`). Butuh: (a) keputusan apakah menambah entitas `TableSession`/`seatedAt` terpisah dari `Order`, (b) field baru semacam `Order.provisionalReceiptPrintedAt?: string` untuk status ungu, (c) perhitungan status meja dari kombinasi field tsb + `timeLimitMinutes`/`reminderBeforeMinutes` dari A52.
 - Untuk: Tampilan pilih meja (`apps/pos/src/screens/TablePicker.tsx`) dan operasi meja (`packages/shared/src/table-ops.ts`) di kasir, agar kasir melihat status meja yang sama informatifnya dengan Majoo asli.
 - Sementara: CG POS tetap pakai status biner kosong/terisi untuk saat ini. Ditulis di sini supaya tidak terlupa; BUKAN diprioritaskan sebelum keputusan skema di atas diambil Claude, dan BUKAN tugas Antigravity sampai keputusan itu selesai (lihat AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru).
+## /komisi & /laporan/karyawan tab Komisi (A54 — Aturan Grup Komisi & Laporan Komisi) — 2026-11-11
+- Butuh: Penyimpanan permanen skema aturan komisi di database serta metode `DataLayer` untuk CRUD grup komisi beserta penetapan karyawan & kategori/produknya.
+- Untuk: Layar `/komisi` (daftar grup komisi) dan tab **Komisi** pada `/laporan/karyawan` (perhitungan komisi tetap memakai data pesanan nyata `data.listOrders`).
+- Bentuk yang diinginkan:
+  - Tabel `commission_groups` (`id`, `org_id`, `name`, `rate_type: 'percent' | 'fixed'`, `rate_value`, `is_active`, `created_at`)
+  - Tabel `commission_group_employees` (`group_id`, `employee_id`)
+  - Tabel `commission_group_products` (`group_id`, `category_id` nullable, `product_id` nullable)
+  - Metode `DataLayer`:
+    - `listCommissionGroups(): Promise<CommissionGroup[]>`
+    - `saveCommissionGroup(group: CommissionGroup): Promise<CommissionGroup>`
+    - `deleteCommissionGroup(id: string): Promise<void>`
+- Sementara: Definisi grup komisi disimpan di `localStorage` (`cgpos_commission_groups`) dengan lencana **"Pratinjau — aturan belum tersimpan di server"**, sementara perhitungan komisi di `/laporan/karyawan` langsung memakai pesanan nyata (`data.listOrders`) + produk (`data.listProducts`) melalui `computeCommissionReport`.
 
 
+## /inventori/retur (A55 — Retur Pembelian) — 2026-11-11
+- Catatan: Layar `/inventori/bayar-faktur` sudah memakai `DataLayer` yang ada (`listPurchaseInvoices`, `getPurchaseInvoice`, `listPayAccounts`, `payPurchase`).
+- Butuh: Skema database dan metode `DataLayer` untuk pencatatan **Retur Pembelian** atas faktur pembelian yang sudah diterima (termasuk dampak pengurangan stok batch/FIFO dan penyesuaian sisa hutang faktur).
+- Untuk: Layar `/inventori/retur` (daftar retur pembelian & dialog buat retur dari faktur pembelian).
+- Bentuk yang diinginkan:
+  - Tabel `purchase_returns` (`id`, `org_id`, `outlet_id`, `invoice_id`, `supplier_id`, `return_number`, `reason`, `note`, `total_amount`, `created_at`)
+  - Tabel `purchase_return_lines` (`id`, `return_id`, `invoice_line_id`, `product_id`, `qty`, `unit_cost`, `subtotal`)
+  - Metode `DataLayer`:
+    - `listPurchaseReturns(q?: { outletId?: string; search?: string }): Promise<PurchaseReturnSummary[]>`
+    - `getPurchaseReturn(id: string): Promise<PurchaseReturn | null>`
+    - `createPurchaseReturn(input: PurchaseReturnInput): Promise<PurchaseReturn>` (otomatis memvalidasi `qty <= diterima - retur sebelumnya`, mengurangi stok bahan/produk, dan menyesuaikan kewajiban faktur)
+- Sementara: Dibangun dengan sumber faktur pembelian nyata (`listPurchaseInvoices`, `getPurchaseInvoice`) untuk validasi kuantitas dan daftar retur sementara di memori komponen berlabel **"Pratinjau"** (tidak memakai `localStorage` untuk data transaksi retur).
+
+## /appointment (A56 — Reservasi / Appointment Dasar) — 2026-11-11
+- Butuh: Skema database dan metode `DataLayer` untuk reservasi/appointment jasa, fasilitas ruang, dan meja pelanggan beserta pencegahan bentrok jadwal di server.
+- Untuk: Layar `/appointment` (tab Daftar & tab Kalender bulanan + dialog Reservasi Baru).
+- Bentuk yang diinginkan:
+  - Tabel `appointments` (`id`, `org_id`, `outlet_id`, `jenis` enum `'service' | 'facility' | 'table'`, `product_id` nullable ref `products`, `table_id` nullable ref `dining_tables`, `target_name`, `customer_id` nullable ref `customers`, `customer_name`, `customer_phone`, `start_at`, `end_at`, `status` enum `'pending' | 'confirmed' | 'completed' | 'cancelled'`, `note`, `created_at`)
+  - Metode `DataLayer`:
+    - `listAppointments(q?: { from?: string; to?: string; kind?: AppointmentKind; status?: AppointmentStatus }): Promise<Appointment[]>`
+    - `saveAppointment(input: AppointmentInput): Promise<Appointment>` (validasi bentrok waktu untuk jenis & slot sama pada status aktif)
+    - `updateAppointmentStatus(id: string, status: AppointmentStatus): Promise<Appointment>`
+- Sementara: Pilihan meja memakai `data.listTables()` & pelanggan memakai `data.listCustomers()`, sedangkan daftar reservasi disimpan di `localStorage` (`cgpos_appointments_v1`) dengan lencana besar **"Pratinjau — reservasi belum tersimpan di server, akan hilang bila data peramban dibersihkan"**.
+
+## /pelanggan/grup, /pelanggan/harga-spesial & /harga-jadwal (A57 — Grup pelanggan, harga grosir bertingkat, penjadwalan harga) — 2026-11-11
+- Butuh: Skema database, `DataLayer`, dan penerapan di kasir untuk:
+  1. Grup pelanggan dan penetapan satu grup per pelanggan (`customer_groups`, `customer_group_members`).
+  2. Harga grosir bertingkat per grup dan produk hingga 5 tingkat (`tiered_prices`).
+  3. Penjadwalan perubahan harga produk otomatis beserta pemenang jika bertumpuk (`price_schedules`).
+- Untuk: Layar `/pelanggan/grup`, `/pelanggan/harga-spesial`, dan `/harga-jadwal`, serta sinkronisasi perhitungan harga otomatis di kasir (`apps/pos`) setelah dukungan server siap.
+- Bentuk yang diinginkan:
+  - Tabel `customer_groups` (`id`, `org_id`, `name`, `description`, `created_at`)
+  - Tabel `customer_group_members` (`customer_id` PK/UNIQUE per org, `group_id`, `assigned_at`)
+  - Tabel `tiered_prices` (`id`, `org_id`, `group_id`, `product_id`, `tier` 1..5, `min_qty`, `unit_price`, `updated_at`)
+  - Tabel `price_schedules` (`id`, `org_id`, `product_id`, `new_price`, `start_at`, `end_at`, `note`, `created_at`)
+  - Metode `DataLayer`: `listCustomerGroups()`, `saveCustomerGroup()`, `deleteCustomerGroup()`, `assignCustomerGroup()`, `listTieredPrices()`, `saveTieredPrices()`, `listPriceSchedules()`, `savePriceSchedule()`, `deletePriceSchedule()`.
+- Sementara: Disimpan di `localStorage` peramban dengan lencana **"Pratinjau — belum tersambung server"**; logika murni (`tiered-pricing.ts` & `price-schedule.ts`) sudah tersedia di `packages/shared`. Kasir (`apps/pos`) belum disambungkan sampai dukungan server dikerjakan oleh Claude.
+
+
+## Dari Antigravity (A58) — Produk Fasilitas (`kind: 'facility'`), Grup Loyalti, & Bonus Ulang Tahun Otomatis
+
+1. **Produk Fasilitas (`/fasilitas`, `/laporan/fasilitas`, `S36`, `S80`)**:
+   - Saat ini `CatalogInput['kind']` pada `packages/shared/src/types.ts` hanya menerima `'goods' | 'service'`, sehingga item fasilitas disimpan lewat `saveCatalogProduct(..., { kind: 'service', trackStock: false })`, sedangkan `capacity`, `unit` (`'jam' | 'sesi'`), dan catatan perlengkapan disimpan sementara di peramban (`localStorage`, bertanda **Pratinjau**).
+   - **Bentuk data & DataLayer yang dibutuhkan**: dukungan `kind: 'facility'` (atau field terstruktur `facility?: { capacity: number; unit: 'jam' | 'sesi'; note?: string }`) pada `Product`, `CatalogProduct`, dan `CatalogInput`, plus opsional `appointmentId` pada `OrderItem` agar `/laporan/fasilitas` dapat menghitung keterisian jadwal lintas perangkat.
+
+2. **Program Loyalti — Grup Tier & Bonus Ulang Tahun (`/loyalty`, `S42`)**:
+   - Tab `Grup Loyalty` saat ini menyimpan daftar tingkatan (`minPoints`, `earnMultiplier`, `benefitNote`) di peramban (`Pratinjau`), lalu memetakan jumlah anggota langsung dari `pointsBalance` pelanggan via `listCustomers()`. Tab `Ulang Tahun` dapat langsung memberi poin manual ke ledger server lewat `data.adjustPoints()`, namun tercatat sebagai `kind: 'adjust'` dan batas 1x per tahun baru dijaga di peramban.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listLoyaltyTiers()` / `saveLoyaltyTiers()` (serta pengali poin otomatis saat checkout berdasarkan grup pelanggan), dan pengaturan aturan bonus ulang tahun di server beserta eksekusi otomatis harian/trigger yang mencatat `kind: 'birthday'` di `loyalty_ledger` secara idempoten (maksimal sekali setahun per pelanggan).
+## Dari Antigravity (A59) — Metode Pembayaran & Status Kanal CG Order (`/pengaturan/metode-bayar`, `/order-online/*`)
+
+1. **Pengaturan Metode Pembayaran (`/pengaturan/metode-bayar`, `S40`)**:
+   - Saat ini `DataLayer.listPaymentMethods()` bersifat baca-saja (`CASH`, `QRIS`, `EDC`, `TRF`, `FREE`), sedangkan penambahan metode EDC/Transfer/Dompet digital kustom, penyesuaian nama tampil, toggle aktif/nonaktif non-gateway, dan potongan MDR (`feePct` + `feeFixed`) disimpan di peramban (`Pratinjau`). Sesuai kebijakan keamanan, aktivasi QRIS/gateway DOKU dan penyimpanan kunci rahasia sengaja tidak diaktifkan.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `savePaymentMethod(input: PaymentMethodConfigInput)` dan `setPaymentMethodActive(id: string, isActive: boolean)` di `DataLayer` (menyimpan kolom `channel`, `fee_pct`, `fee_fixed`, `account_name`, `account_number`, `settlement_note`, `is_active` pada `pos.payment_methods` agar kasir dan laporan rekonsiliasi non-tunai membaca MDR dan status aktif yang sama).
+
+2. **Status Kanal CG Order & Pesanan Online (`/order-online/*`, `S64`–`S69`)**:
+   - Saat ini pengaturan kesiapan kanal **CG Order** (`mandiri`, `delivery`, `marketplace`, `kios`, `aplikasi`: `status`, `autoAccept`, `prepMinutes`, `priceMarkupPct`, `openHours`, `storefrontSlug`) tersimpan di `localStorage` (`Pratinjau`).
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listOnlineChannels()` / `saveOnlineChannel(channel)` beserta feed `listOnlineOrders()` dan aksi `updateOnlineOrderStatus()` di `DataLayer` untuk menyambungkan status buka/tutup kanal serta pesanan daring secara waktu-nyata dari webhook server.
 ## Dari Antigravity (A60) — Analisa Kepuasan, Kustom Data Pelanggan, & Kebijakan Pelanggan
 
 1. **Analisa Kepuasan Pelanggan (`/analisa/kepuasan`, `S85`)**:
