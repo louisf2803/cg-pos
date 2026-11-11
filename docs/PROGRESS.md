@@ -399,3 +399,26 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (56 file, 350 tes lulus)
      - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a36/`).
+- Selesai (tugas A37): Laporan Jasa / Produk Layanan (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/service-report.ts`:
+     - `buildServiceReport`: mengagregasi data penjualan produk yang berjenis `kind === 'service'` dari pesanan berstatus `paid`.
+     - Metrik ringkasan (`ServiceReportSummary`): total penjualan jasa (Rp), jumlah transaksi (pesanan unik yang memuat layanan), total kuantitas jasa terjual, dan penentuan jasa terlaris (`topService`).
+     - Metrik per item (`ServiceItemStat`): nama layanan, SKU, kuantitas, akumulasi pendapatan, harga rata-rata (`revenue / qty`), dan persentase kontribusi terhadap total pendapatan jasa.
+     - Agregasi harian (`ServiceDailyStat`): omset harian, jumlah transaksi, dan kuantitas per tanggal lokal outlet (format `d Mmm`).
+     - Ekspor CSV (`buildServiceReportCsvRows` & `toServiceReportCsv`): pembentukan baris tabular ber-BOM UTF-8 (`\uFEFF`) dengan metadata periode, ringkasan metrik, header tabel, data per layanan, dan baris total akhir.
+     - 5 unit test komprehensif di `packages/shared/test/service-report.test.ts` (total 351 tes vitest lulus).
+  2. Halaman Laporan Jasa (`/laporan/jasa`):
+     - Komponen halaman klien baru di `apps/dashboard/src/app/laporan/jasa/page.tsx` dengan penanda `built: true` di navigasi `apps/dashboard/src/lib/nav.ts`.
+     - Kontrol periode rentang tanggal menggunakan `RangePicker` yang terintegrasi dengan zona waktu outlet.
+     - 3 Kartu Ringkasan KPI: Total Penjualan Jasa (Rp), Jumlah Transaksi, dan Jasa Terlaris (nama, kuantitas, dan omset).
+     - Grafik Batang Harian Responsif (`DailyBarChart`): SVG terukur dengan garis panduan nominal sumbu Y, batang hijau zamrud (`var(--color-chart-bar)`), label tanggal di sumbu X, dan tooltip hover informatif.
+     - Tabel Rincian Per Jasa: kolom Nama Jasa, SKU, Kuantitas, Pendapatan, Harga Rata-rata, serta bar progress mini dan persentase kontribusi omset, dilengkapi baris footer Total.
+     - Tombol Unduh CSV dengan penamaan file aman (`laporan-jasa-<label>.csv`).
+     - Keadaan Kosong (Empty State) informatif saat belum ada transaksi jasa pada periode yang dipilih.
+  3. Kepatuhan Tailwind & Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (hanya memakai breakpoint `tablet:`, `laptop:`, `desktop:`, `wide:`, ukuran terdaftar/eksplisit, dan token CSS monorepo).
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error pada seluruh 5 proyek workspace).
+     - `pnpm -F @cgpos/shared test` (56 file, 351 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis prerendered).
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol untuk keadaan kosong maupun keadaan terisi data (6 tangkapan layar di `docs/shots/a37/`).

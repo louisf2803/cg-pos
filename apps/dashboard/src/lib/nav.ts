@@ -83,7 +83,7 @@ export const MODUL: NavModule[] = [
           { section: 'Operasional', href: '/laporan/kasir', label: 'Kasir dan tutup kasir', screen: 'S80', tier: 2, built: true },
           { section: 'Operasional', href: '/laporan/tutup-toko', label: 'Tutup toko', screen: 'S80', tier: 2, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/produk', label: 'Produk', screen: 'S80', tier: 2, built: true },
-          { section: 'Katalog & Pelanggan', href: '/laporan/jasa', label: 'Jasa', screen: 'S80', tier: 3 },
+          { section: 'Katalog & Pelanggan', href: '/laporan/jasa', label: 'Jasa', screen: 'S80', tier: 3, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/fasilitas', label: 'Fasilitas', screen: 'S80', tier: 3 },
           { section: 'Katalog & Pelanggan', href: '/laporan/promo-loyalti', label: 'Promo dan loyalti', screen: 'S80', tier: 2, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/pajak', label: 'Pajak dan biaya layanan', screen: 'S80', tier: 2, built: true },
