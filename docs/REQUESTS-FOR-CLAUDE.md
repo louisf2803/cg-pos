@@ -119,3 +119,16 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Sementara: Definisi grup komisi disimpan di `localStorage` (`cgpos_commission_groups`) dengan lencana **"Pratinjau — aturan belum tersimpan di server"**, sementara perhitungan komisi di `/laporan/karyawan` langsung memakai pesanan nyata (`data.listOrders`) + produk (`data.listProducts`) melalui `computeCommissionReport`.
 
 
+## /inventori/retur (A55 — Retur Pembelian) — 2026-11-11
+- Catatan: Layar `/inventori/bayar-faktur` sudah memakai `DataLayer` yang ada (`listPurchaseInvoices`, `getPurchaseInvoice`, `listPayAccounts`, `payPurchase`).
+- Butuh: Skema database dan metode `DataLayer` untuk pencatatan **Retur Pembelian** atas faktur pembelian yang sudah diterima (termasuk dampak pengurangan stok batch/FIFO dan penyesuaian sisa hutang faktur).
+- Untuk: Layar `/inventori/retur` (daftar retur pembelian & dialog buat retur dari faktur pembelian).
+- Bentuk yang diinginkan:
+  - Tabel `purchase_returns` (`id`, `org_id`, `outlet_id`, `invoice_id`, `supplier_id`, `return_number`, `reason`, `note`, `total_amount`, `created_at`)
+  - Tabel `purchase_return_lines` (`id`, `return_id`, `invoice_line_id`, `product_id`, `qty`, `unit_cost`, `subtotal`)
+  - Metode `DataLayer`:
+    - `listPurchaseReturns(q?: { outletId?: string; search?: string }): Promise<PurchaseReturnSummary[]>`
+    - `getPurchaseReturn(id: string): Promise<PurchaseReturn | null>`
+    - `createPurchaseReturn(input: PurchaseReturnInput): Promise<PurchaseReturn>` (otomatis memvalidasi `qty <= diterima - retur sebelumnya`, mengurangi stok bahan/produk, dan menyesuaikan kewajiban faktur)
+- Sementara: Dibangun dengan sumber faktur pembelian nyata (`listPurchaseInvoices`, `getPurchaseInvoice`) untuk validasi kuantitas dan daftar retur sementara di memori komponen berlabel **"Pratinjau"** (tidak memakai `localStorage` untuk data transaksi retur).
+
