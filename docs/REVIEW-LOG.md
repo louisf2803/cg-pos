@@ -9,3 +9,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=602fc08 | review: Buku besar pilih banyak akun => yes (bukti docs/evidence/buku-besar); catatan features.csv banyak yang basi, audit per fitur berlanjut
 2026-11-12 | main=7cbb08d | review: Arus kas, Penjualan bersih dan piutang, Atur kolom => yes (bukti docs/evidence); goal 6/72
 2026-11-12 | main=a0b0fc9 | audit: HPP rata-rata (laporan laba kotor per produk masih 'Segera') dan Akun perantara (jurnal shift nyata belum terbukti) tetap partial; Laporan hutang tetap partial (piutang per pelanggan belum ada); goal 6/72
+2026-11-12 | main=fd200be | merge A65 dan A66 (typecheck, 452 tes, build dashboard+pos, lint lulus); review: Layar dapur + Layar Pilih Karyawan => yes; opname tetap partial (tanya .xlsx di MAJOO-VERIFICATION)

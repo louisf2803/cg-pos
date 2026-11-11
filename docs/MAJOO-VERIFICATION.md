@@ -25,3 +25,6 @@ Status: `belum` | `sedang` (sesi ini mengerjakan, lanjutkan) | `selesai-verifika
 2. Pilih SATU baris berstatus `belum` (urut dari atas), ATAU lanjutkan baris `sedang` kalau ada peninggalan sesi sebelumnya.
 3. Set jadi `sedang` di awal sesi (commit kecil), kerjakan, lalu update jadi `selesai-verifikasi`/`butuh-skema`/`terblokir` sesuai hasil di akhir sesi (commit lagi).
 4. JANGAN mengerjakan dua baris sekaligus dalam satu giliran — satu area per giliran supaya tetap bisa di-review dan di-rollback kalau salah.
+
+## Perlu verifikasi Majoo — Stok opname (A66, 12 Nov 2026)
+- Impor hitung fisik saat ini CSV (titik koma atau koma, BOM, pratinjau validasi). Apakah Majoo menerima berkas .xlsx langsung, atau cukup templat CSV? Bila harus .xlsx, fitur "Stok opname ... impor Excel" tetap partial.
