@@ -785,7 +785,7 @@ export default function FinanceDashboardPage() {
               </div>
             </div>
 
-            <div className="mt-16 pt-10 border-t border-border flex justify-end">
+            <div className="mt-16 pt-[10px] border-t border-border flex justify-end">
               <Link
                 href="/keuangan/laporan?tab=neraca"
                 className="text-xs font-semibold text-accent hover:text-accent-hover inline-flex items-center gap-4 transition-colors"
@@ -984,7 +984,7 @@ export default function FinanceDashboardPage() {
                   Belum ada transaksi pembayaran non-tunai pada periode ini.
                 </div>
               ) : (
-                <div className="space-y-6 mb-16">
+                <div className="space-y-[6px] mb-16">
                   {nonCashSummaryList.slice(0, 4).map((it) => (
                     <div
                       key={it.name}

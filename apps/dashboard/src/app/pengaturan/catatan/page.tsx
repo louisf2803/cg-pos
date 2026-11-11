@@ -298,7 +298,7 @@ export default function NotePresetsPage() {
 
                         <button
                           type="button"
-                          className="cg-btn cg-btn--secondary flex items-center gap-6 text-xs"
+                          className="cg-btn cg-btn--secondary flex items-center gap-[6px] text-xs"
                           onClick={() =>
                             setDialogPreset({
                               mode: 'new',
@@ -327,7 +327,7 @@ export default function NotePresetsPage() {
                                 {item.text}
                               </span>
                               {!item.isActive && (
-                                <span className="text-[11px] text-text-muted block mt-2">
+                                <span className="text-[11px] text-text-muted block mt-[2px]">
                                   Nonaktif (tidak tampil di kasir)
                                 </span>
                               )}
@@ -353,7 +353,7 @@ export default function NotePresetsPage() {
                               {/* Tombol Ubah */}
                               <button
                                 type="button"
-                                className="cg-btn cg-btn--ghost p-6 text-text-muted hover:text-text"
+                                className="cg-btn cg-btn--ghost p-[6px] text-text-muted hover:text-text"
                                 title="Ubah catatan"
                                 aria-label={`Ubah ${item.text}`}
                                 onClick={() =>
@@ -369,7 +369,7 @@ export default function NotePresetsPage() {
                               {/* Tombol Hapus */}
                               <button
                                 type="button"
-                                className="cg-btn cg-btn--ghost p-6 text-danger hover:text-danger-strong"
+                                className="cg-btn cg-btn--ghost p-[6px] text-danger hover:text-danger-strong"
                                 title="Hapus catatan"
                                 aria-label={`Hapus ${item.text}`}
                                 onClick={() => setDeleteConfirm(item)}
@@ -400,7 +400,7 @@ export default function NotePresetsPage() {
                 </p>
 
                 {/* Simulasi Kotak Catatan Pesanan */}
-                <div className="bg-surface-raised p-12 rounded-md border border-border space-y-6">
+                <div className="bg-surface-raised p-12 rounded-md border border-border space-y-[6px]">
                   <span className="text-xs font-semibold text-text-muted uppercase tracking-wide block">
                     Catatan Pesanan Saat Ini:
                   </span>
@@ -414,7 +414,7 @@ export default function NotePresetsPage() {
                   {previewNote && (
                     <button
                       type="button"
-                      className="text-xs text-danger hover:underline block pt-2"
+                      className="text-xs text-danger hover:underline block pt-[2px]"
                       onClick={() => setPreviewNote('')}
                     >
                       Kosongkan catatan simulasi
@@ -430,11 +430,11 @@ export default function NotePresetsPage() {
                     </p>
                   ) : (
                     activeGroups.map((group) => (
-                      <div key={group.category} className="space-y-6">
+                      <div key={group.category} className="space-y-[6px]">
                         <span className="text-xs font-semibold text-text-muted block">
                           {group.category}
                         </span>
-                        <div className="flex flex-wrap gap-6">
+                        <div className="flex flex-wrap gap-[6px]">
                           {group.items.map((item) => {
                             const isSelected = noteHasText(previewNote, item.text);
                             return (
@@ -570,7 +570,7 @@ function PresetFormDialog({
           </label>
 
           {existingCategories.length > 0 && !isNewCategory ? (
-            <div className="space-y-6">
+            <div className="space-y-[6px]">
               <select
                 id="category-select"
                 className="cg-input"
@@ -592,7 +592,7 @@ function PresetFormDialog({
               </button>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-[6px]">
               <input
                 id="new-category-input"
                 type="text"
@@ -620,7 +620,7 @@ function PresetFormDialog({
         </div>
 
         {/* Isi Catatan */}
-        <div className="space-y-6">
+        <div className="space-y-[6px]">
           <label className="cg-label block" htmlFor="preset-text-input">
             Isi Catatan
           </label>
@@ -642,7 +642,7 @@ function PresetFormDialog({
         </div>
 
         {/* Urutan Tampil (Sort) */}
-        <div className="space-y-6">
+        <div className="space-y-[6px]">
           <label className="cg-label block" htmlFor="preset-sort-input">
             Urutan Tampil
           </label>
@@ -681,7 +681,7 @@ function PresetFormDialog({
           </button>
           <button
             type="submit"
-            className="cg-btn cg-btn--primary text-xs flex items-center gap-6"
+            className="cg-btn cg-btn--primary text-xs flex items-center gap-[6px]"
             disabled={isLoading}
           >
             <Check className="w-16 h-16" aria-hidden />
@@ -740,7 +740,7 @@ function DeleteConfirmDialog({
           </button>
           <button
             type="button"
-            className="cg-btn cg-btn--danger text-xs flex items-center gap-6"
+            className="cg-btn cg-btn--danger text-xs flex items-center gap-[6px]"
             disabled={isLoading}
             onClick={onConfirm}
           >

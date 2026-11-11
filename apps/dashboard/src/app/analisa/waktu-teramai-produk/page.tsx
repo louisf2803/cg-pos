@@ -201,13 +201,13 @@ export default function ProductPeakHoursPage() {
               <table className="w-full text-xs text-left border-collapse" aria-label="Tabel matriks produk per jam">
                 <thead>
                   <tr className="bg-surface-raised border-b border-border text-text-muted font-medium">
-                    <th className="py-12 px-12 sticky left-0 bg-surface-raised z-10 min-w-160 shadow-xs uppercase">
+                    <th className="py-12 px-12 sticky left-0 bg-surface-raised z-10 min-w-[160px] shadow-xs uppercase">
                       Produk
                     </th>
-                    <th className="py-12 px-8 text-right min-w-60 uppercase font-semibold">Total</th>
-                    <th className="py-12 px-8 text-center min-w-80 uppercase">Puncak</th>
+                    <th className="py-12 px-8 text-right min-w-[60px] uppercase font-semibold">Total</th>
+                    <th className="py-12 px-8 text-center min-w-[80px] uppercase">Puncak</th>
                     {Array.from({ length: 24 }, (_, h) => (
-                      <th key={h} className="py-12 px-4 text-center min-w-36 uppercase font-mono">
+                      <th key={h} className="py-12 px-4 text-center min-w-[36px] uppercase font-mono">
                         {String(h).padStart(2, '0')}
                       </th>
                     ))}

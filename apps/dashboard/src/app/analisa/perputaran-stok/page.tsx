@@ -173,7 +173,7 @@ export default function StockTurnoverPage() {
             <HelpCircle className="w-16 h-16 text-primary shrink-0 mt-[2px]" aria-hidden />
             <div>
               <strong>Cara membaca analisa perputaran stok:</strong>
-              <div className="mt-[2px] space-y-2">
+              <div className="mt-[2px] space-y-[2px]">
                 <span>
                   • <strong>Rasio Perputaran (Turnover Ratio)</strong> = Kuantitas Terjual ÷ Stok Rata-rata. Semakin tinggi angka rasio, semakin cepat barang berputar.
                 </span>

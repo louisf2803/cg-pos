@@ -221,12 +221,12 @@ export default function SalesPeakHoursHeatmapPage() {
               <table className="w-full text-xs text-left border-collapse" aria-label="Tabel heatmap hari dan jam transaksi">
                 <thead>
                   <tr className="bg-surface-raised border-b border-border text-text-muted font-medium">
-                    <th className="py-12 px-12 sticky left-0 bg-surface-raised z-10 min-w-100 shadow-xs uppercase">
+                    <th className="py-12 px-12 sticky left-0 bg-surface-raised z-10 min-w-[100px] shadow-xs uppercase">
                       Hari
                     </th>
-                    <th className="py-12 px-8 text-right min-w-70 uppercase font-semibold">Total</th>
+                    <th className="py-12 px-8 text-right min-w-[70px] uppercase font-semibold">Total</th>
                     {Array.from({ length: 24 }, (_, h) => (
-                      <th key={h} className="py-12 px-4 text-center min-w-36 uppercase font-mono">
+                      <th key={h} className="py-12 px-4 text-center min-w-[36px] uppercase font-mono">
                         {String(h).padStart(2, '0')}
                       </th>
                     ))}
@@ -330,7 +330,7 @@ export default function SalesPeakHoursHeatmapPage() {
                 Distribusi transaksi tiap hari dalam sepekan:
               </div>
               {report.days.map((d) => (
-                <div key={d.dayOfWeek} className="p-16 space-y-10 min-w-0">
+                <div key={d.dayOfWeek} className="p-16 space-y-[10px] min-w-0">
                   <div className="flex items-center justify-between gap-8 min-w-0">
                     <strong className="text-sm block truncate">{d.dayName}</strong>
                     <div className="text-right shrink-0">
@@ -340,7 +340,7 @@ export default function SalesPeakHoursHeatmapPage() {
                   </div>
 
                   {/* Sebaran Mini 24 Jam */}
-                  <div className="grid grid-cols-12 gap-2 h-18">
+                  <div className="grid grid-cols-12 gap-[2px] h-[18px]">
                     {d.cells.map((c) => (
                       <div
                         key={c.hour}

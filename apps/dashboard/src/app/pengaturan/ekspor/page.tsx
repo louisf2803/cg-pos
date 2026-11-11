@@ -114,7 +114,7 @@ export default function ExportHistoryPage() {
 
       {storageError && (
         <div className="cg-banner cg-banner--warning flex items-start gap-12" role="alert">
-          <AlertTriangle className="w-20 h-20 text-warning shrink-0 mt-2" aria-hidden />
+          <AlertTriangle className="w-20 h-20 text-warning shrink-0 mt-[2px]" aria-hidden />
           <div className="min-w-0">
             <p className="font-semibold text-text-primary">Akses penyimpanan lokal terbatas</p>
             <p className="text-text-muted text-sm">{storageError}</p>
@@ -248,7 +248,7 @@ export default function ExportHistoryPage() {
                   <tr key={item.id} className="hover:bg-bg-subtle transition-colors">
                     <td className="p-16">
                       <p className="font-semibold text-text-primary">{item.reportName}</p>
-                      <p className="text-text-muted text-xs mt-2">{item.period}</p>
+                      <p className="text-text-muted text-xs mt-[2px]">{item.period}</p>
                     </td>
                     <td className="p-16 font-mono text-xs text-text-secondary max-w-[200px] truncate" title={item.fileName}>
                       {item.fileName}

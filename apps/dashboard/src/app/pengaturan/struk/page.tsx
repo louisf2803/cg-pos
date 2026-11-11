@@ -394,14 +394,14 @@ function ReceiptEditor({
               </button>
             ))}
           </div>
-          <p className="text-xs text-text-muted mt-6">
+          <p className="text-xs text-text-muted mt-[6px]">
             Menentukan kerapatan dan ukuran cetak huruf di printer thermal kasir (Normal 32/48 kolom, Besar huruf ganda).
           </p>
         </div>
 
         <button
           type="button"
-          className="cg-btn cg-btn--secondary flex items-center gap-6 text-xs whitespace-nowrap"
+          className="cg-btn cg-btn--secondary flex items-center gap-[6px] text-xs whitespace-nowrap"
           onClick={handleResetDefaults}
         >
           <RotateCcw className="w-16 h-16" aria-hidden />
@@ -461,7 +461,7 @@ function ReceiptEditor({
             <div className="space-y-20 animate-fadeIn min-w-0" role="tabpanel">
               {/* Bagian Identitas Toko */}
               <div className="space-y-12">
-                <h3 className="text-sm font-semibold flex items-center gap-6">
+                <h3 className="text-sm font-semibold flex items-center gap-[6px]">
                   <Store className="w-16 h-16 text-accent" aria-hidden />
                   <span>Identitas Toko di Kepala Struk</span>
                 </h3>
@@ -499,7 +499,7 @@ function ReceiptEditor({
               </div>
 
               {/* Teks Kepala Struk */}
-              <div className="space-y-6 pt-12 border-t border-border">
+              <div className="space-y-[6px] pt-12 border-t border-border">
                 <label className="cg-label" htmlFor="struk-header">
                   Teks di atas struk
                 </label>
@@ -520,7 +520,7 @@ function ReceiptEditor({
 
               {/* Bagian Informasi Transaksi */}
               <div className="space-y-12 pt-12 border-t border-border">
-                <h3 className="text-sm font-semibold flex items-center gap-6">
+                <h3 className="text-sm font-semibold flex items-center gap-[6px]">
                   <FileText className="w-16 h-16 text-accent" aria-hidden />
                   <span>Informasi Transaksi</span>
                 </h3>
@@ -590,7 +590,7 @@ function ReceiptEditor({
           {activeTab === 'body' && (
             <div className="space-y-20 animate-fadeIn min-w-0" role="tabpanel">
               <div className="space-y-12">
-                <h3 className="text-sm font-semibold flex items-center gap-6">
+                <h3 className="text-sm font-semibold flex items-center gap-[6px]">
                   <Layers className="w-16 h-16 text-accent" aria-hidden />
                   <span>Rincian Produk & Pesanan</span>
                 </h3>
@@ -629,7 +629,7 @@ function ReceiptEditor({
 
               {/* Catatan Ketentuan Tetap */}
               <div className="p-12 border border-border rounded-md bg-surface-raised flex items-start gap-12 text-xs text-text-muted">
-                <Info className="w-16 h-16 text-accent shrink-0 mt-2" aria-hidden />
+                <Info className="w-16 h-16 text-accent shrink-0 mt-[2px]" aria-hidden />
                 <p>
                   Subtotal, potongan diskon, biaya layanan, pajak, pembulatan, dan rincian metode pembayaran selalu dicetak dan tidak dapat disembunyikan agar struk memenuhi standar audit dan transparansi pelanggan.
                 </p>
@@ -641,7 +641,7 @@ function ReceiptEditor({
           {activeTab === 'footer' && (
             <div className="space-y-20 animate-fadeIn min-w-0" role="tabpanel">
               {/* Catatan Kaki */}
-              <div className="space-y-6">
+              <div className="space-y-[6px]">
                 <label className="cg-label" htmlFor="struk-footer">
                   Catatan kaki struk
                 </label>
@@ -674,7 +674,7 @@ function ReceiptEditor({
 
               {/* Batasan Cetak Ulang Struk */}
               <div className="space-y-12 pt-12 border-t border-border">
-                <h3 className="text-sm font-semibold flex items-center gap-6">
+                <h3 className="text-sm font-semibold flex items-center gap-[6px]">
                   <ShieldAlert className="w-16 h-16 text-accent" aria-hidden />
                   <span>Batasan Cetak Ulang Struk</span>
                 </h3>

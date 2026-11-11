@@ -600,7 +600,7 @@ function ItemRow({
     <li className="flex items-start gap-8">
       <span className="cg-num"><strong>{i.qty}×</strong></span>
       <span className="grow min-w-0 break-words">{i.name}
-        {stationName && <span className="text-xs text-text-muted ml-6">({stationName})</span>}
+        {stationName && <span className="text-xs text-text-muted ml-[6px]">({stationName})</span>}
         {i.extras.map((e) => <span key={e.name} className="block text-sm text-text-muted">+ {e.name}</span>)}
         {i.note && <span className="block text-sm"><strong>Catatan:</strong> {i.note}</span>}
       </span>

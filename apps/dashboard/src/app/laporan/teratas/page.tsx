@@ -126,7 +126,7 @@ export default function LaporanTeratasPage() {
               </div>
               <Link
                 href="/laporan/produk"
-                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-2"
+                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-[2px]"
               >
                 <span>Lihat lengkap</span>
                 <ArrowRight className="w-12 h-12" aria-hidden />
@@ -145,7 +145,7 @@ export default function LaporanTeratasPage() {
               {ordersState.status === 'ready' && topProducts.length === 0 && (
                 <div className="cg-empty py-24 text-center">
                   <p className="text-sm font-medium">Belum ada produk terjual.</p>
-                  <p className="text-xs text-text-muted mt-2">
+                  <p className="text-xs text-text-muted mt-[2px]">
                     Transaksi lunas dalam rentang tanggal terpilih akan terdaftar di sini.
                   </p>
                 </div>
@@ -246,10 +246,10 @@ export default function LaporanTeratasPage() {
               {/* Rintisan kartu nonaktif yang rapi */}
               <div className="p-16 border border-dashed border-border rounded-md bg-surface-raised space-y-12">
                 <div className="flex items-center gap-8 text-text-muted text-xs">
-                  <Clock className="w-14 h-14" aria-hidden />
+                  <Clock className="w-[14px] h-[14px]" aria-hidden />
                   <span>Rincian data yang akan ditampilkan:</span>
                 </div>
-                <ul className="text-xs text-text-muted space-y-6 list-disc pl-20">
+                <ul className="text-xs text-text-muted space-y-[6px] list-disc pl-20">
                   <li>Harga jual rata-rata produk vs HPP bahan baku</li>
                   <li>Laba kotor nominal per unit terjual</li>
                   <li>Persentase margin laba per item (%)</li>
@@ -286,7 +286,7 @@ export default function LaporanTeratasPage() {
               </div>
               <Link
                 href="/inventori/stok"
-                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-2"
+                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-[2px]"
               >
                 <span>Lihat lengkap</span>
                 <ArrowRight className="w-12 h-12" aria-hidden />
@@ -305,7 +305,7 @@ export default function LaporanTeratasPage() {
               {stockState.status === 'ready' && topLowestStock.length === 0 && (
                 <div className="cg-empty py-24 text-center">
                   <p className="text-sm font-medium">Belum ada data stok persediaan.</p>
-                  <p className="text-xs text-text-muted mt-2">
+                  <p className="text-xs text-text-muted mt-[2px]">
                     Bahan baku yang dicatat di inventori akan muncul di sini.
                   </p>
                 </div>
@@ -384,7 +384,7 @@ export default function LaporanTeratasPage() {
               </div>
               <Link
                 href="/inventori/stok"
-                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-2"
+                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-[2px]"
               >
                 <span>Lihat lengkap</span>
                 <ArrowRight className="w-12 h-12" aria-hidden />
@@ -403,7 +403,7 @@ export default function LaporanTeratasPage() {
               {stockState.status === 'ready' && topMinStock.length === 0 && (
                 <div className="cg-empty py-24 text-center">
                   <p className="text-sm font-medium">Seluruh stok dalam kondisi aman.</p>
-                  <p className="text-xs text-text-muted mt-2">
+                  <p className="text-xs text-text-muted mt-[2px]">
                     Tidak ada persediaan yang berada di bawah batas minimum saat ini.
                   </p>
                 </div>
@@ -497,7 +497,7 @@ export default function LaporanTeratasPage() {
               </div>
               <Link
                 href="/laporan/jenis-order"
-                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-2"
+                className="text-xs font-semibold text-accent hover:underline flex items-center gap-4 shrink-0 pt-[2px]"
               >
                 <span>Lihat lengkap</span>
                 <ArrowRight className="w-12 h-12" aria-hidden />
@@ -516,7 +516,7 @@ export default function LaporanTeratasPage() {
               {ordersState.status === 'ready' && topOrderTypes.length === 0 && (
                 <div className="cg-empty py-24 text-center">
                   <p className="text-sm font-medium">Belum ada transaksi pesanan.</p>
-                  <p className="text-xs text-text-muted mt-2">
+                  <p className="text-xs text-text-muted mt-[2px]">
                     Transaksi dalam rentang tanggal terpilih akan terinci menurut saluran pesanannya.
                   </p>
                 </div>

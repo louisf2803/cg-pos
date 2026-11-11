@@ -69,7 +69,7 @@ function Form({ info, options, onSaved }: { info: OutletInfo; options: OutletOpt
       <div className="border border-border rounded-md p-16 flex flex-col tablet:flex-row items-start tablet:items-center justify-between gap-12 bg-surface">
         <div>
           <h3 className="font-semibold text-sm">Tampilan Struk Pelanggan</h3>
-          <p className="text-text-muted text-sm mt-2">Atur ukuran huruf, bagian yang tampil, teks kepala/kaki, serta batasan cetak ulang struk.</p>
+          <p className="text-text-muted text-sm mt-[2px]">Atur ukuran huruf, bagian yang tampil, teks kepala/kaki, serta batasan cetak ulang struk.</p>
         </div>
         <Link href="/pengaturan/struk" className="cg-btn cg-btn--secondary whitespace-nowrap text-xs">
           Buka editor struk →

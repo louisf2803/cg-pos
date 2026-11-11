@@ -243,7 +243,7 @@ export default function StationAssignmentPage() {
       : 'Gagal memuat data';
 
   return (
-    <div className="space-y-20 min-w-0 pb-80">
+    <div className="space-y-20 min-w-0 pb-[80px]">
       {/* Header */}
       <PageHeader
         title="Penetapan Stasiun Cetak"
@@ -253,14 +253,14 @@ export default function StationAssignmentPage() {
           <div className="flex flex-wrap items-center gap-8">
             <Link
               href="/pengaturan/stasiun-cetak"
-              className="cg-btn cg-btn--secondary flex items-center gap-6 text-xs font-semibold"
+              className="cg-btn cg-btn--secondary flex items-center gap-[6px] text-xs font-semibold"
             >
               <Printer className="w-16 h-16" aria-hidden />
               <span>Daftar Stasiun</span>
             </Link>
             <Link
               href="/produk"
-              className="cg-btn cg-btn--secondary flex items-center gap-6 text-xs font-semibold"
+              className="cg-btn cg-btn--secondary flex items-center gap-[6px] text-xs font-semibold"
             >
               <Package className="w-16 h-16" aria-hidden />
               <span>Katalog Produk</span>
@@ -338,7 +338,7 @@ export default function StationAssignmentPage() {
               <strong className="text-xl font-bold block text-text cg-num">
                 {products.length} produk
               </strong>
-              <span className="text-[11px] text-text-muted mt-2 block">
+              <span className="text-[11px] text-text-muted mt-[2px] block">
                 {categories.length} kategori terdaftar
               </span>
             </div>
@@ -354,7 +354,7 @@ export default function StationAssignmentPage() {
               >
                 {stationProductCounts.unassigned} produk
               </strong>
-              <span className="text-[11px] text-text-muted mt-2 block">
+              <span className="text-[11px] text-text-muted mt-[2px] block">
                 {stationProductCounts.unassigned > 0 ? 'Perlu dipetakan' : 'Semua telah terpetakan'}
               </span>
             </div>
@@ -366,7 +366,7 @@ export default function StationAssignmentPage() {
                   key={st.id}
                   className="p-12 tablet:p-16 border border-border rounded-xl bg-surface min-w-0 flex flex-col justify-between"
                 >
-                  <div className="flex items-center justify-between gap-6 mb-4">
+                  <div className="flex items-center justify-between gap-[6px] mb-4">
                     <span className="text-xs text-text-muted font-medium truncate text-left">
                       {st.name}
                     </span>
@@ -381,7 +381,7 @@ export default function StationAssignmentPage() {
                   <strong className="text-xl font-bold block text-accent-strong cg-num">
                     {count} produk
                   </strong>
-                  <span className="text-[11px] text-text-muted mt-2 block">
+                  <span className="text-[11px] text-text-muted mt-[2px] block">
                     Mode {st.printMode} • {st.paper} mm
                   </span>
                 </div>
@@ -512,7 +512,7 @@ export default function StationAssignmentPage() {
                 <p className="text-sm font-semibold text-text">
                   {search ? `Tidak ada produk yang cocok dengan "${search}".` : 'Tidak ada produk yang memenuhi filter.'}
                 </p>
-                <p className="text-xs text-text-muted mt-2">
+                <p className="text-xs text-text-muted mt-[2px]">
                   Coba ubah kata kunci pencarian atau bersihkan filter di atas.
                 </p>
               </div>
@@ -526,7 +526,7 @@ export default function StationAssignmentPage() {
                         <button
                           type="button"
                           onClick={toggleSelectAllFiltered}
-                          className="p-2 text-text hover:text-accent transition-colors"
+                          className="p-[2px] text-text hover:text-accent transition-colors"
                           title={allFilteredSelected ? 'Batalkan pilih semua' : 'Pilih semua yang tampil'}
                           aria-label={allFilteredSelected ? 'Batalkan pilih semua' : 'Pilih semua yang tampil'}
                         >
@@ -572,7 +572,7 @@ export default function StationAssignmentPage() {
                             >
                               {p.name}
                             </strong>
-                            <div className="flex items-center gap-[6px] mt-2 flex-wrap">
+                            <div className="flex items-center gap-[6px] mt-[2px] flex-wrap">
                               {p.sku && (
                                 <span className="font-mono text-[10px] px-4 py-[1px] bg-surface-raised border border-border rounded text-text-muted cg-num">
                                   SKU: {p.sku}

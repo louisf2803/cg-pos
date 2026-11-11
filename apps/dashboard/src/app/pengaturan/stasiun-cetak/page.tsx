@@ -247,7 +247,7 @@ export default function PrintStationsPage() {
                       <h3 className="text-base font-bold text-text truncate" title={s.name}>
                         {s.name}
                       </h3>
-                      <div className="flex items-center gap-6 mt-4 flex-wrap">
+                      <div className="flex items-center gap-[6px] mt-4 flex-wrap">
                         <span
                           className={`text-xs px-8 py-[2px] rounded-full font-medium ${
                             s.kind === 'checker'
@@ -469,7 +469,7 @@ function StationFormModal({
             <h2 className="text-base font-bold text-text">
               {mode === 'new' ? 'Tambah Stasiun Cetak' : `Ubah Stasiun: ${initialStation?.name}`}
             </h2>
-            <p className="text-xs text-text-muted mt-2">
+            <p className="text-xs text-text-muted mt-[2px]">
               Atur printer stasiun dan kustomisasi templat cetak tiket pesanan
             </p>
           </div>
@@ -524,20 +524,20 @@ function StationFormModal({
 
                 {/* 2. Jenis Stasiun */}
                 <div>
-                  <label className="text-xs font-semibold text-text block mb-6">Jenis Stasiun</label>
+                  <label className="text-xs font-semibold text-text block mb-[6px]">Jenis Stasiun</label>
                   <div className="grid grid-cols-1 tablet:grid-cols-2 gap-8">
                     {STATION_KIND_OPTIONS.map((opt) => (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => handleKindChange(opt.id)}
-                        className={`p-10 rounded-lg border text-left transition-colors flex flex-col justify-between ${
+                        className={`p-[10px] rounded-lg border text-left transition-colors flex flex-col justify-between ${
                           kind === opt.id
                             ? 'border-accent bg-accent/5 ring-1 ring-accent'
                             : 'border-border bg-surface hover:bg-surface-raised'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-6 mb-2">
+                        <div className="flex items-center justify-between gap-[6px] mb-[2px]">
                           <strong className="text-xs text-text font-bold">{opt.label}</strong>
                           {kind === opt.id && <CheckCircle2 className="w-16 h-16 text-accent shrink-0" aria-hidden />}
                         </div>
@@ -549,20 +549,20 @@ function StationFormModal({
 
                 {/* 3. Mode Cetak */}
                 <div>
-                  <label className="text-xs font-semibold text-text block mb-6">Mode Cetak di Kasir</label>
+                  <label className="text-xs font-semibold text-text block mb-[6px]">Mode Cetak di Kasir</label>
                   <div className="grid grid-cols-1 tablet:grid-cols-3 gap-8">
                     {PRINT_MODE_OPTIONS.map((opt) => (
                       <button
                         key={opt.id}
                         type="button"
                         onClick={() => setPrintMode(opt.id)}
-                        className={`p-10 rounded-lg border text-left transition-colors flex flex-col justify-between ${
+                        className={`p-[10px] rounded-lg border text-left transition-colors flex flex-col justify-between ${
                           printMode === opt.id
                             ? 'border-accent bg-accent/5 ring-1 ring-accent'
                             : 'border-border bg-surface hover:bg-surface-raised'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-4 mb-2">
+                        <div className="flex items-center justify-between gap-4 mb-[2px]">
                           <strong className="text-xs text-text font-bold">{opt.label}</strong>
                           {printMode === opt.id && <CheckCircle2 className="w-16 h-16 text-accent shrink-0" aria-hidden />}
                         </div>
@@ -592,7 +592,7 @@ function StationFormModal({
                         ))}
                       </select>
                     </div>
-                    <span className="text-[10px] text-text-muted mt-2 block">
+                    <span className="text-[10px] text-text-muted mt-[2px] block">
                       Jumlah rangkap yang dicetak setiap kali transaksi dikirim
                     </span>
                   </div>
@@ -615,7 +615,7 @@ function StationFormModal({
                         </button>
                       ))}
                     </div>
-                    <span className="text-[10px] text-text-muted mt-2 block">
+                    <span className="text-[10px] text-text-muted mt-[2px] block">
                       58 mm (standar struk kecil) atau 80 mm (lebar)
                     </span>
                   </div>
@@ -711,7 +711,7 @@ function StationFormModal({
 
                   {/* Sakelar Tampil / Sembunyi */}
                   <div>
-                    <span className="text-xs font-semibold text-text block mb-6">
+                    <span className="text-xs font-semibold text-text block mb-[6px]">
                       Informasi yang Dicetak
                     </span>
                     <div className="grid grid-cols-1 tablet:grid-cols-2 gap-x-12 gap-y-8 bg-surface-raised p-12 rounded-xl border border-border text-xs">
@@ -822,7 +822,7 @@ function StationFormModal({
             {mode === 'edit' && initialStation && (
               <button
                 type="button"
-                className="cg-btn cg-btn--danger flex items-center gap-6 text-xs"
+                className="cg-btn cg-btn--danger flex items-center gap-[6px] text-xs"
                 disabled={isSubmitting}
                 onClick={() => onDeleteClick(initialStation)}
               >
