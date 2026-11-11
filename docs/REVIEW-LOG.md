@@ -14,3 +14,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=2c9817c | merge A68 (typecheck, 456 tes, build dashboard+pos, lint lulus); review: Customer display eksternal => yes (diuji dua tab, sisi kasir dicek lewat kode); goal 11/72
 2026-11-12 | main=84b7319 | merge A69 (typecheck, 457 tes, build, lint lulus); review: Daftar ekspor => yes (diuji ekspor, daftar, unduh ulang; riwayat per perangkat, pertanyaan server di MAJOO-VERIFICATION); goal 12/72
 2026-11-12 | main=c2d3e72 | merge A70 (kind transfer pasca-0032; typecheck, 458 tes, build, lint lulus); tidak ada fitur Gelombang A yang berubah status (Pindah saldo bukan fitur Gelombang A); goal 12/72
+2026-11-12 | main=1b16318 | merge A71 (typecheck, 459 tes, build dashboard+pos, lint lulus); ubah harga, stok habis, catatan tetap partial: penegakan server (sync_push) dan laporan harga diubah belum ada; goal 12/72
