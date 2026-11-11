@@ -1,15 +1,19 @@
 'use client';
 import { useState } from 'react';
 import { Globe, ShoppingCart, RefreshCw, Filter } from 'lucide-react';
-import { PageHeader } from '@/components/page';
+import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { OrderOnlineChannelsPanel } from '@/components/order-online-channels';
-import { useReport } from '@/lib/use-report';
+import { useData } from '@/lib/data';
+import { useAsync } from '@/lib/use-async';
+import { useRange } from '@/lib/use-range';
 
 type OrderOnlineStatus = 'masuk' | 'diproses' | 'dikirim' | 'diterima' | 'selesai' | 'batal';
 
 export default function PesananOnlinePage() {
-  const { ctx, value, setValue, range, today } = useReport();
+  const data = useData();
+  const ctx = useAsync(() => data.getContext(), [data]);
+  const { value, setValue, range, today } = useRange(ctx.status === 'ready' ? ctx.data.timezone : undefined);
   const [mainTab, setMainTab] = useState<'pesanan' | 'kanal'>('pesanan');
   const [activeStatus, setActiveStatus] = useState<OrderOnlineStatus>('masuk');
   const [selectedChannel, setSelectedChannel] = useState('semua');
@@ -38,7 +42,7 @@ export default function PesananOnlinePage() {
         title="Pesanan Online"
         subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : 'Kelola pesanan dari saluran pesan-antar dan order mandiri CG Order'}
         actions={
-          <button type="button" className="cg-btn cg-btn--secondary" onClick={() => window.location.reload()}>
+          <button type="button" className="cg-btn cg-btn--secondary" onClick={() => ctx.reload()}>
             <RefreshCw className="cg-icon" aria-hidden /> Segarkan
           </button>
         }
@@ -65,9 +69,20 @@ export default function PesananOnlinePage() {
         </button>
       </div>
 
+      {ctx.status === 'error' && <ErrorBox message={ctx.message} onRetry={ctx.reload} />}
+
       {mainTab === 'kanal' ? (
         <OrderOnlineChannelsPanel />
-      ) : (
+      ) : ctx.status === 'loading' ? (
+        <div className="grid gap-12" aria-busy="true" aria-label="Memuat pesanan online">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="cg-skeleton" style={{ height: 84 }} />
+            ))}
+          </div>
+          <div className="cg-skeleton" style={{ height: 200 }} />
+        </div>
+      ) : ctx.status === 'ready' ? (
         <>
       <RangePicker value={value} today={today} onChange={setValue} />
 
@@ -80,6 +95,7 @@ export default function PesananOnlinePage() {
           {channels.map((ch) => (
             <button
               key={ch.id}
+              type="button"
               className="cg-chip"
               aria-pressed={selectedChannel === ch.id}
               onClick={() => setSelectedChannel(ch.id)}
@@ -144,9 +160,10 @@ export default function PesananOnlinePage() {
             return (
               <button
                 key={tab.id}
+                type="button"
                 role="tab"
                 aria-selected={active}
-                className={`flex items-center gap-6 px-12 py-8 rounded-md font-medium text-sm whitespace-nowrap transition-colors ${
+                className={`flex items-center gap-8 px-12 py-8 rounded-md font-medium text-sm whitespace-nowrap transition-colors ${
                   active
                     ? 'bg-accent-soft text-accent-strong font-semibold'
                     : 'text-text-muted hover:text-text hover:bg-surface'
@@ -163,9 +180,9 @@ export default function PesananOnlinePage() {
         </div>
 
         {/* Keadaan Kosong */}
-        <div className="cg-empty py-40 text-center flex flex-col items-center justify-center">
-          <div className="w-16 h-16 rounded-full bg-surface flex items-center justify-center text-text-muted mb-12">
-            <ShoppingCart className="w-8 h-8" aria-hidden />
+        <div className="cg-empty py-32 text-center flex flex-col items-center justify-center">
+          <div className="w-40 h-40 rounded-full bg-surface flex items-center justify-center text-text-muted mb-12">
+            <ShoppingCart className="w-24 h-24" aria-hidden />
           </div>
           <h2 className="text-lg font-semibold mb-4">Belum ada pesanan online masuk</h2>
           <p className="text-text-muted max-w-md text-sm">
@@ -174,7 +191,7 @@ export default function PesananOnlinePage() {
         </div>
       </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
