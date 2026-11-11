@@ -14,6 +14,8 @@ CG POS = POS + dashboard web bergaya Majoo, **kata dan merek sendiri** (clean ro
 6. Satu tugas = satu cabang = satu PR kecil. Jangan campur banyak fitur.
 7. **Paritas = fungsi dan alur kerja yang sama, bukan sekadar ada tombolnya.** Arahan Louis (11 Nov 2026): fitur dianggap "selesai" hanya kalau proses kerjanya benar-benar menghasilkan hasil yang sama seperti Majoo (urutan langkah, data yang dihasilkan, akibatnya ke laporan/stok/uang) — tampilan mirip tapi tidak berfungsi, atau berfungsi tapi urutan/hasilnya beda, tetap dihitung belum selesai. Fitur yang masih "Pratinjau — menunggu dukungan server" HARUS ditindaklanjuti jadi fungsi nyata (bukan dibiarkan jadi pajangan permanen) begitu Claude sudah menyiapkan skema/DataLayer-nya. Kalau ragu urutan langkah atau perilaku asli Majoo, JANGAN menebak: tulis pertanyaan presisi di `docs/REQUESTS-FOR-CLAUDE.md` atau `docs/PROGRESS.md` untuk dicek bersama Louis langsung (sesi otomatis tidak boleh cek Majoo/BlueStacks sendiri, lihat `docs/ANTIGRAVITY.md` #6).
 
+8. **Berkas status fitur** (`docs/features.csv`, `docs/wave.csv`, `docs/bugs.md`) hanya diubah reviewer (Claude): jangan disentuh di cabangmu (menghindari konflik merge). Laporkan hasil kerjamu di `docs/PROGRESS.md`. Lingkup dan definisi selesai ada di `docs/SCOPE.md` dan `docs/queue/GOAL.md` (Gelombang A wajib, Gelombang B antarmuka saja, daftar dibuang jangan dikerjakan).
+
 ## Pola kode yang sudah ada (ikuti)
 - Halaman dashboard: `apps/dashboard/src/app/<rute>/page.tsx`, `'use client'`, ambil data lewat `useData()` dari `@/lib/data`, status `loading | error | ready`
   dengan kerangka (`cg-skeleton`), keadaan kosong (`cg-empty`), galat (`cg-banner`). Contoh rapi: `app/keuangan/kas/page.tsx`, `app/dapur/page.tsx`.
