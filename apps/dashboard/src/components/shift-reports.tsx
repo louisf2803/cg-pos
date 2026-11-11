@@ -1,14 +1,25 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { combineShiftReports, formatRp, type ShiftReportRow, type StoreCloseSummary } from '@cgpos/shared';
+import { Download } from 'lucide-react';
+import { combineShiftReports, formatRp, toCsv, type ShiftReportRow, type StoreCloseSummary } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { dateRange } from '@/lib/range';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { ErrorBox } from '@/components/page';
 import { DateSpan, todayKey, useDialog } from '@/components/fin-common';
 
 const money = (n: number) => (n < 0 ? `-${formatRp(-n)}` : formatRp(n));
-const when = (iso?: string) => (iso ? new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '—');
+const when = (iso?: string, tz = 'Asia/Jakarta') =>
+  iso
+    ? new Intl.DateTimeFormat('id-ID', {
+        timeZone: tz,
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(iso))
+    : '—';
 
 /** Ambil laporan semua shift pada rentang tanggal lokal outlet. */
 export function useShiftRows(span: { from: string; to: string }) {
@@ -39,12 +50,55 @@ function varianceBadge(r: ShiftReportRow) {
 /** Laporan kasir: satu baris per shift, rincian pembayaran dan produk di dialog. */
 export function CashierReport() {
   const [span, setSpan] = useState({ from: todayKey(), to: todayKey() });
-  const { rows } = useShiftRows(span);
+  const { ctx, rows } = useShiftRows(span);
+  const tz = ctx.status === 'ready' ? ctx.data.timezone : 'Asia/Jakarta';
   const [pick, setPick] = useState<ShiftReportRow | null>(null);
   const total = useMemo(() => (rows.status === 'ready' ? combineShiftReports(rows.data) : null), [rows]);
+
+  function downloadCsv() {
+    if (rows.status !== 'ready' || rows.data.length === 0) return;
+    const csvRows: (string | number)[][] = [
+      ['Kasir', 'Waktu buka', 'Waktu tutup', 'Status', 'Modal awal', 'Penjualan tunai', 'Penjualan non-tunai', 'Kas masuk', 'Kas keluar', 'Refund tunai', 'Uang seharusnya', 'Uang dihitung', 'Selisih kas'],
+      ...rows.data.map((r) => [
+        r.cashierName,
+        when(r.shift.openedAt, tz),
+        when(r.shift.closedAt, tz),
+        r.shift.status === 'open' ? 'Berjalan' : 'Tutup',
+        r.shift.openingCash,
+        r.cashSales,
+        r.otherSales,
+        r.cashIn,
+        r.cashOut,
+        r.cashRefunds,
+        r.expectedCash,
+        r.shift.status === 'closed' ? r.counted : '',
+        r.shift.status === 'closed' ? r.variance : '',
+      ]),
+    ];
+    downloadCsvWithHistory({
+      fileName: `laporan-kasir-${span.from}_${span.to}.csv`,
+      csvContent: toCsv(csvRows),
+      reportName: 'Laporan Kasir',
+      period: `${span.from} s.d. ${span.to}`,
+      rowCount: rows.data.length,
+      sourceUrl: '/laporan/kasir',
+      params: { from: span.from, to: span.to },
+    });
+  }
+
   return (
-    <>
-      <div className="flex flex-wrap gap-12 mb-12 items-end"><DateSpan from={span.from} to={span.to} onChange={setSpan} idPrefix="kasir" /></div>
+    <div className="min-w-0">
+      <div className="flex flex-wrap gap-12 mb-12 items-end justify-between">
+        <DateSpan from={span.from} to={span.to} onChange={setSpan} idPrefix="kasir" />
+        <button
+          type="button"
+          className="cg-btn cg-btn--secondary"
+          onClick={downloadCsv}
+          disabled={rows.status !== 'ready' || rows.data.length === 0}
+        >
+          <Download className="cg-icon" aria-hidden /> Unduh CSV
+        </button>
+      </div>
       {rows.status === 'error' && <ErrorBox message={rows.message} onRetry={rows.reload} />}
       {rows.status === 'loading' && <Loading />}
       {rows.status === 'ready' && total && (rows.data.length === 0 ? (
@@ -62,26 +116,26 @@ export function CashierReport() {
             <thead><tr><th>Kasir</th><th>Buka</th><th>Tutup</th><th className="text-right">Modal</th><th className="text-right">Tunai</th><th className="text-right">Non-tunai</th><th className="text-right">Seharusnya</th><th className="text-right">Dihitung</th><th>Kas</th><th><span className="sr-only">Rincian</span></th></tr></thead>
             <tbody>{rows.data.map((r) => (
               <tr key={r.shift.id}>
-                <td>{r.cashierName}</td><td className="text-sm whitespace-nowrap">{when(r.shift.openedAt)}</td><td className="text-sm whitespace-nowrap">{when(r.shift.closedAt)}</td>
+                <td>{r.cashierName}</td><td className="text-sm whitespace-nowrap">{when(r.shift.openedAt, tz)}</td><td className="text-sm whitespace-nowrap">{when(r.shift.closedAt, tz)}</td>
                 <td className="text-right cg-num">{formatRp(r.shift.openingCash)}</td><td className="text-right cg-num">{formatRp(r.cashSales)}</td><td className="text-right cg-num">{formatRp(r.otherSales)}</td>
                 <td className="text-right cg-num">{formatRp(r.expectedCash)}</td><td className="text-right cg-num">{r.shift.status === 'closed' ? formatRp(r.counted) : '—'}</td>
                 <td>{varianceBadge(r)}</td>
-                <td><button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPick(r)} aria-label={`Rincian shift ${r.cashierName} ${when(r.shift.openedAt)}`}>Rincian</button></td>
+                <td><button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPick(r)} aria-label={`Rincian shift ${r.cashierName} ${when(r.shift.openedAt, tz)}`}>Rincian</button></td>
               </tr>))}
             </tbody></table></div>
         </>
       ))}
-      {pick && <ShiftDialog row={pick} onClose={() => setPick(null)} />}
-    </>
+      {pick && <ShiftDialog row={pick} tz={tz} onClose={() => setPick(null)} />}
+    </div>
   );
 }
 
-function ShiftDialog({ row, onClose }: { row: ShiftReportRow; onClose: () => void }) {
+function ShiftDialog({ row, tz, onClose }: { row: ShiftReportRow; tz: string; onClose: () => void }) {
   const d = useDialog(onClose);
   return (
     <dialog {...d.props} aria-labelledby="shift-judul">
       <div className="grid gap-4">
-        <h2 id="shift-judul" className="cg-modal__title">Shift {row.cashierName} · {when(row.shift.openedAt)}</h2>
+        <h2 id="shift-judul" className="cg-modal__title">Shift {row.cashierName} · {when(row.shift.openedAt, tz)}</h2>
         <dl className="grid gap-4 my-12">
           {([['Modal awal', row.shift.openingCash], ['Penjualan tunai', row.cashSales], ['Kas masuk', row.cashIn], ['Kas keluar', -row.cashOut], ['Refund tunai', -row.cashRefunds], ['Seharusnya di laci', row.expectedCash]] as [string, number][]).map(([k, v]) => (
             <div key={k} className="flex justify-between gap-12"><dt>{k}</dt><dd className="cg-num">{money(v)}</dd></div>))}
@@ -103,12 +157,50 @@ function ShiftDialog({ row, onClose }: { row: ShiftReportRow; onClose: () => voi
 /** Tutup toko: laporan gabungan semua shift satu hari. Siap ditutup hanya bila semua kasir sudah tutup kasir. */
 export function StoreCloseReport() {
   const [day, setDay] = useState(todayKey());
-  const { rows } = useShiftRows({ from: day, to: day });
+  const { ctx, rows } = useShiftRows({ from: day, to: day });
+  const tz = ctx.status === 'ready' ? ctx.data.timezone : 'Asia/Jakarta';
   const sum: StoreCloseSummary | null = useMemo(() => (rows.status === 'ready' ? combineShiftReports(rows.data) : null), [rows]);
+
+  function downloadCsv() {
+    if (rows.status !== 'ready' || !sum || sum.shiftCount === 0) return;
+    const csvRows: (string | number)[][] = [
+      ['Tanggal', 'Status toko', 'Total transaksi', 'Total tunai', 'Total non-tunai', 'Kas masuk', 'Kas keluar', 'Seharusnya di laci', 'Selisih kas total'],
+      [day, sum.canClose ? 'Siap ditutup' : `Belum siap (${sum.openCount} shift terbuka)`, sum.orderCount, sum.cashSales, sum.otherSales, sum.cashIn, sum.cashOut, sum.expectedCash, sum.variance],
+      [],
+      ['Shift kasir', 'Buka', 'Tutup', 'Status', 'Tunai', 'Non-tunai', 'Selisih'],
+      ...rows.data.map((r) => [
+        r.cashierName,
+        when(r.shift.openedAt, tz),
+        when(r.shift.closedAt, tz),
+        r.shift.status === 'open' ? 'Berjalan' : 'Tutup',
+        r.cashSales,
+        r.otherSales,
+        r.shift.status === 'closed' ? r.variance : '',
+      ]),
+    ];
+    downloadCsvWithHistory({
+      fileName: `tutup-toko-${day}.csv`,
+      csvContent: toCsv(csvRows),
+      reportName: 'Laporan Tutup Toko',
+      period: day,
+      rowCount: rows.data.length,
+      sourceUrl: '/laporan/tutup-toko',
+      params: { date: day },
+    });
+  }
+
   return (
-    <>
-      <div className="flex flex-wrap gap-12 mb-12 items-end">
+    <div className="min-w-0">
+      <div className="flex flex-wrap gap-12 mb-12 items-end justify-between">
         <div className="cg-field"><label className="cg-label" htmlFor="tt-hari">Tanggal</label><input id="tt-hari" type="date" className="cg-input" max={todayKey()} value={day} onChange={(e) => e.target.value && setDay(e.target.value)} /></div>
+        <button
+          type="button"
+          className="cg-btn cg-btn--secondary"
+          onClick={downloadCsv}
+          disabled={rows.status !== 'ready' || !sum || sum.shiftCount === 0}
+        >
+          <Download className="cg-icon" aria-hidden /> Unduh CSV
+        </button>
       </div>
       {rows.status === 'error' && <ErrorBox message={rows.message} onRetry={rows.reload} />}
       {rows.status === 'loading' && <Loading />}
@@ -136,9 +228,9 @@ export function StoreCloseReport() {
           <h2 className="text-base mb-8">Shift hari ini</h2>
           <div className="cg-data-wrap"><table className="cg-data" aria-label="Shift pada tanggal ini">
             <thead><tr><th>Kasir</th><th>Buka</th><th>Tutup</th><th className="text-right">Tunai</th><th className="text-right">Non-tunai</th><th>Kas</th></tr></thead>
-            <tbody>{rows.data.map((r) => <tr key={r.shift.id}><td>{r.cashierName}</td><td className="text-sm whitespace-nowrap">{when(r.shift.openedAt)}</td><td className="text-sm whitespace-nowrap">{when(r.shift.closedAt)}</td><td className="text-right cg-num">{formatRp(r.cashSales)}</td><td className="text-right cg-num">{formatRp(r.otherSales)}</td><td>{varianceBadge(r)}</td></tr>)}</tbody></table></div>
+            <tbody>{rows.data.map((r) => <tr key={r.shift.id}><td>{r.cashierName}</td><td className="text-sm whitespace-nowrap">{when(r.shift.openedAt, tz)}</td><td className="text-sm whitespace-nowrap">{when(r.shift.closedAt, tz)}</td><td className="text-right cg-num">{formatRp(r.cashSales)}</td><td className="text-right cg-num">{formatRp(r.otherSales)}</td><td>{varianceBadge(r)}</td></tr>)}</tbody></table></div>
         </>
       ))}
-    </>
+    </div>
   );
 }
