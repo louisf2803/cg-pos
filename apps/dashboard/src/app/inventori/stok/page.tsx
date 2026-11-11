@@ -28,6 +28,7 @@ export default function StockPage() {
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<'' | StockItem['kind']>('');
   const [status, setStatus] = useState<'' | StockFilter>('');
+  const [category, setCategory] = useState('');
   const state = useAsync(() => data.listStock(), [data]);
 
   useEffect(() => {
@@ -42,11 +43,12 @@ export default function StockPage() {
   const rows = useMemo(() => {
     if (state.status !== 'ready') return [];
     const q = search.trim().toLowerCase();
-    return state.data.filter((i) => (!kind || i.kind === kind) && (!status || (status === 'alert' ? i.status !== 'ok' : i.status === status)) && (!q || i.name.toLowerCase().includes(q)));
-  }, [state, search, kind, status]);
+    return state.data.filter((i) => (!kind || i.kind === kind) && (!status || (status === 'alert' ? i.status !== 'ok' : i.status === status)) && (!category || i.categoryName === category) && (!q || i.name.toLowerCase().includes(q)));
+  }, [state, search, kind, status, category]);
   const all = state.status === 'ready' ? state.data : [];
   const totalValue = all.reduce((n, i) => n + i.value, 0);
   const alerts = all.filter((i) => i.status !== 'ok').length;
+  const categories = useMemo(() => Array.from(new Set(all.map((i) => i.categoryName).filter((n): n is string => !!n))).sort((a, b) => a.localeCompare(b, 'id')), [all]);
 
   return (
     <>
@@ -68,6 +70,13 @@ export default function StockPage() {
                 <input id="stok-cari" className="cg-input" style={{ paddingLeft: 34 }} placeholder="Nama barang" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div>
             <div className="cg-field"><label className="cg-label" htmlFor="stok-jenis">Jenis</label>
               <select id="stok-jenis" className="cg-input" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="">Semua</option><option value="ingredient">Bahan baku</option><option value="goods">Barang</option></select></div>
+            {categories.length > 0 && (
+              <div className="cg-field"><label className="cg-label" htmlFor="stok-kategori">Kategori</label>
+                <select id="stok-kategori" className="cg-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  <option value="">Semua</option>
+                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select></div>
+            )}
             <div className="cg-field"><label className="cg-label" htmlFor="stok-status">Status</label>
               <select id="stok-status" className="cg-input" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
                 <option value="">Semua</option><option value="alert">Perlu perhatian</option><option value="out">Habis</option><option value="negative">Minus</option><option value="low">Menipis</option><option value="ok">Aman</option></select></div>
@@ -79,12 +88,13 @@ export default function StockPage() {
           ) : (
             <div className="cg-data-wrap">
               <table className="cg-data">
-                <thead><tr><th>Nama</th><th>Jenis</th><th className="text-right">Stok</th><th className="text-right">Biaya rata-rata</th><th className="text-right">Nilai</th><th>Status</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
+                <thead><tr><th>Nama</th><th>Jenis</th><th>Kategori</th><th className="text-right">Stok</th><th className="text-right">Biaya rata-rata</th><th className="text-right">Nilai</th><th>Status</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
                 <tbody>
                   {rows.map((i) => (
                     <tr key={i.productId}>
                       <td className="break-words max-w-[260px]"><strong>{i.name}</strong>{i.minQty !== undefined && <span className="block text-sm text-text-muted">Minimum {fmtQty(i.minQty)} {i.unit}</span>}</td>
                       <td className="text-sm">{KIND_LABEL[i.kind]}</td>
+                      <td className="text-sm text-text-muted">{i.categoryName ?? '—'}</td>
                       <td className="text-right cg-num whitespace-nowrap">{fmtQty(i.qty)} <span className="text-text-muted text-sm">{i.unit}</span></td>
                       <td className="text-right cg-num">{formatRp(i.avgCost)}</td>
                       <td className="text-right cg-num">{formatRp(i.value)}</td>

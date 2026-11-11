@@ -9,6 +9,8 @@ export interface StockItem {
   /** nilai persediaan = qty x biaya rata-rata (0 bila stok minus) */
   value: number;
   minQty?: number; status: StockStatus;
+  /** Kategori bahan baku (lihat ingredient-categories.ts), bukan kategori produk jual. Belum ada di semua barang. */
+  categoryId?: string; categoryName?: string;
 }
 
 export type StockMoveKind =

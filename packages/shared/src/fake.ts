@@ -1,5 +1,6 @@
 import type { DataLayer } from './data';
 import { COFFEE_GROUND_BAHAN_BAKU } from './seed-bahan-baku';
+import { ingredientCategoryName } from './ingredient-categories';
 import { createTableOps } from './table-ops';
 import { sanitizeReceiptTemplate } from './receipt-template';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
@@ -146,7 +147,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let coupons: Coupon[] = [];
   let loyaltyRules: LoyaltyRules = { ...DEFAULT_LOYALTY };
   let ledger: LoyaltyEntry[] = [];
-  let ingredients: { id: string; name: string; unit: string; qty: number }[] = [];
+  let ingredients: { id: string; name: string; unit: string; qty: number; categoryId?: string }[] = [];
   let recipes = new Map<string, RecipeLine[]>();
   let costs = new Map<string, number>();
   let mins = new Map<string, number>();
@@ -222,9 +223,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   }
 
   /** Stok yang dilacak: barang jual (qty di Product.stock) dan bahan baku (daftar terpisah). */
-  function stockBal(id: string): { name: string; kind: 'goods' | 'ingredient'; unit: string; qty: number } | null {
+  function stockBal(id: string): { name: string; kind: 'goods' | 'ingredient'; unit: string; qty: number; categoryId?: string } | null {
     const ing = ingredients.find((i) => i.id === id);
-    if (ing) return { name: ing.name, kind: 'ingredient', unit: ing.unit, qty: ing.qty };
+    if (ing) return { name: ing.name, kind: 'ingredient', unit: ing.unit, qty: ing.qty, categoryId: ing.categoryId };
     const p = products.find((x) => x.id === id);
     return p && p.trackStock && p.kind !== 'bundle' && p.stock !== undefined ? { name: p.name, kind: 'goods', unit: 'pcs', qty: p.stock } : null;
   }
@@ -239,7 +240,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   }
   function stockItem(id: string): StockItem {
     const b = stockBal(id)!;
-    return makeStockItem({ productId: id, name: b.name, kind: b.kind, unit: b.unit, qty: b.qty, avgCost: costs.get(id) ?? 0, minQty: mins.get(id) });
+    return makeStockItem({
+      productId: id, name: b.name, kind: b.kind, unit: b.unit, qty: b.qty, avgCost: costs.get(id) ?? 0, minQty: mins.get(id),
+      ...(b.categoryId ? { categoryId: b.categoryId, categoryName: ingredientCategoryName(b.categoryId) } : {}),
+    });
   }
   function opnameView(o: StockOpname & { values: Map<string, number> }): StockOpname {
     return clone({
@@ -365,13 +369,17 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     const opening: [string, number, number][] = [];
     for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
     // 4 bahan demo (dipakai resep p1-p3 di bawah) + katalog bahan baku nyata Coffee Ground (lihat seed-bahan-baku.ts):
-    // stok fisik bahan nyata ini sengaja mulai dari 0 (belum ada angka stok asli dari Louis), hanya nama/satuan/biaya yang nyata.
-    const ing: [string, string, string, number, number, number | undefined][] = [
-      ['ing-kopi', 'Biji kopi arabika', 'gram', 5000, 320, 1000], ['ing-susu', 'Susu segar', 'ml', 12000, 18, 3000],
-      ['ing-gula', 'Gula aren cair', 'ml', 800, 40, 1000], ['ing-gelas', 'Gelas 16 oz', 'pcs', 0, 700, undefined],
+    // stok fisik bahan nyata ini sengaja mulai dari 0 (belum ada angka stok asli dari Louis), hanya nama/satuan/biaya/kategori yang nyata.
+    const ing: [string, string, string, number, number, number | undefined, string | undefined][] = [
+      ['ing-kopi', 'Biji kopi arabika', 'gram', 5000, 320, 1000, undefined], ['ing-susu', 'Susu segar', 'ml', 12000, 18, 3000, undefined],
+      ['ing-gula', 'Gula aren cair', 'ml', 800, 40, 1000, undefined], ['ing-gelas', 'Gelas 16 oz', 'pcs', 0, 700, undefined, undefined],
       ...COFFEE_GROUND_BAHAN_BAKU,
     ];
-    for (const [id, name, unit, qty, cost, min] of ing) { ingredients.push({ id, name, unit, qty: 0 }); if (min !== undefined) mins.set(id, min); if (qty > 0) opening.push([id, qty, cost]); else costs.set(id, cost); }
+    for (const [id, name, unit, qty, cost, min, categoryId] of ing) {
+      ingredients.push({ id, name, unit, qty: 0, categoryId });
+      if (min !== undefined) mins.set(id, min);
+      if (qty > 0) opening.push([id, qty, cost]); else costs.set(id, cost);
+    }
     mins.set('p8', 5);
     recipes.set('p1', [{ ingredientId: 'ing-kopi', qty: 18, unitId: 'gram' }, { ingredientId: 'ing-susu', qty: 120, unitId: 'ml' }, { ingredientId: 'ing-gula', qty: 20, unitId: 'ml' }, { ingredientId: 'ing-gelas', qty: 1, unitId: 'pcs' }]);
     recipes.set('p2', [{ ingredientId: 'ing-kopi', qty: 18, unitId: 'gram' }, { ingredientId: 'ing-gelas', qty: 1, unitId: 'pcs' }]);
