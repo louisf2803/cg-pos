@@ -21,6 +21,7 @@ import {
   type ParseProductCsvResult,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory, triggerCsvDownload } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
@@ -30,18 +31,6 @@ function getTodayString(): string {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-}
-
-function triggerDownload(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 export default function ImporEksporProduk() {
@@ -68,13 +57,21 @@ export default function ImporEksporProduk() {
 
   function handleDownloadSample() {
     const csv = generateProductTemplateCsv();
-    triggerDownload(csv, 'contoh-produk.csv');
+    triggerCsvDownload(csv, 'contoh-produk.csv');
   }
 
   function handleExportCsv() {
     if (state.status !== 'ready') return;
     const csv = exportProductsToCsv(state.data.catalog, state.data.categories);
-    triggerDownload(csv, `produk-${getTodayString()}.csv`);
+    const todayStr = getTodayString();
+    downloadCsvWithHistory({
+      fileName: `produk-${todayStr}.csv`,
+      csvContent: csv,
+      reportName: 'Ekspor Katalog Produk',
+      period: todayStr,
+      rowCount: state.data.catalog.length,
+      sourceUrl: '/produk/impor',
+    });
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

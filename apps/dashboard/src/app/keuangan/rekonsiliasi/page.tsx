@@ -18,6 +18,7 @@ import {
   type NonCashReconcileRow,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
@@ -114,13 +115,14 @@ export default function NonCashReconciliationPage() {
     if (!reconciliation || reconciliation.rows.length === 0) return;
     const csvRows = buildReconcileCsv(reconciliation.rows, groupBy === 'date_method');
     const csvString = toCsv(csvRows);
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rekonsiliasi-non-tunai-${range.from}-${range.to}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `rekonsiliasi-non-tunai-${range.from}-${range.to}.csv`,
+      csvContent: csvString,
+      reportName: 'Rekonsiliasi Non-Tunai',
+      period: range.label,
+      rowCount: reconciliation.rows.length,
+      sourceUrl: '/keuangan/rekonsiliasi',
+    });
   };
 
   const isLoading =

@@ -7,6 +7,7 @@ import { RangePicker } from '@/components/range-picker';
 import { useReport } from '@/lib/use-report';
 import { useAsync } from '@/lib/use-async';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 
 interface ProductStat {
   id: string;
@@ -147,13 +148,14 @@ export default function LaporanProduk() {
       ]);
     }
 
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-produk-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-produk-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent: toCsv(rows),
+      reportName: 'Laporan Penjualan per Produk',
+      period: range.label,
+      rowCount: filteredList.length,
+      sourceUrl: '/laporan/produk',
+    });
   }
 
   return (

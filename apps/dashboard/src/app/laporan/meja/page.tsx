@@ -6,6 +6,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useReport } from '@/lib/use-report';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID').format(n);
@@ -20,8 +21,14 @@ export default function TableReportPage() {
     if (!report) return;
     const head = ['Meja', 'Lantai', 'Kunjungan', 'Tamu', 'Penjualan', 'Rata-rata per kunjungan', 'Rata-rata per tamu'];
     const line = (r: TableReportRow) => [r.label, r.floor, r.visits, r.guests, r.total, r.avgPerVisit, r.avgPerGuest ?? ''];
-    const url = URL.createObjectURL(new Blob([toCsv([head, ...report.rows.map(line), [], line(report.totals)])], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = `meja-${range.label.replace(/ sampai /, '_')}.csv`; a.click(); URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `meja-${range.label.replace(/ sampai /, '_')}.csv`,
+      csvContent: toCsv([head, ...report.rows.map(line), [], line(report.totals)]),
+      reportName: 'Laporan Meja',
+      period: range.label,
+      rowCount: report.rows.length,
+      sourceUrl: '/laporan/meja',
+    });
   }
   const err = ctx.status === 'error' ? ctx : state.status === 'error' ? state : layout.status === 'error' ? layout : null;
   const loading = ctx.status === 'loading' || state.status === 'loading' || layout.status === 'loading';

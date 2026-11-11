@@ -8,6 +8,7 @@ export interface ExportRecord {
   fileName: string;
   sourceUrl?: string;
   params?: Record<string, string | number | boolean>;
+  csvContent?: string;
 }
 
 export interface ExportInput {
@@ -20,10 +21,32 @@ export interface ExportInput {
   fileName: string;
   sourceUrl?: string;
   params?: Record<string, string | number | boolean>;
+  csvContent?: string;
 }
 
 export const EXPORT_HISTORY_STORAGE_KEY = 'cgpos_export_history_v1';
 export const MAX_EXPORT_HISTORY = 50;
+export const MAX_STORED_CSV_BYTES = 128 * 1024;
+
+/** Menghitung panjang byte UTF-8 tanpa bergantung pada API DOM. */
+export function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code <= 0x7f) bytes += 1;
+    else if (code <= 0x7ff) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+function sanitizeStoredCsv(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !raw) return undefined;
+  return utf8ByteLength(raw) <= MAX_STORED_CSV_BYTES ? raw : undefined;
+}
 
 /**
  * Format ukuran berkas dalam satuan B, KB, atau MB menggunakan format angka Indonesia (, desimal).
@@ -118,6 +141,7 @@ export function validateAndMigrateExportHistory(raw: unknown): ExportRecord[] {
     const params = rec.params && typeof rec.params === 'object' && !Array.isArray(rec.params)
       ? (rec.params as Record<string, string | number | boolean>)
       : undefined;
+    const csvContent = sanitizeStoredCsv(rec.csvContent);
 
     result.push({
       id,
@@ -129,6 +153,7 @@ export function validateAndMigrateExportHistory(raw: unknown): ExportRecord[] {
       fileName,
       sourceUrl,
       params,
+      ...(csvContent ? { csvContent } : {}),
     });
   }
 
@@ -148,6 +173,7 @@ export function recordExport(
 ): ExportRecord[] {
   const timestamp = newEntry.timestamp || new Date().toISOString();
   const id = newEntry.id || `exp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const csvContent = sanitizeStoredCsv(newEntry.csvContent);
 
   const record: ExportRecord = {
     id,
@@ -159,6 +185,7 @@ export function recordExport(
     fileName: newEntry.fileName.trim() || 'laporan.csv',
     sourceUrl: newEntry.sourceUrl,
     params: newEntry.params,
+    ...(csvContent ? { csvContent } : {}),
   };
 
   // Bersihkan rekaman serupa sebelumnya agar tidak ada duplikasi identik
@@ -238,8 +265,24 @@ export function saveExportHistoryToStorage(
       }
     }
     if (!s) return { success: false, error: 'Penyimpanan lokal tidak tersedia' };
-    s.setItem(EXPORT_HISTORY_STORAGE_KEY, JSON.stringify(records.slice(0, MAX_EXPORT_HISTORY)));
-    return { success: true };
+    const working = records.slice(0, MAX_EXPORT_HISTORY).map((r) => ({ ...r }));
+    while (true) {
+      try {
+        s.setItem(EXPORT_HISTORY_STORAGE_KEY, JSON.stringify(working));
+        return { success: true };
+      } catch (innerErr) {
+        let trimmed = false;
+        for (let i = working.length - 1; i >= 0; i--) {
+          const entry = working[i];
+          if (entry?.csvContent) {
+            delete entry.csvContent;
+            trimmed = true;
+            break;
+          }
+        }
+        if (!trimmed) throw innerErr;
+      }
+    }
   } catch (err) {
     return {
       success: false,

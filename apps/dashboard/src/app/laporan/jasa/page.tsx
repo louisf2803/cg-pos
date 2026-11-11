@@ -13,6 +13,7 @@ import { RangePicker } from '@/components/range-picker';
 import { useReport } from '@/lib/use-report';
 import { useAsync } from '@/lib/use-async';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 
@@ -53,14 +54,14 @@ export default function LaporanJasaPage() {
   function handleDownloadCsv() {
     if (!report || report.summary.totalRevenue === 0) return;
     const csvContent = toServiceReportCsv(report, range.label);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const safeLabel = range.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    a.download = `laporan-jasa-${safeLabel}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-jasa-${safeLabel}.csv`,
+      csvContent,
+      reportName: 'Laporan Jasa',
+      period: range.label,
+      sourceUrl: '/laporan/jasa',
+    });
   }
 
   const err =

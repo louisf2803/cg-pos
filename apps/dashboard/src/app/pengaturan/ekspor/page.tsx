@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Database,
+  Download,
   FileSpreadsheet,
   History,
   Layers,
@@ -23,6 +24,7 @@ import {
 } from '@cgpos/shared';
 import { PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
+import { triggerCsvDownload } from '@/lib/export';
 
 export default function ExportHistoryPage() {
   const [records, setRecords] = useState<ExportRecord[]>([]);
@@ -65,6 +67,13 @@ export default function ExportHistoryPage() {
     setTimeout(() => setStatusNotice(null), 3000);
   };
 
+  const handleRedownload = (item: ExportRecord) => {
+    if (!item.csvContent) return;
+    triggerCsvDownload(item.csvContent, item.fileName);
+    setStatusNotice(`Berkas "${item.fileName}" diunduh ulang.`);
+    setTimeout(() => setStatusNotice(null), 3000);
+  };
+
   const handleConfirmClear = () => {
     const cleared = clearExportHistory();
     setRecords(cleared);
@@ -97,7 +106,7 @@ export default function ExportHistoryPage() {
     <div className="space-y-24 min-w-0">
       <PageHeader
         title="Riwayat ekspor CSV"
-        subtitle="Mencatat berkas ekspor laporan yang pernah diunduh pada peramban ini (maksimal 50 berkas terbaru)."
+        subtitle="Daftar ekspor laporan CSV dari seluruh modul dalam satu halaman (maksimal 50 berkas terbaru; berkas hingga 128 KB dapat diunduh ulang langsung)."
         actions={
           records.length > 0 ? (
             <button
@@ -235,49 +244,61 @@ export default function ExportHistoryPage() {
             <table className="cg-table w-full text-left text-sm">
               <thead className="bg-bg-subtle text-text-muted border-b border-border">
                 <tr>
-                  <th className="p-16 font-medium">Laporan &amp; Periode</th>
-                  <th className="p-16 font-medium">Nama Berkas</th>
-                  <th className="p-16 font-medium">Waktu Ekspor</th>
-                  <th className="p-16 font-medium text-right">Jumlah Baris</th>
-                  <th className="p-16 font-medium text-right">Ukuran</th>
-                  <th className="p-16 font-medium text-center">Aksi</th>
+                  <th className="p-12 font-medium">Laporan &amp; Periode</th>
+                  <th className="p-12 font-medium">Nama Berkas</th>
+                  <th className="p-12 font-medium whitespace-nowrap">Waktu Ekspor</th>
+                  <th className="p-12 font-medium text-right whitespace-nowrap">Baris</th>
+                  <th className="p-12 font-medium text-right whitespace-nowrap">Ukuran</th>
+                  <th className="p-12 font-medium text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredRecords.map((item) => (
                   <tr key={item.id} className="hover:bg-bg-subtle transition-colors">
-                    <td className="p-16">
+                    <td className="p-12">
                       <p className="font-semibold text-text-primary">{item.reportName}</p>
                       <p className="text-text-muted text-xs mt-[2px]">{item.period}</p>
                     </td>
-                    <td className="p-16 font-mono text-xs text-text-secondary max-w-[200px] truncate" title={item.fileName}>
+                    <td className="p-12 font-mono text-xs text-text-secondary max-w-[160px] truncate" title={item.fileName}>
                       {item.fileName}
                     </td>
-                    <td className="p-16 text-text-secondary whitespace-nowrap text-xs">
+                    <td className="p-12 text-text-secondary whitespace-nowrap text-xs">
                       {formatExportDate(item.timestamp)}
                     </td>
-                    <td className="p-16 text-right whitespace-nowrap">
+                    <td className="p-12 text-right whitespace-nowrap">
                       <span className="cg-badge cg-badge--neutral font-mono">
-                        {item.rowCount.toLocaleString('id-ID')} baris
+                        {item.rowCount.toLocaleString('id-ID')}
                       </span>
                     </td>
-                    <td className="p-16 text-right whitespace-nowrap text-text-primary font-medium">
+                    <td className="p-12 text-right whitespace-nowrap text-text-primary font-medium text-xs">
                       {formatFileSize(item.sizeBytes)}
                     </td>
-                    <td className="p-16 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-8">
+                    <td className="p-12 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-4">
+                        {item.csvContent && (
+                          <button
+                            type="button"
+                            className="cg-btn cg-btn--primary cg-btn--sm"
+                            onClick={() => handleRedownload(item)}
+                            title={`Unduh ulang ${item.fileName}`}
+                            aria-label={`Unduh ulang ${item.fileName}`}
+                          >
+                            <Download className="cg-icon" aria-hidden />
+                            <span>Unduh CSV</span>
+                          </button>
+                        )}
                         {item.sourceUrl ? (
                           <Link
                             href={item.sourceUrl}
                             className="cg-btn cg-btn--secondary cg-btn--sm"
                             title="Buka halaman laporan untuk mengunduh ulang data terkini"
                           >
-                            <span>Buka Laporan</span>
-                            <ArrowUpRight className="w-[12px] h-[12px] ml-4" aria-hidden />
+                            <span>Laporan</span>
+                            <ArrowUpRight className="cg-icon" aria-hidden />
                           </Link>
-                        ) : (
+                        ) : !item.csvContent ? (
                           <span className="text-text-muted text-xs italic">-</span>
-                        )}
+                        ) : null}
                         <button
                           type="button"
                           className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
@@ -318,14 +339,25 @@ export default function ExportHistoryPage() {
                   <span className="font-medium text-text-primary">{formatFileSize(item.sizeBytes)}</span>
                 </div>
 
-                <div className="flex items-center justify-end gap-8 pt-4">
+                <div className="flex flex-wrap items-center justify-end gap-8 pt-4">
+                  {item.csvContent && (
+                    <button
+                      type="button"
+                      className="cg-btn cg-btn--primary cg-btn--sm flex-1 justify-center"
+                      onClick={() => handleRedownload(item)}
+                      aria-label={`Unduh ulang ${item.fileName}`}
+                    >
+                      <Download className="cg-icon" aria-hidden />
+                      <span>Unduh CSV</span>
+                    </button>
+                  )}
                   {item.sourceUrl && (
                     <Link
                       href={item.sourceUrl}
                       className="cg-btn cg-btn--secondary cg-btn--sm flex-1 justify-center"
                     >
                       <span>Buka Laporan</span>
-                      <ArrowUpRight className="w-[12px] h-[12px] ml-4" aria-hidden />
+                      <ArrowUpRight className="cg-icon" aria-hidden />
                     </Link>
                   )}
                   <button

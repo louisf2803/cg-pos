@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import { buildTaxReport, formatRp, toCsv, type TaxRow } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useReport } from '@/lib/use-report';
 
 const money = (n: number) => (n < 0 ? `-${formatRp(-n)}` : formatRp(n));
@@ -18,8 +19,14 @@ export default function TaxReportPage() {
     const head = ['Kelompok', 'Transaksi', 'Setelah diskon', 'Biaya layanan', 'Pajak', 'Pembulatan', 'Total'];
     const line = (r: TaxRow) => [r.label, r.count, r.afterDiscount, r.serviceCharge, r.tax, r.rounding, r.total];
     const rows: (string | number)[][] = [head, ...report.byDay.map(line), [], ['Jenis order', ...head.slice(1)], ...report.byType.map(line), [], line(report.totals)];
-    const url = URL.createObjectURL(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = `pajak-${range.label.replace(/ sampai /, '_')}.csv`; a.click(); URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `pajak-${range.label.replace(/ sampai /, '_')}.csv`,
+      csvContent: toCsv(rows),
+      reportName: 'Laporan Pajak & Biaya Layanan',
+      period: range.label,
+      rowCount: report.byDay.length,
+      sourceUrl: '/laporan/pajak',
+    });
   }
 
   return (

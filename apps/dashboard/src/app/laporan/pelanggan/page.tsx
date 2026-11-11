@@ -11,6 +11,7 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { useReport } from '@/lib/use-report';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 
 type SortOption = 'spend' | 'frequency' | 'points' | 'recent' | 'name';
@@ -218,13 +219,14 @@ export default function LaporanPelanggan() {
     }
 
     const csvContent = toCsv(rows);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-pelanggan-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-pelanggan-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent,
+      reportName: 'Laporan Pelanggan',
+      period: range.label,
+      rowCount: filteredList.length,
+      sourceUrl: '/laporan/pelanggan',
+    });
   }
 
   const isLoading = ctx.status === 'loading' || state.status === 'loading' || customersState.status === 'loading';
