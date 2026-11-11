@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  accountProblem, agingBucket, balanceSheetOf, balanceSheetTotals, cashFlowOf, createFakeData, incomeStatementOf, journalProblem, ledgerOf, newId, payablesBySupplier, sourceLabel,
-  trialBalanceOf, type Account, type FinLine,
+  accountProblem, agingBucket, balanceSheetOf, balanceSheetTotals, buildReceivables, cashFlowOf, createFakeData, incomeStatementOf, journalProblem, ledgerOf, newId, payablesBySupplier, receivablesByCustomer, sourceLabel,
+  trialBalanceOf, type Account, type Customer, type FinLine, type Order,
 } from '../src';
 
 const mk = () => { const d = createFakeData({ now: () => new Date('2026-11-09T05:00:00Z') }); d.reset(); return d; };
@@ -78,6 +78,41 @@ describe('keuangan: laporan dari baris jurnal', () => {
     expect(t.map((x) => x.supplierName)).toEqual(['B', 'A']);
     expect(t[1]).toMatchObject({ count: 2, outstanding: 150, overdue: 50 });
     expect(sourceLabel('sale')).toBe('Penjualan'); expect(sourceLabel('zzz')).toBe('zzz');
+  });
+  it('piutang pelanggan: kelompok umur dan ringkasan per pelanggan', () => {
+    const customers: Customer[] = [
+      { id: 'c1', name: 'Budi Santoso', phone: '08123456789', pointsBalance: 0, createdAt: '2026-01-01T00:00:00Z' },
+    ];
+    const orders: Order[] = [
+      {
+        id: 'o1', number: 'ORD-01', type: 'dine_in', customerId: 'c1', customerName: 'Budi', cashierId: 'e1',
+        status: 'partially_paid', items: [], subtotal: 100_000, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0,
+        total: 100_000, paidTotal: 40_000, payments: [], openedAt: '2026-10-01T05:00:00Z',
+      },
+      {
+        id: 'o2', number: 'ORD-02', type: 'takeaway', label: 'Meja 3 / Kasbon', cashierId: 'e1',
+        status: 'open', items: [], subtotal: 50_000, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0,
+        total: 50_000, paidTotal: 0, payments: [], openedAt: '2026-11-09T03:00:00Z',
+      },
+      {
+        id: 'o3', number: 'ORD-03', type: 'dine_in', customerId: 'c1', cashierId: 'e1',
+        status: 'paid', items: [], subtotal: 75_000, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0,
+        total: 75_000, paidTotal: 75_000, payments: [], openedAt: '2026-11-08T03:00:00Z',
+      },
+      {
+        id: 'o4', number: 'ORD-04', type: 'takeaway', customerId: 'c1', cashierId: 'e1',
+        status: 'open', items: [], subtotal: 20_000, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0,
+        total: 20_000, paidTotal: 0, payments: [], openedAt: '2026-11-12T03:00:00Z',
+      },
+    ];
+    const rows = buildReceivables(orders, customers, 'Asia/Jakarta', '2026-11-09');
+    expect(rows.map((r) => r.orderNumber)).toEqual(['ORD-01', 'ORD-02']);
+    expect(rows[0]).toMatchObject({ customerName: 'Budi Santoso', phone: '08123456789', outstanding: 60_000, daysAged: 39 });
+    expect(rows[1]).toMatchObject({ customerName: 'Meja 3 / Kasbon', outstanding: 50_000, daysAged: 0 });
+    const byCust = receivablesByCustomer(rows);
+    expect(byCust).toHaveLength(2);
+    expect(byCust[0]).toMatchObject({ customerName: 'Budi Santoso', count: 1, outstanding: 60_000, over30Days: 60_000 });
+    expect(byCust[1]).toMatchObject({ customerName: 'Meja 3 / Kasbon', count: 1, outstanding: 50_000, over30Days: 0 });
   });
 });
 

@@ -1,23 +1,30 @@
 'use client';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Download } from 'lucide-react';
 import {
   agingBucket,
   AGING_BUCKETS,
+  buildReceivables,
   computeIndirectCashFlow,
   formatRp,
+  orderTypeLabel,
   payablesBySupplier,
+  RECEIVABLE_AGING_BUCKETS,
+  receivablesByCustomer,
   sourceLabel,
+  toCsv,
   type IndirectCashFlow,
   type StatementRow,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync, type AsyncState } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { DateSpan, firstOfMonth, fmtDate, todayKey } from '@/components/fin-common';
 
 type Tab = 'laba-rugi' | 'neraca' | 'neraca-saldo' | 'arus-kas' | 'hutang';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'laba-rugi', label: 'Laba rugi' }, { id: 'neraca', label: 'Neraca' }, { id: 'neraca-saldo', label: 'Neraca saldo' }, { id: 'arus-kas', label: 'Arus kas' }, { id: 'hutang', label: 'Hutang' },
+  { id: 'laba-rugi', label: 'Laba rugi' }, { id: 'neraca', label: 'Neraca' }, { id: 'neraca-saldo', label: 'Neraca saldo' }, { id: 'arus-kas', label: 'Arus kas' }, { id: 'hutang', label: 'Hutang & piutang' },
 ];
 
 const money = (n: number) => (n < 0 ? `(${formatRp(-n)})` : formatRp(n));
@@ -442,29 +449,313 @@ function CashFlowIndirectView({ cf }: { cf: IndirectCashFlow }) {
 function Payables() {
   const data = useData();
   const [asOf, setAsOf] = useState(todayKey());
-  const state = useAsync(() => data.payablesAging(asOf), [data, asOf]);
-  const buckets = useMemo(() => (state.status === 'ready' ? AGING_BUCKETS.map((_, i) => state.data.filter((r) => agingBucket(r.daysOverdue) === i).reduce((n, r) => n + r.outstanding, 0)) : []), [state]);
+  const [scope, setScope] = useState<'all' | 'payable' | 'receivable'>('all');
+  const [search, setSearch] = useState('');
+
+  const state = useAsync(async () => {
+    const [ctx, payables, openOrders, partOrders, customers] = await Promise.all([
+      data.getContext(),
+      data.payablesAging(asOf),
+      data.listOrders({ status: 'open', all: true }),
+      data.listOrders({ status: 'partially_paid', all: true }),
+      data.listCustomers(),
+    ]);
+    const receivables = buildReceivables([...openOrders, ...partOrders], customers, ctx.timezone, asOf);
+    return { payables, receivables };
+  }, [data, asOf]);
+
+  const needle = search.trim().toLowerCase();
+  const payables = useMemo(() => {
+    if (state.status !== 'ready') return [];
+    if (!needle) return state.data.payables;
+    return state.data.payables.filter(
+      (r) => r.supplierName.toLowerCase().includes(needle) || r.number.toLowerCase().includes(needle),
+    );
+  }, [state, needle]);
+
+  const receivables = useMemo(() => {
+    if (state.status !== 'ready') return [];
+    if (!needle) return state.data.receivables;
+    return state.data.receivables.filter(
+      (r) =>
+        r.customerName.toLowerCase().includes(needle)
+        || (r.phone ?? '').toLowerCase().includes(needle)
+        || r.orderNumber.toLowerCase().includes(needle),
+    );
+  }, [state, needle]);
+
+  const payableBuckets = useMemo(
+    () => AGING_BUCKETS.map((_, i) => payables.filter((r) => agingBucket(r.daysOverdue) === i).reduce((n, r) => n + r.outstanding, 0)),
+    [payables],
+  );
+  const receivableBuckets = useMemo(
+    () => RECEIVABLE_AGING_BUCKETS.map((_, i) => receivables.filter((r) => agingBucket(r.daysAged) === i).reduce((n, r) => n + r.outstanding, 0)),
+    [receivables],
+  );
+
+  function exportCsv() {
+    if (state.status !== 'ready') return;
+    const csvRows: (string | number)[][] = [
+      ['Jenis', 'Pihak (Pemasok/Pelanggan)', 'Nomor Dokumen', 'Tanggal / Jatuh Tempo', 'Status / Umur', 'Total Tagihan', 'Sudah Dibayar', 'Sisa Belum Lunas'],
+    ];
+    if (scope !== 'receivable') {
+      for (const r of payables) {
+        csvRows.push([
+          'Hutang pemasok',
+          r.supplierName,
+          r.number,
+          r.dueDate ?? '-',
+          r.daysOverdue > 0 ? `Terlambat ${r.daysOverdue} hari` : 'Belum jatuh tempo',
+          r.outstanding,
+          0,
+          r.outstanding,
+        ]);
+      }
+    }
+    if (scope !== 'payable') {
+      for (const r of receivables) {
+        csvRows.push([
+          'Piutang pelanggan',
+          r.customerName,
+          r.orderNumber,
+          r.dateKey,
+          `${r.status === 'partially_paid' ? 'Bayar sebagian' : 'Belum dibayar'} (${r.daysAged} hari)`,
+          r.total,
+          r.paid,
+          r.outstanding,
+        ]);
+      }
+    }
+    downloadCsvWithHistory({
+      fileName: `hutang-piutang-${asOf}.csv`,
+      csvContent: toCsv(csvRows),
+      reportName: 'Laporan hutang & piutang',
+      period: `Per ${asOf}`,
+      rowCount: Math.max(0, csvRows.length - 1),
+      sourceUrl: '/keuangan/laporan?tab=hutang',
+    });
+  }
+
   return (
     <>
-      <div className="flex flex-wrap gap-12 mb-16 items-end"><div className="cg-field"><label className="cg-label" htmlFor="ht-tgl">Per tanggal</label>
-        <input id="ht-tgl" type="date" className="cg-input" value={asOf} onChange={(e) => e.target.value && setAsOf(e.target.value)} /></div></div>
-      <Wait state={state}>{(rows) => {
-        if (rows.length === 0) return <div className="cg-empty"><p><strong>Tidak ada hutang yang belum lunas.</strong></p><p className="text-text-muted">Hutang muncul dari faktur pembelian yang belum dibayar penuh.</p></div>;
-        const total = rows.reduce((n, r) => n + r.outstanding, 0), by = payablesBySupplier(rows);
+      <div className="flex flex-wrap gap-12 mb-16 items-end justify-between">
+        <div className="flex flex-wrap gap-12 items-end grow">
+          <div className="cg-field">
+            <label className="cg-label" htmlFor="ht-tgl">Per tanggal</label>
+            <input id="ht-tgl" type="date" className="cg-input" value={asOf} onChange={(e) => e.target.value && setAsOf(e.target.value)} />
+          </div>
+          <div className="cg-field grow" style={{ minWidth: 200, maxWidth: 320 }}>
+            <label className="cg-label" htmlFor="ht-cari">Cari pemasok / pelanggan / nomor</label>
+            <input id="ht-cari" className="cg-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nama atau nomor dokumen" />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="cg-btn cg-btn--secondary"
+          disabled={state.status !== 'ready' || (payables.length === 0 && receivables.length === 0)}
+          onClick={exportCsv}
+        >
+          <Download className="cg-icon" aria-hidden /> Unduh CSV
+        </button>
+      </div>
+      <Wait state={state}>{() => {
+        const payTotal = payables.reduce((n, r) => n + r.outstanding, 0);
+        const payOverdue = payables.filter((r) => r.daysOverdue > 0).reduce((n, r) => n + r.outstanding, 0);
+        const recTotal = receivables.reduce((n, r) => n + r.outstanding, 0);
+        const recOver30 = receivables.filter((r) => r.daysAged > 30).reduce((n, r) => n + r.outstanding, 0);
+        const payBySup = payablesBySupplier(payables);
+        const recByCust = receivablesByCustomer(receivables);
+
         return (
-          <div className="grid gap-16">
-            <p data-testid="ht-total">Total hutang <strong className="cg-num">{formatRp(total)}</strong> dari {rows.length} faktur</p>
-            <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }} aria-label="Umur hutang">
-              {AGING_BUCKETS.map((l, i) => <div key={l} className="p-8" style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}><div className="text-sm text-text-muted">{l}</div><div className="cg-num"><strong>{formatRp(buckets[i] ?? 0)}</strong></div></div>)}
+          <div className="grid gap-20 min-w-0">
+            <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-12">
+              <div className="p-16 bg-surface-raised border border-border rounded-lg">
+                <span className="text-sm text-text-muted block">Total hutang pemasok</span>
+                <strong className="text-lg cg-num block mt-4" data-testid="ht-total">{formatRp(payTotal)}</strong>
+                <span className="text-xs text-text-muted">{payables.length} faktur belum lunas</span>
+              </div>
+              <div className="p-16 bg-surface-raised border border-border rounded-lg">
+                <span className="text-sm text-text-muted block">Hutang lewat tempo</span>
+                <strong className={`text-lg cg-num block mt-4 ${payOverdue > 0 ? 'text-danger-strong' : ''}`}>{formatRp(payOverdue)}</strong>
+                <span className="text-xs text-text-muted">{payables.filter((r) => r.daysOverdue > 0).length} faktur terlambat</span>
+              </div>
+              <div className="p-16 bg-surface-raised border border-border rounded-lg">
+                <span className="text-sm text-text-muted block">Total piutang pelanggan</span>
+                <strong className="text-lg cg-num block mt-4" data-testid="piutang-total">{formatRp(recTotal)}</strong>
+                <span className="text-xs text-text-muted">{receivables.length} tagihan belum lunas</span>
+              </div>
+              <div className="p-16 bg-surface-raised border border-border rounded-lg">
+                <span className="text-sm text-text-muted block">Piutang &gt; 30 hari</span>
+                <strong className={`text-lg cg-num block mt-4 ${recOver30 > 0 ? 'text-danger-strong' : ''}`}>{formatRp(recOver30)}</strong>
+                <span className="text-xs text-text-muted">{receivables.filter((r) => r.daysAged > 30).length} tagihan berumur &gt; 30 hari</span>
+              </div>
             </div>
-            <section className="min-w-0"><h2 className="text-base mb-8">Per pemasok</h2><div className="cg-data-wrap"><table className="cg-data" aria-label="Hutang per pemasok">
-              <thead><tr><th>Pemasok</th><th className="text-right">Faktur</th><th className="text-right">Sisa hutang</th><th className="text-right">Lewat tempo</th></tr></thead>
-              <tbody>{by.map((s) => <tr key={s.supplierName}><td className="break-words max-w-[260px]"><strong>{s.supplierName}</strong></td><td className="text-right cg-num">{s.count}</td><td className="text-right cg-num">{formatRp(s.outstanding)}</td><td className="text-right cg-num">{s.overdue ? formatRp(s.overdue) : '—'}</td></tr>)}</tbody></table></div></section>
-            <section className="min-w-0"><h2 className="text-base mb-8">Per faktur</h2><div className="cg-data-wrap"><table className="cg-data" aria-label="Hutang per faktur">
-              <thead><tr><th>Faktur</th><th>Jatuh tempo</th><th className="text-right">Sisa</th><th className="text-right">Terlambat</th></tr></thead>
-              <tbody>{rows.map((r) => <tr key={r.invoiceId}><td className="break-words max-w-[240px]"><strong>{r.number}</strong><span className="block text-sm text-text-muted">{r.supplierName}</span></td><td className="text-sm whitespace-nowrap">{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>
-                <td className="text-right cg-num">{formatRp(r.outstanding)}</td><td className="text-right">{r.daysOverdue > 0 ? <span className="cg-badge cg-badge--danger">{r.daysOverdue} hari</span> : '—'}</td></tr>)}</tbody></table></div></section>
-            <p className="text-sm text-text-muted">Piutang pelanggan belum ada: semua penjualan di CG POS dibayar saat transaksi, jadi tidak ada tagihan ke pelanggan.</p>
+
+            <div className="flex flex-wrap gap-8" role="group" aria-label="Filter bagian hutang atau piutang">
+              <button type="button" className="cg-chip" aria-pressed={scope === 'all'} onClick={() => setScope('all')}>
+                Semua ({payables.length + receivables.length})
+              </button>
+              <button type="button" className="cg-chip" aria-pressed={scope === 'payable'} onClick={() => setScope('payable')}>
+                Hutang pemasok ({payables.length})
+              </button>
+              <button type="button" className="cg-chip" aria-pressed={scope === 'receivable'} onClick={() => setScope('receivable')}>
+                Piutang pelanggan ({receivables.length})
+              </button>
+            </div>
+
+            {scope !== 'receivable' && (
+              <section className="grid gap-16 min-w-0" aria-labelledby="h-hutang-pemasok">
+                <h2 id="h-hutang-pemasok" className="text-lg font-semibold">Hutang per pemasok &amp; faktur</h2>
+                {payables.length === 0 ? (
+                  <div className="cg-empty">
+                    <p><strong>Tidak ada hutang usaha yang belum lunas.</strong></p>
+                    <p className="text-text-muted">Hutang muncul dari faktur pembelian yang belum dibayar penuh per tanggal {fmtDate(asOf)}.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }} aria-label="Umur hutang">
+                      {AGING_BUCKETS.map((l, i) => (
+                        <div key={l} className="p-12 bg-surface-raised border border-border rounded-md">
+                          <div className="text-sm text-text-muted">{l}</div>
+                          <div className="cg-num"><strong>{formatRp(payableBuckets[i] ?? 0)}</strong></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-medium mb-8">Per pemasok</h3>
+                      <div className="cg-data-wrap">
+                        <table className="cg-data" aria-label="Hutang per pemasok">
+                          <thead><tr><th>Pemasok</th><th className="text-right">Faktur</th><th className="text-right">Sisa hutang</th><th className="text-right">Lewat tempo</th></tr></thead>
+                          <tbody>
+                            {payBySup.map((s) => (
+                              <tr key={s.supplierName}>
+                                <td className="break-words max-w-[260px]"><strong>{s.supplierName}</strong></td>
+                                <td className="text-right cg-num">{s.count}</td>
+                                <td className="text-right cg-num">{formatRp(s.outstanding)}</td>
+                                <td className="text-right cg-num">{s.overdue ? formatRp(s.overdue) : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-medium mb-8">Per faktur</h3>
+                      <div className="cg-data-wrap">
+                        <table className="cg-data" aria-label="Hutang per faktur">
+                          <thead><tr><th>Faktur</th><th>Jatuh tempo</th><th className="text-right">Sisa</th><th className="text-right">Terlambat</th></tr></thead>
+                          <tbody>
+                            {payables.map((r) => (
+                              <tr key={r.invoiceId}>
+                                <td className="break-words max-w-[240px]"><strong>{r.number}</strong><span className="block text-sm text-text-muted">{r.supplierName}</span></td>
+                                <td className="text-sm whitespace-nowrap">{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>
+                                <td className="text-right cg-num">{formatRp(r.outstanding)}</td>
+                                <td className="text-right">{r.daysOverdue > 0 ? <span className="cg-badge cg-badge--danger">{r.daysOverdue} hari</span> : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
+
+            {scope !== 'payable' && (
+              <section className="grid gap-16 min-w-0" aria-labelledby="h-piutang-pelanggan">
+                <h2 id="h-piutang-pelanggan" className="text-lg font-semibold">Piutang per pelanggan &amp; transaksi</h2>
+                {receivables.length === 0 ? (
+                  <div className="cg-empty">
+                    <p><strong>Tidak ada piutang pelanggan yang belum lunas.</strong></p>
+                    <p className="text-text-muted">Piutang muncul dari transaksi kasbon, tagihan terbuka, atau pembayaran sebagian per tanggal {fmtDate(asOf)}.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid gap-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }} aria-label="Umur piutang">
+                      {RECEIVABLE_AGING_BUCKETS.map((l, i) => (
+                        <div key={l} className="p-12 bg-surface-raised border border-border rounded-md">
+                          <div className="text-sm text-text-muted">{l}</div>
+                          <div className="cg-num"><strong>{formatRp(receivableBuckets[i] ?? 0)}</strong></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-medium mb-8">Per pelanggan</h3>
+                      <div className="cg-data-wrap">
+                        <table className="cg-data" aria-label="Piutang per pelanggan">
+                          <thead>
+                            <tr>
+                              <th>Pelanggan</th>
+                              <th className="text-right">Tagihan</th>
+                              <th className="text-right">Nilai total</th>
+                              <th className="text-right">Terbayar</th>
+                              <th className="text-right">Sisa piutang</th>
+                              <th className="text-right">&gt; 30 hari</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recByCust.map((c) => (
+                              <tr key={c.customerKey}>
+                                <td className="break-words max-w-[260px]">
+                                  <strong>{c.customerName}</strong>
+                                  {c.phone && <span className="block text-sm text-text-muted">{c.phone}</span>}
+                                </td>
+                                <td className="text-right cg-num">{c.count}</td>
+                                <td className="text-right cg-num whitespace-nowrap">{formatRp(c.total)}</td>
+                                <td className="text-right cg-num whitespace-nowrap">{formatRp(c.paid)}</td>
+                                <td className="text-right cg-num whitespace-nowrap font-semibold">{formatRp(c.outstanding)}</td>
+                                <td className="text-right cg-num whitespace-nowrap">{c.over30Days > 0 ? formatRp(c.over30Days) : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-medium mb-8">Per transaksi belum lunas</h3>
+                      <div className="cg-data-wrap">
+                        <table className="cg-data" aria-label="Piutang per transaksi">
+                          <thead>
+                            <tr>
+                              <th>Pesanan / Pelanggan</th>
+                              <th>Tanggal</th>
+                              <th>Status</th>
+                              <th className="text-right">Total</th>
+                              <th className="text-right">Sisa</th>
+                              <th className="text-right">Umur</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {receivables.map((r) => (
+                              <tr key={r.orderId}>
+                                <td className="break-words max-w-[240px]">
+                                  <strong>{r.orderNumber}</strong>
+                                  <span className="block text-sm text-text-muted">{r.customerName} · {orderTypeLabel(r.orderType)}</span>
+                                </td>
+                                <td className="text-sm whitespace-nowrap">{fmtDate(r.dateKey)}</td>
+                                <td>
+                                  <span className={`cg-badge ${r.status === 'partially_paid' ? 'cg-badge--warning' : ''}`}>
+                                    {r.status === 'partially_paid' ? 'Bayar sebagian' : 'Belum dibayar'}
+                                  </span>
+                                </td>
+                                <td className="text-right cg-num whitespace-nowrap">{formatRp(r.total)}</td>
+                                <td className="text-right cg-num whitespace-nowrap font-semibold">{formatRp(r.outstanding)}</td>
+                                <td className="text-right whitespace-nowrap">
+                                  {r.daysAged > 30
+                                    ? <span className="cg-badge cg-badge--danger">{r.daysAged} hari</span>
+                                    : <span className="text-sm text-text-muted">{r.daysAged} hari</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
           </div>
         );
       }}</Wait>

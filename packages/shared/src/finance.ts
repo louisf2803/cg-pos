@@ -1,4 +1,6 @@
 /** Keuangan: daftar akun, jurnal, buku besar, dan laporan. Rumus laporan sama dengan fungsi server `report_*` (dibaca dari jurnal terposting dan yang di-void). */
+import { localDateKey } from './order-number';
+import type { Customer, Order } from './types';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -199,6 +201,105 @@ export function payablesBySupplier(rows: PayableRow[]): PayableSupplierTotal[] {
 /** Kelompok umur hutang: belum jatuh tempo, 1-30, 31-60, lebih dari 60 hari. */
 export const AGING_BUCKETS = ['Belum jatuh tempo', '1–30 hari', '31–60 hari', 'Lebih dari 60 hari'] as const;
 export function agingBucket(daysOverdue: number): number { return daysOverdue <= 0 ? 0 : daysOverdue <= 30 ? 1 : daysOverdue <= 60 ? 2 : 3; }
+
+export interface ReceivableRow {
+  customerKey: string;
+  customerId?: string;
+  customerName: string;
+  phone?: string;
+  orderId: string;
+  orderNumber: string;
+  orderType: Order['type'];
+  status: 'open' | 'partially_paid';
+  dateKey: string;
+  total: number;
+  paid: number;
+  outstanding: number;
+  daysAged: number;
+}
+export interface ReceivableCustomerTotal {
+  customerKey: string;
+  customerId?: string;
+  customerName: string;
+  phone?: string;
+  count: number;
+  total: number;
+  paid: number;
+  outstanding: number;
+  over30Days: number;
+}
+/** Kelompok umur piutang pelanggan: hari ini, 1-30, 31-60, lebih dari 60 hari sejak pesanan dibuka. */
+export const RECEIVABLE_AGING_BUCKETS = ['Hari ini (0 hari)', '1–30 hari', '31–60 hari', 'Lebih dari 60 hari'] as const;
+
+function calendarDaysBetween(fromDateKey: string, toDateKey: string): number {
+  const fromMs = Date.parse(`${fromDateKey}T00:00:00Z`);
+  const toMs = Date.parse(`${toDateKey}T00:00:00Z`);
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return 0;
+  return Math.round((toMs - fromMs) / 86_400_000);
+}
+
+/** Menghitung rincian piutang pelanggan dari pesanan yang belum lunas (`open` / `partially_paid`) per tanggal acuan. */
+export function buildReceivables(
+  orders: readonly Order[],
+  customers: readonly Customer[],
+  timezone: string,
+  asOf: string,
+): ReceivableRow[] {
+  const custById = new Map(customers.map((c) => [c.id, c]));
+  const rows: ReceivableRow[] = [];
+  for (const o of orders) {
+    if (o.status !== 'open' && o.status !== 'partially_paid') continue;
+    const outstanding = Math.max(0, o.total - o.paidTotal);
+    if (outstanding <= 0) continue;
+    const dateKey = localDateKey(new Date(o.openedAt), timezone);
+    if (dateKey > asOf) continue;
+    const cust = o.customerId ? custById.get(o.customerId) : undefined;
+    const customerName = cust?.name?.trim() || o.customerName?.trim() || o.label?.trim() || 'Pelanggan umum';
+    const customerKey = o.customerId ? `id:${o.customerId}` : `name:${customerName.toLowerCase()}`;
+    const daysAged = Math.max(0, calendarDaysBetween(dateKey, asOf));
+    rows.push({
+      customerKey,
+      ...(o.customerId ? { customerId: o.customerId } : {}),
+      customerName,
+      ...(cust?.phone ? { phone: cust.phone } : {}),
+      orderId: o.id,
+      orderNumber: o.number,
+      orderType: o.type,
+      status: o.status,
+      dateKey,
+      total: o.total,
+      paid: o.paidTotal,
+      outstanding,
+      daysAged,
+    });
+  }
+  return rows.sort((a, b) => b.daysAged - a.daysAged || b.outstanding - a.outstanding || a.orderNumber.localeCompare(b.orderNumber));
+}
+
+/** Meringkas saldo piutang per pelanggan (jumlah tagihan, total, terbayar, sisa, >30 hari). */
+export function receivablesByCustomer(rows: readonly ReceivableRow[]): ReceivableCustomerTotal[] {
+  const by = new Map<string, ReceivableCustomerTotal>();
+  for (const r of rows) {
+    const cur = by.get(r.customerKey) ?? {
+      customerKey: r.customerKey,
+      ...(r.customerId ? { customerId: r.customerId } : {}),
+      customerName: r.customerName,
+      ...(r.phone ? { phone: r.phone } : {}),
+      count: 0,
+      total: 0,
+      paid: 0,
+      outstanding: 0,
+      over30Days: 0,
+    };
+    cur.count += 1;
+    cur.total += r.total;
+    cur.paid += r.paid;
+    cur.outstanding += r.outstanding;
+    if (r.daysAged > 30) cur.over30Days += r.outstanding;
+    by.set(r.customerKey, cur);
+  }
+  return [...by.values()].sort((a, b) => b.outstanding - a.outstanding || a.customerName.localeCompare(b.customerName, 'id'));
+}
 
 /** Rentang tanggal laporan: bulan ini sampai hari ini. */
 export const monthStart = (isoDate: string) => `${isoDate.slice(0, 8)}01`;
