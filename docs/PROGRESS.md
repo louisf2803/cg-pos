@@ -1,4 +1,4 @@
-﻿# Catatan kemajuan CG POS (dibaca Louis saat bangun)
+# Catatan kemajuan CG POS (dibaca Louis saat bangun)
 
 Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 
@@ -820,3 +820,7 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   - **`apps/pos/src/screens/Sales.tsx` & `Orders.tsx`**: pemilih rentang (`Hari ini`/`7 hari`/`30 hari`), 4 KPI (termasuk `Total Refund` & `Penjualan Bersih`), tab `Penjualan`/`Void`/`Refund`, filter kasir/jenis/hanya refund/metode/pencarian, ekspor CSV, modal rincian transaksi beserta riwayat refund per order (`data.listRefunds`), serta detail void & riwayat refund pada panel `Orders.tsx` (`OrderDetailExtra`).
   - **Verifikasi A64**: lulus `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (73 berkas, 444 tes), `pnpm -F @cgpos/dashboard build`, `pnpm -F @cgpos/pos build`, `lint-tailwind.sh origin/main`, serta uji alur kasir + Void + Refund di Chrome (1280px & 390px, `docs/shots/a64/`, 0 overflow horizontal, 0 galat konsol).
 - S-review (Claude, 2026-11-12) — Louis menyetujui migrasi 0031 dan 0032; keduanya DITERAPKAN ke produksi (proyek Supabase "Menu Coffee Ground", insdyxlffzxjwpfmrxcj) lewat apply_migration tanpa begin/commit. 0033_roles belum disetujui, belum diterapkan. Perlu dicek kemudian: DataLayer/UI struk dan transfer kini bisa memakai kolom dan jenis jurnal baru.
+- A65 (Antigravity) — **POS: Mode Tampilan Dapur (KDS) per stasiun & kontrol mode berdasar hak akses** (`ag/a65-pos-kitchen-mode`):
+  - **`packages/shared/src/kitchen.ts` + tes (`kitchen.test.ts`)**: helper murni `PosAppMode`, `canSwitchPosAppMode`, `resolvePosAppMode`, `ticketAdvancePlan`, `KITCHEN_PREV`, dan `filterKitchenTickets`.
+  - **`apps/pos` (`KitchenDisplay.tsx`, `DeviceSettings.tsx`, `device-prefs.ts`, `Login.tsx`, `SideDrawer.tsx`, `Register.tsx`, `App.tsx`)**: tampilan dapur penuh layar langsung di POS (`kitchenBoard`, `kitchenSetStatus`, `listPrintStations`), penyaring stasiun (`Semua Stasiun` / `Dapur` / `Bar`), lajur status, pengingat waktu tunggu, aksi maju/mundur per item & per tiket, pengalih mode pada Login/SideDrawer yang menghormati hak akses (`owner`/`manager` bebas berpindah Kasir ↔ Layar Dapur; `cashier` mengikuti setelan `appMode` perangkat di `DeviceSettings`).
+  - **Verifikasi A65**: lulus `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (72 berkas, 442 tes), `pnpm -F @cgpos/dashboard build`, `pnpm -F @cgpos/pos build`, `lint-tailwind.sh main`, serta Playwright end-to-end di Chrome pada lebar 1280px & 390px (`docs/shots/a65/{1280,390}.png`, 0 overflow horizontal, 0 galat konsol).

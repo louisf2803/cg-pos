@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeData, filterRowsByStation, groupTickets, kitchenAlert, newId, thresholdsProblem, ticketLane, waitMinutes, type KitchenRow } from '../src';
+import {
+  canSwitchPosAppMode,
+  createFakeData,
+  filterKitchenTickets,
+  filterRowsByStation,
+  groupTickets,
+  KITCHEN_PREV,
+  kitchenAlert,
+  newId,
+  normalizePosAppMode,
+  resolvePosAppMode,
+  thresholdsProblem,
+  ticketAdvancePlan,
+  ticketLane,
+  waitMinutes,
+  type KitchenRow,
+} from '../src';
 
 const row = (p: Partial<KitchenRow>): KitchenRow => ({ itemId: newId(), orderId: 'o1', orderNumber: 'A-1', orderType: 'dine_in', name: 'Kopi', qty: 1, extras: [], status: 'new', sentAt: '2026-11-10T03:00:00.000Z', statusAt: '2026-11-10T03:00:00.000Z', ...p });
 
@@ -101,5 +117,51 @@ describe('dapur: data bohongan', () => {
     await expect(d.kitchenSetStatus([], 'ready')).rejects.toThrow(/Pilih baris/);
     await expect(d.kitchenSend('tidak-ada')).rejects.toThrow(/belum tersimpan/);
     expect(o.items).toHaveLength(2);
+  });
+});
+
+describe('dapur: mode POS & filter tiket', () => {
+  it('hak akses peran menentukan mode kasir vs layar dapur', () => {
+    expect(normalizePosAppMode('kitchen')).toBe('kitchen');
+    expect(normalizePosAppMode('lain')).toBe('register');
+    expect(canSwitchPosAppMode('owner')).toBe(true);
+    expect(canSwitchPosAppMode('manager')).toBe(true);
+    expect(canSwitchPosAppMode('cashier')).toBe(false);
+
+    // Pemilik/manajer bebas memilih mode pada saat masuk; kasir mengikuti mode perangkat.
+    expect(resolvePosAppMode('manager', 'register', 'kitchen')).toBe('kitchen');
+    expect(resolvePosAppMode('owner', 'kitchen', 'register')).toBe('register');
+    expect(resolvePosAppMode('cashier', 'register', 'kitchen')).toBe('register');
+    expect(resolvePosAppMode('cashier', 'kitchen', 'register')).toBe('kitchen');
+  });
+
+  it('ticketAdvancePlan memilih item pada lajur terawal tiket saja', () => {
+    const t = groupTickets([
+      row({ itemId: 'i1', status: 'new', name: 'Espresso' }),
+      row({ itemId: 'i2', status: 'ready', name: 'Teh' }),
+    ])[0]!;
+    expect(ticketAdvancePlan(t)).toEqual({
+      itemIds: ['i1'],
+      nextStatus: 'preparing',
+      label: 'Mulai olah',
+    });
+
+    const allServed = groupTickets([row({ itemId: 'i3', status: 'served', name: 'Kopi' })])[0]!;
+    expect(ticketAdvancePlan(allServed)).toBeNull();
+    expect(KITCHEN_PREV.ready).toBe('preparing');
+  });
+
+  it('filterKitchenTickets menyaring menurut lajur, nomor, meja, dan catatan item', () => {
+    const t1 = groupTickets([
+      row({ orderId: 'o1', orderNumber: 'OUT1/001', tableName: 'A1', name: 'Kopi', note: 'less ice', status: 'new' }),
+    ])[0]!;
+    const t2 = groupTickets([
+      row({ orderId: 'o2', orderNumber: 'OUT1/002', label: 'Budi', name: 'Matcha', status: 'preparing' }),
+    ])[0]!;
+
+    expect(filterKitchenTickets([t1, t2], { lane: 'preparing' })).toEqual([t2]);
+    expect(filterKitchenTickets([t1, t2], { query: 'less ice' })).toEqual([t1]);
+    expect(filterKitchenTickets([t1, t2], { query: 'a1' })).toEqual([t1]);
+    expect(filterKitchenTickets([t1, t2], { query: 'budi' })).toEqual([t2]);
   });
 });

@@ -64,3 +64,73 @@ export function filterRowsByStation(rows: KitchenRow[], stationId?: string | nul
   return rows.filter((r) => r.stationId === stationId);
 }
 
+export type PosAppMode = 'register' | 'kitchen';
+
+/** Normalisasi mode aplikasi POS agar nilai asing kembali aman ke 'register'. */
+export function normalizePosAppMode(value: unknown): PosAppMode {
+  return value === 'kitchen' ? 'kitchen' : 'register';
+}
+
+/** Apakah peran ini boleh beralih bebas antara layar Kasir dan Layar Dapur di perangkat POS. */
+export function canSwitchPosAppMode(role: string): boolean {
+  const r = role.toLowerCase().trim();
+  return r === 'owner' || r === 'manager' || r === 'pemilik' || r === 'manajer';
+}
+
+/** Tentukan mode tampilan setelah masuk dengan PIN berdasar hak akses peran dan setelan perangkat. */
+export function resolvePosAppMode(
+  role: string,
+  deviceMode: PosAppMode = 'register',
+  requestedMode?: PosAppMode,
+): PosAppMode {
+  if (canSwitchPosAppMode(role)) {
+    return requestedMode ?? deviceMode;
+  }
+  return deviceMode;
+}
+
+/** Rencanakan satu langkah maju untuk seluruh item pada lajur terawal tiket dapur. */
+export function ticketAdvancePlan(
+  ticket: KitchenTicket,
+): { itemIds: string[]; nextStatus: KitchenStatus; label: string } | null {
+  const nextStatus = KITCHEN_NEXT[ticket.lane];
+  const label = KITCHEN_NEXT_LABEL[ticket.lane];
+  if (!nextStatus || !label) return null;
+  const itemIds = ticket.items.filter((it) => it.status === ticket.lane).map((it) => it.itemId);
+  if (itemIds.length === 0) return null;
+  return { itemIds, nextStatus, label };
+}
+
+/** Langkah mundur satu tahap untuk mengoreksi ketukan status item dapur yang keliru. */
+export const KITCHEN_PREV: Partial<Record<KitchenStatus, KitchenStatus>> = {
+  preparing: 'new',
+  ready: 'preparing',
+  served: 'ready',
+};
+
+/** Saring tiket dapur menurut lajur status dan kata kunci (nomor, meja, label, atau item). */
+export function filterKitchenTickets(
+  tickets: readonly KitchenTicket[],
+  opts: { query?: string; lane?: KitchenStatus | 'all' } = {},
+): KitchenTicket[] {
+  const q = (opts.query ?? '').trim().toLowerCase();
+  const lane = opts.lane ?? 'all';
+  return tickets.filter((t) => {
+    if (lane !== 'all' && t.lane !== lane) return false;
+    if (!q) return true;
+    return (
+      t.orderNumber.toLowerCase().includes(q) ||
+      (t.tableName ?? '').toLowerCase().includes(q) ||
+      (t.label ?? '').toLowerCase().includes(q) ||
+      (t.queueNo !== undefined && String(t.queueNo).includes(q)) ||
+      t.items.some(
+        (it) =>
+          it.name.toLowerCase().includes(q) ||
+          (it.note ?? '').toLowerCase().includes(q) ||
+          it.extras.some((ex) => ex.name.toLowerCase().includes(q)),
+      )
+    );
+  });
+}
+
+
