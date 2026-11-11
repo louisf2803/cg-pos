@@ -472,4 +472,11 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (56 file, 358 tes lulus).
      - `pnpm -F @cgpos/dashboard build` (117 halaman statis lolos).
      - Audit Playwright di 1440px, 1280px, dan 390px (0 overflow, 0 galat konsol; tangkapan layar di `docs/shots/a39/`).
+- Temuan (tugas A40): Laporan Penjualan per Terminal / Perangkat (`ag/a40-per-terminal`):
+  1. Pemeriksaan Lapisan Data (`DataLayer` & `Order` interface):
+     - Memeriksa antarmuka `Order` di `packages/shared/src/types.ts`: belum ada field `deviceCode` atau `deviceId` (hanya ada `id`, `number`, `type`, `tableId`, `customerId`, `shiftId`, `cashierId`, dll.).
+     - Meskipun kode perangkat disertakan di string nomor nota `number` (misal `OUT1-A-...`), identitas perangkat belum dipisahkan secara formal pada model data pesanan.
+     - Sesuai aturan monorepo dan instruksi eksplisit A40 ("Bila tidak ada di tipe Order, JANGAN mengubah data.ts: tulis temuanmu di PROGRESS.md (nama field yang dibutuhkan) lalu lewati tugas ini dan lanjut ke tugas berikutnya"):
+       - Permintaan data dicatat di `docs/REQUESTS-FOR-CLAUDE.md`: dibutuhkan field `deviceCode?: string` pada antarmuka `Order` dan kolom `device_code` pada tabel `orders` / `DataLayer`.
+       - Tugas A40 dilewati untuk saat ini dan langsung lanjut ke tugas A41.
 
