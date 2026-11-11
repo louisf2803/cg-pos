@@ -183,7 +183,7 @@ export default function ProductPeakHoursPage() {
                 <h2 className="text-base font-semibold flex items-center gap-8">
                   <Package className="w-[18px] h-[18px] text-accent-strong" aria-hidden /> Matriks intensitas penjualan (Produk × Jam)
                 </h2>
-                <p className="text-xs text-text-muted mt-2">
+                <p className="text-xs text-text-muted mt-[2px]">
                   Makin hijau makin ramai (volume penjualan lebih tinggi).
                 </p>
               </div>
@@ -217,7 +217,7 @@ export default function ProductPeakHoursPage() {
                   {report.topProducts.map((p, idx) => (
                     <tr key={p.productId} className="hover:bg-surface-raised/40 transition-colors">
                       <td className="py-8 px-12 sticky left-0 bg-surface z-10 font-semibold text-text truncate max-w-180 shadow-xs">
-                        <div className="flex items-center gap-6 truncate">
+                        <div className="flex items-center gap-[6px] truncate">
                           <span className="text-text-muted text-[10px] w-14 shrink-0">#{idx + 1}</span>
                           <span className="truncate" title={p.productName}>
                             {p.productName}
@@ -278,11 +278,11 @@ export default function ProductPeakHoursPage() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-surface-raised border-t-2 border-border font-bold text-text">
-                    <td className="py-10 px-12 sticky left-0 bg-surface-raised z-10 shadow-xs">Total per jam</td>
-                    <td className="py-10 px-8 text-right cg-num text-primary">{num(totalTopQty)}</td>
-                    <td className="py-10 px-8 text-center text-xs text-text-muted">—</td>
+                    <td className="py-[10px] px-12 sticky left-0 bg-surface-raised z-10 shadow-xs">Total per jam</td>
+                    <td className="py-[10px] px-8 text-right cg-num text-primary">{num(totalTopQty)}</td>
+                    <td className="py-[10px] px-8 text-center text-xs text-text-muted">—</td>
                     {report.hourlyTotals.map((h) => (
-                      <td key={h.hour} className="py-10 px-4 text-center font-mono cg-num text-[11px]">
+                      <td key={h.hour} className="py-[10px] px-4 text-center font-mono cg-num text-[11px]">
                         {h.qty > 0 ? h.qty : '·'}
                       </td>
                     ))}
@@ -372,7 +372,7 @@ function StatCard({
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-[6px] text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }

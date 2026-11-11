@@ -170,10 +170,10 @@ export default function StockTurnoverPage() {
 
           {/* Kotak Petunjuk Formula */}
           <div className="p-12 border border-border rounded-lg bg-surface flex items-start gap-10 text-xs text-text-muted">
-            <HelpCircle className="w-16 h-16 text-primary shrink-0 mt-2" aria-hidden />
+            <HelpCircle className="w-16 h-16 text-primary shrink-0 mt-[2px]" aria-hidden />
             <div>
               <strong>Cara membaca analisa perputaran stok:</strong>
-              <div className="mt-2 space-y-2">
+              <div className="mt-[2px] space-y-2">
                 <span>
                   • <strong>Rasio Perputaran (Turnover Ratio)</strong> = Kuantitas Terjual ÷ Stok Rata-rata. Semakin tinggi angka rasio, semakin cepat barang berputar.
                 </span>
@@ -402,7 +402,7 @@ function StatCard({
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-[6px] text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }

@@ -182,14 +182,14 @@ export default function SalesPeakHoursHeatmapPage() {
                 <h2 className="text-base font-semibold flex items-center gap-8">
                   <Flame className="w-[18px] h-[18px] text-accent-strong" aria-hidden /> Heatmap aktivitas penjualan (Hari × Jam)
                 </h2>
-                <p className="text-xs text-text-muted mt-2">
+                <p className="text-xs text-text-muted mt-[2px]">
                   Makin hijau makin ramai.
                 </p>
               </div>
 
               {/* Segmented Control Metrik (Transaksi vs Nominal) */}
               <div className="flex items-center gap-8 self-start tablet:self-auto">
-                <div className="inline-flex p-2 bg-surface border border-border rounded-lg text-xs" role="tablist" aria-label="Metrik heatmap. Navigasi keyboard dengan Tab, Enter, atau Spasi.">
+                <div className="inline-flex p-[2px] bg-surface border border-border rounded-lg text-xs" role="tablist" aria-label="Metrik heatmap. Navigasi keyboard dengan Tab, Enter, atau Spasi.">
                   <button
                     type="button"
                     role="tab"
@@ -235,13 +235,13 @@ export default function SalesPeakHoursHeatmapPage() {
                 <tbody className="divide-y divide-border">
                   {report.days.map((d) => (
                     <tr key={d.dayOfWeek} className="hover:bg-surface-raised/40 transition-colors">
-                      <td className="py-10 px-12 sticky left-0 bg-surface z-10 font-semibold text-text shadow-xs">
-                        <div className="flex items-center gap-6">
-                          <Calendar className="w-14 h-14 text-text-muted shrink-0" aria-hidden />
+                      <td className="py-[10px] px-12 sticky left-0 bg-surface z-10 font-semibold text-text shadow-xs">
+                        <div className="flex items-center gap-[6px]">
+                          <Calendar className="w-[14px] h-[14px] text-text-muted shrink-0" aria-hidden />
                           <span>{d.dayName}</span>
                         </div>
                       </td>
-                      <td className="py-10 px-8 text-right cg-num font-bold text-primary">
+                      <td className="py-[10px] px-8 text-right cg-num font-bold text-primary">
                         {metric === 'count' ? num(d.totalCount) : formatRp(d.totalSales)}
                       </td>
                       {d.cells.map((cell) => {
@@ -299,14 +299,14 @@ export default function SalesPeakHoursHeatmapPage() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-surface-raised border-t-2 border-border font-bold text-text">
-                    <td className="py-10 px-12 sticky left-0 bg-surface-raised z-10 shadow-xs">Total per jam</td>
-                    <td className="py-10 px-8 text-right cg-num text-primary">
+                    <td className="py-[10px] px-12 sticky left-0 bg-surface-raised z-10 shadow-xs">Total per jam</td>
+                    <td className="py-[10px] px-8 text-right cg-num text-primary">
                       {metric === 'count' ? num(report.overallTotals.count) : formatRp(report.overallTotals.total)}
                     </td>
                     {report.hourlyTotals.map((h) => {
                       const val = metric === 'count' ? h.count : h.total;
                       return (
-                        <td key={h.hour} className="py-10 px-4 text-center font-mono cg-num text-[11px]">
+                        <td key={h.hour} className="py-[10px] px-4 text-center font-mono cg-num text-[11px]">
                           {val > 0
                             ? metric === 'count'
                               ? h.count
@@ -325,7 +325,7 @@ export default function SalesPeakHoursHeatmapPage() {
             </div>
 
             {/* Mobile View (< 768px: Ringkasan Per Hari) */}
-            <div className="md:hidden divide-y divide-border min-w-0">
+            <div className="tablet:hidden divide-y divide-border min-w-0">
               <div className="p-12 bg-surface-raised text-xs text-text-muted font-medium">
                 Distribusi transaksi tiap hari dalam sepekan:
               </div>
@@ -392,7 +392,7 @@ function StatCard({
           {value}
         </strong>
       </div>
-      {subtext && <span className="text-xs text-text-muted block mt-6 text-left break-words leading-normal">{subtext}</span>}
+      {subtext && <span className="text-xs text-text-muted block mt-[6px] text-left break-words leading-normal">{subtext}</span>}
     </div>
   );
 }
