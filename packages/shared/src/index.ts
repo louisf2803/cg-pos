@@ -69,4 +69,5 @@ export * from './appointment';
 export * from './tiered-pricing';
 export * from './price-schedule';
 export * from './facility';
+export * from './payment-methods';
 

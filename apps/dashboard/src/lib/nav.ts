@@ -206,11 +206,11 @@ export const MODUL: NavModule[] = [
         label: 'Saluran Penjualan',
         icon: Globe,
         items: [
-          { href: '/order-online/mandiri', label: 'Order mandiri QR', screen: 'S65', tier: 3 },
-          { href: '/order-online/marketplace', label: 'Integrasi marketplace', screen: 'S66', tier: 3 },
-          { href: '/order-online/delivery', label: 'Pesan-antar makanan', screen: 'S67', tier: 3 },
-          { href: '/order-online/kios', label: 'Kios mandiri', screen: 'S68', tier: 3 },
-          { href: '/order-online/aplikasi', label: 'Aplikasi konsumen', screen: 'S69', tier: 3 },
+          { href: '/order-online/mandiri', label: 'Order mandiri QR', screen: 'S65', tier: 3, built: true },
+          { href: '/order-online/marketplace', label: 'Integrasi marketplace', screen: 'S66', tier: 3, built: true },
+          { href: '/order-online/delivery', label: 'Pesan-antar makanan', screen: 'S67', tier: 3, built: true },
+          { href: '/order-online/kios', label: 'Kios mandiri', screen: 'S68', tier: 3, built: true },
+          { href: '/order-online/aplikasi', label: 'Aplikasi konsumen', screen: 'S69', tier: 3, built: true },
         ],
       },
     ],
@@ -354,7 +354,7 @@ export const MODUL: NavModule[] = [
         items: [
           { href: '/pengaturan/biaya', label: 'Biaya dan pembulatan', screen: 'S39', tier: 1, built: true },
           { href: '/pengaturan/pajak', label: 'Pajak', screen: 'S40', tier: 1, built: true },
-          { href: '/pengaturan/metode-bayar', label: 'Metode pembayaran', screen: 'S40', tier: 2 },
+          { href: '/pengaturan/metode-bayar', label: 'Metode pembayaran', screen: 'S40', tier: 2, built: true },
         ],
       },
       {
