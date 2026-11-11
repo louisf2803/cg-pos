@@ -613,4 +613,21 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Lolos `pnpm -F @cgpos/shared test` (55 file, 346 tes lulus).
      - Lolos `pnpm -F @cgpos/dashboard build` (115 halaman statis).
      - Audit Playwright di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar tersimpan di `docs/shots/a47/`).
+- Selesai (tugas A48): Pengaturan Catatan Siap Pakai di Dashboard (`apps/dashboard`):
+  1. Halaman `/pengaturan/catatan`:
+     - Pengelompokan catatan per kategori (mis. Tingkat Pedas, Tingkat Manis, Es, Catatan Dapur, Kemasan) dengan lencana jumlah aktif per kategori.
+     - Pengelolaan catatan per baris: saklar aktif/nonaktif langsung, edit teks catatan & kategori modal, hapus catatan dengan konfirmasi modal.
+     - Tambah catatan baru (pilih kategori yang sudah ada atau ketik nama kategori baru) dan tambah kategori baru.
+     - Keadaan kosong ramah pengguna dengan tombol "Isi catatan contoh" (`SAMPLE_PRESETS` 13 catatan standar F&B).
+     - Pratinjau Interaktif Kasir di sebelah kanan: menampilkan live preview tombol chip catatan per kategori seperti di kasir dengan pengujian klik dan penanda aktif.
+     - Banner error penanganan kegagalan server.
+     - Perbaikan layout baris single-column (`grid-cols-1 gap-8`) sehingga teks catatan tidak terpotong (truncate).
+  2. Navigasi:
+     - `/pengaturan/catatan` ditandai `built: true` di `apps/dashboard/src/lib/nav.ts` (modul Pengaturan).
+  3. Kepatuhan & Uji:
+     - `pnpm -r typecheck` (0 galat)
+     - `pnpm -F @cgpos/shared test` (55 file, 346 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
+     - `bash scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard)
+     - Playwright audit di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a48/`).
 
