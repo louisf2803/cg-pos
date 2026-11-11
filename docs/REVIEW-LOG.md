@@ -7,3 +7,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=5d4427e | merge ag/a64-pos-void-refund (typecheck, 444 tes, build dashboard+pos, lint lulus); review: Laporan void di POS + Riwayat refund per transaksi => yes; antrean 0 terbuka
 2026-11-12 | main=22e3b45 | migrasi 0031+0032 diterapkan ke produksi atas persetujuan Louis; 0033 menunggu
 2026-11-12 | main=602fc08 | review: Buku besar pilih banyak akun => yes (bukti docs/evidence/buku-besar); catatan features.csv banyak yang basi, audit per fitur berlanjut
+2026-11-12 | main=7cbb08d | review: Arus kas, Penjualan bersih dan piutang, Atur kolom => yes (bukti docs/evidence); goal 6/72
