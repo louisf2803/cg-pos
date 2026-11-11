@@ -138,7 +138,7 @@ Produk fasilitas (jenis produk untuk reservasi fasilitas),produk,could,yes,parti
 Nomor transaksi berpola kode-outlet/tanggal/urutan,kasir,should,yes,yes,"dilihat di login (S81) | B1: urutan dicadangkan dari server per perangkat (reserveNumber), tabrakan dicoba ulang; format kode-outlet/perangkat/yymmdd/urutan diuji lewat tes kontrak SQL lokal (belum lewat login nyata)"
 "Neraca per tanggal dengan susunan aset, hutang, ekuitas",finance,should,yes,yes,"T2 | Per tanggal pilihan; urutan aset, kewajiban, ekuitas; total tiap bagian"
 Laba rugi dengan diskon dan retur sebagai akun kontra pendapatan,finance,should,yes,yes,T2 | Diskon penjualan dan retur penjualan tampil sebagai baris negatif di bagian pendapatan sehingga terlihat terpisah dari penjualan kotor
-Buku besar per akun dengan saldo berjalan dan pilih banyak akun,finance,should,yes,partial,"T2 | Satu akun per tampilan dengan saldo berjalan. Belum: pilih banyak akun sekaligus, ekspor"
+Buku besar per akun dengan saldo berjalan dan pilih banyak akun,finance,should,yes,yes,review: pilih banyak akun dan saldo berjalan dan unduh CSV (docs/evidence/buku-besar)
 Arus kas metode langsung dan tidak langsung dari akun,finance,could,yes,partial,T2 | Metode langsung (per sumber jurnal) saja. Belum: metode tidak langsung (dari laba bersih)
 Laporan hutang per pemasok dan piutang per pelanggan,finance,should,yes,partial,T2 | Hutang per pemasok dan per faktur lengkap dengan umur; piutang per pelanggan belum (tidak ada faktur penjualan)
 "Daftar akun: header dan detail, 15 kategori, akun sistem terkunci, aktif/nonaktif",finance,should,yes,yes,"T2 | 36 akun bawaan, 15 kelompok, akun induk tidak menerima jurnal, akun sistem hanya boleh diganti namanya, akun yang sudah punya jurnal tidak bisa pindah kelompok"

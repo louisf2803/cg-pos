@@ -138,7 +138,7 @@ Produk fasilitas (jenis produk untuk reservasi fasilitas),X,,Dibuang (reservasi 
 Nomor transaksi berpola kode-outlet/tanggal/urutan,-,,
 "Neraca per tanggal dengan susunan aset, hutang, ekuitas",-,,
 Laba rugi dengan diskon dan retur sebagai akun kontra pendapatan,-,,
-Buku besar per akun dengan saldo berjalan dan pilih banyak akun,A,,
+Buku besar per akun dengan saldo berjalan dan pilih banyak akun,A,docs/evidence/buku-besar,
 Arus kas metode langsung dan tidak langsung dari akun,A,,
 Laporan hutang per pemasok dan piutang per pelanggan,A,,
 "Daftar akun: header dan detail, 15 kategori, akun sistem terkunci, aktif/nonaktif",-,,
