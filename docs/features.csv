@@ -36,10 +36,10 @@ Pembayaran komplimen (gratis) dengan alasan,pembayaran,should,yes,yes,"Kasir: me
 Bayar dengan saldo deposit pelanggan,pembayaran,could,yes,no,artikel 70; T3
 "E-wallet langsung (Dana, Gopay, OVO, LinkAja, ShopeePay)",pembayaran,could,yes,no,"halaman fitur kasir; bisa lewat DOKU nanti, QRIS sudah mencakup sebagian besar"
 "Void order dengan otorisasi PIN atau kode, alasan, catatan",void dan refund,must,yes,yes,Void pesanan belum lunas: alasan + PIN manajer/pemilik atau kode otorisasi sekali pakai (migrasi 0020). Pesanan lunas lewat refund. Laporan void dengan catatan menunggu tugas Antigravity A3
-Laporan void di POS dengan filter dan detail,void dan refund,should,yes,partial,Antigravity A3: Laporan > Void di dashboard (bukan di POS) dengan filter dan detail
+Laporan void di POS dengan filter dan detail,void dan refund,should,yes,yes,review A64: POS Penjualan/Void/Refund + detail riwayat refund (docs/shots/a64)
 "Refund sebagian per item dengan metode, otorisasi, alasan",void dan refund,must,yes,yes,"Daftar Order > Lunas > Refund: jumlah per item, metode tunai/non-tunai, alasan, PIN manajer; server cek total <= dibayar. Laporan penjualan belum mengurangi refund"
 Refund: opsi kembalikan stok dan ongkos kirim,void dan refund,should,yes,partial,stok bisa dikembalikan; ongkos kirim belum (belum ada pesanan antar)
-Riwayat refund per transaksi,void dan refund,should,yes,partial,Antigravity A3: Laporan > Refund di dashboard. Riwayat di detail transaksi belum diuji dengan data nyata
+Riwayat refund per transaksi,void dan refund,should,yes,yes,review A64: POS Penjualan/Void/Refund + detail riwayat refund (docs/shots/a64)
 Refund QRIS lewat API DOKU,void dan refund,should,no,no,"fitur tambahan; endpoint refund ada di dokumentasi DOKU, aturan penerbit belum jelas"
 Terapkan program promo aktif ke order,promo,should,yes,yes,"T1/T2; artikel 263 | Tombol Diskon dan promo di panel pesanan: daftar promo aktif dengan potongan dan alasan bila tidak berlaku (jadwal, jenis order, belanja minimum, produk); beberapa diskon sekaligus; hitung ulang saat isi pesanan berubah"
 Terapkan kupon dengan kode dan nomor referensi,promo,should,yes,partial,"artikel 263 | Kupon dengan kode, batas pemakaian dan masa berlaku diperiksa ke server; ditambah diskon manual dengan PIN manajer untuk kasir. Belum: nomor referensi kupon"
