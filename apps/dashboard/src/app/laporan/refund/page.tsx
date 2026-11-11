@@ -98,13 +98,13 @@ function RefundDetailDialog({
 
         <div>
           <h3 className="text-sm font-semibold mb-8">Barang yang dikembalikan:</h3>
-          <div className="cg-data-wrap border border-border rounded-lg">
-            <table className="cg-data">
+          <div className="cg-data-wrap min-w-0 border border-border rounded-lg">
+            <table className="cg-data w-full" style={{ minWidth: 0 }}>
               <thead>
                 <tr>
                   <th>Barang</th>
-                  <th className="cg-num">Qty</th>
-                  <th className="cg-num">Jumlah Refund</th>
+                  <th className="cg-num whitespace-nowrap">Qty</th>
+                  <th className="cg-num whitespace-nowrap text-right">Jumlah Refund</th>
                 </tr>
               </thead>
               <tbody>
@@ -113,15 +113,15 @@ function RefundDetailDialog({
                     <td className="break-words font-medium">
                       {orderItems.get(it.orderItemId) ?? `Item (${it.orderItemId.slice(0, 8)})`}
                     </td>
-                    <td className="cg-num">{it.qty}</td>
-                    <td className="cg-num">{formatRp(it.amount)}</td>
+                    <td className="cg-num whitespace-nowrap">{it.qty}</td>
+                    <td className="cg-num whitespace-nowrap text-right">{formatRp(it.amount)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="font-semibold bg-surface">
                   <td colSpan={2}>Total pengembalian dana</td>
-                  <td className="cg-num text-danger">{formatRp(refund.total)}</td>
+                  <td className="cg-num whitespace-nowrap text-right text-danger">{formatRp(refund.total)}</td>
                 </tr>
               </tfoot>
             </table>

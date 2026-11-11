@@ -656,3 +656,15 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `bash scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard)
      - Playwright audit di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (3 tangkapan layar di `docs/shots/a49/`).
 
+- A50 (Antigravity) — Audit tabel dua kolom di 390 px (dashboard):
+  - Mematikan lebar minimum default (`min-width: 520px` dari `.cg-data`) pada seluruh tabel dashboard dengan <=3 kolom dengan menambahkan `style={{ minWidth: 0 }}` dan `className="cg-data w-full"`.
+  - Halaman dan komponen yang diperbaiki:
+    1. `apps/dashboard/src/app/keuangan/laporan/page.tsx`: Laba rugi (2 kolom: Akun, Jumlah) dan Neraca (2 kolom: Akun, Saldo). Kolom jumlah/saldo diberi `whitespace-nowrap`, label akun membungkus (`break-words`).
+    2. `apps/dashboard/src/app/kategori/page.tsx`: Tabel kategori (3 kolom: Kategori, Jumlah produk, Aksi). Label membungkus, kolom produk dan aksi `whitespace-nowrap`.
+    3. `apps/dashboard/src/app/laporan/refund/page.tsx`: Modal detail barang refund (3 kolom: Barang, Qty, Total).
+    4. `apps/dashboard/src/components/journal-dialogs.tsx`: Modal rincian baris jurnal (3 kolom: Akun, Debit, Kredit). Label membungkus, angka debit/kredit `whitespace-nowrap`.
+    5. `apps/dashboard/src/components/report-view.tsx`: Laporan penjualan ringkas - produk terlaris (3 kolom: Produk, Terjual, Nilai).
+    6. `apps/dashboard/src/app/laporan/void/page.tsx`: Modal rincian item pesanan void.
+  - Skrip audit Playwright `docs/shots/a50/run-a50-audit.mjs` memvalidasi pada 390 px bahwa seluruh kolom terakhir berada di dalam viewport (`getBoundingClientRect().right <= 390`), `bodyScrollWidth === 390`, dan 0 galat konsol.
+  - Tangkapan layar sebelum dan sesudah tersimpan di `docs/shots/a50/`.
+  - Lulus `pnpm -r typecheck`, `pnpm -F @cgpos/shared test`, `pnpm -F @cgpos/dashboard build`, dan `bash scripts/lint-tailwind.sh origin/main`.

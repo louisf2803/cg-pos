@@ -72,28 +72,28 @@ export function ShowDialog({
               {j.status === 'voided' ? 'sudah dibalik' : 'terposting'}
             </p>
             <p className="break-words">{j.description}</p>
-            <div className="cg-data-wrap">
-              <table className="cg-data" aria-label="Baris jurnal">
+            <div className="cg-data-wrap min-w-0">
+              <table className="cg-data w-full" style={{ minWidth: 0 }} aria-label="Baris jurnal">
                 <thead>
                   <tr>
                     <th>Akun</th>
-                    <th className="text-right">Debit</th>
-                    <th className="text-right">Kredit</th>
+                    <th className="text-right whitespace-nowrap">Debit</th>
+                    <th className="text-right whitespace-nowrap">Kredit</th>
                   </tr>
                 </thead>
                 <tbody>
                   {j.lines.map((l, i) => (
                     <tr key={i}>
-                      <td className="break-words max-w-[300px]">
+                      <td className="break-words">
                         <span className="cg-num">{l.code}</span> {l.name}
                         {l.memo && (
                           <span className="block text-sm text-text-muted">{l.memo}</span>
                         )}
                       </td>
-                      <td className="text-right cg-num">
+                      <td className="text-right cg-num whitespace-nowrap">
                         {l.debit > 0 ? formatRp(l.debit) : '—'}
                       </td>
-                      <td className="text-right cg-num">
+                      <td className="text-right cg-num whitespace-nowrap">
                         {l.credit > 0 ? formatRp(l.credit) : '—'}
                       </td>
                     </tr>
@@ -102,10 +102,10 @@ export function ShowDialog({
                     <td>
                       <strong>Total</strong>
                     </td>
-                    <td className="text-right cg-num">
+                    <td className="text-right cg-num whitespace-nowrap">
                       <strong>{formatRp(j.total)}</strong>
                     </td>
-                    <td className="text-right cg-num">
+                    <td className="text-right cg-num whitespace-nowrap">
                       <strong>{formatRp(j.total)}</strong>
                     </td>
                   </tr>

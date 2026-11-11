@@ -58,15 +58,15 @@ export default function KategoriPage() {
                   )}
                 </div>
                 {g.cats.length === 0 ? <p className="text-text-muted">Belum ada kategori di departemen ini.</p> : (
-                  <div className="cg-data-wrap">
-                    <table className="cg-data">
-                      <thead><tr><th>Kategori</th><th className="cg-num">Produk</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
+                  <div className="cg-data-wrap min-w-0">
+                    <table className="cg-data w-full" style={{ minWidth: 0 }}>
+                      <thead><tr><th>Kategori</th><th className="cg-num whitespace-nowrap">Produk</th><th className="text-right whitespace-nowrap"><span className="cg-sr">Aksi</span></th></tr></thead>
                       <tbody>
                         {g.cats.map((c) => (
                           <tr key={c.id}>
-                            <td className="break-words max-w-[320px]">{c.name}</td>
-                            <td className="cg-num">{counts[c.id] ?? 0}</td>
-                            <td className="whitespace-nowrap">
+                            <td className="break-words">{c.name}</td>
+                            <td className="cg-num whitespace-nowrap">{counts[c.id] ?? 0}</td>
+                            <td className="whitespace-nowrap text-right">
                               <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label={`Ubah kategori ${c.name}`} onClick={() => setDlg({ kind: 'cat', item: c })}><Pencil className="cg-icon cg-icon--sm" aria-hidden /></button>
                               <button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label={`Hapus kategori ${c.name}`} onClick={() => setDlg({ kind: 'del-cat', item: c, count: counts[c.id] ?? 0 })}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
                             </td>

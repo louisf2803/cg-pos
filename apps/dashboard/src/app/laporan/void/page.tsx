@@ -86,14 +86,14 @@ function VoidDetailDialog({
 
         <div>
           <h3 className="text-sm font-semibold mb-8">Daftar item pesanan:</h3>
-          <div className="cg-data-wrap border border-border rounded-lg">
-            <table className="cg-data">
+          <div className="cg-data-wrap min-w-0 border border-border rounded-lg">
+            <table className="cg-data w-full" style={{ minWidth: 0 }}>
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th className="cg-num">Harga</th>
-                  <th className="cg-num">Qty</th>
-                  <th className="cg-num">Subtotal</th>
+                  <th className="cg-num whitespace-nowrap">Harga</th>
+                  <th className="cg-num whitespace-nowrap">Qty</th>
+                  <th className="cg-num whitespace-nowrap">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
@@ -103,16 +103,16 @@ function VoidDetailDialog({
                       <div className="font-medium">{it.name}</div>
                       {it.note && <div className="text-xs text-text-muted">Catatan: {it.note}</div>}
                     </td>
-                    <td className="cg-num">{formatRp(it.unitPrice)}</td>
-                    <td className="cg-num">{it.qty}</td>
-                    <td className="cg-num">{formatRp(it.lineTotal)}</td>
+                    <td className="cg-num whitespace-nowrap">{formatRp(it.unitPrice)}</td>
+                    <td className="cg-num whitespace-nowrap">{it.qty}</td>
+                    <td className="cg-num whitespace-nowrap">{formatRp(it.lineTotal)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="font-semibold bg-surface">
                   <td colSpan={3}>Total nilai void</td>
-                  <td className="cg-num">{formatRp(order.total)}</td>
+                  <td className="cg-num whitespace-nowrap">{formatRp(order.total)}</td>
                 </tr>
               </tfoot>
             </table>

@@ -81,10 +81,10 @@ export function ReportView({ report: r, showHours = false }: { report: SalesRepo
           )}
         </Panel>
         <Panel id="h-top" title="Produk terlaris">
-          <div className="cg-data-wrap">
-            <table className="cg-data" style={{ minWidth: 0 }}>
-              <thead><tr><th>Produk</th><th className="cg-num">Terjual</th><th className="cg-num">Nilai</th></tr></thead>
-              <tbody>{s.topProducts.map((p) => <tr key={p.productId}><td className="break-words">{p.name}</td><td className="cg-num">{p.qty}</td><td className="cg-num">{formatRp(p.amount)}</td></tr>)}</tbody>
+          <div className="cg-data-wrap min-w-0">
+            <table className="cg-data w-full" style={{ minWidth: 0 }}>
+              <thead><tr><th>Produk</th><th className="cg-num whitespace-nowrap">Terjual</th><th className="cg-num whitespace-nowrap">Nilai</th></tr></thead>
+              <tbody>{s.topProducts.map((p) => <tr key={p.productId}><td className="break-words">{p.name}</td><td className="cg-num whitespace-nowrap">{p.qty}</td><td className="cg-num whitespace-nowrap">{formatRp(p.amount)}</td></tr>)}</tbody>
             </table>
           </div>
         </Panel>
