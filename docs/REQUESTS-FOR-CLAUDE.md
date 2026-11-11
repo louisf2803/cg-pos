@@ -37,3 +37,13 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Bentuk yang diinginkan: Metode di DataLayer `getTopGrossProfitProducts(span: { from: string; to: string }, limit?: number): Promise<{ productId: string; name: string; revenue: number; cogs: number; grossProfit: number; marginPct: number }[]>`.
 - Sementara: Kartu ditampilkan nonaktif dengan lencana "Segera" dan penjelasan bahwa perhitungan HPP historis per transaksi penjualan sedang disiapkan di server.
 
+## /karyawan/hak-akses — 2026-11-11
+- Butuh: Dukungan peran kustom dan penyimpanan matriks hak akses granular (dashboard + POS) di database beserta metode DataLayer (`listRoles`, `saveRolePermissions`, `deleteRole`), serta dukungan mengaitkan `role_id` kustom ke karyawan (saat ini `Employee['role']` terbatas pada `'owner' | 'manager' | 'cashier'`).
+- Untuk: Layar `/karyawan/hak-akses` (A51) agar peran baru/duplikasi dan perubahan izin per modul dashboard serta aksi kasir tersimpan lintas perangkat dan menegakkan izin di server (RLS) maupun kasir.
+- Bentuk yang diinginkan:
+  - Tabel `roles` (`id`, `org_id`, `name`, `description`, `is_built_in`, `base_role`, `owner_app_access`, `created_at`)
+  - Tabel `role_dashboard_perms` (`role_id`, `module_id`, `level: 'none' | 'read' | 'write'`)
+  - Tabel `role_pos_perms` (`role_id`, `permission_id`, `level: 'allow' | 'approve' | 'deny'`)
+  - Metode di `DataLayer`: `listRoles(): Promise<RoleDefinition[]>`, `saveRolePermissions(role: RoleDefinition): Promise<RoleDefinition>`, `deleteRole(roleId: string): Promise<void>`
+- Sementara: Disimpan di `localStorage` peramban (kunci `'cg-role-permissions'`) dengan lencana "Pratinjau — belum tersambung server"; jumlah karyawan terpasang untuk peran bawaan dihitung langsung dari `data.listManagedEmployees()`.
+

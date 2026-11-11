@@ -255,7 +255,7 @@ export const MODUL: NavModule[] = [
         label: 'Hak Akses',
         icon: Shield,
         items: [
-          { href: '/karyawan/hak-akses', label: 'Pengaturan peran & hak akses', screen: 'S43', tier: 3 },
+          { href: '/karyawan/hak-akses', label: 'Pengaturan peran & hak akses', screen: 'S43', tier: 3, built: true },
         ],
       },
       {
