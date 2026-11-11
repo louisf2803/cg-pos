@@ -25,9 +25,11 @@ begin
     '[{"moduleId":"produk","enabled":true}]'::jsonb,
     '[{"moduleId":"kasir","enabled":true}]'::jsonb,
     '[{"moduleId":"produk","featureId":"ubah_harga","subFeatureId":"","canView":true,"canEdit":true}]'::jsonb,
-    '[{"moduleId":"kasir","featureId":"jual","subFeatureId":"","canView":true,"canCreate":true}]'::jsonb
+    '[{"moduleId":"kasir","featureId":"jual","subFeatureId":"","canView":true,"canCreate":true}]'::jsonb,
+    '{"produk":"write"}'::jsonb, '{"jual":"allow"}'::jsonb, true
   ) into role1;
   perform pg_temp.okr(role1 is not null, 'peran baru tersimpan');
+  perform pg_temp.okr((select dashboard_perms_legacy from roles where id = role1) = '{"produk":"write"}'::jsonb, 'peta lama dashboard tersimpan apa adanya');
   select count(*) into n from role_dashboard_feature_perms where role_id = role1;
   perform pg_temp.okr(n = 1, 'fitur dashboard granular tersimpan');
   select count(*) into n from role_pos_feature_perms where role_id = role1;

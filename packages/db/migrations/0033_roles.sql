@@ -16,11 +16,19 @@ create table pos.roles (
   is_built_in boolean not null default false,
   base_role text not null default 'cashier' check (base_role in ('owner','manager','cashier','kitchen','warehouse')),
   owner_app_access boolean not null default false,
+  -- Toggle master "Akses Aplikasi Kasir (POS)" (Langkah 3 wizard) — terpisah dari toggle per modul POS di bawah.
+  pos_app_enabled boolean not null default true,
   default_dashboard_page text,
   default_pos_page text,
   can_authorize_refund boolean not null default false,
   can_authorize_void boolean not null default false,
   can_authorize_complimentary boolean not null default false,
+  -- Salinan apa adanya dari RoleDefinition.dashboardPerms/posPerms (peta level lama per modul: none/read/write,
+  -- allow/approve/deny) yang DIHITUNG ULANG oleh wizard dashboard dari grid granular saat menyimpan — bukan
+  -- sumber kebenaran, hanya disimpan agar bolak-balik (round-trip) tidak kehilangan data bila wizard belum
+  -- menghitungnya ulang di sesi lain. Server tidak menurunkan ini sendiri.
+  dashboard_perms_legacy jsonb not null default '{}'::jsonb,
+  pos_perms_legacy jsonb not null default '{}'::jsonb,
   sync_seq bigint not null default 0,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -115,7 +123,9 @@ create or replace function pos.save_role_permissions(
   p_id uuid, p_org uuid, p_name text, p_description text, p_base_role text, p_owner_app_access boolean,
   p_default_dashboard_page text, p_default_pos_page text,
   p_can_authorize_refund boolean, p_can_authorize_void boolean, p_can_authorize_complimentary boolean,
-  p_dashboard_modules jsonb, p_pos_modules jsonb, p_dashboard_features jsonb, p_pos_features jsonb
+  p_dashboard_modules jsonb, p_pos_modules jsonb, p_dashboard_features jsonb, p_pos_features jsonb,
+  p_dashboard_perms_legacy jsonb default '{}'::jsonb, p_pos_perms_legacy jsonb default '{}'::jsonb,
+  p_pos_app_enabled boolean default true
 ) returns uuid language plpgsql security definer set search_path = pos, extensions, pg_temp as $$
 declare v_id uuid; v_org uuid; v_row jsonb;
 begin
@@ -134,13 +144,16 @@ begin
       base_role = p_base_role, owner_app_access = (owner_app_access and p_owner_app_access) or (pos.is_org_admin(p_org) and p_owner_app_access),
       default_dashboard_page = p_default_dashboard_page, default_pos_page = p_default_pos_page,
       can_authorize_refund = p_can_authorize_refund, can_authorize_void = p_can_authorize_void,
-      can_authorize_complimentary = p_can_authorize_complimentary
+      can_authorize_complimentary = p_can_authorize_complimentary,
+      dashboard_perms_legacy = coalesce(p_dashboard_perms_legacy, '{}'::jsonb), pos_perms_legacy = coalesce(p_pos_perms_legacy, '{}'::jsonb),
+      pos_app_enabled = coalesce(p_pos_app_enabled, true)
       where id = p_id returning id into v_id;
   else
     insert into pos.roles(org_id, name, description, base_role, owner_app_access, default_dashboard_page, default_pos_page,
-      can_authorize_refund, can_authorize_void, can_authorize_complimentary)
+      can_authorize_refund, can_authorize_void, can_authorize_complimentary, dashboard_perms_legacy, pos_perms_legacy, pos_app_enabled)
     values (p_org, btrim(p_name), nullif(btrim(coalesce(p_description, '')), ''), p_base_role, p_owner_app_access and pos.is_org_admin(p_org),
-      p_default_dashboard_page, p_default_pos_page, p_can_authorize_refund, p_can_authorize_void, p_can_authorize_complimentary)
+      p_default_dashboard_page, p_default_pos_page, p_can_authorize_refund, p_can_authorize_void, p_can_authorize_complimentary,
+      coalesce(p_dashboard_perms_legacy, '{}'::jsonb), coalesce(p_pos_perms_legacy, '{}'::jsonb), coalesce(p_pos_app_enabled, true))
     returning id into v_id;
   end if;
 
@@ -174,8 +187,8 @@ begin
 
   return v_id;
 end $$;
-revoke all on function pos.save_role_permissions(uuid, uuid, text, text, text, boolean, text, text, boolean, boolean, boolean, jsonb, jsonb, jsonb, jsonb) from public, anon;
-grant execute on function pos.save_role_permissions(uuid, uuid, text, text, text, boolean, text, text, boolean, boolean, boolean, jsonb, jsonb, jsonb, jsonb) to authenticated, service_role;
+revoke all on function pos.save_role_permissions(uuid, uuid, text, text, text, boolean, text, text, boolean, boolean, boolean, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, boolean) from public, anon;
+grant execute on function pos.save_role_permissions(uuid, uuid, text, text, text, boolean, text, text, boolean, boolean, boolean, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, boolean) to authenticated, service_role;
 
 create or replace function pos.delete_role(p_id uuid) returns void
 language plpgsql security definer set search_path = pos, extensions, pg_temp as $$
