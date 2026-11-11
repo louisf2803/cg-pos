@@ -1,6 +1,6 @@
 # Antrean tugas Antigravity
 
-**PENGECUALIAN URUTAN (11 Nov 2026): kerjakan `A61.md` LEBIH DULU, sebelum A54-A60**, meskipun nomornya lebih besar — A61 adalah perbaikan alur kerja fitur yang SUDAH `built: true` (A51), berdasarkan verifikasi langsung Claude ke Majoo asli atas arahan Louis bahwa memperbaiki alur yang sudah ada mengungguli membangun fitur baru yang masih locked. Setelah A61 selesai dan digabung, lanjutkan ke A54 seperti biasa (urut nomor normal berlaku lagi).
+**PENGECUALIAN URUTAN (11 Nov 2026): kerjakan `A61.md` lalu `A62.md` LEBIH DULU, sebelum A54-A60**, meskipun nomornya lebih besar — keduanya perbaikan alur kerja fitur yang SUDAH `built: true` (A51, A52), berdasarkan verifikasi Claude ke Majoo asli/dokumentasi publik atas arahan Louis bahwa memperbaiki alur yang sudah ada mengungguli membangun fitur baru yang masih locked. Setelah A61+A62 selesai dan digabung, lanjutkan ke A54 seperti biasa (urut nomor normal berlaku lagi).
 
 Cara kerja (LOOP TANPA HENTI): kerjakan tugas di folder ini BERURUTAN tanpa berhenti bertanya. Setelah satu tugas selesai (di-commit + STATUS: SELESAI), LANGSUNG `git pull` dan cari file tugas berikutnya yang belum punya baris STATUS (urut nomor). Ambil yang pertama dan kerjakan. Jika tidak ada, tunggu 10 menit lalu cek lagi (maksimal 12 kali), jangan berhenti sebelum itu. Claude menambah tugas baru ke folder ini selagi kamu bekerja, dan me-review serta merge hasilmu secara paralel.
 
