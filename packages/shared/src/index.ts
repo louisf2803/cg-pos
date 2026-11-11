@@ -65,4 +65,5 @@ export * from './table-layout';
 export * from './deposit';
 export * from './purchase-return';
 
+export * from './appointment';
 

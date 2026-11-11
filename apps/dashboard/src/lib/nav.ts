@@ -219,13 +219,12 @@ export const MODUL: NavModule[] = [
     id: 'appointment',
     label: 'Appointment',
     defaultHref: '/appointment',
-    locked: true,
     groups: [
       {
         label: 'Appointment',
         icon: Calendar,
         items: [
-          { href: '/appointment', label: 'Jadwal appointment', screen: 'S62', tier: 3 },
+          { href: '/appointment', label: 'Jadwal appointment', screen: 'S62', tier: 3, built: true },
         ],
       },
     ],

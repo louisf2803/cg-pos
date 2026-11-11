@@ -132,3 +132,14 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
     - `createPurchaseReturn(input: PurchaseReturnInput): Promise<PurchaseReturn>` (otomatis memvalidasi `qty <= diterima - retur sebelumnya`, mengurangi stok bahan/produk, dan menyesuaikan kewajiban faktur)
 - Sementara: Dibangun dengan sumber faktur pembelian nyata (`listPurchaseInvoices`, `getPurchaseInvoice`) untuk validasi kuantitas dan daftar retur sementara di memori komponen berlabel **"Pratinjau"** (tidak memakai `localStorage` untuk data transaksi retur).
 
+## /appointment (A56 — Reservasi / Appointment Dasar) — 2026-11-11
+- Butuh: Skema database dan metode `DataLayer` untuk reservasi/appointment jasa, fasilitas ruang, dan meja pelanggan beserta pencegahan bentrok jadwal di server.
+- Untuk: Layar `/appointment` (tab Daftar & tab Kalender bulanan + dialog Reservasi Baru).
+- Bentuk yang diinginkan:
+  - Tabel `appointments` (`id`, `org_id`, `outlet_id`, `jenis` enum `'service' | 'facility' | 'table'`, `product_id` nullable ref `products`, `table_id` nullable ref `dining_tables`, `target_name`, `customer_id` nullable ref `customers`, `customer_name`, `customer_phone`, `start_at`, `end_at`, `status` enum `'pending' | 'confirmed' | 'completed' | 'cancelled'`, `note`, `created_at`)
+  - Metode `DataLayer`:
+    - `listAppointments(q?: { from?: string; to?: string; kind?: AppointmentKind; status?: AppointmentStatus }): Promise<Appointment[]>`
+    - `saveAppointment(input: AppointmentInput): Promise<Appointment>` (validasi bentrok waktu untuk jenis & slot sama pada status aktif)
+    - `updateAppointmentStatus(id: string, status: AppointmentStatus): Promise<Appointment>`
+- Sementara: Pilihan meja memakai `data.listTables()` & pelanggan memakai `data.listCustomers()`, sedangkan daftar reservasi disimpan di `localStorage` (`cgpos_appointments_v1`) dengan lencana besar **"Pratinjau — reservasi belum tersimpan di server, akan hilang bila data peramban dibersihkan"**.
+
