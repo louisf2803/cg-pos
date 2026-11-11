@@ -6,6 +6,7 @@ import { formatRp, orderTypeLabel, toCsv, type ColumnDef, type Order, type Order
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { ColumnChooser, useColumnPrefs } from '@/components/column-chooser';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { useReport } from '@/lib/use-report';
@@ -217,12 +218,16 @@ export default function DetailPenjualan() {
       rows.push(colPrefs.activeColumns.map((c) => getSaleCsvVal(c.key, o, names)));
     }
 
-    const url = URL.createObjectURL(new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `penjualan-${range.label.replace(/ sampai /g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const fileName = `penjualan-${range.label.replace(/ sampai /g, '_')}.csv`;
+    downloadCsvWithHistory({
+      fileName,
+      csvContent: toCsv(rows),
+      reportName: 'Detail Penjualan',
+      period: range.label,
+      rowCount: orders.length,
+      sourceUrl: `/laporan/penjualan?from=${range.from}&to=${range.to}`,
+      params: { from: range.from, to: range.to },
+    });
   }
 
   return (

@@ -444,3 +444,32 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (56 file, 354 tes lulus).
      - `pnpm -F @cgpos/dashboard build` (115 halaman statis prerendered).
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol untuk tampilan default, katalog modal, seluruh 7 widget, dan keadaan kosong (6 tangkapan layar di `docs/shots/a38/`).
+- Selesai (tugas A39): Riwayat Ekspor CSV (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/export-history.ts`:
+     - Tipe data `ExportRecord` dan `ExportInput` memuat `id`, `reportName`, `period`, `timestamp`, `rowCount`, `sizeBytes`, `fileName`, `sourceUrl`, dan `params`.
+     - `recordExport`: menambahkan ekspor baru di posisi paling atas (terbaru), deduplikasi rekaman serupa/id sama, dan membatasi maksimal 50 entri.
+     - `deleteExport`: menghapus entri riwayat berdasarkan id.
+     - `clearExportHistory`: mengosongkan seluruh riwayat.
+     - `formatFileSize`: format ukuran dalam satuan B, KB, atau MB dalam bahasa Indonesia dengan koma desimal.
+     - `formatExportDate`: format cap waktu ke waktu lokal Asia/Jakarta (WIB).
+     - `validateAndMigrateExportHistory`: validasi dan normalisasi aman dari input mentah atau JSON korup.
+     - `loadExportHistoryFromStorage` & `saveExportHistoryToStorage`: pembungkus akses storage aman yang menangani galat storage (QuotaExceededError / SecurityError).
+     - 12 unit test di `packages/shared/test/export-history.test.ts` (total 358 tes vitest lolos).
+  2. Pengintegrasian Unduh CSV di `apps/dashboard/src/lib/export.ts`:
+     - `downloadCsvWithHistory`: fungsi unduh CSV yang otomatis mencatat rekaman ke localStorage dan memancarkan event `cgpos-export-history-changed`.
+     - Diintegrasikan ke halaman laporan penjualan dan laporan per periode.
+  3. Halaman UI di `/pengaturan/ekspor` & `/laporan/ekspor`:
+     - Kartu KPI ringkasan: Total ekspor tersimpan, Total baris data, dan Ukuran kumulatif.
+     - Kontrol pencarian dan filter teks nama laporan/berkas.
+     - Tabel lengkap responsif untuk desktop & tablet, serta kartu terstruktur untuk mobile (<= 768px).
+     - Tombol "Buka Laporan" dengan parameter periode dan tombol "Hapus" per baris.
+     - Tombol dan dialog modal konfirmasi "Bersihkan riwayat".
+     - Penanganan keadaan kosong (`cg-empty`) dan banner galat akses penyimpanan lokal.
+     - Menu navigasi `nav.ts` ditandai `built: true` di Pengaturan dan Laporan.
+  4. Lolos Uji & Audit:
+     - `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+     - `pnpm -r typecheck` (0 error).
+     - `pnpm -F @cgpos/shared test` (56 file, 358 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (117 halaman statis lolos).
+     - Audit Playwright di 1440px, 1280px, dan 390px (0 overflow, 0 galat konsol; tangkapan layar di `docs/shots/a39/`).
+

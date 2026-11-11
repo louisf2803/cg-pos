@@ -6,6 +6,7 @@ import { formatRp, localParts, toCsv, type ColumnDef, type Order } from '@cgpos/
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { ColumnChooser, useColumnPrefs } from '@/components/column-chooser';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { useRange } from '@/lib/use-range';
@@ -328,13 +329,16 @@ export default function PeriodReportPage() {
       )
     );
 
-    const blob = new Blob([toCsv(rowsCsv)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-periode-${grain}-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const fileName = `laporan-periode-${grain}-${range.label.replace(/\s+/g, '_')}.csv`;
+    downloadCsvWithHistory({
+      fileName,
+      csvContent: toCsv(rowsCsv),
+      reportName: `Laporan Periode (${grain})`,
+      period: range.label,
+      rowCount: rows.length,
+      sourceUrl: `/laporan/periode`,
+      params: { grain, from: range.from, to: range.to },
+    });
   }
 
   return (

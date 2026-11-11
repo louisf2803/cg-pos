@@ -92,6 +92,7 @@ export const MODUL: NavModule[] = [
           { section: 'Katalog & Pelanggan', href: '/laporan/karyawan', label: 'Karyawan', screen: 'S80', tier: 3, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/persediaan', label: 'Persediaan', screen: 'S80', tier: 2, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/qris', label: 'Settlement QRIS', screen: 'S84', tier: 1 },
+          { section: 'Lainnya', href: '/laporan/ekspor', label: 'Riwayat ekspor CSV', screen: 'S80', tier: 2, built: true },
         ],
       },
       {
@@ -362,6 +363,7 @@ export const MODUL: NavModule[] = [
         items: [
           { href: '/pengaturan/stok', label: 'Notifikasi dan batas stok', screen: 'S60', tier: 2 },
           { href: '/pengaturan/struk', label: 'Tampilan struk', screen: 'S53', tier: 2 },
+          { href: '/pengaturan/ekspor', label: 'Riwayat ekspor CSV', screen: 'S54', tier: 2, built: true },
           { href: '/dapur', label: 'Layar dapur', screen: 'S60', tier: 3, built: true },
         ],
       },
