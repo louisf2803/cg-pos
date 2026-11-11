@@ -178,8 +178,30 @@ export default function PengaturanDataPelangganPage() {
         </fieldset>
 
         <fieldset className="border border-border rounded-xl bg-surface-raised p-16 grid gap-12">
-          <legend className="px-8 font-semibold text-sm">Ambang Segmentasi &amp; Pengingat</legend>
-          <div className="grid gap-12 tablet:grid-cols-2">
+          <legend className="px-8 font-semibold text-sm">Penomoran, Segmentasi &amp; Pengingat</legend>
+          <div className="grid gap-12 tablet:grid-cols-3">
+            <div className="cg-field">
+              <label className="cg-label" htmlFor="pol-prefix">
+                Prefiks ID pelanggan
+              </label>
+              <input
+                id="pol-prefix"
+                className="cg-input font-mono"
+                maxLength={12}
+                placeholder="PLG-"
+                value={policy.customerIdPrefix}
+                onChange={(e) =>
+                  setPolicy((p) => ({
+                    ...p,
+                    customerIdPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
+                  }))
+                }
+              />
+              <span className="text-xs text-text-muted">
+                Contoh nomor: <strong>{(policy.customerIdPrefix || 'PLG-')}0001</strong>
+              </span>
+            </div>
+
             <div className="cg-field">
               <label className="cg-label" htmlFor="pol-bday">
                 Pengingat ulang tahun (hari sebelum H)

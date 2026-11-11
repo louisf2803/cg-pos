@@ -153,6 +153,8 @@ async function main() {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${baseUrl}/pelanggan/pengaturan`, { waitUntil: 'networkidle' });
     await page.waitForSelector('text=3 pelanggan');
+    await page.fill('#pol-prefix', 'MBR-');
+    await page.waitForSelector('text=MBR-0001');
     await page.fill('#pol-bday', '10');
     await page.getByRole('button', { name: 'Simpan pengaturan' }).click();
     await page.waitForSelector('text=Kebijakan data pelanggan disimpan.');
@@ -173,6 +175,8 @@ async function main() {
     await page.waitForSelector('[data-testid="gudang-low-count"]');
     await page.getByRole('tab', { name: /Perlu restok/i }).click();
     await page.waitForSelector('section[aria-label="Layar gudang"]');
+    await page.locator('input[type="checkbox"][aria-label^="Tandai siap"]').first().click();
+    await page.waitForSelector('text=Disiapkan hari ini: 1');
 
     await page.evaluate(() => window.scrollTo(0, 0));
     await checkViewport(page, 'dapur-gudang-1280');

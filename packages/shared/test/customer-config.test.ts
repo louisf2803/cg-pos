@@ -53,6 +53,9 @@ describe('customer config, satisfaction summary, and warehouse queue', () => {
   it('validates customer policy bounds and evaluates completeness', () => {
     expect(customerPolicyProblem(DEFAULT_CUSTOMER_POLICY)).toBeNull();
     expect(
+      customerPolicyProblem({ ...DEFAULT_CUSTOMER_POLICY, customerIdPrefix: '!' })
+    ).toMatch(/Prefiks ID pelanggan/);
+    expect(
       customerPolicyProblem({ ...DEFAULT_CUSTOMER_POLICY, birthdayReminderDaysBefore: 45 })
     ).toMatch(/0 sampai 30/);
 
