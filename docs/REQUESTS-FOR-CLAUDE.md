@@ -106,3 +106,17 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Untuk: Tampilan pilih meja (`apps/pos/src/screens/TablePicker.tsx`) dan operasi meja (`packages/shared/src/table-ops.ts`) di kasir, agar kasir melihat status meja yang sama informatifnya dengan Majoo asli.
 - Sementara: CG POS tetap pakai status biner kosong/terisi untuk saat ini. Ditulis di sini supaya tidak terlupa; BUKAN diprioritaskan sebelum keputusan skema di atas diambil Claude, dan BUKAN tugas Antigravity sampai keputusan itu selesai (lihat AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru).
 
+## /pelanggan/grup, /pelanggan/harga-spesial & /harga-jadwal (A57 — Grup pelanggan, harga grosir bertingkat, penjadwalan harga) — 2026-11-11
+- Butuh: Skema database, `DataLayer`, dan penerapan di kasir untuk:
+  1. Grup pelanggan dan penetapan satu grup per pelanggan (`customer_groups`, `customer_group_members`).
+  2. Harga grosir bertingkat per grup dan produk hingga 5 tingkat (`tiered_prices`).
+  3. Penjadwalan perubahan harga produk otomatis beserta pemenang jika bertumpuk (`price_schedules`).
+- Untuk: Layar `/pelanggan/grup`, `/pelanggan/harga-spesial`, dan `/harga-jadwal`, serta sinkronisasi perhitungan harga otomatis di kasir (`apps/pos`) setelah dukungan server siap.
+- Bentuk yang diinginkan:
+  - Tabel `customer_groups` (`id`, `org_id`, `name`, `description`, `created_at`)
+  - Tabel `customer_group_members` (`customer_id` PK/UNIQUE per org, `group_id`, `assigned_at`)
+  - Tabel `tiered_prices` (`id`, `org_id`, `group_id`, `product_id`, `tier` 1..5, `min_qty`, `unit_price`, `updated_at`)
+  - Tabel `price_schedules` (`id`, `org_id`, `product_id`, `new_price`, `start_at`, `end_at`, `note`, `created_at`)
+  - Metode `DataLayer`: `listCustomerGroups()`, `saveCustomerGroup()`, `deleteCustomerGroup()`, `assignCustomerGroup()`, `listTieredPrices()`, `saveTieredPrices()`, `listPriceSchedules()`, `savePriceSchedule()`, `deletePriceSchedule()`.
+- Sementara: Disimpan di `localStorage` peramban dengan lencana **"Pratinjau — belum tersambung server"**; logika murni (`tiered-pricing.ts` & `price-schedule.ts`) sudah tersedia di `packages/shared`. Kasir (`apps/pos`) belum disambungkan sampai dukungan server dikerjakan oleh Claude.
+
