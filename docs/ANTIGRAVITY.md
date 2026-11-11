@@ -36,7 +36,7 @@ kirim ke dapur per baris terpilih · kode otorisasi void · rekening outlet · r
 | A10 | Dapur: mode layar penuh, bunyi notifikasi pesanan baru, cetak struk dapur (checker) | +1 |
 | A11 | Laporan lain yang cukup dari data penjualan: Meja, Produk, Persediaan, Promo dan loyalti, Pelanggan | +2–3 |
 
-Hitungan (diperbarui 11 Nov 2026): skor sekarang 66,4/100 (22/32 must-have). **Target diubah Louis (11 Nov 2026): kelengkapan fitur dulu, sampai kira-kira 90% mirip Majoo — skor presisi nomor dua.** Tugas A1–A50 sudah selesai dan digabung ke main; tugas berjalan sekarang ada di `docs/queue/` (A51 dst, bukan lagi tabel di atas — tabel A1–A11 di atas sudah historis). Lihat `docs/queue/README.md` untuk cara kerja antrean dan `replica/features.csv` / `replica/parity.md` untuk daftar lengkap yang masih kosong ("no") atau separuh ("partial"), yang jadi sumber tugas berikutnya.
+Hitungan (diperbarui 11 Nov 2026, setelah merge A54–A62): skor sekarang 67,4/100 (22/32 must-have). **Target diubah Louis (11 Nov 2026): kelengkapan fitur dulu, sampai kira-kira 90% mirip Majoo — skor presisi nomor dua.** Tugas A1–A62 sudah selesai dan digabung ke main; tugas berjalan sekarang ada di `docs/queue/` (A63 dst, bukan lagi tabel di atas — tabel A1–A11 di atas sudah historis). Sumber tugas sekarang: checklist Perlu/Tidak Perlu yang Louis isi sendiri di artifact "Rencana Paritas CG POS" — lihat `docs/REQUESTS-FOR-CLAUDE.md` bagian atas untuk ringkasannya. Lihat `docs/queue/README.md` untuk cara kerja antrean.
 
 **Perubahan arahan Louis (11 Nov 2026, lihat `AGENTS.md` #7): "selesai" = fungsinya jalan sama seperti Majoo, bukan cuma tombolnya ada.** Dua dampak konkret:
 1. Fitur yang sudah `built: true` tapi alur kerjanya (urutan langkah, data yang dihasilkan) belum tentu sama dengan Majoo perlu diaudit ulang satu per satu — bukan hanya dicek "halamannya ada" lewat parity.py.
@@ -63,7 +63,7 @@ Baca AGENTS.md di root dan ikuti persis. Ringkasnya: (1) jangan salin apa pun da
 Pelajari dulu contoh halaman yang sudah rapi: apps/dashboard/src/app/keuangan/kas/page.tsx dan apps/dashboard/src/app/dapur/page.tsx,
 serta apps/dashboard/src/lib/nav.ts (tandai layar yang kamu bangun dengan built: true).
 Sebelum selesai wajib lolos: pnpm -r typecheck; pnpm -F @cgpos/shared test; pnpm -F @cgpos/dashboard build (dan pnpm -F @cgpos/pos build bila menyentuh kasir);
-lalu uji di peramban pada lebar 390 px dan 1280 px: tanpa galat konsol, tanpa gulir mendatar, ada keadaan memuat/kosong/galat. Lampirkan tangkapan layar di PR.
+lalu uji di peramban HANYA pada lebar 390 px dan 1280 px (tidak perlu 1440, tidak perlu skrip audit baru tiap tugas — itu yang bikin lambat): tanpa galat konsol, tanpa gulir mendatar, ada keadaan memuat/kosong/galat. Screenshot cukup 2 (390+1280) dan HANYA untuk layar yang tampilannya baru/berubah — kalau tugasnya cuma menyambungkan layar yang sudah ada ke DataLayer baru tanpa ubah tampilan, cukup build lulus + sekali lihat sekilas, tidak perlu tangkapan layar atau audit penuh. Catatan di PROGRESS.md ringkas saja (3-5 baris).
 Jawab "siap" bila paham, lalu tunggu tugas.
 ```
 
