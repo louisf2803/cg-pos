@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, Banknote, Printer, CheckCircle2, CreditCard, Landmark, QrCode } from 'lucide-react';
-import { DataError, PAYMENT_REF_MAX, formatRp, newId, orderTypeLabel, parseRp, paymentRefField, paymentRefProblem, quickCashAmounts, roundToStep, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
+import { DataError, PAYMENT_REF_MAX, formatRp, groupNotePresets, newId, noteHasText, orderTypeLabel, parseRp, paymentRefField, paymentRefProblem, quickCashAmounts, roundToStep, toggleNoteText, type NotePreset, type Order, type OutletContext, type PaymentMethod } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { publishCustomerDisplay } from '../lib/customer-display';
 import { ReceiptDialog } from './Receipt';
@@ -9,12 +9,15 @@ import { ApproverFields, useApprover } from '../lib/approver';
 import { useSession } from '../lib/session';
 import { forwardNotice, forwardOrder } from '../lib/stations';
 import { TicketStrip } from './TicketHost';
+import { Modal } from '../ui';
 
 const ICON: Record<PaymentMethod['kind'], typeof Banknote> = { cash: Banknote, noncash: CreditCard, gateway: QrCode, complimentary: Landmark, deposit: Landmark };
 
-export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { order: Order; ctx: OutletContext; onBack: () => void; onDone: () => void; /** bagian pisah bayar: barisnya sudah diteruskan lewat pesanan asal */ skipForward?: boolean }) {
+export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = false }: { order: Order; ctx: OutletContext; onBack: () => void; onDone: () => void; onUpdated?: (order: Order) => void; /** bagian pisah bayar: barisnya sudah diteruskan lewat pesanan asal */ skipForward?: boolean }) {
   const data = useData();
   const methods = useAsync(() => data.listPaymentMethods(), [data]);
+  const notePresets = useAsync<NotePreset[]>(() => data.listNotePresets().catch(() => []), [data]);
+  const noteGroups = useMemo(() => groupNotePresets(notePresets.status === 'ready' ? notePresets.data : []), [notePresets]);
   const [methodId, setMethodId] = useState<string | null>(null);
   const [raw, setRaw] = useState('');
   const [amountRaw, setAmountRaw] = useState('');
@@ -22,6 +25,10 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
   const approver = useApprover('complimentary', { allowCode: true, orderId: order.id });
   const { session } = useSession();
   const [current, setCurrent] = useState<Order>(order);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteBusy, setNoteBusy] = useState(false);
+  const [noteErr, setNoteErr] = useState('');
   const [partial, setPartial] = useState<Order | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -115,6 +122,41 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
     } finally { setBusy(false); }
   }
 
+  async function saveOrderNote(e: FormEvent) {
+    e.preventDefault();
+    if (noteBusy || current.status !== 'open' || current.paidTotal > 0) return;
+    setNoteBusy(true);
+    setNoteErr('');
+    try {
+      const saved = await data.saveOrder({
+        id: current.id,
+        type: current.type,
+        tableId: current.tableId,
+        customerId: current.customerId,
+        orderDiscount: current.discountTotal || undefined,
+        discounts: current.discounts?.length ? current.discounts : undefined,
+        label: noteDraft.trim() || undefined,
+        guestCount: current.guestCount,
+        items: current.items.map((it) => ({
+          id: it.id,
+          productId: it.productId,
+          name: it.name,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          extras: it.extras,
+          note: it.note,
+        })),
+      }, session.employee.id);
+      setCurrent(saved);
+      onUpdated?.(saved);
+      setNoteOpen(false);
+    } catch (x) {
+      setNoteErr(x instanceof DataError || x instanceof Error ? x.message : 'Catatan gagal disimpan.');
+    } finally {
+      setNoteBusy(false);
+    }
+  }
+
   if (done) {
     const p = done.payments[done.payments.length - 1];
     return (
@@ -183,11 +225,17 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
           </button>
           <button
             type="button"
-            className="cg-chip opacity-50 cursor-not-allowed"
-            disabled
-            title="Catatan segera hadir"
+            className={`cg-chip ${current.label ? 'cg-chip--active' : ''}`}
+            onClick={() => {
+              setNoteDraft(current.label ?? '');
+              setNoteErr('');
+              setNoteOpen(true);
+            }}
+            disabled={busy || current.status !== 'open' || current.paidTotal > 0}
+            title={current.paidTotal > 0 ? 'Pesanan sudah ada pembayaran sebagian, catatan tidak bisa diubah' : 'Tambah atau ubah catatan pesanan'}
+            data-testid="payment-note-btn"
           >
-            Catatan (segera)
+            {current.label ? 'Ubah catatan' : 'Catatan'}
           </button>
         </div>
       </div>
@@ -403,28 +451,37 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
               <div className="flex justify-between">
                 <span className="text-text-muted">Pelanggan:</span>
                 <span className="font-bold text-text truncate max-w-[160px]">
-                  {order.customerName || 'Tanpa pelanggan'}
+                  {current.customerName || 'Tanpa pelanggan'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">Nomor Pesanan:</span>
-                <span className="font-mono font-semibold text-text">{order.number}</span>
+                <span className="font-mono font-semibold text-text">{current.number}</span>
               </div>
+              {current.label && (
+                <div className="flex justify-between gap-8">
+                  <span className="text-text-muted shrink-0">Catatan:</span>
+                  <span className="font-medium text-text text-right break-words" data-testid="payment-order-note">
+                    {current.label}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Daftar Baris Pesanan */}
             <details className="mb-12 border border-border rounded-lg bg-surface text-xs" open>
               <summary className="p-8 font-semibold cursor-pointer select-none text-text">
-                Rincian Item ({order.items.length})
+                Rincian Item ({current.items.length})
               </summary>
               <div className="p-8 pt-0 max-h-[220px] overflow-y-auto divide-y divide-border/50">
-                {order.items.map((it) => (
+                {current.items.map((it) => (
                   <div key={it.id} className="py-6 flex justify-between gap-8">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-text truncate">{it.qty}x {it.name}</p>
                       {it.extras?.length ? (
                         <p className="text-[10px] text-text-muted">{it.extras.map((e) => e.name).join(', ')}</p>
                       ) : null}
+                      {it.note && <p className="text-[10px] text-accent italic">Catatan: {it.note}</p>}
                     </div>
                     <span className="tabular-nums font-semibold shrink-0 text-text">
                       {formatRp(it.qty * it.unitPrice)}
@@ -438,18 +495,18 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
             <div className="space-y-4 text-xs py-8 border-t border-border">
               <div className="flex justify-between text-text-muted">
                 <span>Subtotal</span>
-                <span className="tabular-nums text-text font-medium">{formatRp(order.subtotal)}</span>
+                <span className="tabular-nums text-text font-medium">{formatRp(current.subtotal)}</span>
               </div>
-              {order.discountTotal > 0 && (
+              {current.discountTotal > 0 && (
                 <div className="flex justify-between text-danger-strong">
                   <span>Potongan</span>
-                  <span className="tabular-nums font-medium">-{formatRp(order.discountTotal)}</span>
+                  <span className="tabular-nums font-medium">-{formatRp(current.discountTotal)}</span>
                 </div>
               )}
-              {order.taxTotal > 0 && (
+              {current.taxTotal > 0 && (
                 <div className="flex justify-between text-text-muted">
                   <span>Pajak</span>
-                  <span className="tabular-nums text-text font-medium">{formatRp(order.taxTotal)}</span>
+                  <span className="tabular-nums text-text font-medium">{formatRp(current.taxTotal)}</span>
                 </div>
               )}
               {rounding !== 0 && (
@@ -483,6 +540,55 @@ export function Payment({ order, ctx, onBack, onDone, skipForward = false }: { o
           </div>
         </section>
       </div>
+      {noteOpen && (
+        <Modal title="Catatan pesanan" onClose={() => { if (!noteBusy) setNoteOpen(false); }}>
+          <form onSubmit={(e) => void saveOrderNote(e)} className="grid gap-12" noValidate>
+            <div className="cg-field">
+              <label className="cg-label" htmlFor="pay-catatan">Catatan pesanan</label>
+              <input
+                id="pay-catatan"
+                className="cg-input"
+                data-autofocus
+                data-testid="payment-note-input"
+                maxLength={60}
+                value={noteDraft}
+                onChange={(e) => { setNoteDraft(e.target.value); setNoteErr(''); }}
+                placeholder="Nama pemesan, nomor meja, atau catatan khusus"
+              />
+            </div>
+            {noteGroups.length > 0 && (
+              <div className="flex flex-col gap-6" aria-label="Catatan siap pakai">
+                {noteGroups.map((g) => (
+                  <div key={g.category} className="flex flex-wrap items-center gap-4">
+                    <span className="text-xs text-text-muted">{g.category}:</span>
+                    {g.items.map((n) => {
+                      const on = noteHasText(noteDraft, n.text);
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          aria-pressed={on}
+                          className={`cg-chip ${on ? 'cg-chip--active' : ''}`}
+                          onClick={() => setNoteDraft(toggleNoteText(noteDraft, n.text).slice(0, 60))}
+                        >
+                          {n.text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+            {noteErr && <p role="alert" className="text-sm text-danger-strong">{noteErr}</p>}
+            <div className="cg-modal__actions">
+              <button type="button" className="cg-btn cg-btn--ghost" disabled={noteBusy} onClick={() => setNoteOpen(false)}>Batal</button>
+              <button type="submit" className="cg-btn cg-btn--primary" disabled={noteBusy} aria-busy={noteBusy} data-testid="payment-note-save">
+                {noteBusy ? 'Menyimpan…' : 'Simpan'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </main>
   );
 }

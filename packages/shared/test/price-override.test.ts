@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeData, priceOverrideBounds, priceOverridePctProblem, priceOverrideProblem } from '../src';
+import { createFakeData, overridePricingForProduct, priceOverrideBounds, priceOverridePctProblem, priceOverrideProblem } from '../src';
 
 describe('ubah harga di kasir', () => {
   it('menghitung batas dan memeriksa harga baru', () => {
@@ -30,5 +30,11 @@ describe('ubah harga di kasir', () => {
     expect((await d.getProduct('p1'))!.priceOverridePct).toBeUndefined();
     await expect(d.setPriceOverride(['p1'], 150)).rejects.toThrow(/0 dan 100/);
     await expect(d.setPriceOverride(['tidak-ada'], 10)).rejects.toThrow(/tidak ditemukan/);
+  });
+  it('memulihkan basePrice dan overridePct saat memuat ulang pesanan dari daftar produk', () => {
+    expect(overridePricingForProduct(undefined)).toEqual({});
+    expect(overridePricingForProduct({ price: 25000 })).toEqual({ basePrice: 25000 });
+    expect(overridePricingForProduct({ price: 25000, priceOverridePct: 0 })).toEqual({ basePrice: 25000 });
+    expect(overridePricingForProduct({ price: 25000, priceOverridePct: 15 })).toEqual({ basePrice: 25000, overridePct: 15 });
   });
 });

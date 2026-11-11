@@ -76,6 +76,7 @@ export function Register({
   const [panelOpen, setPanelOpen] = useState(false);
   const [paying, setPaying] = useState<Order | null>(null);
   const [picking, setPicking] = useState<Extract<CatalogTile, { kind: 'group' }> | null>(null);
+  const [pickErr, setPickErr] = useState('');
   const [placing, setPlacing] = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const [showOrders, setShowOrders] = useState(false);
@@ -168,16 +169,17 @@ export function Register({
     const only = visible.length === 1 ? visible[0] : undefined;
     if (exact) { choose(exact); setScanMsg({ ok: true, text: `${exact.name} masuk pesanan.` }); setQ(''); return; }
     if (only) {
-      if (only.kind === 'group') { setPicking(only); setQ(''); setScanMsg(null); return; }
+      if (only.kind === 'group') { setPickErr(''); setPicking(only); setQ(''); setScanMsg(null); return; }
       choose(only.product); setScanMsg({ ok: true, text: `${only.product.name} masuk pesanan.` }); setQ(''); return;
     }
     setScanMsg({ ok: false, text: visible.length ? `Ada ${visible.length} produk yang cocok. Pilih dari daftar atau ketik kode SKU lengkap.` : `Kode atau nama “${code}” tidak ditemukan.` });
   };
   const qtyOf = (p: Product) => cart.state.lines.filter((l) => l.productId === p.id).reduce((n, l) => n + l.qty, 0);
+  const optionLimit = (p: Product, adding = 1) => checkStockLimit({ allowNegative: ctx.settings.allowNegativeStock, trackStock: !!p.trackStock, stock: p.stock ?? undefined, inCart: qtyOf(p), adding });
   /** Produk dengan grup Ekstra membuka pemilih dulu; selainnya langsung masuk pesanan. */
   /** Bila outlet melarang stok minus, tolak penambahan melebihi sisa stok (pesan di bilah status). */
   const stockOk = (p: Product, adding = 1): boolean => {
-    const r = checkStockLimit({ allowNegative: ctx.settings.allowNegativeStock, trackStock: !!p.trackStock, stock: p.stock ?? undefined, inCart: qtyOf(p), adding });
+    const r = optionLimit(p, adding);
     if (!r.ok) setNotice(stockLimitMessage(p.name, r.available));
     return r.ok;
   };
@@ -221,7 +223,7 @@ export function Register({
     } catch (e) {
       throw new Error(`Bagian yang dipisah tersimpan sebagai ${part.number}, tetapi pesanan asal belum diperbarui (${e instanceof Error ? e.message : 'galat'}). Cek Daftar Order sebelum membayar.`);
     }
-    cart.dispatch({ t: 'load', order: rest, tableName: cart.state.tableName });
+    cart.dispatch({ t: 'load', order: rest, tableName: cart.state.tableName, products: prods.status === 'ready' ? prods.data : undefined });
     waitingOrders.reload();
     setSplitOpen(false); setKeepCart(true); setPaying(part);
   }
@@ -250,6 +252,10 @@ export function Register({
   if (paying) {
     const fromList = showOrders && paying.id !== cart.state.orderId;
     return <Payment order={paying} ctx={ctx} skipForward={keepCart}
+      onUpdated={(saved) => {
+        if (saved.id === cart.state.orderId) cart.dispatch({ t: 'meta', label: saved.label, guestCount: saved.guestCount });
+        waitingOrders.reload();
+      }}
       onBack={() => { if (keepCart) { setKeepCart(false); setNotice(`Pesanan pisah ${paying.number} belum dibayar; ada di Daftar Order.`); } setPaying(null); }}
       onDone={() => {
         if (keepCart) { setKeepCart(false); setPanelOpen(true); setNotice(`Bagian pisah ${paying.number} lunas. Sisa pesanan masih terbuka di keranjang.`); }
@@ -267,7 +273,7 @@ export function Register({
         const o = (await data.getOrder(o0.id).catch(() => null)) ?? o0;
         const full = o;
         const tableName = o.tableId ? (await data.listTables().catch(() => [])).find((t) => t.id === o.tableId)?.name : undefined;
-        cart.dispatch({ t: 'load', order: full, tableName }); setShowOrders(false); setPanelOpen(true); setNotice(''); waitingOrders.reload();
+        cart.dispatch({ t: 'load', order: full, tableName, products: prods.status === 'ready' ? prods.data : undefined }); setShowOrders(false); setPanelOpen(true); setNotice(''); waitingOrders.reload();
       }}
       onPay={(o) => setPaying(o)} />;
   }
@@ -458,7 +464,8 @@ export function Register({
             const n = qtyOfTile(t);
             const isGroup = t.kind === 'group';
             const name = isGroup ? t.name : t.product.name;
-            const out = isGroup ? t.soldOut : t.product.trackStock && (t.product.stock ?? 0) <= 0;
+            const limitExhausted = isGroup ? t.options.every((o) => !optionLimit(o.product).ok) : !optionLimit(t.product).ok;
+            const out = (isGroup ? t.soldOut : t.product.trackStock && (t.product.stock ?? 0) <= 0) || limitExhausted;
             const price = isGroup ? (t.minPrice === t.maxPrice ? formatRp(t.minPrice) : `mulai ${formatRp(t.minPrice)}`) : formatRp(t.product.price);
             const photoUrl = isGroup ? t.options.find((o) => o.product.photoUrl)?.product.photoUrl : t.product.photoUrl;
 
@@ -473,7 +480,10 @@ export function Register({
               <button
                 key={t.key}
                 className="cg-tile relative group"
-                onClick={() => (isGroup ? setPicking(t) : choose(t.product))}
+                onClick={() => {
+                  if (isGroup) { setPickErr(''); setPicking(t); }
+                  else choose(t.product);
+                }}
                 aria-haspopup={isGroup ? 'dialog' : undefined}
                 aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}
               >
@@ -796,17 +806,51 @@ export function Register({
                             ))}
                           </div>
                         )}
-                        <div className="flex items-center gap-6">
-                          {l.overridePct && l.basePrice !== undefined && (
-                            <button
-                              type="button"
-                              className="text-xs text-text-muted hover:text-accent font-medium underline"
-                              onClick={() => setPriceFor({ id: l.id, text: String(l.unitPrice), err: '' })}
-                            >
-                              Ubah harga
-                            </button>
-                          )}
-                        </div>
+                        {l.overridePct && l.basePrice !== undefined && (
+                          <div className="flex items-center gap-6 w-full">
+                            {priceFor?.id === l.id ? (
+                              <form
+                                className="grid gap-4 w-full mt-4"
+                                noValidate
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const price = Number(priceFor.text.replace(/\./g, '').replace(',', '.'));
+                                  const problem = priceOverrideProblem(l.basePrice!, l.overridePct!, price);
+                                  if (problem) return setPriceFor({ ...priceFor, err: problem });
+                                  cart.dispatch({ t: 'price', lineId: l.id, unitPrice: price });
+                                  setPriceFor(null);
+                                }}
+                              >
+                                <label className="text-[11px] text-text-muted" htmlFor={`harga-${l.id}`}>
+                                  Harga baru {l.name} (daftar {formatRp(l.basePrice)}, batas {l.overridePct}%)
+                                </label>
+                                <div className="flex items-center gap-6">
+                                  <input
+                                    id={`harga-${l.id}`}
+                                    className="cg-input cg-num h-[30px] text-xs flex-1 min-w-0"
+                                    inputMode="numeric"
+                                    autoFocus
+                                    value={priceFor.text}
+                                    onChange={(e) => setPriceFor({ ...priceFor, text: e.target.value.replace(/[^\d.,]/g, ''), err: '' })}
+                                    onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setPriceFor(null); } }}
+                                  />
+                                  <button type="submit" className="cg-btn cg-btn--primary cg-btn--sm">Pakai</button>
+                                  <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPriceFor(null)}>Batal</button>
+                                </div>
+                                {priceFor.err && <p role="alert" className="text-xs text-danger-strong break-words">{priceFor.err}</p>}
+                              </form>
+                            ) : (
+                              <button
+                                type="button"
+                                className="text-xs text-text-muted hover:text-accent font-medium underline"
+                                onClick={() => setPriceFor({ id: l.id, text: String(l.unitPrice), err: '' })}
+                                aria-label={`Ubah harga ${l.name}`}
+                              >
+                                {l.unitPrice === l.basePrice ? 'Ubah harga' : `Harga diubah (${formatRp(l.unitPrice)})`}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </li>
@@ -937,12 +981,12 @@ export function Register({
           onResume={async (t) => {
             setTablePick(false);
             const o = await data.getOrder(t.order!.id);
-            if (o) { cart.dispatch({ t: 'load', order: o, tableName: t.name }); setPanelOpen(true); setNotice(''); }
+            if (o) { cart.dispatch({ t: 'load', order: o, tableName: t.name, products: prods.status === 'ready' ? prods.data : undefined }); setPanelOpen(true); setNotice(''); }
           }} />
       )}
       {extraFor && extraGroups.status === 'ready' && (
         <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
-          onAdd={(extras) => { cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
+          onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
       )}
       {splitOpen && <SplitBillDialog lines={cart.state.lines} ctx={ctx} orderType={cart.state.type} onClose={() => setSplitOpen(false)} onConfirm={splitPay} />}
       {customOpen && (
@@ -954,24 +998,49 @@ export function Register({
           }} />
       )}
       {picking && (
-        <Modal title={`Pilih ukuran: ${picking.name}`} onClose={() => setPicking(null)}>
+        <Modal title={`Pilih ukuran: ${picking.name}`} onClose={() => { setPicking(null); setPickErr(''); }}>
           <ul className="grid gap-8" aria-label="Ukuran">
             {picking.options.map((o, i) => {
-              const out = o.product.trackStock && (o.product.stock ?? 0) <= 0;
               const n = qtyOf(o.product);
+              const limit = optionLimit(o.product);
+              const rawOut = !!o.product.trackStock && (o.product.stock ?? 0) <= 0;
+              const blocked = !limit.ok;
+              const out = rawOut || blocked;
               return (
                 <li key={o.product.id}>
-                  <button className="cg-btn cg-btn--secondary cg-btn--lg cg-btn--block flex justify-between" data-autofocus={i === 0 ? '' : undefined}
-                    onClick={() => { choose(o.product); setPicking(null); }}
-                    aria-label={`${o.label}, ${formatRp(o.product.price)}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}>
-                    <span>{o.label}{n > 0 && <span className="cg-badge cg-badge--accent ml-8">{n}</span>}{out && <span className="cg-badge cg-badge--warning ml-8">Stok habis</span>}</span>
+                  <button
+                    className={`cg-btn cg-btn--secondary cg-btn--lg cg-btn--block flex justify-between ${blocked ? 'opacity-60' : ''}`}
+                    data-autofocus={i === 0 ? '' : undefined}
+                    aria-disabled={blocked}
+                    onClick={() => {
+                      if (blocked) {
+                        const msg = stockLimitMessage(o.product.name, limit.available);
+                        setPickErr(msg);
+                        setNotice(msg);
+                        return;
+                      }
+                      setPickErr('');
+                      choose(o.product);
+                      setPicking(null);
+                    }}
+                    aria-label={`${o.label}, ${formatRp(o.product.price)}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}
+                  >
+                    <span>
+                      {o.label}
+                      {n > 0 && <span className="cg-badge cg-badge--accent ml-8">{n}</span>}
+                      {o.product.trackStock && !out && Number.isFinite(limit.available) && (
+                        <span className="text-xs text-text-muted ml-8">Sisa {limit.available}</span>
+                      )}
+                      {out && <span className="cg-badge cg-badge--warning ml-8">Stok habis</span>}
+                    </span>
                     <span className="cg-num">{formatRp(o.product.price)}</span>
                   </button>
                 </li>
               );
             })}
           </ul>
-          <div className="cg-modal__actions"><button className="cg-btn cg-btn--ghost" onClick={() => setPicking(null)}>Batal</button></div>
+          {pickErr && <p role="alert" className="text-sm text-danger-strong mt-8" data-testid="pick-stock-err">{pickErr}</p>}
+          <div className="cg-modal__actions"><button className="cg-btn cg-btn--ghost" onClick={() => { setPicking(null); setPickErr(''); }}>Batal</button></div>
         </Modal>
       )}
       {drawerOpen && (

@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
-import { appliedFromEntries, computeOrder, extrasKey, extrasLineTotal, newId, resolveDiscounts, type AppliedDiscount, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product, type Promotion, type ResolvedDiscounts } from '@cgpos/shared';
+import { appliedFromEntries, computeOrder, extrasKey, extrasLineTotal, newId, overridePricingForProduct, resolveDiscounts, type AppliedDiscount, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product, type Promotion, type ResolvedDiscounts } from '@cgpos/shared';
 
-export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string; /** harga daftar saat ditambahkan dan batas persen ubah harga; hanya untuk baris baru (tidak ikut tersimpan) */ basePrice?: number; overridePct?: number }
+export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string; /** harga daftar saat ditambahkan dan batas persen ubah harga; dipertahankan dari katalog saat muat ulang */ basePrice?: number; overridePct?: number }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string; discounts: AppliedDiscount[] }
 type Action =
@@ -16,7 +16,7 @@ type Action =
   | { t: 'customer'; customerId?: string; customerName?: string }
   | { t: 'discount-add'; discount: AppliedDiscount }
   | { t: 'discount-remove'; id: string }
-  | { t: 'load'; order: Order; tableName?: string }
+  | { t: 'load'; order: Order; tableName?: string; products?: Product[] }
   | { t: 'saved'; orderId: string }
   | { t: 'clear' };
 
@@ -43,8 +43,30 @@ function reduce(s: CartState, a: Action): CartState {
     case 'customer': return { ...s, customerId: a.customerId, customerName: a.customerName, discounts: a.customerId === s.customerId ? s.discounts : s.discounts.filter((d) => d.source !== 'points') };
     case 'discount-add': return { ...s, discounts: [...s.discounts, a.discount] };
     case 'discount-remove': return { ...s, discounts: s.discounts.filter((d) => d.id !== a.id) };
-    case 'load':
-      return { discounts: appliedFromEntries(a.order.discounts ?? (a.order.discountTotal > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon', amount: a.order.discountTotal }] : [])), type: a.order.type, customerId: a.order.customerId, customerName: a.order.customerName, orderId: a.order.id, tableId: a.order.tableId, tableName: a.tableName, label: a.order.label, guestCount: a.order.guestCount, lines: a.order.items.map((i) => ({ id: i.id, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, ...(i.extras?.length ? { extras: i.extras } : {}), ...(i.note ? { note: i.note } : {}) })) };
+    case 'load': {
+      const byId = new Map((a.products ?? []).map((p) => [p.id, p]));
+      return {
+        discounts: appliedFromEntries(a.order.discounts ?? (a.order.discountTotal > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon', amount: a.order.discountTotal }] : [])),
+        type: a.order.type,
+        customerId: a.order.customerId,
+        customerName: a.order.customerName,
+        orderId: a.order.id,
+        tableId: a.order.tableId,
+        tableName: a.tableName,
+        label: a.order.label,
+        guestCount: a.order.guestCount,
+        lines: a.order.items.map((i) => ({
+          id: i.id,
+          productId: i.productId,
+          name: i.name,
+          qty: i.qty,
+          unitPrice: i.unitPrice,
+          ...overridePricingForProduct(byId.get(i.productId)),
+          ...(i.extras?.length ? { extras: i.extras } : {}),
+          ...(i.note ? { note: i.note } : {}),
+        })),
+      };
+    }
     case 'saved': return { ...s, orderId: a.orderId };
     case 'clear': return initial;
   }

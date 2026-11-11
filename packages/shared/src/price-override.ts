@@ -20,3 +20,11 @@ export function priceOverridePctProblem(pct: number): string | null {
   if (Math.round(pct * 100) / 100 !== pct) return 'Batas harga paling banyak 2 angka di belakang koma.';
   return null;
 }
+/** Pulihkan `basePrice` dan `overridePct` untuk baris keranjang saat memuat ulang pesanan dari daftar produk aktif. */
+export function overridePricingForProduct(product?: { price: number; priceOverridePct?: number }): { basePrice?: number; overridePct?: number } {
+  if (!product) return {};
+  return {
+    basePrice: product.price,
+    ...(product.priceOverridePct && product.priceOverridePct > 0 ? { overridePct: product.priceOverridePct } : {}),
+  };
+}
