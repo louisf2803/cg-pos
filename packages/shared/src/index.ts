@@ -53,4 +53,5 @@ export * from './columns';
 export * from './ledger-multi';
 export * from './cashflow-indirect';
 export * from './stock-alerts';
+export * from './customer-history';
 

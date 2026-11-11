@@ -375,3 +375,27 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (53 file, 328 tes lulus)
      - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (4 tangkapan layar di `docs/shots/a35/`).
+- Selesai (tugas A36): Detail Pelanggan: Tab Ringkasan, Riwayat Transaksi & Poin (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/customer-history.ts`:
+     - `computeCustomerOrderStats`: menghitung total belanja pesanan lunas, jumlah transaksi lunas, jumlah transaksi batal/tertunda, dan tanggal kunjungan terakhir.
+     - `filterCustomerOrders`: menyaring pesanan berdasarkan customerId, kata kunci pencarian (nomor pesanan), dan status (semua, lunas, belum lunas, dibatalkan).
+     - `paginateOrders`: membagi daftar pesanan secara aman ke dalam halaman (5 pesanan per halaman).
+     - `formatOrderPaymentMethods`: memformat nama-nama metode pembayaran unik dari pesanan.
+     - 4 unit tests di `packages/shared/test/customer-history.test.ts` (suite 56 file, 350 tes vitest lulus).
+  2. Modal Detail Pelanggan di `/pelanggan` (`apps/dashboard/src/app/pelanggan/page.tsx`):
+     - Segmented Tabs: 'Ringkasan | Riwayat transaksi | Poin'.
+     - Tab Ringkasan: 3 kartu ringkasan cepat (Total Belanja, Transaksi Lunas, Saldo Poin) dan rincian kontak serta alamat lengkap.
+     - Tab Riwayat Transaksi:
+       - Input pencarian instan nomor pesanan dan dropdown filter status (Semua / Lunas / Belum lunas / Dibatalkan).
+       - Tabel transaksi rapi dengan nomor pesanan, waktu transaksi lokal (WIB), metode pembayaran, lencana status, dan total belanja format rupiah tebal.
+       - Kontrol paginasi 5 baris per halaman dengan tombol Sebelumnya & Berikutnya.
+       - Tampilan Rincian Pesanan Baca-Saja (Order Summary): klik baris transaksi atau ikon mata membuka kartu ringkasan rincian item (menu, qty, harga satuan, subtotal, catatan), rincian hitungan lengkap (subtotal, diskon, biaya layanan, pajak PB1, pembulatan, total), dan pembayaran, dengan tombol "Kembali ke daftar".
+     - Tab Poin: kartu saldo poin aktif besar, daftar riwayat mutasi pergerakan poin (`listLoyaltyLedger`), dan form penyesuaian poin manual (+/-) dengan alasan.
+     - Catatan keterbatasan DataLayer: `data.listOrders` dipanggil dengan parameter `{ customerId: item.id, all: true }`, dilengkapi pengaman penyaringan klien `orders.filter(o => !o.customerId || o.customerId === item.id)` untuk menjamin integritas data bila backend mengembalikan seluruh pesanan.
+  3. Kepatuhan Tailwind Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main`.
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (56 file, 350 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a36/`).
