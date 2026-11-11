@@ -1,10 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Package, RefreshCw, Search, XCircle } from 'lucide-react';
 import { buildWarehouseQueue, formatRp, type WarehouseFilter } from '@cgpos/shared';
 import { ErrorBox } from '@/components/page';
+import {
+  jakartaTodayKey,
+  loadWarehousePreparedIds,
+  saveWarehousePreparedIds,
+} from '@/lib/a60-preview';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 
@@ -17,6 +22,25 @@ export function WarehouseScreen() {
   const [filter, setFilter] = useState<WarehouseFilter>('all');
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [todayKey, setTodayKey] = useState('');
+  const [preparedIds, setPreparedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const day = jakartaTodayKey();
+    setTodayKey(day);
+    setPreparedIds(loadWarehousePreparedIds(day));
+  }, []);
+
+  function togglePrepared(productId: string) {
+    const day = todayKey || jakartaTodayKey();
+    const exists = preparedIds.includes(productId);
+    const next = exists
+      ? preparedIds.filter((id) => id !== productId)
+      : [...preparedIds, productId];
+    setTodayKey(day);
+    setPreparedIds(next);
+    saveWarehousePreparedIds(day, next);
+  }
 
   const categories = useMemo(() => {
     if (stockState.status !== 'ready') return [];
@@ -46,6 +70,9 @@ export function WarehouseScreen() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-8">
+          <span className="cg-badge cg-badge--info whitespace-nowrap">
+            Disiapkan hari ini: {preparedIds.length}
+          </span>
           <button
             type="button"
             className="cg-btn cg-btn--secondary cg-btn--sm"
@@ -204,6 +231,7 @@ export function WarehouseScreen() {
               <table className="cg-data">
                 <thead>
                   <tr>
+                    <th className="whitespace-nowrap">Siap hari ini</th>
                     <th>Item persediaan</th>
                     <th>Jenis &amp; kategori</th>
                     <th className="text-right">Stok tersedia</th>
@@ -213,8 +241,23 @@ export function WarehouseScreen() {
                   </tr>
                 </thead>
                 <tbody>
-                  {queue.rows.map((item) => (
+                  {queue.rows.map((item) => {
+                    const isPrepared = preparedIds.includes(item.productId);
+                    return (
                     <tr key={item.productId}>
+                      <td className="whitespace-nowrap">
+                        <label className="inline-flex items-center gap-8 text-xs cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isPrepared}
+                            onChange={() => togglePrepared(item.productId)}
+                            aria-label={`Tandai siap ${item.name}`}
+                          />
+                          <span className={isPrepared ? 'text-accent font-medium' : 'text-text-muted'}>
+                            {isPrepared ? 'Sudah disiapkan' : 'Belum'}
+                          </span>
+                        </label>
+                      </td>
                       <td className="min-w-[180px] max-w-[280px]">
                         <div className="font-semibold break-words">{item.name}</div>
                         <div className="text-xs text-text-muted">Satuan: {item.unit}</div>
@@ -252,7 +295,8 @@ export function WarehouseScreen() {
                         {formatRp(item.value)}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

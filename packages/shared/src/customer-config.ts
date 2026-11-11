@@ -96,6 +96,7 @@ export interface CustomerPolicySettings {
   allowCashierEdit: boolean;
   defaultAutoJoinLoyalty: boolean;
   hidePhoneMaskOnReceipt: boolean;
+  customerIdPrefix: string;
   birthdayReminderDaysBefore: number;
   inactiveCustomerDaysThreshold: number;
 }
@@ -107,12 +108,17 @@ export const DEFAULT_CUSTOMER_POLICY: CustomerPolicySettings = {
   allowCashierEdit: true,
   defaultAutoJoinLoyalty: true,
   hidePhoneMaskOnReceipt: false,
+  customerIdPrefix: 'PLG-',
   birthdayReminderDaysBefore: 7,
   inactiveCustomerDaysThreshold: 90,
 };
 
 /** Validasi aturan kebijakan pengelolaan data pelanggan. */
 export function customerPolicyProblem(cfg: CustomerPolicySettings): string | null {
+  const prefix = cfg.customerIdPrefix.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{2,12}$/.test(prefix)) {
+    return 'Prefiks ID pelanggan harus 2–12 karakter huruf besar, angka, atau tanda hubung (mis. PLG-).';
+  }
   if (
     !Number.isInteger(cfg.birthdayReminderDaysBefore) ||
     cfg.birthdayReminderDaysBefore < 0 ||

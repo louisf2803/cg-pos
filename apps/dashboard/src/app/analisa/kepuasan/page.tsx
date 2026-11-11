@@ -66,7 +66,7 @@ export default function AnalisaKepuasanPage() {
 
       <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8">
         <p className="text-sm">
-          <strong>Pratinjau — Data Contoh:</strong> pengumpulan rating dan ulasan pelanggan dari struk digital maupun CG Order sedang disiapkan di server (docs/REQUESTS-FOR-CLAUDE.md). Panel ini menampilkan contoh olahan indeks kepuasan untuk validasi laporan.
+          <strong>Pratinjau:</strong> fitur ulasan pelanggan belum ada, menunggu keputusan apakah pelanggan bisa memberi rating setelah transaksi. Panel di bawah menampilkan data contoh untuk validasi tata letak laporan (docs/REQUESTS-FOR-CLAUDE.md).
         </p>
         <span className="cg-badge cg-badge--info whitespace-nowrap">Pratinjau · Data Contoh</span>
       </div>

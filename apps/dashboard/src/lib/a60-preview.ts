@@ -10,6 +10,7 @@ import {
 const FIELDS_KEY = 'cg-a60-customer-fields-v1';
 const POLICY_KEY = 'cg-a60-customer-policy-v1';
 const FOLLOWUP_KEY = 'cg-a60-satisfaction-followup-v1';
+const WAREHOUSE_PREP_KEY = 'cg-a60-warehouse-prepared-v1';
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -68,6 +69,10 @@ export function loadCustomerPolicy(): CustomerPolicySettings {
       typeof parsed.hidePhoneMaskOnReceipt === 'boolean'
         ? parsed.hidePhoneMaskOnReceipt
         : DEFAULT_CUSTOMER_POLICY.hidePhoneMaskOnReceipt,
+    customerIdPrefix:
+      typeof parsed.customerIdPrefix === 'string' && parsed.customerIdPrefix.trim()
+        ? parsed.customerIdPrefix.trim().toUpperCase()
+        : DEFAULT_CUSTOMER_POLICY.customerIdPrefix,
     birthdayReminderDaysBefore:
       typeof parsed.birthdayReminderDaysBefore === 'number' &&
       Number.isInteger(parsed.birthdayReminderDaysBefore)
@@ -91,5 +96,21 @@ export function loadSatisfactionFollowups(): Record<string, string> {
 
 export function saveSatisfactionFollowups(next: Record<string, string>): void {
   writeJson(FOLLOWUP_KEY, next);
+}
+
+/** Tanggal lokal Asia/Jakarta (YYYY-MM-DD) untuk mereset checklist persiapan gudang tiap hari. */
+export function jakartaTodayKey(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+}
+
+export function loadWarehousePreparedIds(dateKey: string): string[] {
+  const map = readJson<Record<string, string[]>>(WAREHOUSE_PREP_KEY, {});
+  const list = map[dateKey];
+  return Array.isArray(list) ? list : [];
+}
+
+export function saveWarehousePreparedIds(dateKey: string, ids: string[]): void {
+  // Simpan hanya hari ini agar penyimpanan lokal tetap ringkas.
+  writeJson(WAREHOUSE_PREP_KEY, { [dateKey]: ids });
 }
 
