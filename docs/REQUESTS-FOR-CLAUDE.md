@@ -38,15 +38,18 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Bentuk yang diinginkan: Metode di DataLayer `getTopGrossProfitProducts(span: { from: string; to: string }, limit?: number): Promise<{ productId: string; name: string; revenue: number; cogs: number; grossProfit: number; marginPct: number }[]>`.
 - Sementara: Kartu ditampilkan nonaktif dengan lencana "Segera" dan penjelasan bahwa perhitungan HPP historis per transaksi penjualan sedang disiapkan di server.
 
-## /karyawan/hak-akses — 2026-11-11
-- Butuh: Dukungan peran kustom dan penyimpanan matriks hak akses granular (dashboard + POS) di database beserta metode DataLayer (`listRoles`, `saveRolePermissions`, `deleteRole`), serta dukungan mengaitkan `role_id` kustom ke karyawan (saat ini `Employee['role']` terbatas pada `'owner' | 'manager' | 'cashier'`).
-- Untuk: Layar `/karyawan/hak-akses` (A51) agar peran baru/duplikasi dan perubahan izin per modul dashboard serta aksi kasir tersimpan lintas perangkat dan menegakkan izin di server (RLS) maupun kasir.
+## /karyawan/hak-akses — 2026-11-11 (diperbarui 2026-11-11, verifikasi langsung ke Majoo asli)
+- Status: Claude memverifikasi LANGSUNG alur asli Majoo (`dashboard.majoo.id`, akun Coffee Ground, dengan izin langsung Louis dalam sesi berjalan) dan menemukan strukturnya jauh lebih rinci dari skema di bawah ini yang tadinya diminta Antigravity. Lihat `docs/queue/A61.md` (tugas prioritas, dikerjakan Antigravity SEBELUM A54-A60) untuk detail lengkap alur UI 4-langkah yang harus ditiru. Skema DataLayer di bawah ini SUDAH DIPERBARUI mengikuti temuan itu — gantikan skema lama (yang hanya `level: 'none'|'read'|'write'` per modul) dengan yang berikut:
+- Butuh: Dukungan peran kustom dan penyimpanan matriks hak akses granular (dashboard + POS, PER FITUR dan PER AKSI — bukan cuma per modul) di database, flag otorisasi-sebagai-atasan terpisah dari izin melakukan aksi sendiri, halaman awal login per peran, serta dukungan mengaitkan `role_id` kustom ke karyawan (saat ini `Employee['role']` terbatas pada `'owner' | 'manager' | 'cashier'`).
+- Untuk: Layar `/karyawan/hak-akses` (A51/A61) agar peran baru/duplikasi dan perubahan izin granular tersimpan lintas perangkat dan menegakkan izin di server (RLS) maupun kasir, sesuai alur wizard 4-langkah Majoo asli (Informasi → Hak Akses Dashboard → Hak Akses POS → Pengaturan Lainnya).
 - Bentuk yang diinginkan:
-  - Tabel `roles` (`id`, `org_id`, `name`, `description`, `is_built_in`, `base_role`, `owner_app_access`, `created_at`)
-  - Tabel `role_dashboard_perms` (`role_id`, `module_id`, `level: 'none' | 'read' | 'write'`)
-  - Tabel `role_pos_perms` (`role_id`, `permission_id`, `level: 'allow' | 'approve' | 'deny'`)
+  - Tabel `roles` (`id`, `org_id`, `name`, `description`, `is_built_in`, `base_role`, `owner_app_access` [hanya boleh diubah oleh user dengan peran Owner — tegakkan di RLS/fungsi server, bukan cuma UI], `default_dashboard_page`, `default_pos_page`, `can_authorize_refund` bool, `can_authorize_void` bool, `can_authorize_complimentary` bool, `created_at`)
+  - Tabel `role_dashboard_perms` (`role_id`, `module_id`, `enabled` bool — toggle master modul; "jika false, seluruh fitur di modul itu tertutup")
+  - Tabel `role_dashboard_feature_perms` (`role_id`, `module_id`, `feature_id`, `sub_feature_id`, `can_view` bool, `can_create` bool, `can_edit` bool, `can_delete` bool, `can_void` bool — grid granular per sub-fitur, meniru "Detail Fitur" Majoo asli; kolom yang tidak relevan untuk sub-fitur tertentu boleh selalu `false`/diabaikan di UI)
+  - Tabel `role_pos_perms` (`role_id`, `module_id`, `feature_id`, `sub_feature_id`, kolom sama seperti di atas) — sisi POS punya katalog modul/fitur SENDIRI (beda dari sisi dashboard: mis. Kasir, Penjualan, Laporan, Absensi, Inventori, Pengaturan)
   - Metode di `DataLayer`: `listRoles(): Promise<RoleDefinition[]>`, `saveRolePermissions(role: RoleDefinition): Promise<RoleDefinition>`, `deleteRole(roleId: string): Promise<void>`
-- Sementara: Disimpan di `localStorage` peramban (kunci `'cg-role-permissions'`) dengan lencana "Pratinjau — belum tersambung server"; jumlah karyawan terpasang untuk peran bawaan dihitung langsung dari `data.listManagedEmployees()`.
+- Sementara: Disimpan di `localStorage` peramban (kunci `'cg-role-permissions'`) dengan lencana "Pratinjau — belum tersambung server"; jumlah karyawan terpasang untuk peran bawaan dihitung langsung dari `data.listManagedEmployees()`. A61 akan merombak bentuk data `localStorage` ini mengikuti skema baru di atas (dengan fungsi migrasi dari bentuk lama supaya data pengguna lama tidak hilang).
+- **Di luar lingkup untuk saat ini (jangan dikerjakan tanpa tanya Louis dulu)**: Majoo asli juga punya 3 mode hak akses lain di luar "Hak Akses Khusus" di atas — **Hak Akses Departemen** (batasi halaman laporan per departemen/kategori/produk), **Hak Akses Jenis Order** (batasi laporan per jenis order/platform), **Hak Akses per Periode** (batasi akses halaman berdasar tanggal awal periode yang diizinkan). Dicatat di `docs/PROGRESS.md` S161 sebagai temuan, menunggu keputusan Louis apakah perlu dibangun (cakupannya besar, masing-masing butuh skema dan wizard terpisah).
 
 ## /pengaturan/denah (A52 — Mode Denah Kustom & Pengaturan Per Meja) — 2026-11-11
 - Butuh:
@@ -64,17 +67,27 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
   - Perluasan `saveTable` / metode baru `saveTableLayout(positions: { tableId: string; xPct: number; yPct: number }[])` dan `saveTableSettings(tableId: string, settings: TableSettings)`.
 - Sementara: Pilihan mode, koordinat kustom, dan 4 pengaturan per meja disimpan sementara di `localStorage` dengan lencana "Pratinjau".
 
-## /deposit & /laporan/deposit (A53 — Paket Deposit & Laporan Deposit) — 2026-11-11
-- Butuh: Skema database dan metode `DataLayer` untuk paket deposit prabayar, penjualan paket deposit, dan pengembalian (refund) saldo deposit pelanggan.
+## /deposit & /laporan/deposit (A53 — Paket Deposit & Laporan Deposit) — 2026-11-11 (diperbarui 2026-11-11, verifikasi langsung ke Majoo asli)
+- Status verifikasi: Claude memeriksa langsung halaman kebijakan deposit asli Majoo (`dashboard.majoo.id/deposit-setting`, akun Coffee Ground) dan menemukan model deposit asli LEBIH KAYA dari skema A53 yang sudah dibangun:
+  1. Majoo membedakan **dua jenis deposit**: **"Deposit Saldo"** (saldo uang, sama seperti yang sudah dimodelkan A53) DAN **"Deposit Produk"** (pelanggan membayar di muka untuk KUOTA PRODUK tertentu, mis. "10x kopi", bukan nominal uang) — skema `deposit_packages` di bawah perlu kolom jenis supaya kedua jenis ini bisa dibedakan.
+  2. Setiap deposit (baik Saldo maupun Produk) punya **masa berlaku/kedaluwarsa** ("Perpanjangan & Reaktivasi Deposit" khusus mengelola deposit yang masa berlakunya aktif/sudah habis) — kolom `expires_at` perlu ditambahkan di `deposit_sales`.
+  3. Refund dibedakan menjadi dua mode terpisah yang masing-masing bisa diatur independen: **refund untuk deposit yang BELUM PERNAH dipakai** vs **refund untuk deposit yang SUDAH PERNAH dipakai sebagian** — tiap mode punya pilihan kebijakan sendiri: **"Otorisasi Saat Ini"** (langsung, pakai otorisasi yang berlaku saat itu) vs **"Alur Kerja Persetujuan"** (perlu disetujui dulu lewat alur persetujuan keuangan terpisah — fitur Prime+, di luar lingkup A53).
+  4. Tidak ditemukan halaman katalog paket deposit terpisah di dashboard Majoo dalam penjelajahan ini (kemungkinan paket deposit dibuat sebagai varian produk di modul Produk, atau hanya bisa dibuat dari aplikasi kasir POS) — BELUM dipastikan, jangan menebak; kalau Louis punya info lebih lanjut, catat di sini.
+- Butuh: Skema database dan metode `DataLayer` untuk paket deposit prabayar (Saldo DAN Produk), penjualan paket deposit (dengan masa berlaku), dan pengembalian (refund) saldo/kuota deposit pelanggan (dibedakan belum-dipakai vs sudah-dipakai).
 - Untuk: Layar `/deposit` (katalog paket deposit) dan `/laporan/deposit` (tab Penjualan Deposit & Refund Deposit).
 - Bentuk yang diinginkan:
-  - Tabel `deposit_packages` (`id`, `org_id`, `nama`, `nominal_didapat`, `harga_jual`, `aktif`, `created_at`)
-  - Tabel `deposit_sales` (`id`, `org_id`, `customer_id`, `package_id`, `nominal`, `harga_jual`, `metode_bayar`, `order_id`, `created_at`)
-  - Tabel `deposit_refunds` (`id`, `org_id`, `customer_id`, `nominal`, `alasan`, `authorized_by`, `created_at`)
+  - Tabel `deposit_packages` (`id`, `org_id`, `nama`, `jenis: 'saldo' | 'produk'`, `nominal_didapat` [untuk jenis saldo] ATAU `product_id` + `qty_didapat` [untuk jenis produk], `harga_jual`, `masa_berlaku_bulan?: number`, `aktif`, `created_at`)
+  - Tabel `deposit_sales` (`id`, `org_id`, `customer_id`, `package_id`, `nominal_atau_qty`, `harga_jual`, `metode_bayar`, `order_id`, `expires_at?`, `created_at`)
+  - Tabel `deposit_refunds` (`id`, `org_id`, `customer_id`, `deposit_sale_id`, `pernah_dipakai: boolean`, `nominal_atau_qty`, `alasan`, `authorized_by`, `created_at`)
   - Metode `DataLayer`:
     - `listDepositPackages(): Promise<DepositPackage[]>`
-    - `saveDepositPackage(input: { id?: string; name: string; creditAmount: number; salePrice: number; isActive: boolean; note?: string }): Promise<DepositPackage>`
+    - `saveDepositPackage(input: { id?: string; name: string; kind: 'saldo'|'produk'; creditAmount?: number; productId?: string; productQty?: number; salePrice: number; validityMonths?: number; isActive: boolean; note?: string }): Promise<DepositPackage>`
     - `listDepositSales(range: { from: string; to: string }): Promise<DepositSaleRecord[]>`
     - `listDepositRefunds(range: { from: string; to: string }): Promise<DepositRefundRecord[]>`
-- Sementara: Dibangun dengan data contoh statis di memori komponen (tidak memakai `localStorage` untuk data laporan) berlabel **"Pratinjau tampilan — menunggu dukungan server"**.
+- Sementara: Dibangun dengan data contoh statis di memori komponen (tidak memakai `localStorage` untuk data laporan) berlabel **"Pratinjau tampilan — menunggu dukungan server"**. BELUM diminta Antigravity menambah UI "Deposit Produk"/masa-berlaku/pemisahan refund — menunggu Claude menyiapkan skema di atas dulu (ikuti AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru sebelum ada di DataLayer).
+
+## Pertanyaan terbuka untuk Louis — /pengaturan/denah (A52) — 2026-11-11
+- Saat verifikasi langsung ke Majoo asli, ditemukan bahwa **seluruh menu "Pengaturan Ruangan" (tempat fitur Denah/tata-letak meja berada) di akun Coffee Ground milik Louis terkunci dengan pesan "Sayang sekali, fitur ini hanya bisa diakses oleh pengguna PRIME+ dan PRIME"** — akun Louis saat ini bukan paket Prime+/Prime, jadi Claude TIDAK BISA memverifikasi langsung urutan klik/wizard asli fitur Denah Kustom dari akun Louis sendiri.
+- Ini berarti: (a) A52 yang sudah dibangun BELUM bisa diverifikasi cocok/tidaknya dengan alur asli sampai ada akses, atau (b) karena ini fitur premium di Majoo asli, mungkin masuk akal kalau CG POS pun memperlakukannya sebagai fitur opsional/lanjutan, bukan wajib sama persis — ini keputusan produk yang sebaiknya Louis yang menentukan, bukan ditebak sepihak oleh Claude/Antigravity.
+- Perlu keputusan Louis: (1) apakah Louis ingin berlangganan Prime+/Prime sementara di akun Majoo aslinya supaya bisa diverifikasi langsung, (2) apakah cukup mencari dokumentasi/video bantuan publik Majoo tentang fitur ini (tanpa akses langsung), atau (3) terima A52 apa adanya untuk sekarang dan prioritaskan area lain dulu.
 
