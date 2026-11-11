@@ -29,6 +29,14 @@ export default function StockPage() {
   const [kind, setKind] = useState<'' | StockItem['kind']>('');
   const [status, setStatus] = useState<'' | StockFilter>('');
   const state = useAsync(() => data.listStock(), [data]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const s = new URLSearchParams(window.location.search).get('status');
+    if (s === 'out' || s === 'negative' || s === 'low' || s === 'alert' || s === 'ok') {
+      setStatus(s as StockFilter);
+    }
+  }, []);
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const [notice, setNotice] = useState('');
   const rows = useMemo(() => {
