@@ -47,3 +47,18 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
   - Metode di `DataLayer`: `listRoles(): Promise<RoleDefinition[]>`, `saveRolePermissions(role: RoleDefinition): Promise<RoleDefinition>`, `deleteRole(roleId: string): Promise<void>`
 - Sementara: Disimpan di `localStorage` peramban (kunci `'cg-role-permissions'`) dengan lencana "Pratinjau — belum tersambung server"; jumlah karyawan terpasang untuk peran bawaan dihitung langsung dari `data.listManagedEmployees()`.
 
+## /deposit & /laporan/deposit (A53 — Paket Deposit & Laporan Deposit) — 2026-11-11
+- Butuh: Skema database dan metode `DataLayer` untuk paket deposit prabayar, penjualan paket deposit, dan pengembalian (refund) saldo deposit pelanggan.
+- Untuk: Layar `/deposit` (katalog paket deposit) dan `/laporan/deposit` (tab Penjualan Deposit & Refund Deposit).
+- Bentuk yang diinginkan:
+  - Tabel `deposit_packages` (`id`, `org_id`, `nama`, `nominal_didapat`, `harga_jual`, `aktif`, `created_at`)
+  - Tabel `deposit_sales` (`id`, `org_id`, `customer_id`, `package_id`, `nominal`, `harga_jual`, `metode_bayar`, `order_id`, `created_at`)
+  - Tabel `deposit_refunds` (`id`, `org_id`, `customer_id`, `nominal`, `alasan`, `authorized_by`, `created_at`)
+  - Metode `DataLayer`:
+    - `listDepositPackages(): Promise<DepositPackage[]>`
+    - `saveDepositPackage(input: { id?: string; name: string; creditAmount: number; salePrice: number; isActive: boolean; note?: string }): Promise<DepositPackage>`
+    - `listDepositSales(range: { from: string; to: string }): Promise<DepositSaleRecord[]>`
+    - `listDepositRefunds(range: { from: string; to: string }): Promise<DepositRefundRecord[]>`
+- Sementara: Dibangun dengan data contoh statis di memori komponen (tidak memakai `localStorage` untuk data laporan) berlabel **"Pratinjau tampilan — menunggu dukungan server"**.
+
+
