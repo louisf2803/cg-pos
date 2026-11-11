@@ -59,8 +59,9 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
      - `posY?: number` (`pos_y`, 0-100%)
      - `timeLimitEnabled?: boolean`, `timeLimitMinutes?: number` (`time_limit_minutes`)
      - `reminderEnabled?: boolean`, `reminderBeforeMinutes?: number` (`reminder_before_minutes`)
-     - `minBillEnabled?: boolean`, `minBill?: number` (`min_bill`)
+     - `minBillEnabled?: boolean`, `minBill?: number` (`min_bill`), `minBillMode?: 'wajib' | 'izinkan' | 'tambah_selisih'` (`min_bill_mode`, bawaan `'izinkan'`)
      - `labelEnabled?: boolean`, `label?: string` (maks 20 huruf)
+     - `shape?: 'persegi' | 'persegi_panjang' | 'bulat'` dan elemen dekoratif kanvas non-meja per lantai/outlet (`decorElements: { id, type: 'tanaman'|'dinding'|'pintu', xPct, yPct, floorId? }[]`)
 - Untuk: Layar `/pengaturan/denah` (pemilih Grid Meja vs Denah Kustom dengan drag posisi dan 4 toggle pengaturan per meja).
 - Bentuk yang diinginkan:
   - Perluasan `OutletOptions` + `saveOutletOptions` (atau `updateFloorMode(outletId, mode)`),

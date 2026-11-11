@@ -5,6 +5,20 @@
 
 export type FloorLayoutMode = 'grid' | 'custom';
 
+export type MinBillBehavior = 'wajib' | 'izinkan' | 'tambah_selisih';
+
+export type CustomTableShape = 'persegi' | 'persegi_panjang' | 'bulat';
+
+export type DecorElementType = 'tanaman' | 'dinding' | 'pintu';
+
+export interface DecorElement {
+  id: string;
+  type: DecorElementType;
+  xPct: number;
+  yPct: number;
+  floorId?: string;
+}
+
 export interface TablePosition {
   /** Posisi mendatar dalam persen (0 - 100). */
   xPct: number;
@@ -19,11 +33,24 @@ export interface TableSettings {
   reminderBeforeMinutes: number;
   minBillEnabled: boolean;
   minBill: number;
+  minBillMode?: MinBillBehavior;
   labelEnabled: boolean;
   label: string;
 }
 
 export const MAX_TABLE_LABEL_LENGTH = 20;
+
+export const MIN_BILL_BEHAVIORS: readonly MinBillBehavior[] = [
+  'wajib',
+  'izinkan',
+  'tambah_selisih',
+];
+
+export const DECOR_ELEMENT_TYPES: readonly DecorElementType[] = [
+  'tanaman',
+  'dinding',
+  'pintu',
+];
 
 export const DEFAULT_TABLE_SETTINGS: TableSettings = {
   timeLimitEnabled: false,
@@ -32,6 +59,7 @@ export const DEFAULT_TABLE_SETTINGS: TableSettings = {
   reminderBeforeMinutes: 15,
   minBillEnabled: false,
   minBill: 100000,
+  minBillMode: 'izinkan',
   labelEnabled: false,
   label: '',
 };
@@ -118,6 +146,11 @@ export function sanitizeTableSettings(
   const minBill = Number.isFinite(base.minBill)
     ? Math.max(0, Math.round(base.minBill))
     : DEFAULT_TABLE_SETTINGS.minBill;
+  const minBillMode: MinBillBehavior = MIN_BILL_BEHAVIORS.includes(
+    base.minBillMode as MinBillBehavior,
+  )
+    ? (base.minBillMode as MinBillBehavior)
+    : 'izinkan';
 
   return {
     timeLimitEnabled,
@@ -126,15 +159,13 @@ export function sanitizeTableSettings(
     reminderBeforeMinutes,
     minBillEnabled: Boolean(base.minBillEnabled),
     minBill,
+    minBillMode,
     labelEnabled: Boolean(base.labelEnabled),
     label: formatTableLabel(typeof base.label === 'string' ? base.label : ''),
   };
 }
 
-/**
- * Validasi pengaturan per meja. Mengembalikan pesan kesalahan Bahasa Indonesia
- * jika ada aturan yang dilanggar, atau null bila seluruh pengaturan sah.
- */
+/** Validasi pengaturan per meja. */
 export function tableSettingsProblem(settings: TableSettings): string | null {
   if (settings.timeLimitEnabled) {
     if (!Number.isInteger(settings.timeLimitMinutes) || settings.timeLimitMinutes < 1) {
@@ -159,6 +190,12 @@ export function tableSettingsProblem(settings: TableSettings): string | null {
   if (settings.minBillEnabled) {
     if (!Number.isInteger(settings.minBill) || settings.minBill < 1) {
       return 'Minimum tagihan harus lebih besar dari Rp 0.';
+    }
+    if (
+      settings.minBillMode !== undefined &&
+      !MIN_BILL_BEHAVIORS.includes(settings.minBillMode)
+    ) {
+      return 'Mode perilaku minimum tagihan tidak valid.';
     }
   }
 
@@ -190,8 +227,61 @@ export function summarizeTableSettings(settings?: TableSettings | null): string[
     );
   }
   if (settings.minBillEnabled && settings.minBill > 0) {
-    tags.push(`Min Rp ${settings.minBill.toLocaleString('id-ID')}`);
+    const modeTag =
+      settings.minBillMode === 'wajib'
+        ? ' · Wajib'
+        : settings.minBillMode === 'tambah_selisih'
+          ? ' · +Selisih'
+          : '';
+    tags.push(`Min Rp ${settings.minBill.toLocaleString('id-ID')}${modeTag}`);
   }
   return tags;
+}
+
+/** Buat elemen dekoratif baru dengan koordinat aman 0-100%. */
+export function createDecorElement(
+  id: string,
+  type: DecorElementType,
+  xPct = 50,
+  yPct = 50,
+  floorId?: string,
+): DecorElement {
+  const pos = clampTablePosition({ xPct, yPct });
+  return {
+    id,
+    type,
+    xPct: pos.xPct,
+    yPct: pos.yPct,
+    ...(floorId ? { floorId } : {}),
+  };
+}
+
+/** Sanitasi daftar elemen dekoratif dari JSON tersimpan (abaikan entri cacat). */
+export function sanitizeDecorElements(raw: unknown): DecorElement[] {
+  if (!Array.isArray(raw)) return [];
+  const out: DecorElement[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const obj = item as Partial<DecorElement>;
+    if (
+      typeof obj.id !== 'string' ||
+      !obj.id.trim() ||
+      !DECOR_ELEMENT_TYPES.includes(obj.type as DecorElementType)
+    ) {
+      continue;
+    }
+    const pos = clampTablePosition({
+      xPct: typeof obj.xPct === 'number' ? obj.xPct : 50,
+      yPct: typeof obj.yPct === 'number' ? obj.yPct : 50,
+    });
+    out.push({
+      id: obj.id,
+      type: obj.type as DecorElementType,
+      xPct: pos.xPct,
+      yPct: pos.yPct,
+      ...(typeof obj.floorId === 'string' && obj.floorId ? { floorId: obj.floorId } : {}),
+    });
+  }
+  return out;
 }
 
