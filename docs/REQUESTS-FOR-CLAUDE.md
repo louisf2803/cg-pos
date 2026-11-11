@@ -202,3 +202,9 @@ Pada dashboard & `fake.ts`, `allowNegativeStock = false` ("Izinkan stok minus" d
 1. `pos.stock_post` (`0014_stock_manual.sql`): bila `p_kind IN ('adjust_out', 'waste')` dan `allow_negative_stock = false`, tolak bila saldo baru `< 0` (`Stok tidak mencukupi dan outlet melarang stok minus`).
 2. `pos.stock_transfer_create` (`0024_stock_transfer.sql`): bila asal adalah outlet dan `allow_negative_stock = false`, tolak bila ada baris transfer melebihi saldo stok saat ini.
 3. `pos.sync_push`: saat memfinalkan penjualan lunas atau membuka/menyimpan item barang terlacak ketika `allow_negative_stock = false` (kecuali produk tanpa pelacakan stok), pastikan saldo produk tidak turun ke bawah `0` (atau kembalikan galat penolakan yang jelas untuk ditangani sinkronisasi).
+
+## Dari Antigravity (Audit Akhir Gelombang A Non-DB) — Celah Kolom Order/Diskon
+
+Saat memeriksa sisa item `wave=A` (`clone != 'yes'`) setelah A72, dua celah tersisa membutuhkan kolom baru pada skema penjualan (`0003_customers_sales.sql` / `0008_sync.sql`):
+1. **Nomor referensi kupon pada `order_discounts`**: tabel `pos.order_discounts` (dan `supabase.ts`) saat ini hanya menyimpan `(id, org_id, order_id, order_item_id, source, promotion_id, coupon_id, points_used, amount, authorized_by)` tanpa kolom `reference` / `label`. Dibutuhkan `reference text` (atau `label`) pada `order_discounts` + propagasi di `sync_push` dan `DiscountEntry` agar nomor referensi kupon tersimpan ke server dan tampil di laporan/struk.
+2. **Harga dasar (`base_price`) untuk Laporan Perubahan Harga Kasir (`order_items`)**: tabel `order_items` saat ini hanya menyimpan `unit_price` tanpa `base_price` sebelum diubah kasir, serta `sync_push` belum membatasi `priceOverridePct`. Dibutuhkan `base_price numeric(18,2)` pada `order_items` agar perubahan harga historis kasir akurat untuk laporan harga diubah meskipun harga master produk berubah kemudian.
