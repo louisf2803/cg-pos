@@ -668,3 +668,4 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   - Skrip audit Playwright `docs/shots/a50/run-a50-audit.mjs` memvalidasi pada 390 px bahwa seluruh kolom terakhir berada di dalam viewport (`getBoundingClientRect().right <= 390`), `bodyScrollWidth === 390`, dan 0 galat konsol.
   - Tangkapan layar sebelum dan sesudah tersimpan di `docs/shots/a50/`.
   - Lulus `pnpm -r typecheck`, `pnpm -F @cgpos/shared test`, `pnpm -F @cgpos/dashboard build`, dan `bash scripts/lint-tailwind.sh origin/main`.
+- S140 (Claude) — A35–A50 digabung ke master (review.sh SEMUA LULUS; Playwright 390/1280 tanpa overflow). Perbaikan tailwind pada baris baru A42/A43. Sisa: ulang perbaikan tampilan keuangan A41 di tata letak widget A38 (usul A51).
