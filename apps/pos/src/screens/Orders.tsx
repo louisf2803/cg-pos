@@ -642,6 +642,12 @@ export function Orders({
                               </div>
                             </div>
 
+                            <OrderDetailExtra
+                              order={target}
+                              tableNames={names}
+                              tz={ctx.timezone}
+                            />
+
                             {/* Daftar Item */}
                             <ul className="space-y-6 text-xs">
                               {target.items.map((item) => (
@@ -747,6 +753,124 @@ export function Orders({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function fmtOrderDateTime(iso: string, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('id-ID', {
+      timeZone: tz,
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+/** Rincian void (kasir, waktu, alasan) dan riwayat refund per transaksi di panel Pesanan. */
+function OrderDetailExtra({
+  order,
+  tableNames,
+  tz,
+}: {
+  order: Order;
+  tableNames: Record<string, string>;
+  tz: string;
+}) {
+  const data = useData();
+  const extraLoad = useAsync(async () => {
+    const [employees, refunds] = await Promise.all([
+      data.listEmployees(),
+      order.status === 'paid' ? data.listRefunds(order.id) : Promise.resolve([] as Refund[]),
+    ]);
+    return { employees, refunds };
+  }, [data, order]);
+
+  if (order.status !== 'void' && order.status !== 'paid') return null;
+
+  const employees = extraLoad.status === 'ready' ? extraLoad.data.employees : [];
+  const cashierName = employees.find((e) => e.id === order.cashierId)?.name ?? '—';
+  const tableName = order.tableId ? tableNames[order.tableId] : undefined;
+  const meta = order as Order & { voidReason?: string; reason?: string; authorizedBy?: string };
+  const voidReason = meta.voidReason ?? meta.reason ?? order.label ?? 'Tidak ada catatan alasan';
+  const authorizerName = meta.authorizedBy
+    ? (employees.find((e) => e.id === meta.authorizedBy)?.name ?? meta.authorizedBy)
+    : undefined;
+
+  if (order.status === 'void') {
+    return (
+      <div className="cg-banner cg-banner--danger text-xs" role="status">
+        <div className="min-w-0 space-y-4">
+          <strong>Pesanan Dibatalkan (Void)</strong>
+          <p>
+            Kasir: {cashierName}
+            {tableName ? ` · Meja ${tableName}` : ''}
+            {authorizerName ? ` · Otorisasi: ${authorizerName}` : ''}
+          </p>
+          <p>
+            Dibuka: {fmtOrderDateTime(order.openedAt, tz)} · Dibatalkan:{' '}
+            {fmtOrderDateTime(order.closedAt ?? order.openedAt, tz)}
+          </p>
+          <p>Alasan: {voidReason}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const refunds = extraLoad.status === 'ready' ? extraLoad.data.refunds : [];
+  const totalRefunded = refunds.reduce((sum, r) => sum + r.total, 0);
+
+  return (
+    <div className="space-y-8 text-xs">
+      <div className="flex flex-wrap items-center gap-x-12 gap-y-4 text-text-muted bg-surface-raised border border-border rounded p-8">
+        <span>Kasir: {cashierName}</span>
+        {tableName && <span>Meja: {tableName}</span>}
+        <span>Lunas: {fmtOrderDateTime(order.closedAt ?? order.openedAt, tz)}</span>
+        {order.payments.length > 0 && (
+          <span>
+            Bayar: {order.payments.map((p) => `${p.methodName} (${formatRp(p.amount)})`).join(' + ')}
+          </span>
+        )}
+      </div>
+
+      {extraLoad.status === 'loading' ? (
+        <div className="cg-skeleton h-10 w-full" aria-label="Memuat riwayat refund" />
+      ) : extraLoad.status === 'error' ? (
+        <p className="text-danger">{extraLoad.message}</p>
+      ) : refunds.length > 0 ? (
+        <div className="bg-surface-raised border border-border rounded p-12 space-y-8">
+          <div className="flex flex-wrap items-center justify-between gap-8">
+            <span className="font-bold text-text">
+              Riwayat Refund ({refunds.length}) · Total -{formatRp(totalRefunded)}
+            </span>
+            <span className="font-semibold text-accent cg-num">
+              Bersih: {formatRp(order.total - totalRefunded)}
+            </span>
+          </div>
+          <ul className="divide-y divide-border">
+            {refunds.map((r) => (
+              <li key={r.id} className="py-6 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-8">
+                  <div className="flex flex-wrap items-center gap-6">
+                    <span className="font-semibold text-text">{r.number}</span>
+                    <span className="cg-badge cg-badge--warning">{r.methodName}</span>
+                  </div>
+                  <span className="cg-num font-bold text-danger">-{formatRp(r.total)}</span>
+                </div>
+                <p className="text-text-muted">
+                  {fmtOrderDateTime(r.createdAt, tz)} · Alasan: {r.reason}
+                  {r.note ? ` (${r.note})` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
