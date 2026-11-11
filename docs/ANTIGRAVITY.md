@@ -67,6 +67,23 @@ lalu uji di peramban HANYA pada lebar 390 px dan 1280 px (tidak perlu 1440, tida
 Jawab "siap" bila paham, lalu tunggu tugas.
 ```
 
+## 3b. Prompt Goal — loop mandiri sampai goal tercapai (tempel setelah Prompt 0, kapan saja)
+
+```
+Sekarang jalan mode goal, bukan nunggu aku kasih tugas satu-satu. Baca docs/queue/GOAL.md.
+Loop tanpa henti: kerjakan file docs/queue/A*.md yang belum STATUS: SELESAI urut nomor seperti biasa.
+Begitu tidak ada file bernomor yang menunggu, JANGAN idle/nunggu — langsung baca GOAL.md, pilih sendiri
+satu item Perlu yang belum selesai DAN tidak butuh skema/DataLayer baru (cek data.ts dulu), tulis task
+singkatmu sendiri (format sama seperti file bernomor, satu tugas = satu cabang = satu PR kecil), kerjakan,
+commit, tandai selesai, lanjut ke item berikutnya dari GOAL.md. Terus begitu sampai SEMUA item di GOAL.md
+yang bisa dikerjakan tanpa skema baru sudah selesai.
+Kalau ketemu item yang ternyata butuh data/skema baru: JANGAN dikerjakan dengan data palsu — catat
+permintaannya di docs/REQUESTS-FOR-CLAUDE.md, lanjut ke item lain, jangan berhenti menunggu jawaban.
+Berhenti HANYA kalau: (a) semua item GOAL.md yang bisa dikerjakan sudah selesai, atau (b) kamu butuh
+keputusan yang menurut GOAL.md memang ditunda untuk Louis (DOKU/QRIS, Aplikasi Owner) — jangan menebak itu.
+Jawab "siap, mode goal jalan" lalu langsung mulai, jangan tanya dulu.
+```
+
 ## 4. Prompt tugas
 
 > Tiap prompt berdiri sendiri setelah Prompt 0. Kalau Antigravity tidak menemukan metode DataLayer yang dibutuhkan, ia berhenti dan menulis permintaan, bukan mengarang.
