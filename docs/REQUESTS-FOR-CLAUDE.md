@@ -106,3 +106,13 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Untuk: Tampilan pilih meja (`apps/pos/src/screens/TablePicker.tsx`) dan operasi meja (`packages/shared/src/table-ops.ts`) di kasir, agar kasir melihat status meja yang sama informatifnya dengan Majoo asli.
 - Sementara: CG POS tetap pakai status biner kosong/terisi untuk saat ini. Ditulis di sini supaya tidak terlupa; BUKAN diprioritaskan sebelum keputusan skema di atas diambil Claude, dan BUKAN tugas Antigravity sampai keputusan itu selesai (lihat AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru).
 
+
+## Dari Antigravity (A58) — Produk Fasilitas (`kind: 'facility'`), Grup Loyalti, & Bonus Ulang Tahun Otomatis
+
+1. **Produk Fasilitas (`/fasilitas`, `/laporan/fasilitas`, `S36`, `S80`)**:
+   - Saat ini `CatalogInput['kind']` pada `packages/shared/src/types.ts` hanya menerima `'goods' | 'service'`, sehingga item fasilitas disimpan lewat `saveCatalogProduct(..., { kind: 'service', trackStock: false })`, sedangkan `capacity`, `unit` (`'jam' | 'sesi'`), dan catatan perlengkapan disimpan sementara di peramban (`localStorage`, bertanda **Pratinjau**).
+   - **Bentuk data & DataLayer yang dibutuhkan**: dukungan `kind: 'facility'` (atau field terstruktur `facility?: { capacity: number; unit: 'jam' | 'sesi'; note?: string }`) pada `Product`, `CatalogProduct`, dan `CatalogInput`, plus opsional `appointmentId` pada `OrderItem` agar `/laporan/fasilitas` dapat menghitung keterisian jadwal lintas perangkat.
+
+2. **Program Loyalti — Grup Tier & Bonus Ulang Tahun (`/loyalty`, `S42`)**:
+   - Tab `Grup Loyalty` saat ini menyimpan daftar tingkatan (`minPoints`, `earnMultiplier`, `benefitNote`) di peramban (`Pratinjau`), lalu memetakan jumlah anggota langsung dari `pointsBalance` pelanggan via `listCustomers()`. Tab `Ulang Tahun` dapat langsung memberi poin manual ke ledger server lewat `data.adjustPoints()`, namun tercatat sebagai `kind: 'adjust'` dan batas 1x per tahun baru dijaga di peramban.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listLoyaltyTiers()` / `saveLoyaltyTiers()` (serta pengali poin otomatis saat checkout berdasarkan grup pelanggan), dan pengaturan aturan bonus ulang tahun di server beserta eksekusi otomatis harian/trigger yang mencatat `kind: 'birthday'` di `loyalty_ledger` secara idempoten (maksimal sekali setahun per pelanggan).

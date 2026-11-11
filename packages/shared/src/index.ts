@@ -61,4 +61,5 @@ export * from './top-reports';
 export * from './permission-matrix';
 export * from './table-layout';
 export * from './deposit';
+export * from './facility';
 
