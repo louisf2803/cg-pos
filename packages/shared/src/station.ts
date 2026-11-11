@@ -48,6 +48,27 @@ export const STATION_NAME_MAX = 40;
 export const STATION_TEXT_MAX = 60;
 export const MAX_LABELS_PER_PRINT = 40;
 
+export const PRINT_MODE_OPTIONS: { id: PrintMode; label: string; description: string }[] = [
+  { id: 'auto', label: 'Otomatis', description: 'Cetak langsung bila printer tersambung' },
+  { id: 'ask', label: 'Tanyakan', description: 'Tombol Cetak muncul di kasir' },
+  { id: 'off', label: 'Mati', description: 'Hanya layar dapur, tanpa cetak' },
+];
+
+export const STATION_KIND_OPTIONS: { id: StationKind; label: string; description: string }[] = [
+  { id: 'checker', label: 'Checker (Dapur / Bar)', description: 'Tiket satu rangkap per stasiun yang merangkum pesanan' },
+  { id: 'label', label: 'Label (Cup / Kemasan)', description: 'Satu stiker per porsi produk untuk kemasan atau cup' },
+];
+
+export function printModeLabel(mode: PrintMode): string {
+  const found = PRINT_MODE_OPTIONS.find((o) => o.id === mode);
+  return found ? found.label : mode;
+}
+
+export function stationKindLabel(kind: StationKind): string {
+  const found = STATION_KIND_OPTIONS.find((o) => o.id === kind);
+  return found ? found.label : kind;
+}
+
 export function defaultTemplate(kind: StationKind = 'checker'): StationTemplate {
   return kind === 'label'
     ? { title: '', footer: '', showOrderNo: true, showOrderType: false, showTable: true, showGuests: false, showCashier: false, showTime: true, showNotes: true, showExtras: true, boldItems: true, separators: false, theme: 'normal' }

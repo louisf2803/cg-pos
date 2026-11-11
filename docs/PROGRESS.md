@@ -536,3 +536,29 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -r typecheck` (0 error)
      - `pnpm -F @cgpos/shared test` (55 file, 346 tes lulus)
      - `pnpm -F @cgpos/dashboard build` (115 halaman statis)
+- Selesai (tugas A44): Pengaturan Stasiun Cetak & Editor Templat Tiket (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/station.ts`:
+     - Menambahkan opsi dan helper metadata: `PRINT_MODE_OPTIONS`, `STATION_KIND_OPTIONS`, `printModeLabel`, `stationKindLabel`.
+     - 2 unit test baru di `packages/shared/test/station.test.ts` (total 348 tes vitest lulus).
+  2. Layar `/pengaturan/stasiun-cetak` (`apps/dashboard/src/app/pengaturan/stasiun-cetak/page.tsx`):
+     - Daftar stasiun: kartu informatif per stasiun (nama, jenis Checker/Label, mode cetak Otomatis/Tanyakan/Mati, jumlah salinan, lebar kertas 58/80 mm, ukuran huruf tema, jumlah produk terhubung, dan status aktif).
+     - Keadaan kosong (Empty state): pesan ramah dengan 2 tombol aksi ("Buat Dapur dan Bar" yang langsung memanggil `savePrintStation` untuk dua stasiun bawaan, dan "Buat stasiun sendiri").
+     - Formulir Dialog (`StationFormModal`):
+       - Input nama stasiun (maks 40 huruf, validasi langsung dengan `stationProblem`).
+       - Pilihan jenis stasiun (Checker Dapur/Bar vs Label Cup/Kemasan).
+       - Pilihan mode cetak di kasir (Otomatis, Tanyakan, Mati) dengan penjelasan lengkap.
+       - Jumlah salinan tiket (1–5 rangkap) dan lebar kertas printer (58 mm / 80 mm).
+       - Saklar status aktif stasiun.
+       - Editor templat tiket terintegrasi: judul atas tiket, teks bawah tiket, pilihan ukuran huruf tiket / tema (Normal, Sedang, Besar sesuai pembaruan 11 Nov), serta sakelar tampil/sembunyi 10 atribut (nomor pesanan, jenis order, meja, tamu, kasir, waktu, catatan, ekstra, cetak tebal, garis pemisah).
+       - Pratinjau langsung tiket pesanan monospace (`<pre>`) di samping formulir pada desktop/tablet dan di bawah pada mobile, menggunakan `checkerPieces`/`labelPieceSets` + `sampleTicket()` dan `paperCols(paper)`. Aman di 390px tanpa meluap.
+       - Aksi hapus stasiun dengan modal konfirmasi dan peringatan pelepasan produk terhubung.
+       - Penanganan galat server menggunakan komponen `cg-banner` danger.
+     - Navigasi: menambahkan `{ href: '/pengaturan/stasiun-cetak', label: 'Stasiun cetak', screen: 'S53', tier: 2, built: true }` pada grup Operasional & Cetak di `apps/dashboard/src/lib/nav.ts`.
+  3. Kepatuhan Tailwind Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+  4. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (55 file, 348 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a44/`).
+
