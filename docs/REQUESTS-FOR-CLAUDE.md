@@ -11,11 +11,12 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Sementara: <apa yang dikerjakan dengan data palsu / ditunda>
 ```
 
-## /keuangan/transfer — 2026-11-10
-- Butuh: Penanda atau `sourceType: 'transfer'` pada jurnal hasil aksi "Pindah saldo kas dan bank".
+## /keuangan/transfer — 2026-11-10 (diperbarui 2026-11-11, S146)
+- Status: Sisi server SUDAH SIAP (migrasi `0032_journal_transfer_kind.sql`, dibuat & diuji S146) — `pos.journal_manual_post` sekarang menerima `p_kind = 'transfer'` (nomor dokumen `PS-...`, `source_type = 'transfer'`), dan `pos.journal_reverse` bisa membalik jurnal jenis ini seperti jurnal manual/saldo awal. `JournalInput.kind` di `packages/shared/src/finance.ts` sudah diperluas jadi `'manual' | 'opening' | 'transfer'`. Diuji lokal: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test` (396 lulus), `pnpm -F @cgpos/dashboard build`, serta suite SQL lokal lengkap (`packages/db/tests/run.sh`, termasuk tes baru `19_journal_transfer.sql`) — SEMUA TES LULUS.
+- **BELUM diterapkan ke database produksi** — menunggu persetujuan Louis seperti migrasi 0028/0031 sebelumnya. JANGAN ubah dialog "Pindah saldo kas dan bank" (app/keuangan/kas) untuk mengirim `kind: 'transfer'` sebelum migrasi 0032 diterapkan ke produksi — server akan menolak dengan galat "invalid kind" dan memutus fitur pindah saldo nyata sampai diterapkan. Dialog itu tetap mengirim `kind: 'manual'` untuk saat ini.
+- Setelah Louis menyetujui penerapan 0032 ke produksi, langkah lanjutan (boleh Antigravity atau Claude, satu PR kecil): (1) ubah dialog "Pindah saldo" supaya mengirim `kind: 'transfer'`; (2) ubah layar `/keuangan/transfer` agar menyaring lewat `sourceType === 'transfer'` (bukan lagi tebak-tebakan kata kunci deskripsi).
 - Untuk: Layar `/keuangan/transfer` agar dapat membedakan secara pasti transaksi pemindahan kas/bank dari jurnal manual biasa tanpa mengandalkan teks deskripsi.
-- Bentuk yang diinginkan: `JournalSource` mencakup `'transfer'` saat disimpan lewat dialog pindah saldo, sehingga dapat difilter lewat `data.listJournal({ sourceType: 'transfer' })`.
-- Sementara: Layar membaca jurnal manual (`sourceType: 'manual'`) dan menyaring berdasarkan deskripsi / kata kunci "Pindah saldo", "Transfer", atau "Mutasi kas".
+- Sementara: Layar membaca jurnal manual (`sourceType: 'manual'`) dan menyaring berdasarkan deskripsi / kata kunci "Pindah saldo", "Transfer", atau "Mutasi kas" — tidak berubah sampai 0032 diterapkan.
 
 ## /laporan/terminal — 2026-11-11
 - Butuh: Field `deviceCode?: string` atau `deviceId?: string` pada antarmuka `Order` (dan kolom `device_code` pada tabel `orders` / implementasi DataLayer).
