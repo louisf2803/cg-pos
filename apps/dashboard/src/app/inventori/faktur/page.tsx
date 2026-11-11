@@ -175,7 +175,7 @@ function Viewer({ id, initialNotice, onBack }: { id: string; initialNotice: stri
       {state.status === 'loading' && <div className="cg-skeleton" style={{ height: 160 }} aria-busy="true" aria-label="Memuat" />}
       {state.status === 'ready' && !f && <div className="cg-empty"><p><strong>Faktur tidak ditemukan.</strong></p></div>}
       {f && (
-        <div className="grid gap-12">
+        <div className="grid gap-12 min-w-0">
           <p className="text-sm text-text-muted">Tanggal {fmtDate(f.invoiceDate)}{f.dueDate ? ` · jatuh tempo ${fmtDate(f.dueDate)}` : ''}{f.supplierInvoiceNo ? ` · faktur pemasok ${f.supplierInvoiceNo}` : ''}{f.note ? ` · ${f.note}` : ''}</p>
           <div className="cg-data-wrap">
             <table className="cg-data" aria-label="Barang faktur">

@@ -283,7 +283,7 @@ export default function KitchenReportPage() {
             <div className="border border-border rounded-xl bg-surface overflow-hidden min-w-0">
               <div className="p-16 border-b border-border">
                 <h2 className="text-base font-semibold flex items-center gap-8">
-                  <Flame className="w-[18px] h-[18px] text-amber-500" aria-hidden /> Beban pesanan per jam
+                  <Flame className="w-[18px] h-[18px] text-warning" aria-hidden /> Beban pesanan per jam
                 </h2>
                 <p className="text-xs text-text-muted mt-2">
                   Distribusi waktu kirim pesanan dan kecepatan dapur menyelesaikan per jam

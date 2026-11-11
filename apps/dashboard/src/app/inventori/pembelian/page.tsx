@@ -148,7 +148,7 @@ function Viewer({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
       {state.status === 'loading' && <div className="cg-skeleton" style={{ height: 160 }} aria-busy="true" aria-label="Memuat" />}
       {state.status === 'ready' && !o && <div className="cg-empty"><p><strong>Pesanan tidak ditemukan.</strong></p></div>}
       {o && (
-        <div className="grid gap-12">
+        <div className="grid gap-12 min-w-0">
           <p className="text-sm text-text-muted">Dipesan {fmtDate(o.orderDate)}{o.expectedDate ? ` · perkiraan tiba ${fmtDate(o.expectedDate)}` : ''}{o.note ? ` · ${o.note}` : ''}</p>
           <div className="cg-data-wrap">
             <table className="cg-data" aria-label="Barang pesanan">

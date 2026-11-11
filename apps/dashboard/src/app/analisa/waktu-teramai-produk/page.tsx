@@ -226,7 +226,7 @@ export default function ProductPeakHoursPage() {
                       </td>
                       <td className="py-8 px-8 text-right cg-num font-bold text-primary">{num(p.totalQty)}</td>
                       <td className="py-8 px-8 text-center">
-                        <span className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] font-medium">
+                        <span className="inline-flex items-center gap-[4px] px-[8px] py-[2px] rounded-full bg-warning/10 text-warning text-[11px] font-medium">
                           <Flame className="w-12 h-12" aria-hidden />
                           {String(p.peakHour).padStart(2, '0')}:00
                         </span>

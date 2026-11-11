@@ -441,7 +441,7 @@ export default function BarcodePrintPage() {
                 </div>
 
                 {/* Products Table */}
-                <div className="border border-border rounded-lg overflow-hidden max-h-[480px] overflow-y-auto">
+                <div className="border border-border rounded-lg overflow-auto max-h-[480px] min-w-0">
                   <table className="w-full text-left text-sm" aria-label="Daftar produk untuk cetak barcode">
                     <thead className="bg-surface border-b border-border text-xs text-text-muted uppercase tracking-wider sticky top-0 z-10">
                       <tr>
@@ -585,7 +585,7 @@ export default function BarcodePrintPage() {
                   labelQueue.map(({ product, index }) => (
                     <div
                       key={`${product.id}-${index}`}
-                      className="label-print-unit bg-white text-black border border-dashed border-gray-400 rounded-sm p-4 flex flex-col justify-between items-center text-center overflow-hidden shadow-xs select-none"
+                      className="label-print-unit bg-white text-black border border-dashed border-border rounded-sm p-4 flex flex-col justify-between items-center text-center overflow-hidden shadow-xs select-none"
                       style={{
                         width: `${currentPresetConfig.widthMm}mm`,
                         height: `${currentPresetConfig.heightMm}mm`,
