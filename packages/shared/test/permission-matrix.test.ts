@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
+  availableDefaultPages,
   buildDefaultDashboardPerms,
   buildDefaultPosPerms,
+  createBlankCustomRole,
   createDefaultRoleDefinitions,
+  DASHBOARD_ACCESS_MODULES,
   duplicateRoleName,
   isBuiltInRole,
   mergeRoleOverrides,
+  migrateRoleDefinition,
   POS_GRANULAR_PERMISSIONS,
   resolveRolePermissions,
+  sanitizeDefaultPages,
+  subFeatureKey,
   validateRoleName,
   type RoleDefinition,
 } from '../src/permission-matrix';
@@ -60,25 +66,23 @@ describe('permission-matrix', () => {
     };
 
     const resolved = resolveRolePermissions(custom, SAMPLE_MODULES);
-    // Default cashier adalah none untuk dashboard, override berlaku untuk produk & inventori
     expect(resolved.dashboard.penjualan).toBe('none');
     expect(resolved.dashboard.produk).toBe('read');
     expect(resolved.dashboard.inventori).toBe('write');
 
-    // Default cashier untuk refund adalah approve, override berlaku untuk void_order & open_cash_drawer
     expect(resolved.pos.refund).toBe('approve');
     expect(resolved.pos.void_order).toBe('allow');
     expect(resolved.pos.open_cash_drawer).toBe('allow');
     expect(Object.keys(resolved.pos).length).toBe(POS_GRANULAR_PERMISSIONS.length);
   });
 
-  it('mempertahankan peran bawaan saat menggabungkan dengan data tersimpan yang parsial atau rusak', () => {
-    const partialSaved: RoleDefinition[] = [
+  it('mempertahankan peran bawaan dan memigrasikan struktur lama ke struktur A61 tanpa merusak data', () => {
+    const legacySaved: RoleDefinition[] = [
       {
         id: 'cashier',
-        name: 'Kasir Diubah', // nama bawaan tidak boleh tergantikan
+        name: 'Kasir Diubah',
         description: 'Kasir shift pagi',
-        isBuiltIn: false, // tetap dianggap bawaan
+        isBuiltIn: false,
         baseRole: 'cashier',
         dashboardPerms: { penjualan: 'read' },
         posPerms: { manual_discount: 'deny' },
@@ -94,31 +98,73 @@ describe('permission-matrix', () => {
       },
     ];
 
-    const merged = mergeRoleOverrides(partialSaved, SAMPLE_MODULES);
-    expect(merged.length).toBe(4); // owner, manager, cashier + barista
+    const merged = mergeRoleOverrides(legacySaved, SAMPLE_MODULES);
+    expect(merged.length).toBe(4);
     const cashier = merged.find((r) => r.id === 'cashier')!;
     expect(cashier.name).toBe('Kasir');
     expect(cashier.isBuiltIn).toBe(true);
-    expect(cashier.description).toBe('Kasir shift pagi');
-    expect(cashier.dashboardPerms.penjualan).toBe('read');
-    expect(cashier.posPerms.manual_discount).toBe('deny');
+    expect(cashier.posModuleEnabled?.['pos-pengaturan']).toBe(true);
+    expect(cashier.canAuthorizeRefund).toBe(false);
 
     const barista = merged.find((r) => r.id === 'barista')!;
-    expect(barista.isBuiltIn).toBe(false);
-    expect(barista.dashboardPerms.produk).toBe('read');
-    expect(barista.dashboardPerms.keuangan).toBe('none');
+    expect(barista.dashboardModuleEnabled?.penjualan).toBe(true);
+    expect(barista.dashboardSubFeaturePerms?.[subFeatureKey('dash-overview', 'ringkasan')]?.lihat).toBe(true);
+    expect(barista.dashboardSubFeaturePerms?.[subFeatureKey('dash-overview', 'ringkasan')]?.hapus).toBeNull();
   });
 
-  it('menyusun izin bawaan per baseRole secara konsisten', () => {
-    const ownerDash = buildDefaultDashboardPerms('owner', SAMPLE_MODULES);
-    const managerDash = buildDefaultDashboardPerms('manager', SAMPLE_MODULES);
-    const cashierPos = buildDefaultPosPerms('cashier');
+  it('hanya menampilkan halaman awal yang modul & fiturnya aktif dengan minimal satu akses LIHAT', () => {
+    const blank = createBlankCustomRole(SAMPLE_MODULES, 'r-blank');
+    expect(availableDefaultPages(blank, 'dashboard')).toEqual([]);
+    // Pengaturan POS terkunci aktif secara bawaan
+    expect(availableDefaultPages(blank, 'pos')).toEqual([]);
 
-    expect(ownerDash.keuangan).toBe('write');
-    expect(managerDash.keuangan).toBe('read');
-    expect(managerDash.penjualan).toBe('write');
-    expect(cashierPos.void_order).toBe('approve');
-    expect(cashierPos.device_settings).toBe('deny');
+    // Aktifkan Akses POS -> Pengaturan POS punya akses LIHAT, maka muncul di pilihan halaman awal POS
+    blank.posAppEnabled = true;
+    const posPages = availableDefaultPages(blank, 'pos');
+    expect(posPages.map((p) => p.pageId)).toContain('/pos/pengaturan');
+
+    // Aktifkan modul Keuangan namun matikan akses LIHAT pada fitur Laporan Keuangan -> hanya Kas/Bank yang tampil
+    blank.dashboardModuleEnabled!['keuangan'] = true;
+    blank.dashboardFeatureEnabled!['keu-kas'] = true;
+    blank.dashboardFeatureEnabled!['keu-akuntansi'] = true;
+    blank.dashboardSubFeaturePerms![subFeatureKey('keu-kas', 'keu-kas-transaksi')] = {
+      lihat: true,
+      buat: false,
+      ubah: false,
+      hapus: null,
+      void: false,
+    };
+    const dashPages = availableDefaultPages(blank, 'dashboard');
+    expect(dashPages.map((p) => p.pageId)).toEqual(['/keuangan/kas']);
+
+    // Bila halaman awal terlanjur diset ke halaman yang izin LIHAT-nya dicabut, sanitizeDefaultPages membersihkan otomatis
+    const sanitized = sanitizeDefaultPages({
+      ...blank,
+      defaultDashboardPage: '/keuangan/laporan',
+      defaultPosPage: '/pos/pengaturan',
+    });
+    expect(sanitized.defaultDashboardPage).toBeUndefined();
+    expect(sanitized.defaultPosPage).toBe('/pos/pengaturan');
+  });
+
+  it('menyimpan flag otorisasi terpisah serta struktur fitur -> sub-fitur x aksi saat migrasi', () => {
+    const migrated = migrateRoleDefinition(
+      {
+        id: 'spv',
+        name: 'Supervisor Shift',
+        baseRole: 'manager',
+        canAuthorizeRefund: true,
+        canAuthorizeVoid: false,
+        canAuthorizeComplimentary: true,
+      },
+      SAMPLE_MODULES,
+    );
+    expect(migrated.canAuthorizeRefund).toBe(true);
+    expect(migrated.canAuthorizeVoid).toBe(false);
+    expect(migrated.canAuthorizeComplimentary).toBe(true);
+    expect(DASHBOARD_ACCESS_MODULES.find((m) => m.id === 'penjualan')?.features.length).toBeGreaterThan(3);
+
+    expect(buildDefaultDashboardPerms('owner', ['a']).a).toBe('write');
+    expect(buildDefaultPosPerms('cashier').refund).toBe('approve');
   });
 });
-

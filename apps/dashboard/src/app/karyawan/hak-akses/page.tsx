@@ -18,6 +18,8 @@ import {
   buildDefaultDashboardPerms,
   buildDefaultPosPerms,
   createDefaultRoleDefinitions,
+  createBlankCustomRole,
+  migrateRoleDefinition,
   duplicateRoleName,
   isBuiltInRole,
   mergeRoleOverrides,
@@ -36,6 +38,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
+import { RoleWizardModal } from '@/components/role-wizard-modal';
 
 const STORAGE_KEY = 'cg-role-permissions';
 
@@ -113,11 +116,27 @@ function saveRolesToStorage(roles: RoleDefinition[]): void {
   }
 }
 
-function summarizeRoleAccess(role: RoleDefinition): { dashActive: number; posAllow: number } {
-  const resolved = resolveRolePermissions(role, DASHBOARD_MODULE_IDS);
-  const dashActive = Object.values(resolved.dashboard).filter((v) => v !== 'none').length;
-  const posAllow = Object.values(resolved.pos).filter((v) => v === 'allow').length;
-  return { dashActive, posAllow };
+function summarizeRoleAccess(role: RoleDefinition): {
+  dashActive: number;
+  posAllow: number;
+  dashFeatCount: number;
+  posEnabled: boolean;
+  authTags: string[];
+} {
+  const migrated = migrateRoleDefinition(role, DASHBOARD_MODULE_IDS);
+  const resolved = resolveRolePermissions(migrated, DASHBOARD_MODULE_IDS);
+  const modEnabledCount = Object.values(migrated.dashboardModuleEnabled ?? {}).filter(Boolean).length;
+  const legacyDashActive = Object.values(resolved.dashboard).filter((v) => v !== 'none').length;
+  const dashActive = modEnabledCount > 0 ? modEnabledCount : legacyDashActive;
+  const posAllow = migrated.posAppEnabled
+    ? Object.values(resolved.pos).filter((v) => v === 'allow').length
+    : 0;
+  const dashFeatCount = Object.values(migrated.dashboardFeatureEnabled ?? {}).filter(Boolean).length;
+  const authTags: string[] = [];
+  if (migrated.canAuthorizeRefund) authTags.push('Refund');
+  if (migrated.canAuthorizeVoid) authTags.push('Void');
+  if (migrated.canAuthorizeComplimentary) authTags.push('Komplimen');
+  return { dashActive, posAllow, dashFeatCount, posEnabled: Boolean(migrated.posAppEnabled), authTags };
 }
 
 export default function HakAksesPage() {
@@ -185,43 +204,30 @@ export default function HakAksesPage() {
   }, [roles, employees]);
 
   const handleOpenCreate = () => {
-    const blank: RoleDefinition = {
-      id: newId(),
-      name: '',
-      description: '',
-      isBuiltIn: false,
-      baseRole: 'cashier',
-      ownerAppAccess: false,
-      dashboardPerms: buildDefaultDashboardPerms('cashier', DASHBOARD_MODULE_IDS),
-      posPerms: buildDefaultPosPerms('cashier'),
-    };
+    const blank = createBlankCustomRole(DASHBOARD_MODULE_IDS, newId());
     setIsNewRole(true);
     setEditingRole(blank);
   };
 
   const handleOpenEdit = (role: RoleDefinition) => {
-    const resolved = resolveRolePermissions(role, DASHBOARD_MODULE_IDS);
     setIsNewRole(false);
-    setEditingRole({
-      ...role,
-      dashboardPerms: resolved.dashboard,
-      posPerms: resolved.pos,
-    });
+    setEditingRole(migrateRoleDefinition(role, DASHBOARD_MODULE_IDS));
   };
 
   const handleDuplicate = (source: RoleDefinition) => {
-    const resolved = resolveRolePermissions(source, DASHBOARD_MODULE_IDS);
     const copyName = duplicateRoleName(source.name, roles);
-    const duplicated: RoleDefinition = {
-      id: newId(),
-      name: copyName,
-      description: source.description ? `Salinan dari ${source.name}. ${source.description}` : '',
-      isBuiltIn: false,
-      baseRole: source.baseRole,
-      ownerAppAccess: Boolean(source.ownerAppAccess),
-      dashboardPerms: resolved.dashboard,
-      posPerms: resolved.pos,
-    };
+    const migratedSource = migrateRoleDefinition(source, DASHBOARD_MODULE_IDS);
+    const duplicated = migrateRoleDefinition(
+      {
+        ...migratedSource,
+        id: newId(),
+        name: copyName,
+        description: source.description ? `Salinan dari ${source.name}. ${source.description}` : '',
+        isBuiltIn: false,
+        ownerAppAccess: false,
+      },
+      DASHBOARD_MODULE_IDS,
+    );
     const next = [...roles, duplicated];
     persistRoles(next);
     setToastMsg(`Peran "${duplicated.name}" dibuat sebagai salinan.`);
@@ -443,9 +449,19 @@ export default function HakAksesPage() {
                                 </p>
                               )}
                               <div className="flex flex-wrap gap-8 text-xs text-text-muted">
-                                <span>{summary.dashActive} modul dashboard aktif</span>
+                                <span>{summary.dashActive} modul · {summary.dashFeatCount} fitur dashboard</span>
                                 <span>·</span>
-                                <span>{summary.posAllow} izin langsung di kasir</span>
+                                <span>
+                                  {summary.posEnabled ? `POS Aktif (${summary.posAllow} izin kasir)` : 'POS Nonaktif'}
+                                </span>
+                                {summary.authTags.length > 0 && (
+                                  <>
+                                    <span>·</span>
+                                    <span className="text-accent-strong font-medium">
+                                      Otorisasi: {summary.authTags.join(', ')}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </td>
                             <td className="text-right cg-num whitespace-nowrap align-top">
@@ -543,8 +559,15 @@ export default function HakAksesPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-8 text-xs text-text-muted">
-                        <span className="cg-badge">{summary.dashActive} modul dashboard</span>
-                        <span className="cg-badge">{summary.posAllow} aksi kasir langsung</span>
+                        <span className="cg-badge">{summary.dashActive} modul · {summary.dashFeatCount} fitur</span>
+                        <span className="cg-badge">
+                          {summary.posEnabled ? `POS Aktif (${summary.posAllow} kasir)` : 'POS Nonaktif'}
+                        </span>
+                        {summary.authTags.length > 0 && (
+                          <span className="cg-badge cg-badge--accent">
+                            Otorisasi: {summary.authTags.join(', ')}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-8 pt-8 border-t border-border">
@@ -584,10 +607,11 @@ export default function HakAksesPage() {
       )}
 
       {editingRole && (
-        <RoleEditorDialog
+        <RoleWizardModal
           initialRole={editingRole}
           isNew={isNewRole}
           allRoles={roles}
+          dashboardModuleIds={DASHBOARD_MODULE_IDS}
           onClose={() => setEditingRole(null)}
           onSave={handleSaveRole}
         />
@@ -601,360 +625,6 @@ export default function HakAksesPage() {
         />
       )}
     </>
-  );
-}
-
-function RoleEditorDialog({
-  initialRole,
-  isNew,
-  allRoles,
-  onClose,
-  onSave,
-}: {
-  initialRole: RoleDefinition;
-  isNew: boolean;
-  allRoles: RoleDefinition[];
-  onClose: () => void;
-  onSave: (role: RoleDefinition) => void;
-}) {
-  const dlg = useDialog(onClose);
-  const [activeTab, setActiveTab] = useState<'info' | 'dashboard' | 'pos'>('info');
-  const [name, setName] = useState(initialRole.name);
-  const [description, setDescription] = useState(initialRole.description);
-  const [baseRole, setBaseRole] = useState<Role>(initialRole.baseRole);
-  const [ownerAppAccess, setOwnerAppAccess] = useState(Boolean(initialRole.ownerAppAccess));
-  const [dashPerms, setDashPerms] = useState<Record<string, DashboardAccessLevel>>(
-    () => ({ ...initialRole.dashboardPerms })
-  );
-  const [posPerms, setPosPerms] = useState<Record<string, PosAccessLevel>>(
-    () => ({ ...initialRole.posPerms })
-  );
-  const [formErr, setFormErr] = useState('');
-
-  const builtIn = !isNew && isBuiltInRole(initialRole);
-
-  const handleSetAllDash = (level: DashboardAccessLevel) => {
-    const next: Record<string, DashboardAccessLevel> = {};
-    for (const m of DASHBOARD_MODULES) {
-      next[m.id] = level;
-    }
-    setDashPerms(next);
-  };
-
-  const handleApplyBaseDefaults = (targetBase: Role) => {
-    setBaseRole(targetBase);
-    setDashPerms(buildDefaultDashboardPerms(targetBase, DASHBOARD_MODULE_IDS));
-    setPosPerms(buildDefaultPosPerms(targetBase));
-  };
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const err = validateRoleName(name, allRoles, isNew ? undefined : initialRole.id);
-    if (err) {
-      setFormErr(err);
-      setActiveTab('info');
-      return;
-    }
-    const updated: RoleDefinition = {
-      ...initialRole,
-      name: builtIn ? initialRole.name : name.trim(),
-      description: description.trim(),
-      baseRole,
-      ownerAppAccess,
-      dashboardPerms: dashPerms,
-      posPerms,
-    };
-    onSave(updated);
-  };
-
-  return (
-    <dialog
-      {...dlg.props}
-      style={{ ...dlg.props.style, width: 'min(760px, calc(100vw - 16px))' }}
-      aria-labelledby="role-dlg-title"
-    >
-      <div className="flex items-start justify-between gap-12">
-        <div className="min-w-0">
-          <h2 id="role-dlg-title" className="cg-modal__title break-words">
-            {isNew ? 'Tambah peran baru' : `Atur hak akses: ${initialRole.name}`}
-          </h2>
-          <p className="text-xs text-text-muted mt-4">
-            Sesuaikan informasi dasar, akses modul dashboard web, dan batasan aksi kasir.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="cg-btn cg-btn--ghost cg-btn--sm"
-          aria-label="Tutup dialog"
-          onClick={onClose}
-        >
-          <X className="cg-icon cg-icon--sm" aria-hidden />
-        </button>
-      </div>
-
-      {/* Tab datar 3 bagian */}
-      <div className="cg-tabs flex-wrap" role="tablist" aria-label="Bagian pengaturan peran">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'info'}
-          className="cg-tab inline-flex items-center gap-8"
-          onClick={() => setActiveTab('info')}
-        >
-          <Info className="cg-icon cg-icon--sm" aria-hidden />
-          Informasi
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'dashboard'}
-          className="cg-tab inline-flex items-center gap-8"
-          onClick={() => setActiveTab('dashboard')}
-        >
-          <Monitor className="cg-icon cg-icon--sm" aria-hidden />
-          Hak Akses Dashboard
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'pos'}
-          className="cg-tab inline-flex items-center gap-8"
-          onClick={() => setActiveTab('pos')}
-        >
-          <Smartphone className="cg-icon cg-icon--sm" aria-hidden />
-          Hak Akses POS
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="grid gap-16">
-        {formErr && (
-          <div role="alert" className="cg-banner cg-banner--danger">
-            <span>{formErr}</span>
-          </div>
-        )}
-
-        {activeTab === 'info' && (
-          <div className="grid gap-16">
-            <div className="cg-field">
-              <label className="cg-label" htmlFor="role-name">
-                Nama peran
-              </label>
-              <input
-                id="role-name"
-                type="text"
-                className="cg-input"
-                value={name}
-                maxLength={50}
-                disabled={builtIn}
-                aria-invalid={Boolean(formErr)}
-                placeholder="Contoh: Kepala Bar, Shift Supervisor, Gudang"
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (formErr) setFormErr('');
-                }}
-              />
-              {builtIn && (
-                <span className="cg-hint">
-                  Nama peran bawaan sistem tidak dapat diubah agar sinkronisasi karyawan tetap konsisten.
-                </span>
-              )}
-            </div>
-
-            <div className="cg-field">
-              <label className="cg-label" htmlFor="role-desc">
-                Deskripsi tugas
-              </label>
-              <textarea
-                id="role-desc"
-                className="cg-input py-8 min-h-[80px]"
-                value={description}
-                maxLength={200}
-                placeholder="Ringkasan tanggung jawab peran ini..."
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            {!builtIn && (
-              <div className="cg-field">
-                <label className="cg-label" htmlFor="role-base">
-                  Standar bawaan acuan
-                </label>
-                <div className="flex flex-wrap gap-8 items-center">
-                  <select
-                    id="role-base"
-                    className="cg-input flex-1 min-w-[160px]"
-                    value={baseRole}
-                    onChange={(e) => setBaseRole(e.target.value as Role)}
-                  >
-                    <option value="cashier">Kasir (terbatas)</option>
-                    <option value="manager">Manajer (operasional penuh)</option>
-                    <option value="owner">Pemilik (akses menyeluruh)</option>
-                  </select>
-                  <button
-                    type="button"
-                    className="cg-btn cg-btn--secondary cg-btn--sm"
-                    onClick={() => handleApplyBaseDefaults(baseRole)}
-                  >
-                    Terapkan standar acuan
-                  </button>
-                </div>
-                <span className="cg-hint">
-                  Izin modul atau aksi yang belum diatur manual akan mengikuti standar acuan ini.
-                </span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between gap-12 p-12 rounded-lg border border-border bg-surface">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold">Akses Aplikasi Pemilik</div>
-                <div className="text-xs text-text-muted">
-                  Izinkan peran ini melihat ringkasan omzet lintas waktu di tampilan pemilik.
-                </div>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={ownerAppAccess}
-                aria-label="Akses Aplikasi Pemilik"
-                className="cg-toggle shrink-0"
-                onClick={() => setOwnerAppAccess((v) => !v)}
-              />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'dashboard' && (
-          <div className="grid gap-12">
-            <div className="flex flex-wrap items-center justify-between gap-8 pb-8 border-b border-border">
-              <span className="text-xs text-text-muted">
-                {DASHBOARD_MODULES.length} bagian modul dashboard web (sumber: nav.ts)
-              </span>
-              <div className="flex flex-wrap gap-8">
-                <button
-                  type="button"
-                  className="cg-chip"
-                  onClick={() => handleSetAllDash('write')}
-                >
-                  Semua: Lihat &amp; ubah
-                </button>
-                <button
-                  type="button"
-                  className="cg-chip"
-                  onClick={() => handleSetAllDash('read')}
-                >
-                  Semua: Lihat saja
-                </button>
-                <button
-                  type="button"
-                  className="cg-chip"
-                  onClick={() => handleSetAllDash('none')}
-                >
-                  Semua: Tidak ada
-                </button>
-              </div>
-            </div>
-
-            <div className="grid gap-8 max-h-[380px] overflow-y-auto pr-4">
-              {DASHBOARD_MODULES.map((mod) => {
-                const current = dashPerms[mod.id] ?? 'none';
-                return (
-                  <div
-                    key={mod.id}
-                    className="flex flex-col tablet:flex-row tablet:items-center justify-between gap-12 p-12 rounded-lg border border-border bg-surface-raised"
-                    data-testid={`dash-perm-${mod.id}`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-sm text-text break-words">
-                        {mod.label}
-                      </div>
-                      <div className="text-xs text-text-muted break-words">
-                        {mod.sampleItems} ({mod.itemCount} layar)
-                      </div>
-                    </div>
-                    <div
-                      className="flex flex-wrap gap-4 shrink-0"
-                      role="group"
-                      aria-label={`Izin modul ${mod.label}`}
-                    >
-                      {DASH_LEVELS.map((lvl) => (
-                        <button
-                          key={lvl.value}
-                          type="button"
-                          className="cg-chip text-xs"
-                          aria-pressed={current === lvl.value}
-                          onClick={() =>
-                            setDashPerms((prev) => ({ ...prev, [mod.id]: lvl.value }))
-                          }
-                        >
-                          {lvl.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'pos' && (
-          <div className="grid gap-12">
-            <p className="text-xs text-text-muted pb-8 border-b border-border">
-              Tentukan aksi kasir yang boleh dilakukan langsung, wajib persetujuan PIN atasan/kode otorisasi, atau dilarang sama sekali.
-            </p>
-            <div className="grid gap-8 max-h-[380px] overflow-y-auto pr-4">
-              {POS_GRANULAR_PERMISSIONS.map((perm) => {
-                const current = posPerms[perm.id] ?? 'deny';
-                return (
-                  <div
-                    key={perm.id}
-                    className="flex flex-col tablet:flex-row tablet:items-center justify-between gap-12 p-12 rounded-lg border border-border bg-surface-raised"
-                    data-testid={`pos-perm-${perm.id}`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-sm text-text break-words">
-                        {perm.label}
-                      </div>
-                      <div className="text-xs text-text-muted break-words">
-                        {perm.description}
-                      </div>
-                    </div>
-                    <div
-                      className="flex flex-wrap gap-4 shrink-0"
-                      role="group"
-                      aria-label={`Izin aksi kasir ${perm.label}`}
-                    >
-                      {POS_LEVELS.map((lvl) => (
-                        <button
-                          key={lvl.value}
-                          type="button"
-                          className="cg-chip text-xs"
-                          aria-pressed={current === lvl.value}
-                          onClick={() =>
-                            setPosPerms((prev) => ({ ...prev, [perm.id]: lvl.value }))
-                          }
-                        >
-                          {lvl.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="cg-modal__actions pt-8 border-t border-border">
-          <button type="button" className="cg-btn cg-btn--secondary" onClick={onClose}>
-            Batal
-          </button>
-          <button type="submit" className="cg-btn cg-btn--primary">
-            Simpan peran
-          </button>
-        </div>
-      </form>
-    </dialog>
   );
 }
 
