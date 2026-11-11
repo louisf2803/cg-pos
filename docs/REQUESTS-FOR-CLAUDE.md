@@ -22,3 +22,13 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Untuk: Layar Laporan Penjualan per Terminal / Perangkat (A40) untuk mengelompokkan transaksi, total penjualan, rata-rata, kas masuk tunai/non-tunai, dan jam transaksi per perangkat/terminal kasir.
 - Bentuk yang diinginkan: `deviceCode: string` pada antarmuka `Order` (misal 'A', 'B', 'POS-01').
 - Sementara: Tugas A40 dilewati sesuai instruksi spesifikasi A40 ("Bila tidak ada di tipe Order, JANGAN mengubah data.ts: tulis temuanmu di PROGRESS.md... lalu lewati tugas ini dan lanjut ke tugas berikutnya").
+
+## /pengaturan/struk — 2026-11-11
+- Butuh: Kolom database dan dukungan DataLayer untuk:
+  1. `receipt_logo_url` (unggah/tautan gambar logo outlet untuk dicetak di kepala struk thermal)
+  2. `receipt_show_qr` (opsi cetak kode QR pembayaran dinamis di struk)
+  3. `receipt_default_paper` (pilihan lebar kertas bawaan outlet: 58 mm vs 80 mm)
+- Untuk: Layar `/pengaturan/struk` (A47 editor tampilan struk pelanggan).
+- Bentuk yang diinginkan: Kolom di tabel `outlet_options` atau properti dalam `OutletOptions` / `ReceiptTemplate`.
+- Sementara: Ditampilkan sebagai opsi nonaktif berlabel "Segera" di tab Header dan Body pada editor struk.
+

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { outletInfoProblem, outletOptionsProblem, type OutletInfo, type OutletOptions } from '@cgpos/shared';
 import { useData } from '@/lib/data';
@@ -24,9 +25,6 @@ function Form({ info, options, onSaved }: { info: OutletInfo; options: OutletOpt
   const [address, setAddress] = useState(info.address);
   const [phone, setPhone] = useState(info.phone);
   const [footer, setFooter] = useState(options.receiptFooter);
-  const [header, setHeader] = useState(options.receiptHeader ?? '');
-  const [showCashier, setShowCashier] = useState(options.receiptShowCashier !== false);
-  const [showCustomer, setShowCustomer] = useState(options.receiptShowCustomer !== false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -37,13 +35,13 @@ function Form({ info, options, onSaved }: { info: OutletInfo; options: OutletOpt
     if (busy) return;
     const problem = outletInfoProblem({ name, address, phone });
     if (problem) return setErr(problem);
-    const optsProblem = outletOptionsProblem({ ...options, receiptFooter: footer, receiptHeader: header, receiptShowCashier: showCashier, receiptShowCustomer: showCustomer });
+    const optsProblem = outletOptionsProblem({ ...options, receiptFooter: footer });
     if (optsProblem) return setErr(optsProblem);
     setBusy(true); setErr(null); setOk(false);
     try {
       await data.saveOutletInfo({ name, address, phone });
       const cur = await data.getOutletSettings();
-      await data.saveOutletOptions({ ...cur.options, receiptFooter: footer, receiptHeader: header, receiptShowCashier: showCashier, receiptShowCustomer: showCustomer });
+      await data.saveOutletOptions({ ...cur.options, receiptFooter: footer });
       setOk(true); onSaved();
     } catch (x) { setErr(x instanceof Error ? x.message : 'Gagal menyimpan.'); }
     finally { setBusy(false); }
@@ -68,17 +66,15 @@ function Form({ info, options, onSaved }: { info: OutletInfo; options: OutletOpt
         <textarea id="o-footer" className="cg-input" rows={2} maxLength={300} value={footer} onChange={(e) => setFooter(e.target.value)} aria-describedby="o-footer-h" />
         <p id="o-footer-h" className="text-text-muted text-sm">Mis. ucapan terima kasih atau info Wi-Fi. {footer.length}/300</p>
       </div>
-      <fieldset className="grid gap-8 border border-border rounded-md p-16">
-        <legend className="cg-label px-4">Tampilan struk</legend>
-        <div className="cg-field">
-          <label className="cg-label" htmlFor="o-header">Teks di atas struk</label>
-          <textarea id="o-header" className="cg-input" rows={3} maxLength={200} value={header} onChange={(e) => setHeader(e.target.value)} aria-describedby="o-header-h" />
-          <p id="o-header-h" className="text-text-muted text-sm">Tampil di bawah nama, alamat, dan telepon. Maksimal 4 baris. {header.length}/200</p>
+      <div className="border border-border rounded-md p-16 flex flex-col tablet:flex-row items-start tablet:items-center justify-between gap-12 bg-surface">
+        <div>
+          <h3 className="font-semibold text-sm">Tampilan Struk Pelanggan</h3>
+          <p className="text-text-muted text-sm mt-2">Atur ukuran huruf, bagian yang tampil, teks kepala/kaki, serta batasan cetak ulang struk.</p>
         </div>
-        <label className="flex items-center gap-8"><input type="checkbox" checked={showCashier} onChange={(e) => setShowCashier(e.target.checked)} /> Tampilkan nama kasir di struk</label>
-        <label className="flex items-center gap-8"><input type="checkbox" checked={showCustomer} onChange={(e) => setShowCustomer(e.target.checked)} /> Tampilkan nama pelanggan di struk</label>
-        <p className="text-text-muted text-sm">Pajak, total, dan pembayaran selalu tampil di struk dan tidak bisa disembunyikan.</p>
-      </fieldset>
+        <Link href="/pengaturan/struk" className="cg-btn cg-btn--secondary whitespace-nowrap text-xs">
+          Buka editor struk →
+        </Link>
+      </div>
       <dl className="grid gap-4 text-sm text-text-muted">
         <div className="flex gap-8"><dt>Kode outlet:</dt><dd className="cg-num">{info.code}</dd></div>
         <div className="flex gap-8"><dt>Zona waktu:</dt><dd>{info.timezone}</dd></div>

@@ -595,4 +595,22 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Lolos `pnpm -F @cgpos/shared test` (55 file, 347 tes lulus).
      - Lolos `pnpm -F @cgpos/dashboard build` (115 halaman statis).
      - Audit Playwright di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar tersimpan di `docs/shots/a46/`).
+- Selesai (tugas A47): Editor Struk Pelanggan dengan Pratinjau Langsung (`apps/dashboard`):
+  1. Halaman Baru `/pengaturan/struk`:
+     - Editor bertab tiga bagian: Header (Kepala & Transaksi), Body (Rincian Produk), dan Footer & Batasan.
+     - Pilihan Tema Huruf (Normal, Sedang, Besar) di atas tab dengan penjelasan kerapatan kolom serta tombol "Kembalikan ke bawaan".
+     - Header Tab: Pengaturan visibilitas nama outlet, alamat, nomor telepon, logo (opsi Segera), teks di atas struk (`receiptHeader` maks 200 karakter/4 baris), nomor pesanan, jenis pesanan, nomor meja/label, jumlah tamu, waktu transaksi, nama kasir, dan nama pelanggan.
+     - Body Tab: Visibilitas rincian harga satuan produk, ekstra/varian/topping, catatan per item/pesanan, kode QR dinamis (opsi Segera), serta pemberitahuan ketentuan transparansi total/pajak/pembayaran yang selalu tercetak.
+     - Footer Tab: Teks catatan kaki struk (`receiptFooter` maks 300 karakter), sakelar cetak waktu (`showPrintTime`), dan sakelar pembatasan cetak ulang struk per transaksi beserta pembatas angka 1-10 kali (`maxPrints`).
+     - Pratinjau Struk Langsung di samping formulir (390 px: di bawah): dirender secara real-time dari data pesanan contoh menggunakan helper murni `receiptPieces` dari `@cgpos/shared`, mendukung pemilihan lebar kertas 58 mm dan 80 mm serta tombol "Cetak contoh".
+  2. Integrasi Navigasi & Pemindahan dari `/pengaturan/outlet`:
+     - Menu navigasi `apps/dashboard/src/lib/nav.ts` untuk "Tampilan struk" diaktifkan (`built: true`).
+     - Fieldset pengaturan struk lama di `/pengaturan/outlet` digantikan oleh tautan navigasi bersih ke `/pengaturan/struk` tanpa duplikasi simpan.
+     - Kebutuhan kolom database masa depan (logo, kode QR, lebar kertas bawaan) dicatat ke `docs/REQUESTS-FOR-CLAUDE.md`.
+  3. Kepatuhan & Pengujian:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+     - Lolos `pnpm -r typecheck` (0 error).
+     - Lolos `pnpm -F @cgpos/shared test` (55 file, 346 tes lulus).
+     - Lolos `pnpm -F @cgpos/dashboard build` (115 halaman statis).
+     - Audit Playwright di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar tersimpan di `docs/shots/a47/`).
 
