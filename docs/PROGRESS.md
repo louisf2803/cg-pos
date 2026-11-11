@@ -670,3 +670,24 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
   - Lulus `pnpm -r typecheck`, `pnpm -F @cgpos/shared test`, `pnpm -F @cgpos/dashboard build`, dan `bash scripts/lint-tailwind.sh origin/main`.
 - S140 (Claude) — A35–A50 digabung ke master (review.sh SEMUA LULUS; Playwright 390/1280 tanpa overflow). Perbaikan tailwind pada baris baru A42/A43. Sisa: ulang perbaikan tampilan keuangan A41 di tata letak widget A38 (usul A51).
 - S141 (Claude) — Setelah merge A35-A50 dan tutup kasir percobaan di BlueStacks (tanpa dampak laporan keuangan nyata), Louis mengalihkan fokus: kelengkapan fitur (selengkap mungkin, target ~90% mirip Majoo) harus didahulukan sebelum skor paritas presisi. Disiapkan 10 tugas baru A51-A60 di docs/queue/ langsung mengisi rute-rute stub (`built` belum `true`) di nav.ts yang sudah ada: Hak Akses granular per fitur (A51, dari penelusuran 5-langkah wizard Majoo nyata), Denah Grid/Kustom + toggle per meja (A52, dari penelusuran Pengaturan Denah dan Meja), Deposit (A53), Komisi (A54), Retur pembelian + Pembayaran faktur (A55), Reservasi/Appointment (A56), Grup pelanggan + harga grosir bertingkat + penjadwalan harga (A57), Produk fasilitas + Loyalty lanjutan (A58), Metode pembayaran nontunai + status channel Order Online (A59, dari penelusuran POS Android nyata: BCA/TRANSFER-GRAB/majoo Order Wallet/Kartu-EDC/QRIS-EDC), Kepuasan pelanggan + data pelanggan kustom + Layar Gudang (A60). Banyak dari tugas ini akan tampil sebagai "Pratinjau — menunggu dukungan server" karena area terkait (deposit, reservasi, komisi, hak akses granular) belum punya tabel/DataLayer sama sekali; permintaan lengkap akan masuk ke REQUESTS-FOR-CLAUDE.md untuk ditindaklanjuti Claude setelah Antigravity selesai membangun kerangka tampilannya. Parity skor saat S141 ditulis: 65,9/100 (22/32 must-have).
+- Selesai (tugas A51): Pengaturan Peran & Hak Akses Granular Dashboard + POS (`packages/shared`, `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/permission-matrix.ts`:
+     - `isBuiltInRole`, `validateRoleName`, `duplicateRoleName`, `buildDefaultDashboardPerms`, `buildDefaultPosPerms`, `resolveRolePermissions`, `createDefaultRoleDefinitions`, `mergeRoleOverrides`, dan `POS_GRANULAR_PERMISSIONS` (mencakup Void, Refund, Gabung meja, Hapus pesanan tertunda, Buka laci kas, Ubah harga, Diskon manual, Pengaturan perangkat, dsb).
+     - 6 unit tes komprehensif di `packages/shared/test/permission-matrix.test.ts` (semua 62 file / 395 tes `@cgpos/shared` lulus).
+  2. Layar `/karyawan/hak-akses` (`apps/dashboard/src/app/karyawan/hak-akses/page.tsx`):
+     - Daftar peran bawaan (`Pemilik`, `Manajer`, `Kasir`) & peran kustom dengan jumlah karyawan aktif langsung dari `data.listManagedEmployees()`, ringkasan izin, pencarian, filter (Semua/Bawaan/Kustom), keadaan memuat/kosong/galat, dan responsif tabel + kartu mobile.
+     - Aksi Tambah, Ubah, Duplikat, Hapus (peran bawaan terkunci agar tidak dapat dihapus atau diganti nama intinya).
+     - Dialog editor peran (`RoleEditorDialog`, lebar 760 px di desktop, responsif di 390 px) dengan 3 tab datar:
+       - **Informasi**: nama peran, deskripsi, standar acuan peran dasar (untuk peran kustom), dan toggle "Akses Aplikasi Pemilik".
+       - **Hak Akses Dashboard**: daftar modul diturunkan langsung dari `MODUL` di `apps/dashboard/src/lib/nav.ts` dengan toggle 3 tingkat (`Tidak ada`, `Lihat saja`, `Lihat & ubah`) dan tombol atur massal.
+       - **Hak Akses POS**: daftar aksi sensitif kasir dengan toggle 3 tingkat (`Boleh sendiri`, `Butuh PIN atasan`, `Tidak boleh`).
+  3. Status DataLayer & Catatan Pratinjau (`docs/REQUESTS-FOR-CLAUDE.md`):
+     - `listRoles` / `saveRolePermissions` belum ada di `DataLayer`, sehingga matriks izin disimpan di `localStorage` (`cg-role-permissions`) dengan banner jelas "Pratinjau — belum tersambung server". Permintaan tabel `roles`, `role_dashboard_perms`, `role_pos_perms` dan metode DataLayer ditulis di `docs/REQUESTS-FOR-CLAUDE.md`.
+     - `/karyawan/hak-akses` ditandai `built: true` di `apps/dashboard/src/lib/nav.ts`.
+     - Catatan untuk `replica/features.csv` (berkas tidak ada di workspace git ini, untuk diperbarui Claude saat merge): baris "Karyawan, peran, dan hak akses" kini `partial` — UI matriks izin granular per modul dashboard & POS (tambah/duplikat/ubah peran) sudah jadi dalam mode pratinjau `localStorage`; sinkronisasi peran kustom ke karyawan dan penegakan di server/kasir menunggu dukungan `DataLayer`.
+  4. Kepatuhan & Uji:
+     - `pnpm -r typecheck` (0 galat)
+     - `pnpm -F @cgpos/shared test` (62 file, 395 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (121 halaman statis)
+     - `scripts/lint-tailwind.sh origin/main` (`LULUS tailwind-guard`)
+     - Audit Playwright 390 / 1280 / 1440 px (`docs/shots/a51/run-a51-audit.mjs`) memverifikasi persistensi localStorage, dialog 3 tab, nama panjang, keadaan kosong, 0 overflow, dan 0 galat konsol (7 tangkapan layar di `docs/shots/a51/`).
