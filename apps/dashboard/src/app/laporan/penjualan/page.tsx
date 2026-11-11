@@ -194,10 +194,21 @@ function renderSaleCell(
 }
 
 export default function DetailPenjualan() {
+  const data = useData();
   const { ctx, value, setValue, range, today, state } = useReport();
+  const [tab, setTab] = useState<'paid' | 'unpaid'>('paid');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [q, setQ] = useState('');
   const tz = ctx.status === 'ready' ? ctx.data.timezone : 'Asia/Jakarta';
+  const unpaidState = useAsync(async (): Promise<Order[] | null> => {
+    if (ctx.status !== 'ready') return null;
+    const [openOrders, partOrders] = await Promise.all([
+      data.listOrders({ status: 'open', from: range.from, to: range.to, by: 'opened', all: true }),
+      data.listOrders({ status: 'partially_paid', from: range.from, to: range.to, by: 'opened', all: true }),
+    ]);
+    return [...openOrders, ...partOrders].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
+  }, [data, ctx.status, range.from, range.to]);
+
   const flip = (id: string) =>
     setOpen((s) => {
       const n = new Set(s);
@@ -208,9 +219,44 @@ export default function DetailPenjualan() {
 
   const colPrefs = useColumnPrefs('laporan_penjualan', SALE_COLUMNS);
 
+  const unpaidOrders = unpaidState.status === 'ready' && unpaidState.data ? unpaidState.data : [];
+  const totalUnpaidDue = unpaidOrders.reduce((s, o) => s + Math.max(0, o.total - o.paidTotal), 0);
+  const grossSales = state.status === 'ready' && state.data ? state.data.report.summary.total : 0;
+  const refundTotal = state.status === 'ready' && state.data ? state.data.report.control.refundTotal : 0;
+  const refundCount = state.status === 'ready' && state.data ? state.data.report.control.refundCount : 0;
+  const netSales = state.status === 'ready' && state.data ? state.data.report.control.net : 0;
+
   function download() {
-    if (state.status !== 'ready' || !state.data || !colPrefs.hasVisible) return;
+    if (state.status !== 'ready' || !state.data) return;
     const { orders, names } = state.data;
+    if (tab === 'unpaid') {
+      if (unpaidOrders.length === 0) return;
+      const rows: (string | number)[][] = [
+        ['Nomor pesanan', 'Waktu buka', 'Jenis pesanan', 'Kasir', 'Status', 'Total tagihan', 'Sudah dibayar', 'Sisa piutang'],
+        ...unpaidOrders.map((o) => [
+          o.number,
+          o.openedAt,
+          orderTypeLabel(o.type),
+          names.get(o.cashierId) ?? '',
+          o.status === 'partially_paid' ? 'Bayar sebagian' : 'Belum dibayar',
+          o.total,
+          o.paidTotal,
+          Math.max(0, o.total - o.paidTotal),
+        ]),
+      ];
+      downloadCsvWithHistory({
+        fileName: `piutang-penjualan-${range.label.replace(/ sampai /g, '_')}.csv`,
+        csvContent: toCsv(rows),
+        reportName: 'Detail Penjualan — Piutang (Belum Dibayar)',
+        period: range.label,
+        rowCount: unpaidOrders.length,
+        sourceUrl: `/laporan/penjualan?from=${range.from}&to=${range.to}`,
+        params: { from: range.from, to: range.to, status: 'unpaid' },
+      });
+      return;
+    }
+
+    if (!colPrefs.hasVisible || orders.length === 0) return;
     const head = colPrefs.activeColumns.map((c) => c.label);
     const rows: (string | number)[][] = [head];
 
@@ -231,24 +277,31 @@ export default function DetailPenjualan() {
   }
 
   return (
-    <>
+    <div className="min-w-0">
       <PageHeader
         title="Detail penjualan"
         subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : undefined}
         actions={
-          <div className="flex items-center gap-8">
-            <ColumnChooser
-              columns={SALE_COLUMNS}
-              prefs={colPrefs.prefs}
-              onToggle={colPrefs.toggle}
-              onMoveUp={colPrefs.moveUp}
-              onMoveDown={colPrefs.moveDown}
-              onReset={colPrefs.reset}
-            />
+          <div className="flex flex-wrap items-center gap-8">
+            {tab === 'paid' && (
+              <ColumnChooser
+                columns={SALE_COLUMNS}
+                prefs={colPrefs.prefs}
+                onToggle={colPrefs.toggle}
+                onMoveUp={colPrefs.moveUp}
+                onMoveDown={colPrefs.moveDown}
+                onReset={colPrefs.reset}
+              />
+            )}
             <button
+              type="button"
               className="cg-btn cg-btn--secondary"
               onClick={download}
-              disabled={!colPrefs.hasVisible || state.status !== 'ready' || !state.data?.orders.length}
+              disabled={
+                tab === 'paid'
+                  ? !colPrefs.hasVisible || state.status !== 'ready' || !state.data?.orders.length
+                  : state.status !== 'ready' || unpaidOrders.length === 0
+              }
             >
               <Download className="cg-icon" aria-hidden /> Unduh CSV
             </button>
@@ -256,26 +309,184 @@ export default function DetailPenjualan() {
         }
       />
       <RangePicker value={value} today={today} onChange={setValue} />
-      <label className="cg-search mb-16 block">
-        <span className="cg-sr">Cari nomor pesanan atau produk</span>
-        <input
-          className="cg-input"
-          type="search"
-          placeholder="Cari nomor pesanan atau produk"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </label>
+
+      {state.status === 'ready' && state.data && (
+        <div className="grid grid-cols-2 laptop:grid-cols-4 gap-12 mb-16" aria-label="Ringkasan penjualan dan piutang">
+          <div className="cg-card p-12 min-w-0">
+            <span className="block text-xs text-text-muted">Penjualan lunas</span>
+            <strong className="cg-num text-lg block mt-4">{formatRp(grossSales)}</strong>
+            <span className="text-xs text-text-muted cg-num">{state.data.orders.length} transaksi</span>
+          </div>
+          <div className="cg-card p-12 min-w-0">
+            <span className="block text-xs text-text-muted">Total refund</span>
+            <strong className={`cg-num text-lg block mt-4 ${refundTotal > 0 ? 'text-danger' : ''}`}>
+              {refundTotal > 0 ? `-${formatRp(refundTotal)}` : formatRp(0)}
+            </strong>
+            <span className="text-xs text-text-muted cg-num">{refundCount} pengembalian</span>
+          </div>
+          <div className="cg-card p-12 min-w-0">
+            <span className="block text-xs text-text-muted">Penjualan bersih</span>
+            <strong className="cg-num text-lg block mt-4 text-accent-strong">{formatRp(netSales)}</strong>
+            <span className="text-xs text-text-muted">Sesudah dikurangi refund</span>
+          </div>
+          <div className="cg-card p-12 min-w-0">
+            <span className="block text-xs text-text-muted">Piutang (belum dibayar)</span>
+            <strong className={`cg-num text-lg block mt-4 ${totalUnpaidDue > 0 ? 'text-warning' : ''}`}>
+              {formatRp(totalUnpaidDue)}
+            </strong>
+            <span className="text-xs text-text-muted cg-num">{unpaidOrders.length} pesanan terbuka</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-12 mb-16">
+        <div className="cg-tabs" role="tablist" aria-label="Status pembayaran pesanan">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'paid'}
+            className="cg-tab whitespace-nowrap"
+            onClick={() => setTab('paid')}
+          >
+            Lunas ({state.status === 'ready' && state.data ? state.data.orders.length : 0})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'unpaid'}
+            className="cg-tab whitespace-nowrap"
+            onClick={() => setTab('unpaid')}
+          >
+            Belum dibayar / Piutang ({unpaidOrders.length})
+          </button>
+        </div>
+        <label className="cg-search flex-1 min-w-[200px] max-w-sm">
+          <span className="cg-sr">Cari nomor pesanan atau produk</span>
+          <input
+            className="cg-input"
+            type="search"
+            placeholder="Cari nomor pesanan atau produk"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </label>
+      </div>
+
       {ctx.status === 'error' && <ErrorBox message={ctx.message} onRetry={ctx.reload} />}
       {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
-      {(ctx.status === 'loading' || state.status === 'loading') && (
+      {tab === 'unpaid' && unpaidState.status === 'error' && <ErrorBox message={unpaidState.message} onRetry={unpaidState.reload} />}
+      {(ctx.status === 'loading' || state.status === 'loading' || (tab === 'unpaid' && unpaidState.status === 'loading')) && (
         <div className="grid gap-8" aria-busy="true" aria-label="Memuat">
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className="cg-skeleton" style={{ height: 48 }} />
           ))}
         </div>
       )}
-      {state.status === 'ready' &&
+      {tab === 'unpaid' &&
+        state.status === 'ready' &&
+        state.data &&
+        unpaidState.status === 'ready' &&
+        (() => {
+          const needle = q.trim().toLowerCase();
+          const list = unpaidOrders.filter(
+            (o) =>
+              !needle ||
+              o.number.toLowerCase().includes(needle) ||
+              (o.customerName ?? '').toLowerCase().includes(needle) ||
+              (o.label ?? '').toLowerCase().includes(needle) ||
+              o.items.some((i) => i.name.toLowerCase().includes(needle))
+          );
+          if (list.length === 0) {
+            return (
+              <div className="cg-empty">
+                <p>
+                  <strong>{needle ? `Tidak ada piutang untuk “${q}”.` : 'Tidak ada pesanan belum dibayar pada rentang ini.'}</strong>
+                </p>
+              </div>
+            );
+          }
+          return (
+            <>
+              <p className="text-text-muted mb-8" aria-live="polite">
+                {list.length} pesanan belum dibayar · sisa piutang{' '}
+                {formatRp(list.reduce((a, o) => a + Math.max(0, o.total - o.paidTotal), 0))}
+              </p>
+              <div className="cg-data-wrap">
+                <table className="cg-data" aria-label="Daftar pesanan belum dibayar">
+                  <thead>
+                    <tr>
+                      <th>Nomor pesanan</th>
+                      <th>Waktu buka</th>
+                      <th>Jenis &amp; keterangan</th>
+                      <th>Kasir</th>
+                      <th>Status</th>
+                      <th className="cg-num">Tagihan</th>
+                      <th className="cg-num">Terbayar</th>
+                      <th className="cg-num">Sisa piutang</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((o) => {
+                      const ex = open.has(o.id);
+                      const remaining = Math.max(0, o.total - o.paidTotal);
+                      return (
+                        <Fragment key={o.id}>
+                          <tr>
+                            <td className="whitespace-nowrap">
+                              <button
+                                type="button"
+                                className="cg-btn cg-btn--ghost cg-btn--sm"
+                                aria-expanded={ex}
+                                aria-label={`${ex ? 'Tutup' : 'Buka'} rincian ${o.number}`}
+                                onClick={() => flip(o.id)}
+                              >
+                                {ex ? (
+                                  <ChevronDown className="cg-icon cg-icon--sm" aria-hidden />
+                                ) : (
+                                  <ChevronRight className="cg-icon cg-icon--sm" aria-hidden />
+                                )}
+                              </button>
+                              {o.number}
+                            </td>
+                            <td className="whitespace-nowrap">{fmtTime(o.openedAt, tz)}</td>
+                            <td className="break-words">
+                              {orderTypeLabel(o.type)}
+                              {(o.customerName || o.label) && (
+                                <span className="block text-xs text-text-muted">
+                                  {[o.customerName, o.label].filter(Boolean).join(' · ')}
+                                </span>
+                              )}
+                            </td>
+                            <td className="break-words">{state.data!.names.get(o.cashierId) ?? '—'}</td>
+                            <td>
+                              <span className={`cg-badge ${o.status === 'partially_paid' ? 'cg-badge--info' : 'cg-badge--warning'}`}>
+                                {o.status === 'partially_paid' ? 'Bayar sebagian' : 'Belum dibayar'}
+                              </span>
+                            </td>
+                            <td className="cg-num whitespace-nowrap">{formatRp(o.total)}</td>
+                            <td className="cg-num whitespace-nowrap">{formatRp(o.paidTotal)}</td>
+                            <td className="cg-num whitespace-nowrap font-semibold text-warning">{formatRp(remaining)}</td>
+                          </tr>
+                          {ex &&
+                            o.items.map((i) => (
+                              <tr key={i.id} className="text-text-muted">
+                                <td colSpan={7} style={{ paddingLeft: 48 }} className="break-words">
+                                  {i.qty}× {i.name}
+                                  {i.note ? ` — ${i.note}` : ''}
+                                </td>
+                                <td className="cg-num whitespace-nowrap">{formatRp(i.lineTotal)}</td>
+                              </tr>
+                            ))}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
+      {tab === 'paid' && state.status === 'ready' &&
         state.data &&
         (() => {
           const needle = q.trim().toLowerCase();
@@ -371,6 +582,6 @@ export default function DetailPenjualan() {
             </>
           );
         })()}
-    </>
+    </div>
   );
 }
