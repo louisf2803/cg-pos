@@ -12,6 +12,7 @@ CG POS = POS + dashboard web bergaya Majoo, **kata dan merek sendiri** (clean ro
 4. **Jangan minta atau simpan PIN dan kata sandi.** Jangan aktifkan DOKU/QRIS. Jangan taruh kunci rahasia di repo.
 5. Jangan pakai nilai warna/piksel mentah di komponen: pakai kelas dan token di `packages/ui` (cg-btn, cg-input, cg-data, cg-badge, cg-banner, cg-empty, cg-modal, …).
 6. Satu tugas = satu cabang = satu PR kecil. Jangan campur banyak fitur.
+7. **Paritas = fungsi dan alur kerja yang sama, bukan sekadar ada tombolnya.** Arahan Louis (11 Nov 2026): fitur dianggap "selesai" hanya kalau proses kerjanya benar-benar menghasilkan hasil yang sama seperti Majoo (urutan langkah, data yang dihasilkan, akibatnya ke laporan/stok/uang) — tampilan mirip tapi tidak berfungsi, atau berfungsi tapi urutan/hasilnya beda, tetap dihitung belum selesai. Fitur yang masih "Pratinjau — menunggu dukungan server" HARUS ditindaklanjuti jadi fungsi nyata (bukan dibiarkan jadi pajangan permanen) begitu Claude sudah menyiapkan skema/DataLayer-nya. Kalau ragu urutan langkah atau perilaku asli Majoo, JANGAN menebak: tulis pertanyaan presisi di `docs/REQUESTS-FOR-CLAUDE.md` atau `docs/PROGRESS.md` untuk dicek bersama Louis langsung (sesi otomatis tidak boleh cek Majoo/BlueStacks sendiri, lihat `docs/ANTIGRAVITY.md` #6).
 
 ## Pola kode yang sudah ada (ikuti)
 - Halaman dashboard: `apps/dashboard/src/app/<rute>/page.tsx`, `'use client'`, ambil data lewat `useData()` dari `@/lib/data`, status `loading | error | ready`

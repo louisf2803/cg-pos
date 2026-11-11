@@ -36,7 +36,12 @@ kirim ke dapur per baris terpilih · kode otorisasi void · rekening outlet · r
 | A10 | Dapur: mode layar penuh, bunyi notifikasi pesanan baru, cetak struk dapur (checker) | +1 |
 | A11 | Laporan lain yang cukup dari data penjualan: Meja, Produk, Persediaan, Promo dan loyalti, Pelanggan | +2–3 |
 
-Hitungan (diperbarui 11 Nov 2026): skor sekarang 65,9/100 (22/32 must-have). **Target diubah Louis (11 Nov 2026): kelengkapan fitur dulu, sampai kira-kira 90% mirip Majoo — skor presisi nomor dua.** Tugas A1–A50 sudah selesai dan digabung ke main; tugas berjalan sekarang ada di `docs/queue/` (A51 dst, bukan lagi tabel di atas — tabel A1–A11 di atas sudah historis). Lihat `docs/queue/README.md` untuk cara kerja antrean dan `replica/features.csv` / `replica/parity.md` untuk daftar lengkap yang masih kosong ("no") atau separuh ("partial"), yang jadi sumber tugas berikutnya.
+Hitungan (diperbarui 11 Nov 2026): skor sekarang 66,4/100 (22/32 must-have). **Target diubah Louis (11 Nov 2026): kelengkapan fitur dulu, sampai kira-kira 90% mirip Majoo — skor presisi nomor dua.** Tugas A1–A50 sudah selesai dan digabung ke main; tugas berjalan sekarang ada di `docs/queue/` (A51 dst, bukan lagi tabel di atas — tabel A1–A11 di atas sudah historis). Lihat `docs/queue/README.md` untuk cara kerja antrean dan `replica/features.csv` / `replica/parity.md` untuk daftar lengkap yang masih kosong ("no") atau separuh ("partial"), yang jadi sumber tugas berikutnya.
+
+**Perubahan arahan Louis (11 Nov 2026, lihat `AGENTS.md` #7): "selesai" = fungsinya jalan sama seperti Majoo, bukan cuma tombolnya ada.** Dua dampak konkret:
+1. Fitur yang sudah `built: true` tapi alur kerjanya (urutan langkah, data yang dihasilkan) belum tentu sama dengan Majoo perlu diaudit ulang satu per satu — bukan hanya dicek "halamannya ada" lewat parity.py.
+2. Fitur yang masih berlabel **"Pratinjau — menunggu dukungan server"** (hak akses granular A51, denah kustom A52, deposit A53, dll.) sekarang jadi prioritas Claude untuk dibangun backend-nya SUNGGUHAN (migrasi + fungsi server + `supabase.ts`) — bukan dibiarkan jadi pajangan permanen. Lihat `docs/REQUESTS-FOR-CLAUDE.md` untuk daftar lengkapnya.
+Verifikasi "apakah alur kerja kita memang sama dengan Majoo" butuh cek langsung ke Majoo/BlueStacks, yang TIDAK boleh dilakukan sesi otomatis sendirian (lihat #6) — jadi titik-titik yang perlu dicek alur aslinya dicatat sebagai pertanyaan presisi menunggu sesi bersama Louis, bukan ditebak.
 
 ## 2. Alur kerja
 
