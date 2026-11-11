@@ -37,3 +37,20 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Bentuk yang diinginkan: Metode di DataLayer `getTopGrossProfitProducts(span: { from: string; to: string }, limit?: number): Promise<{ productId: string; name: string; revenue: number; cogs: number; grossProfit: number; marginPct: number }[]>`.
 - Sementara: Kartu ditampilkan nonaktif dengan lencana "Segera" dan penjelasan bahwa perhitungan HPP historis per transaksi penjualan sedang disiapkan di server.
 
+## /pengaturan/denah (A52 — Mode Denah Kustom & Pengaturan Per Meja) — 2026-11-11
+- Butuh:
+  1. Mode tampilan denah per outlet (`tableLayoutMode`: `'grid' | 'custom'`, bawaan `'grid'`) pada pengaturan outlet (`outlet_options` / `OutletOptions`).
+  2. Koordinat dan pengaturan tambahan per meja pada tabel `dining_tables` & `DiningTable`:
+     - `posX?: number` (`pos_x`, 0-100%)
+     - `posY?: number` (`pos_y`, 0-100%)
+     - `timeLimitEnabled?: boolean`, `timeLimitMinutes?: number` (`time_limit_minutes`)
+     - `reminderEnabled?: boolean`, `reminderBeforeMinutes?: number` (`reminder_before_minutes`)
+     - `minBillEnabled?: boolean`, `minBill?: number` (`min_bill`)
+     - `labelEnabled?: boolean`, `label?: string` (maks 20 huruf)
+- Untuk: Layar `/pengaturan/denah` (pemilih Grid Meja vs Denah Kustom dengan drag posisi dan 4 toggle pengaturan per meja).
+- Bentuk yang diinginkan:
+  - Perluasan `OutletOptions` + `saveOutletOptions` (atau `updateFloorMode(outletId, mode)`),
+  - Perluasan `saveTable` / metode baru `saveTableLayout(positions: { tableId: string; xPct: number; yPct: number }[])` dan `saveTableSettings(tableId: string, settings: TableSettings)`.
+- Sementara: Pilihan mode, koordinat kustom, dan 4 pengaturan per meja disimpan sementara di `localStorage` dengan lencana "Pratinjau".
+
+

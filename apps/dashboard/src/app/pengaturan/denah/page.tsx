@@ -7,17 +7,35 @@ import {
   Clock,
   LayoutGrid,
   ListFilter,
+  Move,
   Pencil,
   Plus,
+  RotateCcw,
   RotateCw,
+  Save,
   Trash2,
   Users,
   X,
 } from 'lucide-react';
-import { formatRp, type DiningTable, type Floor, type TableStatus } from '@cgpos/shared';
+import {
+  MAX_TABLE_LABEL_LENGTH,
+  clampTablePosition,
+  defaultGridPositions,
+  formatRp,
+  sanitizeTableSettings,
+  summarizeTableSettings,
+  tableSettingsProblem,
+  type DiningTable,
+  type Floor,
+  type FloorLayoutMode,
+  type TablePosition,
+  type TableSettings,
+  type TableStatus,
+} from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
+import { useShell } from '@/components/shell-context';
 
 type Dlg =
   | { kind: 'floor'; item?: Floor }
@@ -26,6 +44,66 @@ type Dlg =
   | { kind: 'del-table'; item: DiningTable };
 
 const INACTIVE_STORAGE_KEY = 'cgpos_inactive_tables';
+const LAYOUT_MODE_STORAGE_KEY = 'cgpos_floor_layout_mode';
+const TABLE_POSITIONS_STORAGE_KEY = 'cgpos_custom_table_positions';
+const TABLE_SETTINGS_STORAGE_KEY = 'cgpos_table_settings';
+
+function readJsonStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as T;
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonStorage<T>(key: string, value: T) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota error
+  }
+}
+
+function loadLayoutModes(): Record<string, FloorLayoutMode> {
+  const parsed = readJsonStorage<Record<string, unknown>>(LAYOUT_MODE_STORAGE_KEY, {});
+  const out: Record<string, FloorLayoutMode> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (v === 'grid' || v === 'custom') out[k] = v;
+  }
+  return out;
+}
+
+function loadTablePositions(): Record<string, TablePosition> {
+  const parsed = readJsonStorage<Record<string, unknown>>(TABLE_POSITIONS_STORAGE_KEY, {});
+  const out: Record<string, TablePosition> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (
+      v &&
+      typeof v === 'object' &&
+      typeof (v as TablePosition).xPct === 'number' &&
+      typeof (v as TablePosition).yPct === 'number'
+    ) {
+      out[k] = clampTablePosition(v as TablePosition);
+    }
+  }
+  return out;
+}
+
+function loadAllTableSettings(): Record<string, TableSettings> {
+  const parsed = readJsonStorage<Record<string, unknown>>(TABLE_SETTINGS_STORAGE_KEY, {});
+  const out: Record<string, TableSettings> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (v && typeof v === 'object') {
+      out[k] = sanitizeTableSettings(v as Partial<TableSettings>);
+    }
+  }
+  return out;
+}
 
 function loadInactiveTableIds(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -64,6 +142,8 @@ function fmtOrderTime(isoString?: string): string {
 
 export default function DenahDanMeja() {
   const data = useData();
+  const { selectedOutlet } = useShell();
+  const outletKey = selectedOutlet || 'semua';
 
   const [viewTab, setViewTab] = useState<'denah' | 'daftar'>('denah');
   const [selectedFloorId, setSelectedFloorId] = useState<string>('all');
@@ -71,11 +151,34 @@ export default function DenahDanMeja() {
   const [inactiveTableIds, setInactiveTableIds] = useState<Set<string>>(() =>
     loadInactiveTableIds()
   );
+  const [layoutModes, setLayoutModes] = useState<Record<string, FloorLayoutMode>>(() =>
+    loadLayoutModes()
+  );
+  const [draftPositions, setDraftPositions] = useState<Record<string, TablePosition>>(() =>
+    loadTablePositions()
+  );
+  const [hasUnsavedPositions, setHasUnsavedPositions] = useState(false);
+  const [positionStatusMsg, setPositionStatusMsg] = useState<string | null>(null);
+
+  const [tableSettingsMap, setTableSettingsMap] = useState<Record<string, TableSettings>>(() =>
+    loadAllTableSettings()
+  );
+  const [draftSettings, setDraftSettings] = useState<TableSettings>(() =>
+    sanitizeTableSettings()
+  );
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSavedMsg, setSettingsSavedMsg] = useState<string | null>(null);
+  const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dlg, setDlg] = useState<Dlg | null>(null);
 
   const lastFocusedElRef = useRef<HTMLElement | null>(null);
   const drawerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const suppressClickRef = useRef(false);
+
+  const layoutMode: FloorLayoutMode = layoutModes[outletKey] ?? 'grid';
 
   const st = useAsync(async () => {
     const [floors, tables, statuses] = await Promise.all([
@@ -138,13 +241,28 @@ export default function DenahDanMeja() {
   const openDrawer = (table: TableStatus, triggerEl: HTMLElement) => {
     lastFocusedElRef.current = triggerEl;
     setSelectedTable(table);
+    setDraftSettings(sanitizeTableSettings(tableSettingsMap[table.id]));
+    setSettingsError(null);
+    setSettingsSavedMsg(null);
   };
 
   const closeDrawer = () => {
     setSelectedTable(null);
+    setSettingsError(null);
+    setSettingsSavedMsg(null);
     if (lastFocusedElRef.current) {
       lastFocusedElRef.current.focus();
     }
+  };
+
+  const handleLayoutModeChange = (nextMode: FloorLayoutMode) => {
+    setLayoutModes((prev) => {
+      const updated = { ...prev, [outletKey]: nextMode };
+      writeJsonStorage(LAYOUT_MODE_STORAGE_KEY, updated);
+      return updated;
+    });
+    setViewTab('denah');
+    setPositionStatusMsg(null);
   };
 
   const toggleTableActiveStatus = (tableId: string) => {
@@ -180,6 +298,110 @@ export default function DenahDanMeja() {
     if (selectedFloorId === 'all') return allTables;
     return allTables.filter((t) => t.floorId === selectedFloorId);
   }, [allTables, selectedFloorId]);
+
+  const resolvedPositions = useMemo(() => {
+    const defaults = defaultGridPositions(
+      displayedTables.map((t) => t.id),
+      4
+    );
+    const merged: Record<string, TablePosition> = {};
+    for (const t of displayedTables) {
+      merged[t.id] = clampTablePosition(
+        draftPositions[t.id] ?? defaults[t.id] ?? { xPct: 10, yPct: 10 }
+      );
+    }
+    return merged;
+  }, [displayedTables, draftPositions]);
+
+  const handleSavePositions = () => {
+    const nextPositions = { ...draftPositions, ...resolvedPositions };
+    setDraftPositions(nextPositions);
+    writeJsonStorage(TABLE_POSITIONS_STORAGE_KEY, nextPositions);
+    setHasUnsavedPositions(false);
+    setPositionStatusMsg('Posisi meja tersimpan secara lokal (Pratinjau).');
+  };
+
+  const handleResetPositionsToGrid = () => {
+    const defaults = defaultGridPositions(
+      displayedTables.map((t) => t.id),
+      4
+    );
+    const nextPositions = { ...draftPositions, ...defaults };
+    setDraftPositions(nextPositions);
+    writeJsonStorage(TABLE_POSITIONS_STORAGE_KEY, nextPositions);
+    setHasUnsavedPositions(false);
+    setPositionStatusMsg('Posisi meja dikembalikan ke susunan grid.');
+  };
+
+  const startCardDrag = (
+    e: React.PointerEvent<HTMLButtonElement>,
+    table: TableStatus
+  ) => {
+    if (e.button !== 0 || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const usableW = Math.max(1, rect.width - 148);
+    const usableH = Math.max(1, rect.height - 116);
+    const orig = resolvedPositions[table.id] ?? { xPct: 10, yPct: 10 };
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
+    suppressClickRef.current = false;
+    setDraggingTableId(table.id);
+    setPositionStatusMsg(null);
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 4) {
+        moved = true;
+        suppressClickRef.current = true;
+      }
+      if (!moved) return;
+      const nextPos = clampTablePosition({
+        xPct: orig.xPct + (dx / usableW) * 100,
+        yPct: orig.yPct + (dy / usableH) * 100,
+      });
+      setDraftPositions((prev) => ({ ...prev, [table.id]: nextPos }));
+      setHasUnsavedPositions(true);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      setDraggingTableId(null);
+    };
+
+    const onUp = () => {
+      cleanup();
+      if (moved) {
+        setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 0);
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  const handleSaveTableSettings = () => {
+    if (!selectedTable) return;
+    const cleaned = sanitizeTableSettings(draftSettings);
+    const problem = tableSettingsProblem(cleaned);
+    if (problem) {
+      setSettingsError(problem);
+      setSettingsSavedMsg(null);
+      return;
+    }
+    setSettingsError(null);
+    const updated = { ...tableSettingsMap, [selectedTable.id]: cleaned };
+    setTableSettingsMap(updated);
+    setDraftSettings(cleaned);
+    writeJsonStorage(TABLE_SETTINGS_STORAGE_KEY, updated);
+    setSettingsSavedMsg('Pengaturan meja tersimpan (Pratinjau lokal).');
+  };
 
   // Summary counts
   const totalKosong = useMemo(
@@ -223,6 +445,42 @@ export default function DenahDanMeja() {
           </button>
         }
       />
+
+      {/* Mode Tampilan Outlet + Pratinjau */}
+      <div className="mb-16 p-12 rounded-xl border border-border bg-surface-raised flex flex-wrap items-center justify-between gap-12 min-w-0">
+        <div className="flex flex-wrap items-center gap-8 min-w-0">
+          <span className="text-xs font-semibold text-text-muted">Mode Tampilan Meja:</span>
+          <div className="inline-flex rounded-lg border border-border bg-surface p-[2px]" role="group" aria-label="Pemilih Mode Denah">
+            <button
+              type="button"
+              aria-pressed={layoutMode === 'grid'}
+              onClick={() => handleLayoutModeChange('grid')}
+              className={`px-12 py-[6px] rounded-md text-xs font-semibold whitespace-nowrap flex items-center gap-[6px] ${
+                layoutMode === 'grid'
+                  ? 'bg-accent text-on-accent shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+            >
+              <LayoutGrid className="w-[14px] h-[14px] shrink-0" aria-hidden /> Grid Meja
+            </button>
+            <button
+              type="button"
+              aria-pressed={layoutMode === 'custom'}
+              onClick={() => handleLayoutModeChange('custom')}
+              className={`px-12 py-[6px] rounded-md text-xs font-semibold whitespace-nowrap flex items-center gap-[6px] ${
+                layoutMode === 'custom'
+                  ? 'bg-accent text-on-accent shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+            >
+              <Move className="w-[14px] h-[14px] shrink-0" aria-hidden /> Denah Kustom
+            </button>
+          </div>
+        </div>
+        <span className="cg-badge text-[11px] font-semibold">
+          Pratinjau — mode &amp; posisi disimpan lokal per perangkat
+        </span>
+      </div>
 
       {/* Tabs and Controls */}
       <div className="flex items-center justify-between gap-12 mb-16 flex-wrap min-w-0">
@@ -408,7 +666,7 @@ export default function DenahDanMeja() {
                 </div>
               </div>
 
-              {/* Table Grid */}
+              {/* Table Grid or Custom Drag Canvas */}
               {displayedTables.length === 0 ? (
                 <div className="cg-empty py-24">
                   <p>
@@ -433,19 +691,137 @@ export default function DenahDanMeja() {
                     <Plus className="cg-icon cg-icon--sm" aria-hidden /> Tambah meja
                   </button>
                 </div>
+              ) : layoutMode === 'custom' ? (
+                <div className="space-y-12 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-8 p-12 rounded-xl border border-border bg-surface-raised">
+                    <p className="text-xs text-text-muted min-w-0">
+                      Seret kartu meja untuk mengatur letak bebas di denah, atau klik meja untuk membuka detail &amp; pengaturan.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-8 shrink-0">
+                      <button
+                        type="button"
+                        className="cg-btn cg-btn--secondary cg-btn--sm flex items-center gap-[6px]"
+                        onClick={handleResetPositionsToGrid}
+                      >
+                        <RotateCcw className="w-[14px] h-[14px] shrink-0" aria-hidden /> Reset ke Grid
+                      </button>
+                      <button
+                        type="button"
+                        className="cg-btn cg-btn--primary cg-btn--sm flex items-center gap-[6px]"
+                        onClick={handleSavePositions}
+                      >
+                        <Save className="w-[14px] h-[14px] shrink-0" aria-hidden />
+                        {hasUnsavedPositions ? 'Simpan Posisi *' : 'Simpan Posisi'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {positionStatusMsg && (
+                    <div className="cg-banner cg-banner--info text-xs" role="status">
+                      {positionStatusMsg}
+                    </div>
+                  )}
+
+                  <div className="w-full max-w-full overflow-x-auto rounded-xl border border-border bg-surface-raised min-w-0">
+                    <div
+                      ref={canvasRef}
+                      aria-label="Kanvas Denah Kustom"
+                      className="relative w-full min-w-[600px] tablet:min-w-full min-h-[460px] tablet:min-h-[540px] overflow-hidden select-none touch-none"
+                      style={{
+                        backgroundImage:
+                          'radial-gradient(color-mix(in srgb, var(--color-border) 85%, transparent) 1px, transparent 1px)',
+                        backgroundSize: '24px 24px',
+                      }}
+                    >
+                    {displayedTables.map((t) => {
+                      const status = getTableEffectiveStatus(t);
+                      const pos = resolvedPositions[t.id] ?? { xPct: 8, yPct: 8 };
+                      const tags = summarizeTableSettings(tableSettingsMap[t.id]);
+                      const isDragging = draggingTableId === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          data-table-id={t.id}
+                          data-pos-x={pos.xPct}
+                          data-pos-y={pos.yPct}
+                          onPointerDown={(e) => startCardDrag(e, t)}
+                          onClick={(e) => {
+                            if (suppressClickRef.current) return;
+                            openDrawer(t, e.currentTarget);
+                          }}
+                          style={{
+                            left: `calc(8px + (${pos.xPct} / 100) * (100% - 148px))`,
+                            top: `calc(8px + (${pos.yPct} / 100) * (100% - 116px))`,
+                          }}
+                          className={`absolute w-[132px] h-[100px] p-8 rounded-xl border text-left flex flex-col justify-between transition-shadow focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent cursor-grab active:cursor-grabbing ${
+                            isDragging ? 'z-20 shadow-lg ring-2 ring-accent' : 'z-10 hover:shadow-sm'
+                          } ${
+                            status === 'terisi'
+                              ? 'bg-warning/10 border-warning/60'
+                              : status === 'nonaktif'
+                              ? 'bg-surface-muted border-border opacity-75'
+                              : 'bg-surface border-border hover:border-accent'
+                          }`}
+                          aria-label={`Meja ${t.name} pada koordinat ${pos.xPct}% x ${pos.yPct}%, status ${status}`}
+                        >
+                          <div className="flex items-start justify-between gap-4 min-w-0">
+                            <strong
+                              className="text-xs font-bold text-text truncate block min-w-0"
+                              title={t.name}
+                            >
+                              {t.name}
+                            </strong>
+                            <Move className="w-12 h-12 text-text-muted shrink-0 mt-[2px]" aria-hidden />
+                          </div>
+
+                          {tags.length > 0 && (
+                            <span
+                              className="text-[11px] font-medium text-accent-strong truncate block max-w-full"
+                              title={tags.join(' • ')}
+                            >
+                              {tags[0]}
+                            </span>
+                          )}
+
+                          <div className="flex items-center justify-between gap-4 min-w-0">
+                            {status === 'kosong' ? (
+                              <span className="cg-badge cg-badge--success text-[10px] font-semibold">
+                                Kosong
+                              </span>
+                            ) : status === 'terisi' ? (
+                              <span className="cg-badge cg-badge--warning text-[10px] font-semibold truncate">
+                                Terisi
+                              </span>
+                            ) : (
+                              <span className="cg-badge text-[10px] text-text-muted border border-border font-semibold">
+                                Nonaktif
+                              </span>
+                            )}
+                            <span className="text-[10px] text-text-muted cg-num whitespace-nowrap">
+                              {Math.round(pos.xPct)}%,{Math.round(pos.yPct)}%
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div
-                  className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-[10px] tablet:gap-12 min-w-0"
+                  className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(144px,1fr))] gap-[10px] tablet:gap-12 min-w-0"
                   aria-label="Grid Meja Denah"
                 >
                   {displayedTables.map((t) => {
                     const status = getTableEffectiveStatus(t);
+                    const tags = summarizeTableSettings(tableSettingsMap[t.id]);
                     return (
                       <button
                         key={t.id}
                         type="button"
                         onClick={(e) => openDrawer(t, e.currentTarget)}
-                        className={`p-12 rounded-xl border text-left flex flex-col justify-between min-h-[110px] tablet:min-h-[120px] transition-all hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                        className={`p-12 rounded-xl border text-left flex flex-col justify-between min-h-[118px] tablet:min-h-[128px] transition-all hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent min-w-0 ${
                           status === 'terisi'
                             ? 'bg-warning/5 border-warning/40 hover:border-warning'
                             : status === 'nonaktif'
@@ -469,6 +845,19 @@ export default function DenahDanMeja() {
                               {(t as unknown as { capacity?: number }).capacity ?? 4} kursi
                             </span>
                           </div>
+                          {tags.length > 0 && (
+                            <div className="flex flex-wrap gap-4 mb-8 min-w-0">
+                              {tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[11px] font-medium px-[6px] py-[2px] rounded bg-accent-soft text-accent-strong truncate max-w-full"
+                                  title={tag}
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div className="min-w-0">
@@ -724,6 +1113,228 @@ export default function DenahDanMeja() {
                   )}
                 </div>
               )}
+
+              {/* Panel Pengaturan Per Meja (4 Toggle) */}
+              <section
+                aria-label="Pengaturan Meja"
+                className="p-16 rounded-xl border border-border bg-surface space-y-12 mb-20"
+              >
+                <div className="flex items-center justify-between gap-8">
+                  <h3 className="text-sm font-bold text-text">Pengaturan Meja</h3>
+                  <span className="cg-badge text-[10px] font-semibold">Pratinjau</span>
+                </div>
+
+                {/* 1. Batas Waktu */}
+                <div className="space-y-8 border-b border-border/60 pb-12">
+                  <label className="flex items-center justify-between gap-8 cursor-pointer">
+                    <span className="text-sm font-medium text-text">Batas Waktu</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Aktifkan Batas Waktu"
+                      checked={draftSettings.timeLimitEnabled}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setSettingsError(null);
+                        setSettingsSavedMsg(null);
+                        setDraftSettings((prev) => ({
+                          ...prev,
+                          timeLimitEnabled: checked,
+                          reminderEnabled: checked ? prev.reminderEnabled : false,
+                        }));
+                      }}
+                      className="w-16 h-16 accent-accent cursor-pointer"
+                    />
+                  </label>
+                  {draftSettings.timeLimitEnabled && (
+                    <label className="grid gap-4">
+                      <span className="text-xs text-text-muted">Durasi maksimum duduk (menit)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        className="cg-input cg-num"
+                        aria-label="Durasi Batas Waktu (menit)"
+                        value={draftSettings.timeLimitMinutes}
+                        onChange={(e) => {
+                          setSettingsError(null);
+                          setSettingsSavedMsg(null);
+                          setDraftSettings((prev) => ({
+                            ...prev,
+                            timeLimitMinutes: Number.parseInt(e.target.value || '0', 10),
+                          }));
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* 2. Pengingat Waktu */}
+                <div className="space-y-8 border-b border-border/60 pb-12">
+                  <label
+                    className={`flex items-center justify-between gap-8 ${
+                      draftSettings.timeLimitEnabled ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-text">Pengingat Waktu</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Aktifkan Pengingat Waktu"
+                      disabled={!draftSettings.timeLimitEnabled}
+                      checked={draftSettings.timeLimitEnabled && draftSettings.reminderEnabled}
+                      onChange={(e) => {
+                        setSettingsError(null);
+                        setSettingsSavedMsg(null);
+                        setDraftSettings((prev) => ({
+                          ...prev,
+                          reminderEnabled: e.target.checked,
+                        }));
+                      }}
+                      className="w-16 h-16 accent-accent cursor-pointer disabled:cursor-not-allowed"
+                    />
+                  </label>
+                  {!draftSettings.timeLimitEnabled ? (
+                    <p className="text-xs text-text-muted">
+                      Aktifkan Batas Waktu terlebih dahulu untuk mengatur pengingat.
+                    </p>
+                  ) : (
+                    draftSettings.reminderEnabled && (
+                      <label className="grid gap-4">
+                        <span className="text-xs text-text-muted">
+                          Ingatkan sebelum waktu habis (menit)
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          className="cg-input cg-num"
+                          aria-label="Menit Pengingat Waktu"
+                          value={draftSettings.reminderBeforeMinutes}
+                          onChange={(e) => {
+                            setSettingsError(null);
+                            setSettingsSavedMsg(null);
+                            setDraftSettings((prev) => ({
+                              ...prev,
+                              reminderBeforeMinutes: Number.parseInt(e.target.value || '0', 10),
+                            }));
+                          }}
+                        />
+                      </label>
+                    )
+                  )}
+                </div>
+
+                {/* 3. Minimum Tagihan */}
+                <div className="space-y-8 border-b border-border/60 pb-12">
+                  <label className="flex items-center justify-between gap-8 cursor-pointer">
+                    <span className="text-sm font-medium text-text">Minimum Tagihan</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Aktifkan Minimum Tagihan"
+                      checked={draftSettings.minBillEnabled}
+                      onChange={(e) => {
+                        setSettingsError(null);
+                        setSettingsSavedMsg(null);
+                        setDraftSettings((prev) => ({
+                          ...prev,
+                          minBillEnabled: e.target.checked,
+                        }));
+                      }}
+                      className="w-16 h-16 accent-accent cursor-pointer"
+                    />
+                  </label>
+                  {draftSettings.minBillEnabled && (
+                    <label className="grid gap-4">
+                      <span className="text-xs text-text-muted">Nominal minimum (Rp)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1000}
+                        className="cg-input cg-num"
+                        aria-label="Nominal Minimum Tagihan"
+                        value={draftSettings.minBill}
+                        onChange={(e) => {
+                          setSettingsError(null);
+                          setSettingsSavedMsg(null);
+                          setDraftSettings((prev) => ({
+                            ...prev,
+                            minBill: Number.parseInt(e.target.value || '0', 10),
+                          }));
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* 4. Label */}
+                <div className="space-y-8">
+                  <label className="flex items-center justify-between gap-8 cursor-pointer">
+                    <span className="text-sm font-medium text-text">Label</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Aktifkan Label Meja"
+                      checked={draftSettings.labelEnabled}
+                      onChange={(e) => {
+                        setSettingsError(null);
+                        setSettingsSavedMsg(null);
+                        setDraftSettings((prev) => ({
+                          ...prev,
+                          labelEnabled: e.target.checked,
+                        }));
+                      }}
+                      className="w-16 h-16 accent-accent cursor-pointer"
+                    />
+                  </label>
+                  {draftSettings.labelEnabled && (
+                    <label className="grid gap-4">
+                      <div className="flex items-center justify-between gap-8">
+                        <span className="text-xs text-text-muted">Teks label bebas</span>
+                        <span className="text-[11px] text-text-muted cg-num">
+                          {draftSettings.label.length}/{MAX_TABLE_LABEL_LENGTH}
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        maxLength={MAX_TABLE_LABEL_LENGTH}
+                        placeholder="Mis. VIP Pojok"
+                        className="cg-input"
+                        aria-label="Teks Label Meja"
+                        value={draftSettings.label}
+                        onChange={(e) => {
+                          setSettingsError(null);
+                          setSettingsSavedMsg(null);
+                          setDraftSettings((prev) => ({
+                            ...prev,
+                            label: e.target.value.slice(0, MAX_TABLE_LABEL_LENGTH),
+                          }));
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {settingsError && (
+                  <p role="alert" className="text-xs font-medium text-danger-strong">
+                    {settingsError}
+                  </p>
+                )}
+
+                {settingsSavedMsg && (
+                  <p role="status" className="text-xs font-medium text-success-strong">
+                    {settingsSavedMsg}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  className="cg-btn cg-btn--primary cg-btn--sm w-full"
+                  onClick={handleSaveTableSettings}
+                >
+                  Simpan Pengaturan Meja
+                </button>
+              </section>
             </div>
 
             {/* Drawer Actions */}
