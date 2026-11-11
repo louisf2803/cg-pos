@@ -1,4 +1,5 @@
 import type { DataLayer } from './data';
+import { COFFEE_GROUND_BAHAN_BAKU } from './seed-bahan-baku';
 import { createTableOps } from './table-ops';
 import { sanitizeReceiptTemplate } from './receipt-template';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
@@ -363,9 +364,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     if (opts.seed === false) return;
     const opening: [string, number, number][] = [];
     for (const p of products) if (p.trackStock && p.kind !== 'bundle' && p.stock !== undefined) { costs.set(p.id, Math.round(p.price * 0.4)); opening.push([p.id, p.stock, Math.round(p.price * 0.4)]); }
+    // 4 bahan demo (dipakai resep p1-p3 di bawah) + katalog bahan baku nyata Coffee Ground (lihat seed-bahan-baku.ts):
+    // stok fisik bahan nyata ini sengaja mulai dari 0 (belum ada angka stok asli dari Louis), hanya nama/satuan/biaya yang nyata.
     const ing: [string, string, string, number, number, number | undefined][] = [
       ['ing-kopi', 'Biji kopi arabika', 'gram', 5000, 320, 1000], ['ing-susu', 'Susu segar', 'ml', 12000, 18, 3000],
       ['ing-gula', 'Gula aren cair', 'ml', 800, 40, 1000], ['ing-gelas', 'Gelas 16 oz', 'pcs', 0, 700, undefined],
+      ...COFFEE_GROUND_BAHAN_BAKU,
     ];
     for (const [id, name, unit, qty, cost, min] of ing) { ingredients.push({ id, name, unit, qty: 0 }); if (min !== undefined) mins.set(id, min); if (qty > 0) opening.push([id, qty, cost]); else costs.set(id, cost); }
     mins.set('p8', 5);
