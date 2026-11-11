@@ -188,7 +188,7 @@ export default function LaporanProduk() {
       {stats && (
         <>
           {/* Ringkasan KPI */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-12 mb-16">
+          <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-12 mb-16">
             <div className="p-16 rounded-md border border-border bg-surface">
               <span className="text-xs text-text-muted font-medium">Total Omzet Produk</span>
               <div className="text-xl font-bold mt-4 cg-num">{formatRp(stats.grandTotalSales)}</div>
@@ -223,7 +223,7 @@ export default function LaporanProduk() {
           {stats.byCategory.length > 0 && (
             <div className="mb-16 p-16 rounded-md border border-border bg-surface">
               <h2 className="text-sm font-semibold mb-8">Ringkasan Kategori Teratas</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+              <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-8">
                 {stats.byCategory.slice(0, 4).map((c) => (
                   <div key={c.key} className="p-8 rounded border border-border bg-surface-raised">
                     <div className="font-semibold text-xs truncate">{c.label}</div>
@@ -237,7 +237,7 @@ export default function LaporanProduk() {
 
           {/* Filter Bar & Urutan */}
           <div className="flex flex-wrap items-center gap-8 mb-12">
-            <div className="flex flex-wrap gap-6" role="group" aria-label="Filter kategori">
+            <div className="flex flex-wrap gap-[6px]" role="group" aria-label="Filter kategori">
               <button
                 type="button"
                 className="cg-chip"
@@ -259,10 +259,10 @@ export default function LaporanProduk() {
               ))}
             </div>
 
-            <div className="flex items-center gap-8 ml-auto w-full sm:w-auto">
+            <div className="flex items-center gap-8 ml-auto w-full tablet:w-auto">
               {/* Pilihan urut */}
               <div className="flex items-center gap-4 border border-border rounded-md p-2 bg-surface">
-                <ArrowDownUp className="w-14 h-14 text-text-muted ml-4" aria-hidden />
+                <ArrowDownUp className="w-[14px] h-[14px] text-text-muted ml-4" aria-hidden />
                 <button
                   type="button"
                   className={`text-xs px-8 py-4 rounded ${sortBy === 'revenue' ? 'bg-accent text-white font-semibold' : 'text-text-muted'}`}
@@ -338,7 +338,7 @@ export default function LaporanProduk() {
                                 style={{ width: `${Math.min(Math.max(percent, 0), 100)}%`, height: '100%' }}
                               />
                             </div>
-                            <span className="text-xs text-text-muted cg-num shrink-0 w-36 text-right">
+                            <span className="text-xs text-text-muted cg-num shrink-0 w-[36px] text-right">
                               {percent.toFixed(1)}%
                             </span>
                           </div>

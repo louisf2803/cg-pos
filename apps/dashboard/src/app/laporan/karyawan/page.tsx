@@ -306,7 +306,7 @@ export default function StaffReportPage() {
       {report && (report.totals.transactionCount > 0 || report.totals.voidCount > 0 || report.totals.refundCount > 0) && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Karyawan */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-12" aria-label="Ringkasan kinerja karyawan">
+          <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan kinerja karyawan">
             <StatCard label="Total penjualan" value={formatRp(report.totals.totalSales)} testId="total-penjualan" primary />
             <StatCard label="Jumlah transaksi" value={`${num(report.totals.transactionCount)} transaksi`} testId="jumlah-transaksi" />
             <StatCard label="Rata-rata per transaksi" value={formatRp(report.totals.avgSalesPerTx)} testId="rata-rata-transaksi" />
@@ -318,7 +318,7 @@ export default function StaffReportPage() {
           </div>
 
           {/* Kotak Ringkasan Potongan Khusus */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-12">
+          <div className="grid grid-cols-1 tablet:grid-cols-2 gap-12">
             <div className="p-12 border border-border rounded-lg bg-surface flex items-center justify-between">
               <div>
                 <span className="block text-xs text-text-muted">Diskon manual diberikan</span>
@@ -341,12 +341,12 @@ export default function StaffReportPage() {
 
           {/* Bagian Daftar Karyawan */}
           <div className="border border-border rounded-xl bg-surface overflow-hidden min-w-0">
-            <div className="p-16 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-12">
+            <div className="p-16 border-b border-border flex flex-col tablet:flex-row tablet:items-center justify-between gap-12">
               <div>
                 <h2 className="text-base font-semibold">Rincian per karyawan</h2>
                 <p className="text-xs text-text-muted">Urutan berdasarkan perolehan total penjualan tertinggi</p>
               </div>
-              <div className="relative w-full sm:w-240">
+              <div className="relative w-full tablet:w-[240px]">
                 <Search className="w-16 h-16 absolute left-12 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden />
                 <input
                   type="text"
@@ -489,10 +489,10 @@ function StatCard({
   testId?: string;
 }) {
   return (
-    <div className="p-12 sm:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
+    <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
       <div>
         <span className="text-xs text-text-muted font-medium block mb-4 leading-tight break-words">{label}</span>
-        <strong className={`text-xl sm:text-2xl font-bold block text-left leading-tight tracking-tight ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
+        <strong className={`text-base tablet:text-xl desktop:text-2xl font-bold block text-left leading-tight tracking-tight ${primary ? 'text-primary' : 'text-text'}`} data-testid={testId}>
           {value}
         </strong>
       </div>

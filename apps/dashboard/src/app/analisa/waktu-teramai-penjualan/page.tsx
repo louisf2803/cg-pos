@@ -1,21 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Clock, Download, Flame, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, Download, Flame, TrendingUp } from 'lucide-react';
 import { buildSalesHeatmap, formatRp, toCsv, type DayRow } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { useReport } from '@/lib/use-report';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID').format(n);
-
-function formatAvgCount(val: number): string {
-  if (val < 10) {
-    if (val % 1 === 0) return num(val);
-    return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(val);
-  }
-  return num(Math.round(val));
-}
 
 export default function SalesPeakHoursHeatmapPage() {
   const { ctx, value, setValue, range, today, state } = useReport();
@@ -105,7 +97,7 @@ export default function SalesPeakHoursHeatmapPage() {
 
       {loading && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat peta panas penjualan">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="grid grid-cols-2 tablet:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="cg-skeleton h-72 rounded-lg" />
             ))}
@@ -158,7 +150,7 @@ export default function SalesPeakHoursHeatmapPage() {
             />
             <StatCard
               label="Rata-rata per hari"
-              value={`${formatAvgCount(report.overallTotals.count / 7)} transaksi`}
+              value={`${num(Math.round(report.overallTotals.count / 7))} transaksi`}
               subtext="Estimasi per hari aktif"
               testId="rata-rata-hari"
             />
@@ -166,11 +158,11 @@ export default function SalesPeakHoursHeatmapPage() {
 
           {/* Dialog info sel terpilih */}
           {selectedCell && (
-            <div className="p-12 border border-accent/30 rounded-lg bg-accent-soft/40 flex items-center justify-between gap-12">
-              <div className="text-xs sm:text-sm">
-                <span className="font-semibold text-accent-strong">{selectedCell.dayName}</span> pada jam{' '}
+            <div className="p-12 border border-primary/30 rounded-lg bg-primary/5 flex items-center justify-between gap-12">
+              <div className="text-xs tablet:text-sm">
+                <span className="font-semibold text-primary">{selectedCell.dayName}</span> pada jam{' '}
                 <strong>{String(selectedCell.hour).padStart(2, '0')}:00 - {String(selectedCell.hour).padStart(2, '0')}:59</strong>: terjadi{' '}
-                <strong className="cg-num text-accent-strong">{num(selectedCell.count)} transaksi</strong> dengan omset{' '}
+                <strong className="cg-num text-primary">{num(selectedCell.count)} transaksi</strong> dengan omset{' '}
                 <strong className="cg-num">{formatRp(selectedCell.total)}</strong>
               </div>
               <button
@@ -207,7 +199,7 @@ export default function SalesPeakHoursHeatmapPage() {
                       metric === 'count' ? 'bg-accent text-on-accent font-semibold shadow-xs' : 'text-text-muted hover:text-text'
                     }`}
                   >
-                    Transaksi
+                    Jumlah transaksi
                   </button>
                   <button
                     type="button"
@@ -218,7 +210,7 @@ export default function SalesPeakHoursHeatmapPage() {
                       metric === 'sales' ? 'bg-accent text-on-accent font-semibold shadow-xs' : 'text-text-muted hover:text-text'
                     }`}
                   >
-                    Nominal
+                    Nominal rupiah
                   </button>
                 </div>
               </div>
@@ -226,27 +218,30 @@ export default function SalesPeakHoursHeatmapPage() {
 
             {/* Desktop / Scrollable Table */}
             <div className="overflow-x-auto min-w-0">
-              <table className="w-full table-fixed text-xs text-left border-collapse" aria-label="Tabel heatmap hari dan jam transaksi">
+              <table className="w-full text-xs text-left border-collapse" aria-label="Tabel heatmap hari dan jam transaksi">
                 <thead>
                   <tr className="bg-surface-raised border-b border-border text-text-muted font-medium">
-                    <th className="py-6 px-4 sticky left-0 bg-surface-raised z-10 w-[84px] shadow-xs uppercase">
+                    <th className="py-12 px-12 sticky left-0 bg-surface-raised z-10 min-w-100 shadow-xs uppercase">
                       Hari
                     </th>
-                    <th className="py-6 px-4 text-right w-[84px] uppercase font-semibold">Total</th>
+                    <th className="py-12 px-8 text-right min-w-70 uppercase font-semibold">Total</th>
                     {Array.from({ length: 24 }, (_, h) => (
-                      <th key={h} className="py-6 px-0.5 text-center font-mono text-[11px] w-[28px] text-text-muted">
-                        {h % 3 === 0 ? String(h).padStart(2, '0') : ''}
+                      <th key={h} className="py-12 px-4 text-center min-w-36 uppercase font-mono">
+                        {String(h).padStart(2, '0')}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {report.days.map((d) => (
-                    <tr key={d.dayOfWeek} className="h-[36px] hover:bg-surface-raised/40 transition-colors">
-                      <td className="py-1 px-4 sticky left-0 bg-surface z-10 font-semibold text-text text-xs whitespace-nowrap shadow-xs">
-                        {d.dayName}
+                    <tr key={d.dayOfWeek} className="hover:bg-surface-raised/40 transition-colors">
+                      <td className="py-10 px-12 sticky left-0 bg-surface z-10 font-semibold text-text shadow-xs">
+                        <div className="flex items-center gap-6">
+                          <Calendar className="w-14 h-14 text-text-muted shrink-0" aria-hidden />
+                          <span>{d.dayName}</span>
+                        </div>
                       </td>
-                      <td className="py-1 px-4 text-right cg-num font-bold text-accent-strong text-xs whitespace-nowrap">
+                      <td className="py-10 px-8 text-right cg-num font-bold text-primary">
                         {metric === 'count' ? num(d.totalCount) : formatRp(d.totalSales)}
                       </td>
                       {d.cells.map((cell) => {
@@ -255,20 +250,20 @@ export default function SalesPeakHoursHeatmapPage() {
                           metric === 'count'
                             ? cell.intensity
                             : report.maxSales > 0
-                            ? Number((cell.total / report.maxSales).toFixed(3))
-                            : 0;
+                              ? Number((cell.total / report.maxSales).toFixed(3))
+                              : 0;
 
-                        const hasVal = cellVal > 0;
-                        const bgStyle = hasVal
-                          ? {
-                              backgroundColor: `rgba(14, 128, 68, ${Math.max(0.18, cellIntensity)})`,
+                        const isHigh = cellIntensity >= 0.55;
+                        const bgStyle =
+                          cellVal > 0
+                            ? {
+                              backgroundColor: `rgba(16, 185, 129, ${Math.max(0.15, cellIntensity)})`,
+                              color: isHigh ? '#ffffff' : 'var(--color-text)',
                             }
-                          : {
-                              backgroundColor: 'var(--color-surface)',
-                            };
+                            : undefined;
 
                         return (
-                          <td key={cell.hour} className="p-0.5 text-center w-[28px]">
+                          <td key={cell.hour} className="p-[2px] text-center w-[28px]">
                             <div
                               tabIndex={0}
                               role="button"
@@ -293,7 +288,7 @@ export default function SalesPeakHoursHeatmapPage() {
                                   });
                                 }
                               }}
-                              className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] mx-auto rounded-xs cursor-pointer transition-transform hover:scale-125 focus:outline-hidden focus:ring-2 focus:ring-accent"
+                              className="w-[18px] h-[18px] tablet:w-20 tablet:h-20 mx-auto rounded-xs cursor-pointer transition-transform hover:scale-125 focus:outline-hidden focus:ring-2 focus:ring-accent"
                               style={bgStyle}
                             />
                           </td>
@@ -303,25 +298,23 @@ export default function SalesPeakHoursHeatmapPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-surface-raised border-t-2 border-border font-bold text-text h-[36px]">
-                    <td className="py-1 px-4 sticky left-0 bg-surface-raised z-10 text-xs shadow-xs">Total per jam</td>
-                    <td className="py-1 px-4 text-right cg-num text-accent-strong text-xs">
+                  <tr className="bg-surface-raised border-t-2 border-border font-bold text-text">
+                    <td className="py-10 px-12 sticky left-0 bg-surface-raised z-10 shadow-xs">Total per jam</td>
+                    <td className="py-10 px-8 text-right cg-num text-primary">
                       {metric === 'count' ? num(report.overallTotals.count) : formatRp(report.overallTotals.total)}
                     </td>
                     {report.hourlyTotals.map((h) => {
                       const val = metric === 'count' ? h.count : h.total;
                       return (
-                        <td
-                          key={h.hour}
-                          className="py-1 px-0.5 text-center font-mono cg-num text-[10px] text-text-muted"
-                          title={`Jam ${String(h.hour).padStart(2, '0')}:00: ${metric === 'count' ? num(val) + ' transaksi' : formatRp(val)}`}
-                        >
+                        <td key={h.hour} className="py-10 px-4 text-center font-mono cg-num text-[11px]">
                           {val > 0
                             ? metric === 'count'
-                              ? (val < 100 ? val : '99+')
+                              ? h.count
                               : val >= 1000000
-                              ? `${Math.round(val / 1000000)}jt`
-                              : `${Math.round(val / 1000)}rb`
+                                ? `${(val / 1000000).toFixed(1)}jt`
+                                : val >= 1000
+                                  ? `${Math.round(val / 1000)}rb`
+                                  : val
                             : '·'}
                         </td>
                       );
@@ -331,40 +324,42 @@ export default function SalesPeakHoursHeatmapPage() {
               </table>
             </div>
 
-            {/* Distribusi Transaksi Tiap Hari (Daftar Batang Horizontal) */}
-            <div className="p-16 border-t border-border bg-surface-raised space-y-12">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Distribusi transaksi tiap hari
-                </h3>
-                <span className="text-[11px] text-text-muted">
-                  Total sepekan: {num(report.overallTotals.count)} transaksi ({formatRp(report.overallTotals.total)})
-                </span>
+            {/* Mobile View (< 768px: Ringkasan Per Hari) */}
+            <div className="md:hidden divide-y divide-border min-w-0">
+              <div className="p-12 bg-surface-raised text-xs text-text-muted font-medium">
+                Distribusi transaksi tiap hari dalam sepekan:
               </div>
-              <div className="space-y-8">
-                {(() => {
-                  const maxDayVal = Math.max(1, ...report.days.map((d) => (metric === 'count' ? d.totalCount : d.totalSales)));
-                  return report.days.map((d) => {
-                    const dayVal = metric === 'count' ? d.totalCount : d.totalSales;
-                    const pct = Math.max(0, Math.min(100, Math.round((dayVal / maxDayVal) * 100)));
-                    return (
-                      <div key={d.dayOfWeek} className="flex items-center gap-12 text-xs">
-                        <span className="w-64 font-medium text-text shrink-0">{d.dayName}</span>
-                        <div className="flex-1 h-12 bg-surface rounded-full overflow-hidden border border-border/50">
-                          <div
-                            className="h-full bg-accent rounded-full transition-all duration-300"
-                            style={{ width: `${dayVal > 0 ? Math.max(4, pct) : 0}%` }}
-                          />
-                        </div>
-                        <div className="text-right shrink-0 min-w-140">
-                          <span className="font-semibold text-text cg-num">{num(d.totalCount)} trx</span>
-                          <span className="text-text-muted ml-6 text-[11px] cg-num">({formatRp(d.totalSales)})</span>
-                        </div>
+              {report.days.map((d) => (
+                <div key={d.dayOfWeek} className="p-16 space-y-10 min-w-0">
+                  <div className="flex items-center justify-between gap-8 min-w-0">
+                    <strong className="text-sm block truncate">{d.dayName}</strong>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs text-primary font-bold cg-num block">{num(d.totalCount)} trx</span>
+                      <span className="text-[11px] text-text-muted cg-num block">{formatRp(d.totalSales)}</span>
+                    </div>
+                  </div>
+
+                  {/* Sebaran Mini 24 Jam */}
+                  <div className="grid grid-cols-12 gap-2 h-18">
+                    {d.cells.map((c) => (
+                      <div
+                        key={c.hour}
+                        title={`${d.dayName} ${c.hour}:00: ${c.count} trx (${formatRp(c.total)})`}
+                        className="h-full rounded-xs flex items-center justify-center text-[9px] font-mono"
+                        style={{
+                          backgroundColor:
+                            c.count > 0
+                              ? `rgba(16, 185, 129, ${Math.max(0.2, c.intensity)})`
+                              : 'var(--color-surface-raised)',
+                          color: c.intensity >= 0.5 ? '#ffffff' : 'var(--color-text)',
+                        }}
+                      >
+                        {c.count > 0 ? c.count : ''}
                       </div>
-                    );
-                  });
-                })()}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -401,3 +396,4 @@ function StatCard({
     </div>
   );
 }
+

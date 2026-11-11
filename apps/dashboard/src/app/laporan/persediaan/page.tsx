@@ -135,7 +135,7 @@ export default function LaporanPersediaan() {
       {stockAsync.status === 'ready' && (
         <>
           {/* Kartu KPI Ringkasan */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-12 mb-16">
+          <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-5 gap-12 mb-16">
             <div className="p-16 rounded-md border border-border bg-surface">
               <span className="text-xs text-text-muted font-medium">Total Nilai Persediaan</span>
               <div className="text-xl font-bold mt-4 cg-num">{formatRp(metrics.totalValue)}</div>
@@ -165,7 +165,7 @@ export default function LaporanPersediaan() {
 
           {/* Filter Bar */}
           <div className="flex flex-wrap items-center gap-8 mb-12">
-            <div className="flex flex-wrap gap-6" role="group" aria-label="Filter status">
+            <div className="flex flex-wrap gap-[6px]" role="group" aria-label="Filter status">
               <button
                 type="button"
                 className="cg-chip"
@@ -217,7 +217,7 @@ export default function LaporanPersediaan() {
               </button>
             </div>
 
-            <div className="flex items-center gap-8 ml-auto w-full sm:w-auto">
+            <div className="flex items-center gap-8 ml-auto w-full tablet:w-auto">
               <select
                 className="cg-input text-xs"
                 style={{ width: 'auto' }}

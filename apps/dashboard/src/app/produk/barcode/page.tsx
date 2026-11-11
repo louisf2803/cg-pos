@@ -445,10 +445,10 @@ export default function BarcodePrintPage() {
                   <table className="w-full text-left text-sm" aria-label="Daftar produk untuk cetak barcode">
                     <thead className="bg-surface border-b border-border text-xs text-text-muted uppercase tracking-wider sticky top-0 z-10">
                       <tr>
-                        <th className="py-8 px-[10px] w-[36px] text-center">Pilih</th>
-                        <th className="py-8 px-[10px]">Produk</th>
-                        <th className="py-8 px-[10px] text-right">Harga</th>
-                        <th className="py-8 px-[10px] text-center w-32">Jumlah</th>
+                        <th className="py-8 px-[6px] tablet:px-[10px] w-[36px] text-center">Pilih</th>
+                        <th className="py-8 px-[6px] tablet:px-[10px]">Produk</th>
+                        <th className="hidden tablet:table-cell py-8 px-[10px] text-right">Harga</th>
+                        <th className="py-8 px-[6px] tablet:px-[10px] text-center w-[110px] tablet:w-32">Jumlah</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -468,7 +468,7 @@ export default function BarcodePrintPage() {
                                 : 'hover:bg-surface-muted'
                             }`}
                           >
-                            <td className="py-8 px-[10px] text-center">
+                            <td className="py-8 px-[6px] tablet:px-[10px] text-center">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -478,14 +478,14 @@ export default function BarcodePrintPage() {
                                 aria-label={`Pilih ${p.name}`}
                               />
                             </td>
-                            <td className="py-8 px-[10px] min-w-0">
+                            <td className="py-8 px-[6px] tablet:px-[10px] min-w-0">
                               <strong
                                 className="font-semibold text-text block line-clamp-2 leading-snug"
                                 title={p.name}
                               >
                                 {p.name}
                               </strong>
-                              <div className="flex items-center gap-[6px] mt-[2px]">
+                              <div className="flex items-center gap-[6px] mt-[2px] flex-wrap">
                                 {hasSku ? (
                                   <span className="font-mono text-[11px] px-[6px] py-[1px] bg-surface-raised border border-border rounded-sm text-text-muted cg-num font-semibold">
                                     {p.sku}
@@ -495,18 +495,21 @@ export default function BarcodePrintPage() {
                                     <AlertCircle className="w-12 h-12" aria-hidden /> Tanpa SKU
                                   </span>
                                 )}
+                                <span className="tablet:hidden text-[11px] font-medium text-text cg-num">
+                                  • {formatRp(p.price)}
+                                </span>
                               </div>
                             </td>
-                            <td className="py-8 px-[10px] text-right font-medium text-text cg-num whitespace-nowrap">
+                            <td className="hidden tablet:table-cell py-8 px-[10px] text-right font-medium text-text cg-num whitespace-nowrap">
                               {formatRp(p.price)}
                             </td>
-                            <td className="py-8 px-[10px] text-center">
+                            <td className="py-8 px-[6px] tablet:px-[10px] text-center">
                               {isSelected ? (
                                 <div className="flex items-center justify-center gap-[2px]">
                                   <button
                                     type="button"
                                     onClick={() => updateQuantity(p.id, qty - 1)}
-                                    className="p-4 rounded-sm border border-border bg-surface hover:bg-surface-muted text-text"
+                                    className="w-32 h-32 p-0 flex items-center justify-center rounded-sm border border-border bg-surface hover:bg-surface-muted text-text shrink-0"
                                     aria-label="Kurangi jumlah"
                                   >
                                     <Minus className="w-12 h-12" aria-hidden />
@@ -519,13 +522,13 @@ export default function BarcodePrintPage() {
                                       const n = parseInt(e.target.value.replace(/[^\d]/g, ''), 10);
                                       updateQuantity(p.id, isNaN(n) ? 1 : n);
                                     }}
-                                    className="w-[40px] text-center text-xs font-bold cg-num border border-border rounded-sm py-[2px] bg-surface text-text"
+                                    className="w-32 h-32 text-center text-xs font-bold cg-num border border-border rounded-sm py-0 bg-surface text-text shrink-0"
                                     aria-label={`Jumlah label untuk ${p.name}`}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => updateQuantity(p.id, qty + 1)}
-                                    className="p-4 rounded-sm border border-border bg-surface hover:bg-surface-muted text-text"
+                                    className="w-32 h-32 p-0 flex items-center justify-center rounded-sm border border-border bg-surface hover:bg-surface-muted text-text shrink-0"
                                     aria-label="Tambah jumlah"
                                   >
                                     <Plus className="w-12 h-12" aria-hidden />
