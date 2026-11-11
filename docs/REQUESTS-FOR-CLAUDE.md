@@ -143,3 +143,17 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
     - `updateAppointmentStatus(id: string, status: AppointmentStatus): Promise<Appointment>`
 - Sementara: Pilihan meja memakai `data.listTables()` & pelanggan memakai `data.listCustomers()`, sedangkan daftar reservasi disimpan di `localStorage` (`cgpos_appointments_v1`) dengan lencana besar **"Pratinjau — reservasi belum tersimpan di server, akan hilang bila data peramban dibersihkan"**.
 
+## /pelanggan/grup, /pelanggan/harga-spesial & /harga-jadwal (A57 — Grup pelanggan, harga grosir bertingkat, penjadwalan harga) — 2026-11-11
+- Butuh: Skema database, `DataLayer`, dan penerapan di kasir untuk:
+  1. Grup pelanggan dan penetapan satu grup per pelanggan (`customer_groups`, `customer_group_members`).
+  2. Harga grosir bertingkat per grup dan produk hingga 5 tingkat (`tiered_prices`).
+  3. Penjadwalan perubahan harga produk otomatis beserta pemenang jika bertumpuk (`price_schedules`).
+- Untuk: Layar `/pelanggan/grup`, `/pelanggan/harga-spesial`, dan `/harga-jadwal`, serta sinkronisasi perhitungan harga otomatis di kasir (`apps/pos`) setelah dukungan server siap.
+- Bentuk yang diinginkan:
+  - Tabel `customer_groups` (`id`, `org_id`, `name`, `description`, `created_at`)
+  - Tabel `customer_group_members` (`customer_id` PK/UNIQUE per org, `group_id`, `assigned_at`)
+  - Tabel `tiered_prices` (`id`, `org_id`, `group_id`, `product_id`, `tier` 1..5, `min_qty`, `unit_price`, `updated_at`)
+  - Tabel `price_schedules` (`id`, `org_id`, `product_id`, `new_price`, `start_at`, `end_at`, `note`, `created_at`)
+  - Metode `DataLayer`: `listCustomerGroups()`, `saveCustomerGroup()`, `deleteCustomerGroup()`, `assignCustomerGroup()`, `listTieredPrices()`, `saveTieredPrices()`, `listPriceSchedules()`, `savePriceSchedule()`, `deletePriceSchedule()`.
+- Sementara: Disimpan di `localStorage` peramban dengan lencana **"Pratinjau — belum tersambung server"**; logika murni (`tiered-pricing.ts` & `price-schedule.ts`) sudah tersedia di `packages/shared`. Kasir (`apps/pos`) belum disambungkan sampai dukungan server dikerjakan oleh Claude.
+
