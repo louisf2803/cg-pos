@@ -28,3 +28,6 @@ Status: `belum` | `sedang` (sesi ini mengerjakan, lanjutkan) | `selesai-verifika
 
 ## Perlu verifikasi Majoo — Stok opname (A66, 12 Nov 2026)
 - Impor hitung fisik saat ini CSV (titik koma atau koma, BOM, pratinjau validasi). Apakah Majoo menerima berkas .xlsx langsung, atau cukup templat CSV? Bila harus .xlsx, fitur "Stok opname ... impor Excel" tetap partial.
+
+## Perlu verifikasi Majoo — Daftar ekspor (A69, 12 Nov 2026)
+- Riwayat ekspor kita tersimpan di peramban per perangkat (maks 50 berkas, 128 KB per berkas). Apakah Majoo menyimpan berkas ekspor di server sehingga bisa diambil dari perangkat lain? Bila ya, dibutuhkan penyimpanan server (permintaan ke Claude).

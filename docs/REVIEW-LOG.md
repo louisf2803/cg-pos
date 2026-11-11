@@ -12,3 +12,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=fd200be | merge A65 dan A66 (typecheck, 452 tes, build dashboard+pos, lint lulus); review: Layar dapur + Layar Pilih Karyawan => yes; opname tetap partial (tanya .xlsx di MAJOO-VERIFICATION)
 2026-11-12 | main=c31bdb8 | merge A67 (typecheck, 453 tes, build, lint lulus); review: Laporan hutang per pemasok dan piutang per pelanggan + Hutang dan piutang => yes; goal 10/72
 2026-11-12 | main=2c9817c | merge A68 (typecheck, 456 tes, build dashboard+pos, lint lulus); review: Customer display eksternal => yes (diuji dua tab, sisi kasir dicek lewat kode); goal 11/72
+2026-11-12 | main=84b7319 | merge A69 (typecheck, 457 tes, build, lint lulus); review: Daftar ekspor => yes (diuji ekspor, daftar, unduh ulang; riwayat per perangkat, pertanyaan server di MAJOO-VERIFICATION); goal 12/72
