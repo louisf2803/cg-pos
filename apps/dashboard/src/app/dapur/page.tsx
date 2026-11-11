@@ -1,9 +1,9 @@
 'use client';
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Check, ChefHat, Maximize, Minimize, Printer, Settings2, Volume2, VolumeX } from 'lucide-react';
 import {
-  DEFAULT_KITCHEN_THRESHOLDS, kitchenAlert, KITCHEN_NEXT, KITCHEN_NEXT_LABEL, KITCHEN_STATUS_LABEL, orderTypeLabel, thresholdsProblem, waitMinutes,
-  type KitchenRow, type KitchenStatus, type KitchenThresholds, type KitchenTicket,
+  DEFAULT_KITCHEN_THRESHOLDS, filterRowsByStation, groupTickets, kitchenAlert, KITCHEN_NEXT, KITCHEN_NEXT_LABEL, KITCHEN_STATUS_LABEL, orderTypeLabel, thresholdsProblem, waitMinutes,
+  type KitchenRow, type KitchenStatus, type KitchenThresholds, type KitchenTicket, type PrintStation,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
@@ -13,6 +13,7 @@ import { useDialog } from '@/components/fin-common';
 const LANES: KitchenStatus[] = ['new', 'preparing', 'ready'];
 const THRESHOLDS_KEY = 'cgpos.kds.thresholds';
 const SOUND_KEY = 'cgpos.kds.sound';
+const STATION_KEY = 'cgpos.kds.station';
 
 function loadThresholds(): KitchenThresholds {
   try {
@@ -27,6 +28,14 @@ function loadSoundPref(): boolean {
     return window.localStorage.getItem(SOUND_KEY) === 'true';
   } catch {
     return false;
+  }
+}
+
+function loadStationPref(): string {
+  try {
+    return window.localStorage.getItem(STATION_KEY) || 'all';
+  } catch {
+    return 'all';
   }
 }
 
@@ -147,6 +156,7 @@ export default function KitchenPage() {
   const data = useData();
   const [history, setHistory] = useState(false);
   const board = useAsync(() => data.kitchenBoard(history ? 60 : 0), [data, history]);
+  const stationsState = useAsync(() => data.listPrintStations(), [data]);
   const [now, setNow] = useState(() => new Date());
   const [th, setTh] = useState<KitchenThresholds>(DEFAULT_KITCHEN_THRESHOLDS);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -154,11 +164,34 @@ export default function KitchenPage() {
   const [settings, setSettings] = useState(false);
   const [printTicket, setPrintTicket] = useState<KitchenTicket | null>(null);
   const [lane, setLane] = useState<KitchenStatus>('new');
+  const [selectedStationId, setSelectedStationId] = useState<string>(loadStationPref);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const reloadRef = useRef(board.reload);
   reloadRef.current = board.reload;
   const prevTicketIdsRef = useRef<Set<string> | null>(null);
+
+  const stations: PrintStation[] = stationsState.status === 'ready' ? stationsState.data : [];
+  const activeStations = useMemo(() => stations.filter((s) => s.isActive), [stations]);
+  const stationMap = useMemo(() => new Map(stations.map((s) => [s.id, s.name])), [stations]);
+
+  const handleSelectStation = (id: string) => {
+    setSelectedStationId(id);
+    try {
+      window.localStorage.setItem(STATION_KEY, id);
+    } catch {
+      /* abaikan */
+    }
+  };
+
+  // Jika stasiun yang diingat tidak ada dalam stasiun aktif, gunakan 'all'
+  const effectiveStationId = useMemo(() => {
+    if (selectedStationId === 'all') return 'all';
+    if (activeStations.length > 0 && !activeStations.some((s) => s.id === selectedStationId)) {
+      return 'all';
+    }
+    return selectedStationId;
+  }, [selectedStationId, activeStations]);
 
   useEffect(() => {
     setTh(loadThresholds());
@@ -206,7 +239,34 @@ export default function KitchenPage() {
     prevTicketIdsRef.current = currentNewTicketIds;
   }, [boardData, soundEnabled]);
 
-  const tickets = board.status === 'ready' ? board.data : [];
+  const rawTickets = board.status === 'ready' ? board.data : [];
+  const allRows = useMemo(() => rawTickets.flatMap((t) => t.items), [rawTickets]);
+
+  // Hitung jumlah tiket belum selesai untuk tiap chip stasiun
+  const allUnfinishedCount = useMemo(
+    () => rawTickets.filter((t) => t.lane !== 'served').length,
+    [rawTickets]
+  );
+
+  const unfinishedStationCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const st of activeStations) {
+      const stRows = filterRowsByStation(allRows, st.id);
+      const stTickets = groupTickets(stRows);
+      counts.set(st.id, stTickets.filter((t) => t.lane !== 'served').length);
+    }
+    return counts;
+  }, [allRows, activeStations]);
+
+  // Tiket yang tampil sesuai filter stasiun (menyaring baris, tiket tanpa baris disembunyikan)
+  const tickets = useMemo(() => {
+    if (effectiveStationId === 'all' || activeStations.length === 0) {
+      return rawTickets;
+    }
+    const filteredRows = filterRowsByStation(allRows, effectiveStationId);
+    return groupTickets(filteredRows);
+  }, [rawTickets, allRows, effectiveStationId, activeStations]);
+
   const inLane = (l: KitchenStatus) => tickets.filter((t) => t.lane === l);
   const served = tickets.filter((t) => t.lane === 'served');
 
@@ -263,6 +323,31 @@ export default function KitchenPage() {
 
       {board.status === 'ready' && (
         <>
+          {activeStations.length > 0 && (
+            <div className="flex flex-wrap items-center gap-8 mb-12" role="group" aria-label="Filter Stasiun">
+              <span className="text-xs font-semibold text-text-muted uppercase tracking-wide mr-4">Stasiun:</span>
+              <button
+                type="button"
+                className="cg-chip"
+                aria-pressed={effectiveStationId === 'all'}
+                onClick={() => handleSelectStation('all')}
+              >
+                Semua ({allUnfinishedCount})
+              </button>
+              {activeStations.map((st) => (
+                <button
+                  key={st.id}
+                  type="button"
+                  className="cg-chip"
+                  aria-pressed={effectiveStationId === st.id}
+                  onClick={() => handleSelectStation(st.id)}
+                >
+                  {st.name} ({unfinishedStationCounts.get(st.id) ?? 0})
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-12 mb-12 items-center">
             <div className="flex flex-wrap gap-8 kds-lanes" role="group" aria-label="Tahap">
               {LANES.map((l) => (
@@ -311,7 +396,13 @@ export default function KitchenPage() {
           {tickets.filter((t) => t.lane !== 'served').length === 0 && !history ? (
             <div className="cg-empty">
               <ChefHat className="cg-icon" aria-hidden />
-              <p><strong>Belum ada pesanan di dapur.</strong></p>
+              <p>
+                <strong>
+                  {effectiveStationId !== 'all'
+                    ? `Belum ada pesanan di stasiun ${stationMap.get(effectiveStationId) || ''}.`
+                    : 'Belum ada pesanan di dapur.'}
+                </strong>
+              </p>
               <p className="text-text-muted">Kasir mengirim pesanan lewat tombol Kirim ke dapur.</p>
             </div>
           ) : (
@@ -330,6 +421,8 @@ export default function KitchenPage() {
                         busy={busy}
                         onAdvance={advance}
                         onPrint={(ticket) => setPrintTicket(ticket)}
+                        showStationBadge={effectiveStationId === 'all' && activeStations.length > 0}
+                        stationMap={stationMap}
                       />
                     ))}
                   </div>
@@ -351,6 +444,8 @@ export default function KitchenPage() {
                     busy={busy}
                     onAdvance={advance}
                     onPrint={(ticket) => setPrintTicket(ticket)}
+                    showStationBadge={effectiveStationId === 'all' && activeStations.length > 0}
+                    stationMap={stationMap}
                   />
                 ))}
               </div>
@@ -390,6 +485,8 @@ function Ticket({
   busy,
   onAdvance,
   onPrint,
+  showStationBadge,
+  stationMap,
 }: {
   t: KitchenTicket;
   now: Date;
@@ -397,6 +494,8 @@ function Ticket({
   busy: boolean;
   onAdvance: (ids: string[], to: KitchenStatus) => void;
   onPrint: (ticket: KitchenTicket) => void;
+  showStationBadge?: boolean;
+  stationMap?: Map<string, string>;
 }) {
   const mins = waitMinutes(t.sentAt, now);
   const alert = t.lane === 'served' ? 'ok' : kitchenAlert(mins, th);
@@ -404,11 +503,36 @@ function Ticket({
   const next = KITCHEN_NEXT[t.lane];
   const current = t.items.filter((i) => i.status === t.lane);
 
+  const stationNames = useMemo(() => {
+    if (!showStationBadge || !stationMap) return [];
+    const names = new Set<string>();
+    for (const item of t.items) {
+      if (item.stationId) {
+        const name = stationMap.get(item.stationId);
+        if (name) names.add(name);
+      }
+    }
+    return Array.from(names);
+  }, [t.items, showStationBadge, stationMap]);
+
   return (
     <article className={`kds-ticket kds-ticket--${alert}`} aria-label={`Pesanan ${t.orderNumber}`}>
       <header className="flex flex-wrap items-center gap-8">
         <strong className="break-words">{where}</strong>
         <span className="text-sm text-text-muted break-all">{t.orderNumber}</span>
+        {showStationBadge && (
+          <div className="flex flex-wrap items-center gap-4">
+            {stationNames.length > 0 ? (
+              stationNames.map((name) => (
+                <span key={name} className="cg-badge cg-badge--info text-xs" data-testid={`station-badge-${name}`}>
+                  {name}
+                </span>
+              ))
+            ) : (
+              <span className="cg-badge text-text-muted text-xs">Tanpa stasiun</span>
+            )}
+          </div>
+        )}
         <span className={`cg-badge ml-auto ${ALERT_CLASS[alert]}`} data-testid={`wait-${t.orderNumber}`}>
           {mins} menit{alert === 'late' ? ' · terlambat' : ''}
         </span>
@@ -417,7 +541,15 @@ function Ticket({
         {orderTypeLabel(t.orderType)}{t.guestCount ? ` · ${t.guestCount} tamu` : ''}{t.queueNo ? ` · antrean ${t.queueNo}` : ''}
       </p>
       <ul className="grid gap-4 mt-8">
-        {t.items.map((i) => <ItemRow key={i.itemId} i={i} busy={busy} onAdvance={onAdvance} />)}
+        {t.items.map((i) => (
+          <ItemRow
+            key={i.itemId}
+            i={i}
+            busy={busy}
+            onAdvance={onAdvance}
+            stationName={showStationBadge && i.stationId ? stationMap?.get(i.stationId) : undefined}
+          />
+        ))}
       </ul>
       <div className="flex items-center gap-8 mt-8 flex-wrap">
         {next && (
@@ -452,12 +584,23 @@ function Ticket({
   );
 }
 
-function ItemRow({ i, busy, onAdvance }: { i: KitchenRow; busy: boolean; onAdvance: (ids: string[], to: KitchenStatus) => void }) {
+function ItemRow({
+  i,
+  busy,
+  onAdvance,
+  stationName,
+}: {
+  i: KitchenRow;
+  busy: boolean;
+  onAdvance: (ids: string[], to: KitchenStatus) => void;
+  stationName?: string;
+}) {
   const next = KITCHEN_NEXT[i.status];
   return (
     <li className="flex items-start gap-8">
       <span className="cg-num"><strong>{i.qty}×</strong></span>
       <span className="grow min-w-0 break-words">{i.name}
+        {stationName && <span className="text-xs text-text-muted ml-6">({stationName})</span>}
         {i.extras.map((e) => <span key={e.name} className="block text-sm text-text-muted">+ {e.name}</span>)}
         {i.note && <span className="block text-sm"><strong>Catatan:</strong> {i.note}</span>}
       </span>

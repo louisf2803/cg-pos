@@ -577,4 +577,22 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (55 file, 348 tes lulus)
      - `pnpm -F @cgpos/dashboard build` (117 halaman statis)
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a45/`).
+- Selesai (tugas A46): Layar Dapur: Tab & Filter Per Stasiun (`apps/dashboard`, `packages/shared`):
+  1. Helper Murni & Tes:
+     - `filterRowsByStation(rows, stationId)` di `packages/shared/src/kitchen.ts`: menyaring baris berdasarkan stasiun dan mengabaikan penyaringan bila `stationId` kosong, `null`, atau `'all'`.
+     - 5 unit tes baru di `packages/shared/test/kitchen.test.ts` (menguji null/undefined/all, filter stasiun spesifik, array kosong, dan integrasi pengelompokan `groupTickets`).
+  2. Antarmuka Layar Dapur (`/dapur`):
+     - Chip filter stasiun di atas lajur: menampilkan opsi "Semua" dan satu chip per stasiun aktif dari `listPrintStations()`.
+     - Tiap chip dilengkapi lencana hitung tiket belum selesai (`t.lane !== 'served'`).
+     - Stasiun nonaktif tidak dijadikan chip; jika belum ada stasiun aktif, baris chip disembunyikan dan layar bekerja seperti semula.
+     - Memilih stasiun menyaring baris pesanan, dan tiket yang tidak memiliki baris tersisa otomatis disembunyikan.
+     - Pilihan stasiun disimpan di `localStorage` dengan penanganan aman `try/catch`.
+     - Pada tampilan "Semua", kartu tiket menampilkan lencana nama stasiun (`[Dapur]`, `[Bar]`), serta label nama stasiun di baris item bila satu tiket memuat item dari beberapa stasiun berbeda.
+     - Bila sebuah stasiun kosong, pesan status kosong memberitahukan secara spesifik per stasiun.
+  3. Kepatuhan & Pengujian:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+     - Lolos `pnpm -r typecheck` (0 error).
+     - Lolos `pnpm -F @cgpos/shared test` (55 file, 347 tes lulus).
+     - Lolos `pnpm -F @cgpos/dashboard build` (115 halaman statis).
+     - Audit Playwright di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar tersimpan di `docs/shots/a46/`).
 

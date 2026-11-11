@@ -57,3 +57,10 @@ export function thresholdsProblem(t: KitchenThresholds): string | null {
   if (t.warnMin >= t.lateMin) return 'Batas peringatan harus lebih kecil dari batas terlambat.';
   return null;
 }
+
+/** Saring baris dapur berdasarkan stasiun. Nilai kosong atau 'all' mengembalikan semua baris. */
+export function filterRowsByStation(rows: KitchenRow[], stationId?: string | null): KitchenRow[] {
+  if (!stationId || stationId === 'all') return rows;
+  return rows.filter((r) => r.stationId === stationId);
+}
+

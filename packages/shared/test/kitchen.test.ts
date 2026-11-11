@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeData, groupTickets, kitchenAlert, newId, thresholdsProblem, ticketLane, waitMinutes, type KitchenRow } from '../src';
+import { createFakeData, filterRowsByStation, groupTickets, kitchenAlert, newId, thresholdsProblem, ticketLane, waitMinutes, type KitchenRow } from '../src';
 
 const row = (p: Partial<KitchenRow>): KitchenRow => ({ itemId: newId(), orderId: 'o1', orderNumber: 'A-1', orderType: 'dine_in', name: 'Kopi', qty: 1, extras: [], status: 'new', sentAt: '2026-11-10T03:00:00.000Z', statusAt: '2026-11-10T03:00:00.000Z', ...p });
 
@@ -30,6 +30,45 @@ describe('dapur: aturan', () => {
     expect(thresholdsProblem({ warnMin: 20, lateMin: 20 })).toMatch(/lebih kecil/);
     expect(thresholdsProblem({ warnMin: 0, lateMin: 20 })).toMatch(/antara 1/);
     expect(thresholdsProblem({ warnMin: 1.5, lateMin: 20 })).toMatch(/bulat/);
+  });
+  it('filterRowsByStation menyaring baris berdasarkan stasiun dan mengabaikan saat all/null', () => {
+    const r1 = row({ name: 'Kopi', stationId: 'st-bar' });
+    const r2 = row({ name: 'Nasi', stationId: 'st-dapur' });
+    const r3 = row({ name: 'Air' }); // tanpa stationId
+
+    // null, undefined, 'all' -> semua baris
+    expect(filterRowsByStation([r1, r2, r3])).toEqual([r1, r2, r3]);
+    expect(filterRowsByStation([r1, r2, r3], 'all')).toEqual([r1, r2, r3]);
+    expect(filterRowsByStation([r1, r2, r3], null)).toEqual([r1, r2, r3]);
+
+    // filter per stasiun spesifik
+    expect(filterRowsByStation([r1, r2, r3], 'st-bar')).toEqual([r1]);
+    expect(filterRowsByStation([r1, r2, r3], 'st-dapur')).toEqual([r2]);
+    expect(filterRowsByStation([r1, r2, r3], 'st-lain')).toEqual([]);
+
+    // array kosong
+    expect(filterRowsByStation([], 'st-bar')).toEqual([]);
+
+    // integrasi dengan groupTickets: tiket tanpa baris tersisa disembunyikan
+    const rows = [
+      row({ orderId: 'o1', orderNumber: 'A-1', name: 'Kopi', stationId: 'st-bar', status: 'new' }),
+      row({ orderId: 'o1', orderNumber: 'A-1', name: 'Nasi', stationId: 'st-dapur', status: 'ready' }),
+      row({ orderId: 'o2', orderNumber: 'A-2', name: 'Teh', stationId: 'st-bar', status: 'preparing' }),
+    ];
+
+    const barTickets = groupTickets(filterRowsByStation(rows, 'st-bar'));
+    expect(barTickets).toHaveLength(2);
+    expect(barTickets[0]!.orderNumber).toBe('A-1');
+    expect(barTickets[0]!.items).toHaveLength(1);
+    expect(barTickets[0]!.items[0]!.name).toBe('Kopi');
+    expect(barTickets[0]!.lane).toBe('new');
+
+    const dapurTickets = groupTickets(filterRowsByStation(rows, 'st-dapur'));
+    expect(dapurTickets).toHaveLength(1);
+    expect(dapurTickets[0]!.orderNumber).toBe('A-1');
+    expect(dapurTickets[0]!.items).toHaveLength(1);
+    expect(dapurTickets[0]!.items[0]!.name).toBe('Nasi');
+    expect(dapurTickets[0]!.lane).toBe('ready'); // Nasi sudah ready, jadi lane untuk Dapur adalah ready
   });
 });
 
