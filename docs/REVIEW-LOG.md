@@ -16,3 +16,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=c2d3e72 | merge A70 (kind transfer pasca-0032; typecheck, 458 tes, build, lint lulus); tidak ada fitur Gelombang A yang berubah status (Pindah saldo bukan fitur Gelombang A); goal 12/72
 2026-11-12 | main=1b16318 | merge A71 (typecheck, 459 tes, build dashboard+pos, lint lulus); ubah harga, stok habis, catatan tetap partial: penegakan server (sync_push) dan laporan harga diubah belum ada; goal 12/72
 2026-11-12 | main=f3c9331 | merge A72 (typecheck, 461 tes, build, lint lulus); Batasi penjualan dan mutasi saat stok habis tetap partial: klien lengkap, penegakan server (stock_post, stock_transfer_create, sync_push) masih permintaan; goal 12/72
+2026-11-12 | main=770a69e | merge ag/antrean-nondb-selesai (dokumen): Antigravity menyatakan antrean non-database Gelombang A habis; sisa butuh migrasi/DataLayer (Claude) dan keputusan Louis; goal 12/72
