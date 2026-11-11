@@ -18,6 +18,8 @@ export interface ReceiptTemplate {
   showPrintTime: boolean;
   /** batas cetak ulang struk per transaksi; 0 = tanpa batas */
   maxPrints: number;
+  /** lebar kertas bawaan saat kasir pertama kali membuka dialog cetak di perangkat yang belum pernah menyetel pilihan sendiri; kasir tetap bisa mengganti manual (tersimpan per perangkat). */
+  defaultPaperWidth: '58' | '80';
 }
 
 export const MAX_PRINTS_LIMIT = 10;
@@ -27,7 +29,7 @@ export const DEFAULT_RECEIPT_TEMPLATE: ReceiptTemplate = {
   showOrderNo: true, showOrderType: true, showTable: true, showGuests: true,
   showTime: true, showCashier: true, showCustomer: true,
   showUnitPrice: true, showExtras: true, showNotes: true,
-  showPrintTime: false, maxPrints: 0,
+  showPrintTime: false, maxPrints: 0, defaultPaperWidth: '80',
 };
 
 const BOOL_KEYS = [
@@ -43,6 +45,7 @@ export function sanitizeReceiptTemplate(raw: unknown): Partial<ReceiptTemplate> 
   for (const k of BOOL_KEYS) if (typeof r[k] === 'boolean') out[k] = r[k] as boolean;
   if (r.theme === 'normal' || r.theme === 'medium' || r.theme === 'large') out.theme = r.theme;
   if (typeof r.maxPrints === 'number' && Number.isInteger(r.maxPrints) && r.maxPrints >= 0 && r.maxPrints <= MAX_PRINTS_LIMIT) out.maxPrints = r.maxPrints;
+  if (r.defaultPaperWidth === '58' || r.defaultPaperWidth === '80') out.defaultPaperWidth = r.defaultPaperWidth;
   return out;
 }
 
@@ -60,6 +63,7 @@ export function resolveReceiptTemplate(ctx: { receiptTemplate?: unknown; receipt
 export function receiptTemplateProblem(t: Partial<ReceiptTemplate>): string | null {
   if (t.theme !== undefined && !PRINT_THEMES.some((x) => x.id === t.theme)) return 'Tema struk tidak dikenal.';
   if (t.maxPrints !== undefined && (!Number.isInteger(t.maxPrints) || t.maxPrints < 0 || t.maxPrints > MAX_PRINTS_LIMIT)) return `Batas cetak harus 0 sampai ${MAX_PRINTS_LIMIT} (0 = tanpa batas).`;
+  if (t.defaultPaperWidth !== undefined && t.defaultPaperWidth !== '58' && t.defaultPaperWidth !== '80') return 'Lebar kertas bawaan harus 58 mm atau 80 mm.';
   for (const k of BOOL_KEYS) if (t[k] !== undefined && typeof t[k] !== 'boolean') return 'Pilihan tampil/sembunyi tidak sah.';
   return null;
 }

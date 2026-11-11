@@ -141,6 +141,7 @@ function ReceiptEditor({
   const [activeTab, setActiveTab] = useState<Tab>('header');
   const [theme, setTheme] = useState<PrintTheme>(initialTpl.theme);
   const [paper, setPaper] = useState<PaperWidth>('58');
+  const [defaultPaperWidth, setDefaultPaperWidth] = useState<PaperWidth>(initialTpl.defaultPaperWidth);
 
   // Header tab states
   const [showOutletName, setShowOutletName] = useState(initialTpl.showOutletName);
@@ -200,6 +201,7 @@ function ReceiptEditor({
     showNotes,
     showPrintTime,
     maxPrints: enableLimit ? maxPrints : 0,
+    defaultPaperWidth,
   }), [
     theme,
     showOutletName,
@@ -218,6 +220,7 @@ function ReceiptEditor({
     showPrintTime,
     enableLimit,
     maxPrints,
+    defaultPaperWidth,
   ]);
 
   // Context pratinjau yang reaktif terhadap perubahan formulir
@@ -266,6 +269,7 @@ function ReceiptEditor({
     setShowPrintTime(DEFAULT_RECEIPT_TEMPLATE.showPrintTime);
     setEnableLimit(false);
     setMaxPrints(3);
+    setDefaultPaperWidth(DEFAULT_RECEIPT_TEMPLATE.defaultPaperWidth);
   };
 
   const handlePrintSample = () => {
@@ -396,6 +400,28 @@ function ReceiptEditor({
           </div>
           <p className="text-xs text-text-muted mt-[6px]">
             Menentukan kerapatan dan ukuran cetak huruf di printer thermal kasir (Normal 32/48 kolom, Besar huruf ganda).
+          </p>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-text-muted block mb-4">
+            Lebar Kertas Bawaan
+          </label>
+          <div className="flex flex-wrap items-center gap-8">
+            {(['58', '80'] as const).map((w) => (
+              <button
+                key={w}
+                type="button"
+                className="cg-chip"
+                aria-pressed={defaultPaperWidth === w}
+                onClick={() => setDefaultPaperWidth(w)}
+              >
+                {w} mm
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-text-muted mt-[6px]">
+            Dipakai kasir yang belum pernah memilih lebar kertas sendiri di perangkatnya; kasir tetap bisa mengganti manual saat cetak.
           </p>
         </div>
 

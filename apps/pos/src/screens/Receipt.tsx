@@ -8,7 +8,8 @@ import { Modal } from '../ui';
 
 type Paper = '58' | '80';
 const KEY = 'cgpos.paper';
-const readPaper = (): Paper => { try { return localStorage.getItem(KEY) === '58' ? '58' : '80'; } catch { return '80'; } };
+/** Kertas tersimpan di perangkat ini bila kasir pernah memilih sendiri; selain itu pakai bawaan outlet (lebar kertas bawaan di /pengaturan/struk). */
+const readPaper = (fallback: Paper = '80'): Paper => { try { const v = localStorage.getItem(KEY); return v === '58' || v === '80' ? v : fallback; } catch { return fallback; } };
 
 const PKEY = (id: string) => `cgpos.prints.${id}`;
 const readPrints = (id: string): number => { try { return Number(localStorage.getItem(PKEY(id))) || 0; } catch { return 0; } };
@@ -87,7 +88,7 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
       .catch(() => undefined);
     return () => { live = false; };
   }, [data, order.id, order.customerId, order.status]);
-  const [paper, setPaper] = useState<Paper>(readPaper);
+  const [paper, setPaper] = useState<Paper>(() => readPaper(resolveReceiptTemplate(ctx).defaultPaperWidth));
   const name = emp.status === 'ready' ? emp.data.find((e) => e.id === order.cashierId)?.name ?? '-' : '…';
   const pr = usePrinter();
   const [msg, setMsg] = useState('');

@@ -52,6 +52,8 @@ describe('templat struk', () => {
     expect(sanitizeReceiptTemplate(null)).toEqual({}); expect(sanitizeReceiptTemplate([1])).toEqual({});
     expect(sanitizeReceiptTemplate({ theme: 'huge', showPhone: 'ya', maxPrints: 99, aneh: true, showAddress: false, maxPrints2: 1 })).toEqual({ showAddress: false });
     expect(sanitizeReceiptTemplate({ theme: 'medium', maxPrints: 2 })).toEqual({ theme: 'medium', maxPrints: 2 });
+    expect(sanitizeReceiptTemplate({ defaultPaperWidth: '58' })).toEqual({ defaultPaperWidth: '58' });
+    expect(sanitizeReceiptTemplate({ defaultPaperWidth: '100' })).toEqual({});
   });
   it('validasi dan batas cetak ulang', () => {
     expect(receiptTemplateProblem({ theme: 'large', maxPrints: 3 })).toBeNull();
@@ -59,8 +61,15 @@ describe('templat struk', () => {
     expect(receiptTemplateProblem({ maxPrints: 11 })).toMatch(/Batas cetak/);
     expect(receiptTemplateProblem({ maxPrints: 1.5 })).toMatch(/Batas cetak/);
     expect(receiptTemplateProblem({ showPhone: 1 as never })).toMatch(/tidak sah/);
+    expect(receiptTemplateProblem({ defaultPaperWidth: '58' })).toBeNull();
+    expect(receiptTemplateProblem({ defaultPaperWidth: '100' as never })).toMatch(/Lebar kertas/);
     expect(canPrintAgain(5, 0)).toBe(true); expect(canPrintAgain(1, 2)).toBe(true); expect(canPrintAgain(2, 2)).toBe(false);
     expect(DEFAULT_RECEIPT_TEMPLATE.maxPrints).toBe(0);
+    expect(DEFAULT_RECEIPT_TEMPLATE.defaultPaperWidth).toBe('80');
+  });
+  it('bawaan lebar kertas ikut templat tersimpan, kosong = 80 mm', () => {
+    expect(resolveReceiptTemplate({}).defaultPaperWidth).toBe('80');
+    expect(resolveReceiptTemplate({ receiptTemplate: { defaultPaperWidth: '58' } }).defaultPaperWidth).toBe('58');
   });
 });
 
