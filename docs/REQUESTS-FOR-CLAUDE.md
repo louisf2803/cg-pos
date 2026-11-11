@@ -105,4 +105,17 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - **BELUM ditulis sebagai tugas Antigravity** karena beberapa status (terutama "biru = duduk belum pesan" dan "ungu = struk sementara sudah dicetak") butuh KEPUTUSAN SKEMA dari Claude dulu: `Order` saat ini tidak punya cara membedakan "meja aktif tanpa order" dari "tidak ada siapa-siapa" (perlu entitas baru semacam "sesi meja" terpisah dari `Order`, atau field `seatedAt` di `TableStatus`), dan tidak ada state "struk sementara dicetak" yang terlacak terpisah dari status pembayaran (`status: 'open'|'partially_paid'|'paid'|'void'`). Butuh: (a) keputusan apakah menambah entitas `TableSession`/`seatedAt` terpisah dari `Order`, (b) field baru semacam `Order.provisionalReceiptPrintedAt?: string` untuk status ungu, (c) perhitungan status meja dari kombinasi field tsb + `timeLimitMinutes`/`reminderBeforeMinutes` dari A52.
 - Untuk: Tampilan pilih meja (`apps/pos/src/screens/TablePicker.tsx`) dan operasi meja (`packages/shared/src/table-ops.ts`) di kasir, agar kasir melihat status meja yang sama informatifnya dengan Majoo asli.
 - Sementara: CG POS tetap pakai status biner kosong/terisi untuk saat ini. Ditulis di sini supaya tidak terlupa; BUKAN diprioritaskan sebelum keputusan skema di atas diambil Claude, dan BUKAN tugas Antigravity sampai keputusan itu selesai (lihat AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru).
+## /komisi & /laporan/karyawan tab Komisi (A54 — Aturan Grup Komisi & Laporan Komisi) — 2026-11-11
+- Butuh: Penyimpanan permanen skema aturan komisi di database serta metode `DataLayer` untuk CRUD grup komisi beserta penetapan karyawan & kategori/produknya.
+- Untuk: Layar `/komisi` (daftar grup komisi) dan tab **Komisi** pada `/laporan/karyawan` (perhitungan komisi tetap memakai data pesanan nyata `data.listOrders`).
+- Bentuk yang diinginkan:
+  - Tabel `commission_groups` (`id`, `org_id`, `name`, `rate_type: 'percent' | 'fixed'`, `rate_value`, `is_active`, `created_at`)
+  - Tabel `commission_group_employees` (`group_id`, `employee_id`)
+  - Tabel `commission_group_products` (`group_id`, `category_id` nullable, `product_id` nullable)
+  - Metode `DataLayer`:
+    - `listCommissionGroups(): Promise<CommissionGroup[]>`
+    - `saveCommissionGroup(group: CommissionGroup): Promise<CommissionGroup>`
+    - `deleteCommissionGroup(id: string): Promise<void>`
+- Sementara: Definisi grup komisi disimpan di `localStorage` (`cgpos_commission_groups`) dengan lencana **"Pratinjau — aturan belum tersimpan di server"**, sementara perhitungan komisi di `/laporan/karyawan` langsung memakai pesanan nyata (`data.listOrders`) + produk (`data.listProducts`) melalui `computeCommissionReport`.
+
 

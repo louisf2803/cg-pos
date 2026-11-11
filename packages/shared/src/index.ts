@@ -59,6 +59,8 @@ export * from './dashboard-layout';
 export * from './export-history';
 export * from './top-reports';
 export * from './permission-matrix';
+export * from './commission';
+
 export * from './table-layout';
 export * from './deposit';
 

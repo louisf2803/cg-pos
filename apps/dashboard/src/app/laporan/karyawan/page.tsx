@@ -1,18 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Download, Search, UserCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Award, Download, Search, UserCheck } from 'lucide-react';
 import {
   buildStaffReport,
+  computeCommissionReport,
   formatRole,
   formatRp,
   toCsv,
   type ColumnDef,
+  type CommissionGroup,
   type StaffReportRow,
   type StaffReportTotals,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
+import { loadCommissionGroups } from '@/lib/commission-store';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { ColumnChooser, useColumnPrefs } from '@/components/column-chooser';
@@ -198,16 +202,31 @@ export default function StaffReportPage() {
   const data = useData();
   const { ctx, value, setValue, range, today, state } = useReport();
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'komisi'>('ringkasan');
+  const [commissionGroups, setCommissionGroups] = useState<CommissionGroup[]>(() =>
+    loadCommissionGroups()
+  );
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'komisi') {
+        setActiveTab('komisi');
+      }
+      setCommissionGroups(loadCommissionGroups());
+    }
+  }, []);
 
   const colPrefs = useColumnPrefs('laporan_karyawan', STAFF_COLUMNS);
 
   const extra = useAsync(async () => {
-    const [refunds, voided, empList] = await Promise.all([
+    const [refunds, voided, empList, products] = await Promise.all([
       data.listRefundsBetween(range),
       data.listOrders({ status: 'void', from: range.from, to: range.to, by: 'closed', all: true }),
       data.listManagedEmployees(),
+      data.listProducts({ includeInactive: true }),
     ]);
-    return { refunds, voided, empList };
+    return { refunds, voided, empList, products };
   }, [data, range.from, range.to]);
 
   const report = useMemo(() => {
@@ -220,6 +239,16 @@ export default function StaffReportPage() {
     });
   }, [state, extra]);
 
+  const commissionReport = useMemo(() => {
+    if (state.status !== 'ready' || !state.data || extra.status !== 'ready' || !extra.data) return null;
+    return computeCommissionReport({
+      groups: commissionGroups,
+      orders: state.data.orders,
+      employees: extra.data.empList,
+      products: extra.data.products,
+    });
+  }, [commissionGroups, state, extra]);
+
   const filteredRows = useMemo(() => {
     if (!report) return [];
     if (!search.trim()) return report.rows;
@@ -229,7 +258,47 @@ export default function StaffReportPage() {
     );
   }, [report, search]);
 
+  const filteredCommissionRows = useMemo(() => {
+    if (!commissionReport) return [];
+    const q = search.toLowerCase().trim();
+    if (!q) return commissionReport.rows;
+    return commissionReport.rows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.groupNames.some((g) => g.toLowerCase().includes(q))
+    );
+  }, [commissionReport, search]);
+
   function downloadCsv() {
+    if (activeTab === 'komisi') {
+      if (!commissionReport) return;
+      const head = ['Karyawan', 'Peran', 'Grup Komisi', 'Item Terhitung', 'Penjualan Terhitung', 'Total Komisi'];
+      const rows = filteredCommissionRows.map((r) => [
+        r.name,
+        formatRole(r.role),
+        r.groupNames.join('; ') || '-',
+        r.matchedQty,
+        r.matchedSalesTotal,
+        r.commissionTotal,
+      ]);
+      const totalLine = [
+        'TOTAL KESELURUHAN',
+        '',
+        '',
+        commissionReport.totalMatchedQty,
+        commissionReport.totalMatchedSales,
+        commissionReport.totalCommission,
+      ];
+      const csvContent = toCsv([head, ...rows, [], totalLine]);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `laporan-komisi-${range.label.replace(/\s+/g, '_')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
     if (!report || !colPrefs.hasVisible) return;
     const head = colPrefs.activeColumns.map((c) => c.label);
     const rows = filteredRows.map((r) =>
@@ -255,25 +324,59 @@ export default function StaffReportPage() {
         title="Laporan karyawan"
         subtitle={ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : range.label}
         actions={
-          <div className="flex items-center gap-8">
-            <ColumnChooser
-              columns={STAFF_COLUMNS}
-              prefs={colPrefs.prefs}
-              onToggle={colPrefs.toggle}
-              onMoveUp={colPrefs.moveUp}
-              onMoveDown={colPrefs.moveDown}
-              onReset={colPrefs.reset}
-            />
+          <div className="flex flex-wrap items-center gap-8">
+            {activeTab === 'ringkasan' ? (
+              <ColumnChooser
+                columns={STAFF_COLUMNS}
+                prefs={colPrefs.prefs}
+                onToggle={colPrefs.toggle}
+                onMoveUp={colPrefs.moveUp}
+                onMoveDown={colPrefs.moveDown}
+                onReset={colPrefs.reset}
+              />
+            ) : (
+              <Link href="/komisi" className="cg-btn cg-btn--secondary cg-btn--sm">
+                <Award className="cg-icon cg-icon--sm" aria-hidden /> Atur Grup Komisi
+              </Link>
+            )}
             <button
               className="cg-btn cg-btn--secondary"
               onClick={downloadCsv}
-              disabled={!colPrefs.hasVisible || !report || filteredRows.length === 0}
+              disabled={
+                activeTab === 'komisi'
+                  ? !commissionReport || filteredCommissionRows.length === 0
+                  : !colPrefs.hasVisible || !report || filteredRows.length === 0
+              }
             >
               <Download className="cg-icon" aria-hidden /> Unduh CSV
             </button>
           </div>
         }
       />
+
+      <div className="cg-tabs" role="tablist" aria-label="Tab Laporan Karyawan">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'ringkasan'}
+          className={`cg-tab ${activeTab === 'ringkasan' ? 'cg-tab--active' : ''}`}
+          onClick={() => setActiveTab('ringkasan')}
+        >
+          Ringkasan Penjualan
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'komisi'}
+          className={`cg-tab ${activeTab === 'komisi' ? 'cg-tab--active' : ''}`}
+          onClick={() => {
+            setCommissionGroups(loadCommissionGroups());
+            setActiveTab('komisi');
+          }}
+        >
+          Komisi
+        </button>
+      </div>
 
       <RangePicker value={value} today={today} onChange={setValue} />
 
@@ -292,7 +395,162 @@ export default function StaffReportPage() {
         </div>
       )}
 
-      {report && report.totals.transactionCount === 0 && report.totals.voidCount === 0 && report.totals.refundCount === 0 && (
+      {activeTab === 'komisi' && commissionReport && (
+        <div className="space-y-16 min-w-0">
+          <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8" role="status">
+            <span>
+              <strong>Pratinjau — menghitung dari data pesanan nyata</strong> menggunakan aturan grup komisi yang tersimpan di peramban ini.
+            </span>
+            <Link href="/komisi" className="text-xs font-semibold underline shrink-0">
+              Kelola Grup Komisi
+            </Link>
+          </div>
+
+          {commissionGroups.filter((g) => g.isActive).length === 0 ? (
+            <div className="cg-empty">
+              <p>
+                <strong>Belum ada grup komisi aktif.</strong>
+              </p>
+              <p className="text-text-muted text-sm mt-4">
+                Buat grup komisi dan pilih karyawan serta kategori/produk pada halaman Daftar Grup Komisi.
+              </p>
+              <Link href="/komisi" className="cg-btn cg-btn--primary cg-btn--sm mt-12">
+                Atur Grup Komisi
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan komisi karyawan">
+                <StatCard
+                  label="Total komisi periode"
+                  value={formatRp(commissionReport.totalCommission)}
+                  testId="total-komisi"
+                  primary
+                />
+                <StatCard
+                  label="Penjualan ber-komisi"
+                  value={formatRp(commissionReport.totalMatchedSales)}
+                />
+                <StatCard
+                  label="Item ber-komisi"
+                  value={`${num(commissionReport.totalMatchedQty)} item`}
+                />
+                <StatCard
+                  label="Grup komisi aktif"
+                  value={`${commissionGroups.filter((g) => g.isActive).length} grup`}
+                />
+              </div>
+
+              <div className="border border-border rounded-xl bg-surface overflow-hidden min-w-0">
+                <div className="p-16 border-b border-border flex flex-col tablet:flex-row tablet:items-center justify-between gap-12">
+                  <div>
+                    <h2 className="text-base font-semibold">Perolehan komisi per karyawan</h2>
+                    <p className="text-xs text-text-muted">Produk yang tidak termasuk grup karyawan menghasilkan Rp 0</p>
+                  </div>
+                  <div className="relative w-full tablet:w-[240px]">
+                    <Search className="w-16 h-16 absolute left-12 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden />
+                    <input
+                      type="text"
+                      placeholder="Cari karyawan atau grup..."
+                      className="cg-input pl-[36px] text-sm w-full"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="hidden tablet:block overflow-x-auto min-w-0">
+                  <table className="cg-data w-full">
+                    <thead>
+                      <tr>
+                        <th>Karyawan</th>
+                        <th>Grup Komisi</th>
+                        <th className="cg-num">Item Terhitung</th>
+                        <th className="cg-num">Penjualan Terhitung</th>
+                        <th className="cg-num">Total Komisi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCommissionRows.map((row) => (
+                        <tr key={row.employeeId}>
+                          <td>
+                            <strong className="block font-semibold text-text">{row.name}</strong>
+                            <span className="text-xs text-text-muted">{formatRole(row.role)}</span>
+                          </td>
+                          <td>
+                            {row.groupNames.length > 0 ? (
+                              <div className="flex flex-wrap gap-4">
+                                {row.groupNames.map((gn) => (
+                                  <span key={gn} className="cg-badge text-xs">
+                                    {gn}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-text-muted">Tidak masuk grup</span>
+                            )}
+                          </td>
+                          <td className="cg-num whitespace-nowrap">{num(row.matchedQty)}</td>
+                          <td className="cg-num whitespace-nowrap">{formatRp(row.matchedSalesTotal)}</td>
+                          <td className="cg-num font-bold text-accent-strong whitespace-nowrap">
+                            {formatRp(row.commissionTotal)}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredCommissionRows.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-24 text-center text-text-muted">
+                            Tidak ada karyawan yang cocok dengan pencarian &quot;{search}&quot;.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <ul className="tablet:hidden divide-y divide-border min-w-0">
+                  {filteredCommissionRows.map((row) => (
+                    <li key={row.employeeId} className="p-16 grid gap-8 min-w-0">
+                      <div className="flex items-start justify-between gap-8 min-w-0">
+                        <div className="min-w-0">
+                          <strong className="text-sm block truncate">{row.name}</strong>
+                          <span className="text-xs text-text-muted">{formatRole(row.role)}</span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs text-text-muted block">Total komisi</span>
+                          <strong className="text-sm text-accent-strong cg-num">
+                            {formatRp(row.commissionTotal)}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="text-xs text-text-muted break-words">
+                        Grup: {row.groupNames.length > 0 ? row.groupNames.join(', ') : 'Tidak masuk grup'}
+                      </div>
+                      <div className="grid grid-cols-2 gap-8 text-xs bg-surface-raised p-8 rounded-lg">
+                        <div>
+                          <span className="text-text-muted block">Item terhitung</span>
+                          <span className="font-semibold cg-num">{num(row.matchedQty)} item</span>
+                        </div>
+                        <div>
+                          <span className="text-text-muted block">Penjualan terhitung</span>
+                          <span className="font-semibold cg-num">{formatRp(row.matchedSalesTotal)}</span>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                  {filteredCommissionRows.length === 0 && (
+                    <li className="p-24 text-center text-text-muted text-sm">
+                      Tidak ada karyawan yang cocok dengan pencarian &quot;{search}&quot;.
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'ringkasan' && report && report.totals.transactionCount === 0 && report.totals.voidCount === 0 && report.totals.refundCount === 0 && (
         <div className="cg-empty">
           <p>
             <strong>Tidak ada transaksi karyawan pada rentang ini.</strong>
@@ -303,7 +561,7 @@ export default function StaffReportPage() {
         </div>
       )}
 
-      {report && (report.totals.transactionCount > 0 || report.totals.voidCount > 0 || report.totals.refundCount > 0) && (
+      {activeTab === 'ringkasan' && report && (report.totals.transactionCount > 0 || report.totals.voidCount > 0 || report.totals.refundCount > 0) && (
         <div className="space-y-24 min-w-0">
           {/* Ringkasan KPI Karyawan */}
           <div className="grid grid-cols-2 desktop:grid-cols-4 gap-12" aria-label="Ringkasan kinerja karyawan">
