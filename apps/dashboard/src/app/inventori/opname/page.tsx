@@ -1,8 +1,20 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ClipboardCheck, Plus, Save, Trash2 } from 'lucide-react';
-import { formatRp, newId, opnameDifference, opnameProblem, type StockItem, type StockOpname } from '@cgpos/shared';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { ArrowLeft, ClipboardCheck, Download, Plus, Save, Trash2, Upload } from 'lucide-react';
+import {
+  buildOpnameCsvTemplate,
+  buildOpnameResultCsv,
+  formatRp,
+  newId,
+  opnameDifference,
+  opnameProblem,
+  parseOpnameCsv,
+  type ParseOpnameCsvResult,
+  type StockItem,
+  type StockOpname,
+} from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
@@ -66,6 +78,7 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [exists, setExists] = useState(false);
   const loaded = state.status === 'ready' ? state.data : null;
   useEffect(() => {
@@ -122,6 +135,40 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
   }
   const invalid = (loaded?.items ?? []).some((i) => Number.isNaN(parsed(i)));
 
+  function downloadTemplate() {
+    if (!loaded) return;
+    const draftCounts = new Map<string, number>();
+    for (const item of loaded.items) {
+      const n = parsed(item);
+      if (n !== null && !Number.isNaN(n)) draftCounts.set(item.productId, n);
+    }
+    const label = loaded.opname?.number ?? 'draf-baru';
+    const csvContent = buildOpnameCsvTemplate(loaded.items, draftCounts, system);
+    downloadCsvWithHistory({
+      fileName: `templat-opname-${label.toLowerCase()}.csv`,
+      csvContent,
+      reportName: 'Templat stok opname',
+      period: loaded.opname?.number ?? 'Draf baru',
+      rowCount: loaded.items.length,
+      sourceUrl: '/inventori/opname',
+    });
+    setErr('');
+    setMsg('Templat CSV berhasil diunduh. Isi kolom "Hitung Fisik", lalu klik Impor CSV.');
+  }
+
+  function applyCsvImport(res: ParseOpnameCsvResult) {
+    const updates: Record<string, string> = {};
+    for (const r of res.rows) {
+      if (r.status === 'valid' && r.countedQty !== null) {
+        updates[r.productId] = String(r.countedQty);
+      }
+    }
+    setCounts((prev) => ({ ...prev, ...updates }));
+    setImportOpen(false);
+    setErr('');
+    setMsg(`${res.validCount} baris hitung fisik dari CSV diterapkan ke draf. Klik Simpan draf atau Selesaikan opname.`);
+  }
+
   return (
     <>
       <PageHeader title={loaded?.opname ? `Opname ${loaded.opname.number}` : 'Opname baru'} subtitle="Isi jumlah hitung fisik untuk item yang dihitung. Item yang dikosongkan tidak ikut disesuaikan."
@@ -135,7 +182,15 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
               <input id="op-cari" className="cg-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nama barang" /></div>
             <div className="cg-field grow" style={{ minWidth: 180 }}><label className="cg-label" htmlFor="op-catatan">Catatan</label>
               <input id="op-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
-            <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setCounts((c) => ({ ...c, ...Object.fromEntries(rows.filter((i) => (c[i.productId] ?? '').trim() === '').map((i) => [i.productId, String(sysOf(i))])) }))}>Isi kosong dengan jumlah sistem</button>
+            <div className="flex flex-wrap gap-8">
+              <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={downloadTemplate} disabled={loaded.items.length === 0}>
+                <Download className="cg-icon" aria-hidden /> Unduh templat CSV
+              </button>
+              <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setImportOpen(true)} disabled={loaded.items.length === 0}>
+                <Upload className="cg-icon" aria-hidden /> Impor CSV
+              </button>
+              <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setCounts((c) => ({ ...c, ...Object.fromEntries(rows.filter((i) => (c[i.productId] ?? '').trim() === '').map((i) => [i.productId, String(sysOf(i))])) }))}>Isi kosong dengan jumlah sistem</button>
+            </div>
           </div>
           {rows.length === 0 ? <div className="cg-empty"><p><strong>Tidak ada item yang cocok.</strong></p></div> : (
             <div className="cg-data-wrap">
@@ -172,6 +227,15 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
         </>
       )}
       {confirm && <ConfirmDialog count={diffs.length} total={lines.length} value={diffValue} busy={busy} onCancel={() => setConfirm(false)} onOk={() => void finalize()} />}
+      {importOpen && loaded && (
+        <ImportOpnameDialog
+          items={loaded.items}
+          system={system}
+          onDownloadTemplate={downloadTemplate}
+          onClose={() => setImportOpen(false)}
+          onApply={applyCsvImport}
+        />
+      )}
     </>
   );
 }
@@ -193,13 +257,171 @@ function ConfirmDialog({ count, total, value, busy, onCancel, onOk }: { count: n
   );
 }
 
+function ImportOpnameDialog({
+  items,
+  system,
+  onDownloadTemplate,
+  onClose,
+  onApply,
+}: {
+  items: StockItem[];
+  system: Map<string, number>;
+  onDownloadTemplate: () => void;
+  onClose: () => void;
+  onApply: (result: ParseOpnameCsvResult) => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [fileName, setFileName] = useState('');
+  const [readErr, setReadErr] = useState('');
+  const [parsed, setParsed] = useState<ParseOpnameCsvResult | null>(null);
+
+  useEffect(() => { ref.current?.showModal(); }, []);
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setReadErr('');
+    if (!file) {
+      setFileName('');
+      setParsed(null);
+      return;
+    }
+    setFileName(file.name);
+    try {
+      const text = await file.text();
+      setParsed(parseOpnameCsv(text, items, system));
+    } catch {
+      setReadErr('Berkas tidak dapat dibaca. Pastikan format CSV UTF-8 valid.');
+      setParsed(null);
+    }
+  }
+
+  return (
+    <dialog
+      ref={ref}
+      className="cg-modal"
+      style={{ margin: 'auto', width: 'min(760px, calc(100vw - 24px))' }}
+      onClose={onClose}
+      aria-labelledby="judul-impor-opname"
+    >
+      <div className="grid gap-12 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-8">
+          <h2 id="judul-impor-opname" className="cg-modal__title">Impor hitung fisik (CSV)</h2>
+          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onDownloadTemplate}>
+            <Download className="cg-icon" aria-hidden /> Unduh templat
+          </button>
+        </div>
+        <p className="text-sm text-text-muted">
+          Unggah berkas CSV (pemisah titik koma atau koma) yang memiliki kolom <strong>Hitung Fisik</strong> serta <strong>ID Produk</strong> atau <strong>Nama Item</strong>. Baris kosong dilewati.
+        </p>
+        <div className="cg-field">
+          <label className="cg-label" htmlFor="op-csv-input">Pilih berkas CSV</label>
+          <input id="op-csv-input" type="file" accept=".csv,.txt,text/csv" className="cg-input" onChange={(e) => void onFile(e)} />
+          {fileName && <p className="text-sm text-text-muted mt-4">Berkas dipilih: <strong>{fileName}</strong></p>}
+        </div>
+        {readErr && <p role="alert" className="cg-banner cg-banner--danger">{readErr}</p>}
+        {parsed && parsed.headerError && <p role="alert" className="cg-banner cg-banner--danger">{parsed.headerError}</p>}
+        {parsed && !parsed.headerError && (
+          <div className="grid gap-12 min-w-0" data-testid="pratinjau-impor-opname">
+            <div className="flex flex-wrap gap-8">
+              <span className="cg-badge cg-badge--success">{parsed.validCount} siap diterapkan</span>
+              <span className="cg-badge">{parsed.blankCount} kosong dilewati</span>
+              {parsed.errorCount > 0 && <span className="cg-badge cg-badge--danger">{parsed.errorCount} bermasalah</span>}
+            </div>
+            {parsed.truncated && (
+              <p className="cg-banner cg-banner--warning">Berkas melebihi 3.000 baris; hanya 3.000 baris pertama yang diproses.</p>
+            )}
+            {parsed.rows.length === 0 ? (
+              <div className="cg-empty"><p><strong>Tidak ada baris data pada berkas CSV.</strong></p></div>
+            ) : (
+              <div className="cg-data-wrap min-w-0" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                <table className="cg-data" aria-label="Pratinjau impor opname" style={{ minWidth: 0 }}>
+                  <thead>
+                    <tr>
+                      <th className="cg-num">Baris</th>
+                      <th>Item</th>
+                      <th className="text-right">Sistem</th>
+                      <th className="text-right">Fisik</th>
+                      <th className="text-right">Selisih</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsed.rows.slice(0, 100).map((r) => (
+                      <tr key={`${r.lineNumber}-${r.productId || r.name}`}>
+                        <td className="cg-num text-text-muted">{r.lineNumber}</td>
+                        <td className="break-words max-w-[200px]">
+                          <strong>{r.name}</strong>
+                          {r.unit && <span className="block text-sm text-text-muted">{r.unit}</span>}
+                        </td>
+                        <td className="text-right cg-num whitespace-nowrap">{r.unit ? fmtQty(r.systemQty) : '—'}</td>
+                        <td className="text-right cg-num whitespace-nowrap">{r.countedQty === null ? '—' : fmtQty(r.countedQty)}</td>
+                        <td className={`text-right cg-num whitespace-nowrap ${r.difference !== null && r.difference < 0 ? 'text-danger-strong' : ''}`}>
+                          {r.difference === null ? '—' : signed(r.difference)}
+                        </td>
+                        <td>
+                          {r.status === 'valid' && <span className="cg-badge cg-badge--success">Valid</span>}
+                          {r.status === 'blank' && <span className="cg-badge">Dilewati</span>}
+                          {r.status === 'error' && (
+                            <span className="text-sm text-danger-strong break-words">{r.errorReason}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {parsed.rows.length > 100 && (
+              <p className="text-sm text-text-muted">Menampilkan 100 baris pertama dari {parsed.rows.length} baris di pratinjau.</p>
+            )}
+            <p className="text-sm text-text-muted">
+              Hitung fisik yang valid akan diisikan ke draf opname (belum disimpan sebelum menekan <strong>Simpan draf</strong> atau <strong>Selesaikan opname</strong>).
+            </p>
+          </div>
+        )}
+        <div className="cg-modal__actions">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={() => ref.current?.close()}>Tutup</button>
+          <button
+            type="button"
+            className="cg-btn cg-btn--primary"
+            disabled={!parsed || Boolean(parsed.headerError) || parsed.validCount === 0}
+            onClick={() => { if (parsed) onApply(parsed); }}
+          >
+            Terapkan ke draf ({parsed?.validCount ?? 0})
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 function Viewer({ id, onBack }: { id: string; onBack: () => void }) {
   const data = useData();
   const state = useAsync(() => data.getOpname(id), [data, id]);
+  function downloadResult() {
+    if (state.status !== 'ready' || !state.data) return;
+    downloadCsvWithHistory({
+      fileName: `opname-${state.data.number.toLowerCase()}.csv`,
+      csvContent: buildOpnameResultCsv(state.data),
+      reportName: `Hasil opname ${state.data.number}`,
+      period: fmtWhen(state.data.countedAt),
+      rowCount: state.data.lines.length,
+      sourceUrl: '/inventori/opname',
+    });
+  }
   return (
     <>
       <PageHeader title={state.status === 'ready' && state.data ? `Opname ${state.data.number}` : 'Opname'} subtitle="Opname yang sudah selesai tidak bisa diubah"
-        actions={<button className="cg-btn cg-btn--ghost" onClick={onBack}><ArrowLeft className="cg-icon" aria-hidden /> Kembali</button>} />
+        actions={
+          <div className="flex flex-wrap gap-8">
+            {state.status === 'ready' && state.data && (
+              <button type="button" className="cg-btn cg-btn--secondary" onClick={downloadResult}>
+                <Download className="cg-icon" aria-hidden /> Unduh CSV
+              </button>
+            )}
+            <button type="button" className="cg-btn cg-btn--ghost" onClick={onBack}><ArrowLeft className="cg-icon" aria-hidden /> Kembali</button>
+          </div>
+        } />
       {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
       {state.status === 'loading' && <div className="cg-skeleton" style={{ height: 120 }} aria-busy="true" aria-label="Memuat" />}
       {state.status === 'ready' && !state.data && <div className="cg-empty"><p><strong>Opname tidak ditemukan.</strong></p></div>}
