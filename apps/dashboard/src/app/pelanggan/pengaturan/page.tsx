@@ -93,6 +93,14 @@ export default function PengaturanDataPelangganPage() {
         <ErrorBox message={customersState.message} onRetry={customersState.reload} />
       )}
 
+      {customersState.status === 'loading' && (
+        <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12" aria-busy="true" aria-label="Memuat kelengkapan data pelanggan">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="cg-skeleton" style={{ height: 76 }} />
+          ))}
+        </div>
+      )}
+
       {completeness && (
         <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12" aria-label="Kelengkapan profil pelanggan">
           <div className="border border-border rounded-xl bg-surface-raised p-16 space-y-4">
