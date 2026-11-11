@@ -16,6 +16,7 @@ import {
   type Ledger,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { DateSpan, firstOfMonth, fmtDate, todayKey } from '@/components/fin-common';
@@ -93,13 +94,13 @@ export default function LedgerPage() {
     const rangeLabel = `${fmtDate(span.from)} – ${fmtDate(span.to)}`;
     const rows = buildMultiLedgerCsvRows(ledgers, rangeLabel);
     const csvContent = toCsvWithBom(rows);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `buku-besar-${span.from}_${span.to}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `buku-besar-${span.from}_${span.to}.csv`,
+      csvContent,
+      reportName: 'Buku Besar',
+      period: rangeLabel,
+      sourceUrl: '/keuangan/buku-besar',
+    });
   };
 
   return (

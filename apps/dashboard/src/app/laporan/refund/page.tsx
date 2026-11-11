@@ -7,6 +7,7 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { useDialog } from '@/components/fin-common';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { useRange } from '@/lib/use-range';
 
@@ -227,15 +228,14 @@ export default function LaporanRefund() {
     rows.push(['Total', '', '', '', '', '', summary.amount]);
 
     const csv = toCsv(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-refund-${range.label.replace(/ sampai /g, '_')}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-refund-${range.label.replace(/ sampai /g, '_')}.csv`,
+      csvContent: csv,
+      reportName: 'Laporan Refund',
+      period: range.label,
+      rowCount: filteredRefunds.length,
+      sourceUrl: '/laporan/refund',
+    });
   }
 
   const sub = ctx.status === 'ready' ? `${ctx.data.outletName} · ${range.label}` : undefined;

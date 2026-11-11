@@ -6,8 +6,10 @@ import {
   formatFileSize,
   loadExportHistoryFromStorage,
   MAX_EXPORT_HISTORY,
+  MAX_STORED_CSV_BYTES,
   recordExport,
   saveExportHistoryToStorage,
+  utf8ByteLength,
   validateAndMigrateExportHistory,
   type ExportRecord,
   type KeyValueStorage,
@@ -194,6 +196,63 @@ describe('export-history', () => {
       const saveRes = saveExportHistoryToStorage([dummy1], errorStorage);
       expect(saveRes.success).toBe(false);
       expect(saveRes.error).toContain('Quota exceeded');
+    });
+
+    it('menyimpan isi CSV dalam batas ukuran dan memangkas isi terlama saat kuota terbatas', () => {
+      expect(utf8ByteLength('Halo café')).toBe(10);
+
+      const smallCsv = '\ufeffNama;Total\nEspresso;15000';
+      const hugeCsv = 'x'.repeat(MAX_STORED_CSV_BYTES + 10);
+      let list = recordExport([], {
+        id: 'exp_old',
+        reportName: 'Laporan Lama',
+        period: 'Kemarin',
+        rowCount: 1,
+        sizeBytes: smallCsv.length,
+        fileName: 'lama.csv',
+        csvContent: smallCsv,
+      });
+      list = recordExport(list, {
+        id: 'exp_new',
+        reportName: 'Laporan Baru',
+        period: 'Hari ini',
+        rowCount: 1,
+        sizeBytes: smallCsv.length,
+        fileName: 'baru.csv',
+        csvContent: smallCsv,
+      });
+      list = recordExport(list, {
+        id: 'exp_huge',
+        reportName: 'Laporan Besar',
+        period: 'Bulan ini',
+        rowCount: 5000,
+        sizeBytes: hugeCsv.length,
+        fileName: 'besar.csv',
+        csvContent: hugeCsv,
+      });
+
+      expect(list[0].csvContent).toBeUndefined();
+      expect(list[1].csvContent).toBe(smallCsv);
+      expect(list[2].csvContent).toBe(smallCsv);
+
+      const store: Record<string, string> = {};
+      const tightStorage: KeyValueStorage = {
+        getItem: (k) => store[k] ?? null,
+        setItem: (k, v) => {
+          const parsed = JSON.parse(v) as ExportRecord[];
+          if (parsed.filter((r) => !!r.csvContent).length > 1) {
+            throw new Error('QuotaExceededError');
+          }
+          store[k] = v;
+        },
+      };
+
+      const res = saveExportHistoryToStorage(list, tightStorage);
+      expect(res.success).toBe(true);
+      const loaded = loadExportHistoryFromStorage(tightStorage).records;
+      expect(loaded).toHaveLength(3);
+      expect(loaded[1].csvContent).toBe(smallCsv);
+      expect(loaded[2].csvContent).toBeUndefined();
     });
   });
 });

@@ -7,6 +7,7 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker, type RangeValue } from '@/components/range-picker';
 import { dateRange, presetRange, type Preset } from '@/lib/range';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 
 interface DayDef {
@@ -198,13 +199,14 @@ export default function PeakHoursReportPage() {
       }
     }
 
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `analisa-jam-ramai-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `analisa-jam-ramai-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent: toCsv(rows),
+      reportName: 'Analisa Jam Ramai',
+      period: range.label,
+      rowCount: rows.length - 1,
+      sourceUrl: '/laporan/jam-ramai',
+    });
   }
 
   return (

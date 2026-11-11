@@ -6,6 +6,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useReport } from '@/lib/use-report';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(n);
@@ -27,8 +28,14 @@ export default function PromoReportPage() {
     if (!report) return;
     const head = ['Kelompok', 'Pesanan', 'Potongan', 'Persen dari total potongan'];
     const line = (r: PromoRow) => [r.label, r.orders, r.amount, r.share];
-    const url = URL.createObjectURL(new Blob([toCsv([['Jalur', ...head.slice(1)], ...report.bySource.map(line), [], ['Promo', ...head.slice(1)], ...report.byPromotion.map(line), [], ['Kupon', ...head.slice(1)], ...report.byCoupon.map(line), [], ['Diskon manual: pemberi izin', ...head.slice(1)], ...report.byAuthorizer.map(line)])], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = `promo-${range.label.replace(/ sampai /, '_')}.csv`; a.click(); URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `promo-${range.label.replace(/ sampai /, '_')}.csv`,
+      csvContent: toCsv([['Jalur', ...head.slice(1)], ...report.bySource.map(line), [], ['Promo', ...head.slice(1)], ...report.byPromotion.map(line), [], ['Kupon', ...head.slice(1)], ...report.byCoupon.map(line), [], ['Diskon manual: pemberi izin', ...head.slice(1)], ...report.byAuthorizer.map(line)]),
+      reportName: 'Laporan Promo & Diskon',
+      period: range.label,
+      rowCount: report.discountedOrders,
+      sourceUrl: '/laporan/promo-loyalti',
+    });
   }
   const err = ctx.status === 'error' ? ctx : state.status === 'error' ? state : extra.status === 'error' ? extra : null;
   const loading = ctx.status === 'loading' || state.status === 'loading' || extra.status === 'loading';

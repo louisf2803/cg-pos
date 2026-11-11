@@ -15,6 +15,7 @@ import {
   type StaffReportTotals,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { loadCommissionGroups } from '@/lib/commission-store';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -290,13 +291,14 @@ export default function StaffReportPage() {
         commissionReport.totalCommission,
       ];
       const csvContent = toCsv([head, ...rows, [], totalLine]);
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `laporan-komisi-${range.label.replace(/\s+/g, '_')}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadCsvWithHistory({
+        fileName: `laporan-komisi-${range.label.replace(/\s+/g, '_')}.csv`,
+        csvContent,
+        reportName: 'Laporan Komisi Karyawan',
+        period: range.label,
+        rowCount: rows.length,
+        sourceUrl: '/laporan/karyawan',
+      });
       return;
     }
     if (!report || !colPrefs.hasVisible) return;
@@ -309,13 +311,14 @@ export default function StaffReportPage() {
     );
 
     const csvContent = toCsv([head, ...rows, [], totalLine]);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-karyawan-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-karyawan-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent,
+      reportName: 'Laporan Karyawan',
+      period: range.label,
+      rowCount: rows.length,
+      sourceUrl: '/laporan/karyawan',
+    });
   }
 
   return (

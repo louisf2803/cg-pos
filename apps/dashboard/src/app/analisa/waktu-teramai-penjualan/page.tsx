@@ -5,6 +5,7 @@ import { Calendar, Clock, Download, Flame, TrendingUp } from 'lucide-react';
 import { buildSalesHeatmap, formatRp, toCsv, type DayRow } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useReport } from '@/lib/use-report';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID').format(n);
@@ -48,13 +49,14 @@ export default function SalesPeakHoursHeatmapPage() {
     ];
 
     const csvContent = toCsv([head, ...lines, [], totalLine]);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `waktu-teramai-penjualan-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `waktu-teramai-penjualan-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent,
+      reportName: 'Waktu Teramai Penjualan',
+      period: range.label,
+      rowCount: report.days.length,
+      sourceUrl: '/analisa/waktu-teramai-penjualan',
+    });
   }
 
   const err = ctx.status === 'error' ? ctx : state.status === 'error' ? state : null;

@@ -7,6 +7,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useReport } from '@/lib/use-report';
 
 const num = (n: number) => new Intl.NumberFormat('id-ID').format(n);
@@ -94,13 +95,14 @@ export default function KitchenReportPage() {
       ...statusLines,
     ]);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-dapur-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-dapur-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent,
+      reportName: 'Laporan Dapur',
+      period: range.label,
+      rowCount: report.totals.totalTickets,
+      sourceUrl: '/laporan/dapur',
+    });
   }
 
   const err = ctx.status === 'error' ? ctx : state.status === 'error' ? state : extra.status === 'error' ? extra : null;

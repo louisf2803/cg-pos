@@ -6,6 +6,7 @@ import {
   type StockFilter, type StockItem, type StockStatus,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
@@ -98,13 +99,14 @@ export default function LaporanPersediaan() {
     }
 
     const dateStr = new Date().toISOString().slice(0, 10);
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-persediaan-${dateStr}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-persediaan-${dateStr}.csv`,
+      csvContent: toCsv(rows),
+      reportName: 'Laporan Persediaan',
+      period: dateStr,
+      rowCount: filteredItems.length,
+      sourceUrl: '/laporan/persediaan',
+    });
   }
 
   return (

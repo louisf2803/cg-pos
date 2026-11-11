@@ -6,6 +6,7 @@ import { formatRp, orderTypeLabel, toCsv, type Order } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { useRange } from '@/lib/use-range';
 
@@ -145,13 +146,14 @@ export default function OrderTypesReportPage() {
       '100%',
     ]);
 
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `laporan-jenis-order-${range.label.replace(/\s+/g, '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-jenis-order-${range.label.replace(/\s+/g, '_')}.csv`,
+      csvContent: toCsv(rows),
+      reportName: 'Laporan Jenis Pesanan',
+      period: range.label,
+      rowCount: groups.length,
+      sourceUrl: '/laporan/jenis-order',
+    });
   }
 
   return (

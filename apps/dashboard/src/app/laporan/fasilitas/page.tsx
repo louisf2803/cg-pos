@@ -14,6 +14,7 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { loadFacilityMeta } from '@/lib/a58-preview';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { useReport } from '@/lib/use-report';
 
@@ -56,14 +57,15 @@ export default function LaporanFasilitasPage() {
   function handleDownloadCsv() {
     if (!report || report.items.length === 0) return;
     const csv = toFacilityReportCsv(report, range.label);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const safeLabel = range.label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    a.download = `laporan-fasilitas-${safeLabel}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `laporan-fasilitas-${safeLabel}.csv`,
+      csvContent: csv,
+      reportName: 'Laporan Fasilitas',
+      period: range.label,
+      rowCount: report.items.length,
+      sourceUrl: '/laporan/fasilitas',
+    });
   }
 
   const err =

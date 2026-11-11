@@ -22,6 +22,7 @@ import {
   type CashEntryView,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
@@ -349,13 +350,14 @@ export default function ExpensesAndReceiptsPage() {
       e.status,
     ]);
     const csvContent = toCsv([head, ...lines]);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `arus-kas-${activeTab === 'in' ? 'penerimaan' : 'pengeluaran'}-${localFrom}-${localTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsvWithHistory({
+      fileName: `arus-kas-${activeTab === 'in' ? 'penerimaan' : 'pengeluaran'}-${localFrom}-${localTo}.csv`,
+      csvContent,
+      reportName: activeTab === 'in' ? 'Penerimaan Kas' : 'Biaya & Kas Keluar',
+      period: `${localFrom} s.d. ${localTo}`,
+      rowCount: filteredEntries.length,
+      sourceUrl: '/keuangan/biaya',
+    });
   };
 
   const handleRefresh = () => {
