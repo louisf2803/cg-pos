@@ -41,7 +41,19 @@ function getInitials(name: string): string {
   return name.trim().slice(0, 2).toUpperCase();
 }
 
-export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; onCloseShift: () => void; onLock: () => void }) {
+export function Register({
+  ctx,
+  canOpenKitchen = false,
+  onOpenKitchen,
+  onCloseShift,
+  onLock,
+}: {
+  ctx: OutletContext;
+  canOpenKitchen?: boolean;
+  onOpenKitchen?: () => void;
+  onCloseShift: () => void;
+  onLock: () => void;
+}) {
   const data = useData();
   const { session } = useSession();
   const tickets = useTickets();
@@ -918,6 +930,7 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
         <SideDrawer
           outletName={ctx.outletName}
           cashierName={session.employee.name}
+          canOpenKitchen={canOpenKitchen}
           onClose={() => setDrawerOpen(false)}
           onNavigate={(view) => {
             setDrawerOpen(false);
@@ -928,6 +941,8 @@ export function Register({ ctx, onCloseShift, onLock }: { ctx: OutletContext; on
             } else if (view === 'orders') {
               setOrdersTab('waiting');
               setShowOrders(true);
+            } else if (view === 'kitchen') {
+              onOpenKitchen?.();
             } else if (view === 'shift') {
               setShiftOpen(true);
             } else if (view === 'settings') {

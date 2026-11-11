@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
+  ChefHat,
   ClipboardList,
   Clock,
   Lock,
@@ -13,8 +14,11 @@ import {
 export interface SideDrawerProps {
   outletName: string;
   cashierName: string;
+  canOpenKitchen?: boolean;
   onClose: () => void;
-  onNavigate: (view: 'register' | 'sales' | 'orders' | 'shift' | 'settings' | 'lock' | 'closeShift') => void;
+  onNavigate: (
+    view: 'register' | 'sales' | 'orders' | 'kitchen' | 'shift' | 'settings' | 'lock' | 'closeShift',
+  ) => void;
 }
 
 /**
@@ -25,6 +29,7 @@ export interface SideDrawerProps {
 export function SideDrawer({
   outletName,
   cashierName,
+  canOpenKitchen = false,
   onClose,
   onNavigate,
 }: SideDrawerProps) {
@@ -145,6 +150,20 @@ export function SideDrawer({
             <ClipboardList className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
             <span>Daftar Order</span>
           </button>
+
+          {canOpenKitchen && (
+            <button
+              type="button"
+              className="w-full flex items-center gap-12 px-12 py-10 rounded-lg text-sm font-semibold text-text hover:bg-surface hover:text-accent transition-colors text-left"
+              onClick={() => {
+                onClose();
+                onNavigate('kitchen');
+              }}
+            >
+              <ChefHat className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
+              <span>Layar Dapur (KDS)</span>
+            </button>
+          )}
 
           <button
             type="button"
