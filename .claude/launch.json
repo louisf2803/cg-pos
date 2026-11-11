@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "dashboard-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["-F", "@cgpos/dashboard", "dev"], "port": 3100 }
+    { "name": "dashboard-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["-F", "@cgpos/dashboard", "dev"], "port": 3100 },
+    { "name": "pos-dev", "runtimeExecutable": "pnpm", "runtimeArgs": ["-F", "@cgpos/pos", "dev"], "port": 3200 }
   ]
 }

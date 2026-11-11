@@ -116,7 +116,7 @@ Absensi dan payroll karyawan,A,,
 "Paket deposit (beli saldo, pakai di POS)",A,,
 Reservasi dan appointment dengan kalender,X,,
 Layar dapur (kitchen display) dan layar gudang,A,docs/shots/a65,
-Customer display eksternal,A,,
+Customer display eksternal,A,docs/evidence/customer-display|docs/shots/a68,
 Buku menu (mode tampilan untuk katalog besar),X,,
 Aplikasi owner (pantau bisnis dari HP),A,,Gelombang A = tampilan web responsif untuk HP; aplikasi native = Gelombang B
 "Pemesanan dari HP pelanggan (consumer app, web dulu)",A,,Versi web saja; dikerjakan paling akhir
