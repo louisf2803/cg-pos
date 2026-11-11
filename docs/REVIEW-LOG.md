@@ -8,3 +8,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=22e3b45 | migrasi 0031+0032 diterapkan ke produksi atas persetujuan Louis; 0033 menunggu
 2026-11-12 | main=602fc08 | review: Buku besar pilih banyak akun => yes (bukti docs/evidence/buku-besar); catatan features.csv banyak yang basi, audit per fitur berlanjut
 2026-11-12 | main=7cbb08d | review: Arus kas, Penjualan bersih dan piutang, Atur kolom => yes (bukti docs/evidence); goal 6/72
+2026-11-12 | main=a0b0fc9 | audit: HPP rata-rata (laporan laba kotor per produk masih 'Segera') dan Akun perantara (jurnal shift nyata belum terbukti) tetap partial; Laporan hutang tetap partial (piutang per pelanggan belum ada); goal 6/72
