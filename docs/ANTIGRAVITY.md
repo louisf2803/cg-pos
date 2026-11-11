@@ -36,8 +36,7 @@ kirim ke dapur per baris terpilih · kode otorisasi void · rekening outlet · r
 | A10 | Dapur: mode layar penuh, bunyi notifikasi pesanan baru, cetak struk dapur (checker) | +1 |
 | A11 | Laporan lain yang cukup dari data penjualan: Meja, Produk, Persediaan, Promo dan loyalti, Pelanggan | +2–3 |
 
-Hitungan: skor sekarang 47,2; target ≥ 60 butuh sekitar +39 bobot. A1–A11 menyumbang kira-kira +22–27 bobot sendirian;
-sisanya dari pekerjaan Claude (resep/BOM, batasi stok, log aktivitas, reservasi).
+Hitungan (diperbarui 11 Nov 2026): skor sekarang 65,9/100 (22/32 must-have). **Target diubah Louis (11 Nov 2026): kelengkapan fitur dulu, sampai kira-kira 90% mirip Majoo — skor presisi nomor dua.** Tugas A1–A50 sudah selesai dan digabung ke main; tugas berjalan sekarang ada di `docs/queue/` (A51 dst, bukan lagi tabel di atas — tabel A1–A11 di atas sudah historis). Lihat `docs/queue/README.md` untuk cara kerja antrean dan `replica/features.csv` / `replica/parity.md` untuk daftar lengkap yang masih kosong ("no") atau separuh ("partial"), yang jadi sumber tugas berikutnya.
 
 ## 2. Alur kerja
 
