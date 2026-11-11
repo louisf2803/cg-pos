@@ -176,3 +176,12 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 2. **Status Kanal CG Order & Pesanan Online (`/order-online/*`, `S64`–`S69`)**:
    - Saat ini pengaturan kesiapan kanal **CG Order** (`mandiri`, `delivery`, `marketplace`, `kios`, `aplikasi`: `status`, `autoAccept`, `prepMinutes`, `priceMarkupPct`, `openHours`, `storefrontSlug`) tersimpan di `localStorage` (`Pratinjau`).
    - **Bentuk data & DataLayer yang dibutuhkan**: `listOnlineChannels()` / `saveOnlineChannel(channel)` beserta feed `listOnlineOrders()` dan aksi `updateOnlineOrderStatus()` di `DataLayer` untuk menyambungkan status buka/tutup kanal serta pesanan daring secara waktu-nyata dari webhook server.
+## Dari Antigravity (A60) — Analisa Kepuasan, Kustom Data Pelanggan, & Kebijakan Pelanggan
+
+1. **Analisa Kepuasan Pelanggan (`/analisa/kepuasan`, `S85`)**:
+   - Saat ini menampilkan **Pratinjau — Data Contoh** (`SAMPLE_SATISFACTION_ITEMS` dan status tindak lanjut di `localStorage`) karena belum ada tabel maupun endpoint umpan balik / rating pelanggan di server.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listCustomerFeedback(range)` dan `markFeedbackHandled(id, note)` (menyimpan skor bintang 1–5, tag topik, komentar, `order_id`, dan saluran order dari struk digital maupun CG Order).
+
+2. **Kustom Data & Pengaturan Kebijakan Pelanggan (`/pelanggan/kustom`, `/pelanggan/pengaturan`, `S41`)**:
+   - Definisi kolom tambahan (`CustomerCustomField`) dan kebijakan pengisian (`CustomerPolicySettings`) saat ini disimpan di peramban (`Pratinjau`), sementara statistik kelengkapan profil dibaca langsung dari `data.listCustomers()`.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listCustomerCustomFields()`, `saveCustomerCustomFields()` (serta `customValues` JSONB pada `Customer`), dan kolom/RPC kebijakan pelanggan di `OutletOptions` (`requirePhoneOnCreate`, `uniquePhoneEnforcement`, `allowCashierCreate`, `allowCashierEdit`, `hidePhoneMaskOnReceipt`) agar formulir pelanggan di kasir & dashboard mengikuti aturan yang sama.

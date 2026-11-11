@@ -103,7 +103,7 @@ export const MODUL: NavModule[] = [
           { href: '/analisa/waktu-teramai-penjualan', label: 'Waktu teramai penjualan', screen: 'S85', tier: 2, built: true },
           { href: '/analisa/waktu-teramai-produk', label: 'Waktu teramai produk', screen: 'S85', tier: 3, built: true },
           { href: '/analisa/perputaran-stok', label: 'Perputaran stok', screen: 'S85', tier: 3, built: true },
-          { href: '/analisa/kepuasan', label: 'Kepuasan pelanggan', screen: 'S85', tier: 3 },
+          { href: '/analisa/kepuasan', label: 'Kepuasan pelanggan', screen: 'S85', tier: 3, built: true },
         ],
       },
       {
@@ -150,8 +150,8 @@ export const MODUL: NavModule[] = [
           { href: '/pelanggan', label: 'Daftar pelanggan', screen: 'S41', tier: 3, built: true },
           { href: '/pelanggan/grup', label: 'Grup pelanggan', screen: 'S41', tier: 3, built: true },
           { href: '/pelanggan/harga-spesial', label: 'Grup harga spesial', screen: 'S41', tier: 3, built: true },
-          { href: '/pelanggan/kustom', label: 'Kustom data pelanggan', screen: 'S41', tier: 3 },
-          { href: '/pelanggan/pengaturan', label: 'Pengaturan data pelanggan', screen: 'S41', tier: 3 },
+          { href: '/pelanggan/kustom', label: 'Kustom data pelanggan', screen: 'S41', tier: 3, built: true },
+          { href: '/pelanggan/pengaturan', label: 'Pengaturan data pelanggan', screen: 'S41', tier: 3, built: true },
         ],
       },
       {

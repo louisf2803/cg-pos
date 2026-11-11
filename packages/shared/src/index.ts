@@ -70,4 +70,5 @@ export * from './tiered-pricing';
 export * from './price-schedule';
 export * from './facility';
 export * from './payment-methods';
+export * from './customer-config';
 
