@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Check, ChefHat, Maximize, Minimize, Printer, Settings2, Volume2, VolumeX } from 'lucide-react';
+import { Check, ChefHat, Maximize, Minimize, Printer, Settings2, Volume2, VolumeX, Warehouse } from 'lucide-react';
 import {
   DEFAULT_KITCHEN_THRESHOLDS, filterRowsByStation, groupTickets, kitchenAlert, KITCHEN_NEXT, KITCHEN_NEXT_LABEL, KITCHEN_STATUS_LABEL, orderTypeLabel, thresholdsProblem, waitMinutes,
   type KitchenRow, type KitchenStatus, type KitchenThresholds, type KitchenTicket, type PrintStation,
@@ -9,6 +9,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
+import { WarehouseScreen } from '@/components/warehouse-screen';
 
 const LANES: KitchenStatus[] = ['new', 'preparing', 'ready'];
 const THRESHOLDS_KEY = 'cgpos.kds.thresholds';
@@ -154,6 +155,7 @@ function printKitchenTicket(t: KitchenTicket, paper: '58' | '80' = '80') {
 
 export default function KitchenPage() {
   const data = useData();
+  const [screenTab, setScreenTab] = useState<'dapur' | 'gudang'>('dapur');
   const [history, setHistory] = useState(false);
   const board = useAsync(() => data.kitchenBoard(history ? 60 : 0), [data, history]);
   const stationsState = useAsync(() => data.listPrintStations(), [data]);
@@ -293,30 +295,59 @@ export default function KitchenPage() {
   return (
     <>
       <PageHeader
-        title="Layar dapur"
-        subtitle="Pesanan yang dikirim kasir muncul di sini. Layar menyegarkan diri tiap 10 detik."
+        title={screenTab === 'gudang' ? 'Layar gudang & dapur' : 'Layar dapur'}
+        subtitle={
+          screenTab === 'gudang'
+            ? 'Pantau bahan baku dan stok barang yang menipis atau habis agar restok segera dilakukan.'
+            : 'Pesanan yang dikirim kasir muncul di sini. Layar menyegarkan diri tiap 10 detik.'
+        }
         actions={
-          <div className="flex flex-wrap items-center gap-8">
-            <button
-              type="button"
-              className="cg-btn cg-btn--secondary"
-              onClick={toggleFullscreen}
-              aria-label={isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
-            >
-              {isFullscreen ? <Minimize className="cg-icon" aria-hidden /> : <Maximize className="cg-icon" aria-hidden />}
-              <span>{isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'}</span>
-            </button>
-            <button
-              type="button"
-              className="cg-btn cg-btn--secondary"
-              onClick={() => setSettings(true)}
-            >
-              <Settings2 className="cg-icon" aria-hidden /> Batas waktu
-            </button>
-          </div>
+          screenTab === 'dapur' ? (
+            <div className="flex flex-wrap items-center gap-8">
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary"
+                onClick={toggleFullscreen}
+                aria-label={isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'}
+              >
+                {isFullscreen ? <Minimize className="cg-icon" aria-hidden /> : <Maximize className="cg-icon" aria-hidden />}
+                <span>{isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'}</span>
+              </button>
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary"
+                onClick={() => setSettings(true)}
+              >
+                <Settings2 className="cg-icon" aria-hidden /> Batas waktu
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
+      <div className="cg-tabs w-fit mb-16" role="tablist" aria-label="Mode layar operasional">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={screenTab === 'dapur'}
+          className={screenTab === 'dapur' ? 'cg-tab cg-tab--active' : 'cg-tab'}
+          onClick={() => setScreenTab('dapur')}
+        >
+          <ChefHat className="cg-icon" aria-hidden /> Layar Dapur
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={screenTab === 'gudang'}
+          className={screenTab === 'gudang' ? 'cg-tab cg-tab--active' : 'cg-tab'}
+          onClick={() => setScreenTab('gudang')}
+        >
+          <Warehouse className="cg-icon" aria-hidden /> Layar Gudang
+        </button>
+      </div>
+
+      {screenTab === 'gudang' ? <WarehouseScreen /> : (
+        <>
       {err && <p role="alert" className="cg-banner cg-banner--danger mb-12">{err}</p>}
       {board.status === 'error' && <ErrorBox message={board.message} onRetry={board.reload} />}
       {board.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 120 }} />)}</div>}
@@ -471,6 +502,8 @@ export default function KitchenPage() {
           ticket={printTicket}
           onClose={() => setPrintTicket(null)}
         />
+      )}
+        </>
       )}
     </>
   );

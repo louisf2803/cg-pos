@@ -106,3 +106,13 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Untuk: Tampilan pilih meja (`apps/pos/src/screens/TablePicker.tsx`) dan operasi meja (`packages/shared/src/table-ops.ts`) di kasir, agar kasir melihat status meja yang sama informatifnya dengan Majoo asli.
 - Sementara: CG POS tetap pakai status biner kosong/terisi untuk saat ini. Ditulis di sini supaya tidak terlupa; BUKAN diprioritaskan sebelum keputusan skema di atas diambil Claude, dan BUKAN tugas Antigravity sampai keputusan itu selesai (lihat AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru).
 
+
+## Dari Antigravity (A60) — Analisa Kepuasan, Kustom Data Pelanggan, & Kebijakan Pelanggan
+
+1. **Analisa Kepuasan Pelanggan (`/analisa/kepuasan`, `S85`)**:
+   - Saat ini menampilkan **Pratinjau — Data Contoh** (`SAMPLE_SATISFACTION_ITEMS` dan status tindak lanjut di `localStorage`) karena belum ada tabel maupun endpoint umpan balik / rating pelanggan di server.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listCustomerFeedback(range)` dan `markFeedbackHandled(id, note)` (menyimpan skor bintang 1–5, tag topik, komentar, `order_id`, dan saluran order dari struk digital maupun CG Order).
+
+2. **Kustom Data & Pengaturan Kebijakan Pelanggan (`/pelanggan/kustom`, `/pelanggan/pengaturan`, `S41`)**:
+   - Definisi kolom tambahan (`CustomerCustomField`) dan kebijakan pengisian (`CustomerPolicySettings`) saat ini disimpan di peramban (`Pratinjau`), sementara statistik kelengkapan profil dibaca langsung dari `data.listCustomers()`.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listCustomerCustomFields()`, `saveCustomerCustomFields()` (serta `customValues` JSONB pada `Customer`), dan kolom/RPC kebijakan pelanggan di `OutletOptions` (`requirePhoneOnCreate`, `uniquePhoneEnforcement`, `allowCashierCreate`, `allowCashierEdit`, `hidePhoneMaskOnReceipt`) agar formulir pelanggan di kasir & dashboard mengikuti aturan yang sama.
