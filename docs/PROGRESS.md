@@ -561,4 +561,20 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (55 file, 348 tes lulus)
      - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a44/`).
+- Selesai (tugas A45): Penetapan Produk ke Stasiun Cetak (`apps/dashboard`):
+  1. Halaman `/pengaturan/stasiun-cetak/penetapan`:
+     - Kartu Ringkasan Metrik: Total Produk, Produk Belum Ditetapkan, dan jumlah produk terpetakan per stasiun aktif.
+     - Pintasan Pemetaan Per Kategori: memilih kategori dan stasiun tujuan, lalu memetakan seluruh produk dalam kategori tersebut sekaligus lewat `data.assignProductsToStation({ categoryId, stationId })`.
+     - Tabel Produk Terfilter: pencarian instan nama atau SKU, filter per kategori, filter per stasiun (termasuk "Belum punya stasiun"), checkbox per baris, dan master checkbox "Pilih semua yang tampil".
+     - Pengubahan Instan Per Produk: dropdown langsung di tiap baris tabel untuk memindahkan stasiun satu produk secara cepat.
+     - Bilah Aksi Massal (Floating Bulk Action Bar): muncul otomatis saat ada 1 atau lebih produk yang dipilih. Dilengkapi pilihan stasiun tujuan, tombol "Tetapkan", tombol "Lepas Stasiun", dan "Batalkan". Diuji pada 390px responsif dan tabel diberi padding bawah `pb-80` sehingga baris terbawah tidak tertutup.
+     - Notifikasi Hasil: banner pesan sukses hijau setelah pemindahan produk berhasil dan penanganan galat via `cg-banner`.
+     - Tautan Terintegrasi: tombol cepat "Penetapan Produk" dari `/pengaturan/stasiun-cetak` dan tombol "Stasiun cetak" dari `/produk`.
+  2. Kepatuhan Tailwind Monorepo:
+     - Lolos `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+  3. Lolos Uji:
+     - `pnpm -r typecheck` (0 error)
+     - `pnpm -F @cgpos/shared test` (55 file, 348 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (117 halaman statis)
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol (6 tangkapan layar di `docs/shots/a45/`).
 

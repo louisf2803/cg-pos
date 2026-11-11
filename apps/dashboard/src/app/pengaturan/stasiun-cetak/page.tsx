@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   Printer,
   Plus,
@@ -140,14 +141,23 @@ export default function PrintStationsPage() {
         subtitle="Kelola stasiun cetak pesanan untuk dapur, bar, dan label cup/kemasan"
         helpText="Pengaturan stasiun cetak untuk pesanan yang diteruskan otomatis dari kasir ke dapur, bar, atau printer label."
         actions={
-          <button
-            type="button"
-            className="cg-btn cg-btn--primary flex items-center gap-8"
-            onClick={() => setDialogStation({ mode: 'new' })}
-          >
-            <Plus className="w-16 h-16" aria-hidden />
-            <span>Tambah stasiun</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-8">
+            <Link
+              href="/pengaturan/stasiun-cetak/penetapan"
+              className="cg-btn cg-btn--secondary flex items-center gap-8 text-xs font-semibold"
+            >
+              <Package className="w-16 h-16" aria-hidden />
+              <span>Penetapan Produk</span>
+            </Link>
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary flex items-center gap-8 text-xs font-semibold"
+              onClick={() => setDialogStation({ mode: 'new' })}
+            >
+              <Plus className="w-16 h-16" aria-hidden />
+              <span>Tambah stasiun</span>
+            </button>
+          </div>
         }
       />
 
