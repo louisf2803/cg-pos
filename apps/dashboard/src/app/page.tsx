@@ -279,16 +279,16 @@ export default function Beranda() {
     return (
       <div className="space-y-24" aria-busy="true" aria-label="Memuat dashboard">
         <PageHeader title="Ringkasan penjualan" />
-        <div className="h-44 w-full max-w-sm rounded-lg bg-surface animate-pulse" />
+        <div className="cg-skeleton w-full max-w-sm" style={{ height: 44 }} />
         <div className="grid grid-cols-1 laptop:grid-cols-3 gap-16">
-          <div className="h-160 rounded-xl bg-surface animate-pulse" />
-          <div className="h-160 rounded-xl bg-surface animate-pulse" />
-          <div className="h-160 rounded-xl bg-surface animate-pulse" />
+          <div className="cg-skeleton" style={{ height: 160 }} />
+          <div className="cg-skeleton" style={{ height: 160 }} />
+          <div className="cg-skeleton" style={{ height: 160 }} />
         </div>
-        <div className="h-280 rounded-xl bg-surface animate-pulse" />
+        <div className="cg-skeleton" style={{ height: 280 }} />
         <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-16">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="h-200 rounded-xl bg-surface animate-pulse" />
+            <div key={i} className="cg-skeleton" style={{ height: 200 }} />
           ))}
         </div>
       </div>
