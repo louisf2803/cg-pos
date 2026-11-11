@@ -415,6 +415,25 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Tabel Rincian Per Jasa: kolom Nama Jasa, SKU, Kuantitas, Pendapatan, Harga Rata-rata, serta bar progress mini dan persentase kontribusi omset, dilengkapi baris footer Total.
      - Tombol Unduh CSV dengan penamaan file aman (`laporan-jasa-<label>.csv`).
      - Keadaan Kosong (Empty State) informatif saat belum ada transaksi jasa pada periode yang dipilih.
+- Selesai (tugas A38): Dashboard Keuangan: Widget Bisa Ditambah dan Diatur (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/dashboard-layout.ts`:
+     - Tipe dan Katalog 7 Widget Keuangan (`FINANCE_WIDGET_CATALOG`): Laba Rugi, Arus Kas, Saldo Kas & Bank, Posisi Neraca, Umur Hutang, Penerimaan & Pengeluaran Ringkas, Rekonsiliasi Non-tunai Ringkas.
+     - `validateAndMigrateLayout`: validasi data mentah dari penyimpanan, pembersihan ID tidak valid, deduplikasi stabil, dan migrasi array lama versi 0 ke skema versi 1 (`FINANCE_LAYOUT_SCHEMA_VERSION`).
+     - `addWidgetToLayout`: penambahan widget baru ke susunan dengan pencegahan duplikasi dan penolakan ID asing.
+     - `removeWidgetFromLayout`: penghapusan widget dari tata letak.
+     - `moveWidgetInLayout`: pengurutan naik/turun berbasis penukaran indeks dengan penjaga batas atas dan bawah yang aman untuk keyboard dan tombol visual.
+     - `getAvailableWidgets`: mendeteksi daftar widget katalog yang belum dipasang di dashboard.
+     - `serializeFinanceLayout` & `getFinanceLayoutStorageKey`: serialisasi terstandarisasi dengan isolasi kunci per pengguna (`cgpos_finance_layout_<user>`).
+     - 8 unit test komprehensif di `packages/shared/test/dashboard-layout.test.ts` (total 354 tes vitest lulus).
+  2. Kustomisasi Dashboard Keuangan (`/keuangan`):
+     - Pengaktifan tombol 'Tambah widget' di `PageHeader` yang membuka dialog katalog modal berpratinjau mini, kategori tag, dan deskripsi fungsi.
+     - Tombol 'Kembalikan bawaan' di header untuk mereset susunan ke 4 widget default.
+     - Kontrol kartu widget individual: tombol naik (`ChevronUp`), tombol turun (`ChevronDown`), dan tombol hapus (`Trash2`) dengan atribut ARIA dan navigasi keyboard penuh (tanpa bergantung pada drag and drop).
+     - 3 widget baru yang berfungsi penuh:
+       - Umur Hutang: 4 kartu umur (`AGING_BUCKETS`), total hutang usaha, dan 3 pemasok utama tertunggak dengan tautan ke laporan hutang.
+       - Penerimaan & Pengeluaran Ringkas: perbandingan kas masuk vs keluar, persentase perputaran, rasio bar visual, dan status surplus/defisit.
+       - Rekonsiliasi Non-tunai Ringkas: total nominal pembayaran non-tunai dan daftar metode kartu/QRIS/transfer.
+     - Keadaan Kosong (Empty State) saat seluruh widget dihapus dengan ajakan menambah widget pertama atau memasang widget bawaan.
   3. Kepatuhan Tailwind & Monorepo:
      - Lolos `scripts/lint-tailwind.sh origin/main` (hanya memakai breakpoint `tablet:`, `laptop:`, `desktop:`, `wide:`, ukuran terdaftar/eksplisit, dan token CSS monorepo).
   4. Lolos Uji:
@@ -422,3 +441,6 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/shared test` (56 file, 351 tes lulus).
      - `pnpm -F @cgpos/dashboard build` (115 halaman statis prerendered).
      - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol untuk keadaan kosong maupun keadaan terisi data (6 tangkapan layar di `docs/shots/a37/`).
+     - `pnpm -F @cgpos/shared test` (56 file, 354 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis prerendered).
+     - Audit Playwright di 390px, 1280px, dan 1440px tanpa overflow horizontal dan tanpa galat konsol untuk tampilan default, katalog modal, seluruh 7 widget, dan keadaan kosong (6 tangkapan layar di `docs/shots/a38/`).

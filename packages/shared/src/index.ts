@@ -55,4 +55,5 @@ export * from './cashflow-indirect';
 export * from './stock-alerts';
 export * from './customer-history';
 export * from './service-report';
+export * from './dashboard-layout';
 
