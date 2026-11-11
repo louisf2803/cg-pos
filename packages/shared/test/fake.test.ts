@@ -151,3 +151,41 @@ describe('catatan per item', () => {
     expect((await d.getOrder('o-note'))!.items[0]!.note).toBe('tanpa es');
   });
 });
+
+describe('jurnal transfer kas & bank', () => {
+  it('postJournal kind=transfer menghasilkan PS-, tersaring di listJournal, idempoten, dan bisa dibalik', async () => {
+    const d = mk(); d.reset();
+    const cashAccounts = (await d.listAccounts()).filter((a) => a.kind === 'detail' && a.isActive && a.category === 'cash_bank');
+    expect(cashAccounts.length).toBeGreaterThanOrEqual(2);
+    const [fromAcc, toAcc] = cashAccounts;
+    const reqId = newId();
+    const posted = await d.postJournal({
+      id: reqId,
+      date: '2026-11-12',
+      description: 'Setor tunai ke bank',
+      kind: 'transfer',
+      lines: [
+        { accountId: toAcc!.id, debit: 250000, credit: 0 },
+        { accountId: fromAcc!.id, debit: 0, credit: 250000 },
+      ],
+    });
+    expect(posted.number.startsWith('PS-')).toBe(true);
+    expect(posted.sourceType).toBe('transfer');
+    const replay = await d.postJournal({
+      id: reqId,
+      date: '2026-11-12',
+      description: 'Setor tunai ke bank',
+      kind: 'transfer',
+      lines: [
+        { accountId: toAcc!.id, debit: 250000, credit: 0 },
+        { accountId: fromAcc!.id, debit: 0, credit: 250000 },
+      ],
+    });
+    expect(replay.id).toBe(posted.id);
+    const listed = await d.listJournal({ from: '2026-11-01', to: '2026-11-30', sourceType: 'transfer' });
+    expect(listed.some((j) => j.id === posted.id && j.number === posted.number)).toBe(true);
+    const rev = await d.reverseJournal(posted.id, 'koreksi nominal', '2026-11-12');
+    expect(rev.number.startsWith('REV-')).toBe(true);
+    expect((await d.getJournal(posted.id))?.status).toBe('voided');
+  });
+});

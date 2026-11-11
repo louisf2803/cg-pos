@@ -42,7 +42,7 @@ export function accountProblem(i: AccountInput): string | null {
 }
 
 export type JournalStatus = 'posted' | 'voided';
-export type JournalSource = 'sale' | 'refund' | 'purchase_invoice' | 'purchase_payment' | 'cash_movement' | 'shift_close' | 'reconciliation' | 'settlement' | 'manual' | 'opening' | 'reversal' | string;
+export type JournalSource = 'sale' | 'refund' | 'purchase_invoice' | 'purchase_payment' | 'cash_movement' | 'shift_close' | 'reconciliation' | 'settlement' | 'manual' | 'opening' | 'transfer' | 'reversal' | string;
 export const SOURCE_LABEL: Record<string, string> = {
   sale: 'Penjualan', refund: 'Refund', purchase_invoice: 'Pembelian', purchase_payment: 'Bayar pembelian', cash_movement: 'Kas masuk/keluar', shift_close: 'Selisih kas shift',
   reconciliation: 'Rekonsiliasi', settlement: 'Settlement', manual: 'Jurnal manual', opening: 'Saldo awal', reversal: 'Pembalik', transfer: 'Pindah saldo',
@@ -53,10 +53,7 @@ export interface JournalSummary { id: string; number: string; date: string; desc
 export interface JournalLine { accountId: string; code: string; name: string; debit: number; credit: number; memo?: string }
 export interface Journal extends JournalSummary { lines: JournalLine[] }
 export interface JournalInput {
-  /** dibuat perangkat; kirim ulang dengan id sama tidak menggandakan.
-   * 'transfer' (pindah saldo kas/bank, nomor PS-) butuh migrasi 0032 di server — JANGAN dikirim
-   * sebelum migrasi itu diterapkan ke produksi (lihat docs/REQUESTS-FOR-CLAUDE.md /keuangan/transfer),
-   * server akan menolak dengan "invalid kind" selama belum diterapkan. */
+  /** dibuat perangkat; kirim ulang dengan id sama tidak menggandakan. 'transfer' memakai nomor dokumen PS-. */
   id: string; date: string; description: string; kind: 'manual' | 'opening' | 'transfer';
   lines: { accountId: string; debit: number; credit: number; memo?: string }[];
 }

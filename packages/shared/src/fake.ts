@@ -1359,19 +1359,20 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     },
     async getJournal(id) { const e = allEntries().find((x) => x.id === id); return e ? journalView(e) : null; },
     async postJournal(input: JournalInput) {
-      const prior = stored.find((e) => e.sourceId === input.id && (e.sourceType === 'manual' || e.sourceType === 'opening'));
+      const prior = stored.find((e) => e.sourceId === input.id && (e.sourceType === 'manual' || e.sourceType === 'opening' || e.sourceType === 'transfer'));
       if (prior) return journalView(prior);
       const problem = journalProblem(input);
       if (problem) throw new DataError('invalid', problem);
       const lines = input.lines.filter((l) => l.accountId);
       for (const l of lines) { const a = accounts.find((x) => x.id === l.accountId); if (!a || a.kind !== 'detail' || !a.isActive) throw new DataError('invalid', 'Ada akun yang tidak ditemukan, nonaktif, atau berupa akun induk.'); }
-      const e = storeEntry(input.date, input.description.trim(), input.kind, input.id, input.kind === 'opening' ? 'OB' : 'JU', lines.map((l) => ({ ...l, memo: l.memo?.trim() || undefined })));
+      const prefix = input.kind === 'opening' ? 'OB' : input.kind === 'transfer' ? 'PS' : 'JU';
+      const e = storeEntry(input.date, input.description.trim(), input.kind, input.id, prefix, lines.map((l) => ({ ...l, memo: l.memo?.trim() || undefined })));
       return journalView(e);
     },
     async reverseJournal(id, reason, date) {
       const e = stored.find((x) => x.id === id);
       if (!e) throw new DataError('invalid', 'Hanya jurnal manual dan saldo awal yang bisa dibalik.');
-      if (e.sourceType !== 'manual' && e.sourceType !== 'opening') throw new DataError('invalid', 'Hanya jurnal manual dan saldo awal yang bisa dibalik.');
+      if (e.sourceType !== 'manual' && e.sourceType !== 'opening' && e.sourceType !== 'transfer') throw new DataError('invalid', 'Hanya jurnal manual dan saldo awal yang bisa dibalik.');
       const prior = stored.find((x) => x.reversesId === e.id);
       if (prior) return journalView(prior);
       if (e.status !== 'posted') throw new DataError('invalid', 'Jurnal ini belum atau tidak lagi terposting.');
