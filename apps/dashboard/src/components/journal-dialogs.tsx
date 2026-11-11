@@ -38,7 +38,7 @@ export function ShowDialog({
   const canReverse =
     !!j &&
     j.status === 'posted' &&
-    (j.sourceType === 'manual' || j.sourceType === 'opening') &&
+    (j.sourceType === 'manual' || j.sourceType === 'opening' || j.sourceType === 'transfer') &&
     !j.reversesId;
 
   async function reverse(e: FormEvent) {

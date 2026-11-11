@@ -23,30 +23,23 @@ export default function CashTransfersPage() {
     () =>
       data.listJournal({
         ...span,
-        sourceType: 'manual',
+        sourceType: 'transfer',
         ...(search.trim() ? { search: search.trim() } : {}),
       }),
     [data, span.from, span.to, search]
   );
 
-  // Filter transfers: either marked as transfer or having pindah saldo in description
+  // Saring langsung berdasarkan jenis sumber 'transfer' (nomor dokumen PS-)
   const transfers = useMemo(() => {
     if (list.status !== 'ready') return [];
     const needle = search.trim().toLowerCase();
 
     return list.data.filter((j: JournalSummary) => {
-      const desc = j.description.toLowerCase();
-      const isTransfer =
-        j.sourceType === 'transfer' ||
-        desc.includes('pindah saldo') ||
-        desc.includes('transfer') ||
-        desc.includes('mutasi kas');
-
-      if (!isTransfer) return false;
+      if (j.sourceType !== 'transfer') return false;
       if (!needle) return true;
       return (
         j.number.toLowerCase().includes(needle) ||
-        desc.includes(needle)
+        j.description.toLowerCase().includes(needle)
       );
     });
   }, [list, search]);

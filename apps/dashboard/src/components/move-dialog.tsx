@@ -91,7 +91,13 @@ export function MoveDialog({
     setBusy(true);
     setErr('');
     try {
-      const j = await data.postJournal({ id, date: f.date, description: desc, kind: 'manual', lines });
+      const j = await data.postJournal({
+        id,
+        date: f.date,
+        description: desc,
+        kind: kind === 'move' ? 'transfer' : 'manual',
+        lines,
+      });
       onDone(`${MOVE_TITLE[kind]} ${formatRp(amount)} tercatat (${j.number}).`);
     } catch (x) {
       setErr(x instanceof Error ? x.message : 'Gagal mencatat.');
