@@ -479,4 +479,18 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - Sesuai aturan monorepo dan instruksi eksplisit A40 ("Bila tidak ada di tipe Order, JANGAN mengubah data.ts: tulis temuanmu di PROGRESS.md (nama field yang dibutuhkan) lalu lewati tugas ini dan lanjut ke tugas berikutnya"):
        - Permintaan data dicatat di `docs/REQUESTS-FOR-CLAUDE.md`: dibutuhkan field `deviceCode?: string` pada antarmuka `Order` dan kolom `device_code` pada tabel `orders` / `DataLayer`.
        - Tugas A40 dilewati untuk saat ini dan langsung lanjut ke tugas A41.
+- Selesai (tugas A41): Sisa Perapian Dashboard Keuangan (`apps/dashboard`):
+  1. Perbaikan Layout & Tipografi di `/keuangan`:
+     - Menambahkan `whitespace-nowrap` pada semua angka nominal rupiah (Total Kas & Bank, Pendapatan, Beban, Laba Bersih, Kas Masuk, Kas Keluar, Saldo Bersih, Akun Kas, Total Aset, Liabilitas, Ekuitas) sehingga pada layar 390 px tidak pernah terpecah menjadi dua baris antara "Rp" dan angka.
+     - Mengganti teks duplikat "Aktiva" di sisi kanan kartu Total Aset dengan lencana persentase informatif `100% Total` (`bg-accent/10 text-accent font-semibold text-xs`).
+     - Merapatkan baris rekening kas dan bank pada kartu Saldo Kas & Bank menjadi tepat ~48px (`min-h-[48px] px-12 py-[8px]`) dan meratakan angka nominal rata ke ujung kanan kartu (`ml-auto text-right`).
+     - Membuang ruang kosong ±70px pada kartu Posisi Neraca dengan merapatkan margin tautan bawah menjadi `mt-8 pt-8 border-t border-border` sejajar dengan kartu Saldo Kas & Bank.
+     - Memastikan grid container kartu desktop menggunakan `items-start` sehingga kartu pada baris yang sama bebas memiliki tinggi alami tanpa peregangan kosong vertikal.
+  2. Lolos Uji & Audit:
+     - `scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard).
+     - `pnpm -r typecheck` (0 error).
+     - `pnpm -F @cgpos/shared test` (55 file, 346 tes lulus).
+     - `pnpm -F @cgpos/dashboard build` (115 halaman statis lolos).
+     - Audit Playwright di 1440px, 1280px, dan 390px (0 overflow, 0 galat konsol; tangkapan layar di `docs/shots/a41/`).
 
+- S139 (Claude) — A41 digabung hanya sebagian: perbaikan nowrap/kartu keuangan A41 bentrok dengan widget kustom A38 (A41 mengubah tata letak 4 widget lama yang sudah diganti), jadi page.tsx memakai versi A38; perbaikan A41 (nominal satu baris di 390 px, baris Kas/Bank rapat, Total Aset) perlu diterapkan ulang pada tata letak widget baru (usul tugas A51).
