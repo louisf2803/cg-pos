@@ -285,7 +285,7 @@ export default function KaryawanDanAkses() {
       {contextAsync.status === 'loading' && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat daftar karyawan">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-64 rounded-xl bg-surface animate-pulse" />
+            <div key={i} className="cg-skeleton" style={{ height: 64 }} />
           ))}
         </div>
       )}
@@ -334,7 +334,7 @@ export default function KaryawanDanAkses() {
                               <span
                                 className={`inline-flex items-center px-8 py-2 rounded-full text-xs font-semibold ${
                                   e.role === 'owner'
-                                    ? 'bg-purple-500/10 text-purple-700'
+                                    ? 'bg-info/10 text-info'
                                     : e.role === 'manager'
                                     ? 'bg-warning/10 text-warning'
                                     : 'bg-accent/10 text-accent'
@@ -488,7 +488,7 @@ export default function KaryawanDanAkses() {
                         <span
                           className={`inline-flex items-center px-8 py-2 rounded-full font-semibold ${
                             e.role === 'owner'
-                              ? 'bg-purple-500/10 text-purple-700'
+                              ? 'bg-info/10 text-info'
                               : e.role === 'manager'
                               ? 'bg-warning/10 text-warning'
                               : 'bg-accent/10 text-accent'
