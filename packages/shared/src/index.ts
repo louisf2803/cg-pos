@@ -57,4 +57,5 @@ export * from './customer-history';
 export * from './service-report';
 export * from './dashboard-layout';
 export * from './export-history';
+export * from './top-reports';
 

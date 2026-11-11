@@ -70,6 +70,7 @@ export const MODUL: NavModule[] = [
         label: 'Laporan',
         icon: BarChart3,
         items: [
+          { section: 'Penjualan', href: '/laporan/teratas', label: '10 Laporan teratas', screen: 'S80', tier: 1, built: true },
           { section: 'Penjualan', href: '/laporan/penjualan', label: 'Detail penjualan', screen: 'S81', tier: 1, built: true },
           { section: 'Penjualan', href: '/laporan/periode', label: 'Per periode', screen: 'S80', tier: 2, built: true },
           { section: 'Penjualan', href: '/laporan/outlet', label: 'Per outlet', screen: 'S80', tier: 3 },

@@ -630,4 +630,29 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
      - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
      - `bash scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard)
      - Playwright audit di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (5 tangkapan layar di `docs/shots/a48/`).
+- Selesai (tugas A49): 10 Laporan Teratas di Dashboard (`packages/shared` & `apps/dashboard`):
+  1. Helper Murni di `packages/shared/src/top-reports.ts`:
+     - `getTopProducts`: agregasi produk terlaris dari pesanan lunas, urut kuantitas (qty) dan nilai penjualan (totalSales) menurun, kontribusi persen omzet, dan pembatasan limit (10 baris).
+     - `getTopLowestStock`: pengurutan stok dari saldo terendah (minus, nol, hingga terkecil) dengan pemetaan status stok dan lencana.
+     - `getTopMinStock`: penentuan barang yang paling mendesak terhadap batas minimum stok (berdasarkan selisih `qty - minQty`), menghitung kekurangan/sisa kuantitas.
+     - `getTopOrderTypes`: pengurutan jenis pesanan (dine_in, takeaway, delivery, service) berdasarkan nilai omzet transaksi dan jumlah nota.
+     - 7 unit test komprehensif di `packages/shared/test/top-reports.test.ts` (total 353 tes vitest lulus).
+  2. Layar Dashboard `/laporan/teratas`:
+     - Filter rentang tanggal (`RangePicker`) sinkron dengan `useRange(tz)`.
+     - Tata letak grid 2 kolom di laptop/desktop (`laptop:grid-cols-2`) dan 1 kolom di mobile (390px) tanpa overflow horizontal.
+     - 5 kartu laporan teratas:
+       1. Produk Terlaris (peringkat, nama produk, porsi omzet, qty terjual, total omzet, tautan ke `/laporan/produk`).
+       2. Laba Kotor per Produk (kartu nonaktif berlabel "Segera" dengan banner informasi persiapan HPP historis di server; kebutuhan dicatat di `docs/REQUESTS-FOR-CLAUDE.md`).
+       3. Stok Terendah (peringkat, bahan/barang, satuan, sisa stok, status badge, tautan ke `/inventori/stok`).
+       4. Stok Mendekati Minimum (peringkat, nama bahan, batas minimum, sisa/kekurangan, kondisi badge, tautan ke `/inventori/stok`).
+       5. Jenis Order Terbanyak (peringkat, jenis order, frekuensi nota, total omzet, porsi %, tautan ke `/laporan/jenis-order`).
+     - Keadaan memuat (`cg-skeleton`), keadaan kosong (`cg-empty`), dan penanganan galat (`ErrorBox`).
+  3. Navigasi:
+     - `/laporan/teratas` ditambahkan ke `apps/dashboard/src/lib/nav.ts` pada grup Laporan > Penjualan (`built: true`).
+  4. Kepatuhan & Uji:
+     - `pnpm -r typecheck` (0 galat)
+     - `pnpm -F @cgpos/shared test` (56 file, 353 tes lulus)
+     - `pnpm -F @cgpos/dashboard build` (116 halaman statis)
+     - `bash scripts/lint-tailwind.sh origin/main` (LULUS tailwind-guard)
+     - Playwright audit di 1440px, 1280px, dan 390px tanpa overflow horizontal dan tanpa galat konsol (3 tangkapan layar di `docs/shots/a49/`).
 
