@@ -166,7 +166,7 @@ export const MODUL: NavModule[] = [
         label: 'Komisi',
         icon: Award,
         items: [
-          { href: '/komisi', label: 'Daftar grup komisi', screen: 'S45', tier: 3 },
+          { href: '/komisi', label: 'Daftar grup komisi', screen: 'S45', tier: 3, built: true },
         ],
       },
       {

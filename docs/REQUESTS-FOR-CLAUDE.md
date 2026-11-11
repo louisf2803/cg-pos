@@ -64,3 +64,17 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
   - Perluasan `saveTable` / metode baru `saveTableLayout(positions: { tableId: string; xPct: number; yPct: number }[])` dan `saveTableSettings(tableId: string, settings: TableSettings)`.
 - Sementara: Pilihan mode, koordinat kustom, dan 4 pengaturan per meja disimpan sementara di `localStorage` dengan lencana "Pratinjau".
 
+## /komisi & /laporan/karyawan tab Komisi (A54 — Aturan Grup Komisi & Laporan Komisi) — 2026-11-11
+- Butuh: Penyimpanan permanen skema aturan komisi di database serta metode `DataLayer` untuk CRUD grup komisi beserta penetapan karyawan & kategori/produknya.
+- Untuk: Layar `/komisi` (daftar grup komisi) dan tab **Komisi** pada `/laporan/karyawan` (perhitungan komisi tetap memakai data pesanan nyata `data.listOrders`).
+- Bentuk yang diinginkan:
+  - Tabel `commission_groups` (`id`, `org_id`, `name`, `rate_type: 'percent' | 'fixed'`, `rate_value`, `is_active`, `created_at`)
+  - Tabel `commission_group_employees` (`group_id`, `employee_id`)
+  - Tabel `commission_group_products` (`group_id`, `category_id` nullable, `product_id` nullable)
+  - Metode `DataLayer`:
+    - `listCommissionGroups(): Promise<CommissionGroup[]>`
+    - `saveCommissionGroup(group: CommissionGroup): Promise<CommissionGroup>`
+    - `deleteCommissionGroup(id: string): Promise<void>`
+- Sementara: Definisi grup komisi disimpan di `localStorage` (`cgpos_commission_groups`) dengan lencana **"Pratinjau — aturan belum tersimpan di server"**, sementara perhitungan komisi di `/laporan/karyawan` langsung memakai pesanan nyata (`data.listOrders`) + produk (`data.listProducts`) melalui `computeCommissionReport`.
+
+
