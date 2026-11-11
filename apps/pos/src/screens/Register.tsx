@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
-import { checkStockLimit, groupNotePresets, noteHasText, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { ClipboardList, Lock, Monitor, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
+import { checkStockLimit, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
+import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
 import { useCart } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
@@ -96,6 +97,43 @@ export function Register({
   const [discOpen, setDiscOpen] = useState(false);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
+
+  // Sinkronkan isi keranjang secara waktu-nyata ke layar pelanggan eksternal (?display=customer)
+  useEffect(() => {
+    if (paying) return;
+    const hasItems = cart.state.lines.length > 0;
+    publishCustomerDisplay({
+      version: 1,
+      outletName: ctx.outletName,
+      outletAddress: ctx.address,
+      cashierName: session.employee.name,
+      phase: hasItems ? 'ordering' : 'idle',
+      orderTypeLabel: hasItems ? orderTypeLabel(cart.state.type) : undefined,
+      tableName: cart.state.tableName,
+      customerName: cart.state.customerName ?? (cart.state.label?.trim() || undefined),
+      lines: cart.state.lines.map((line) => ({
+        id: line.id,
+        name: line.name,
+        qty: line.qty,
+        unitPrice: line.unitPrice,
+        ...(line.extras?.length ? { extrasLabel: line.extras.map((e) => e.name).join(', ') } : {}),
+        lineTotal: line.qty * line.unitPrice + extrasLineTotal(line.qty, line.extras),
+      })),
+      subtotal: cart.calc.subtotal,
+      discountTotal: cart.calc.discountTotal,
+      serviceCharge: cart.calc.serviceCharge,
+      taxTotal: cart.calc.taxTotal,
+      rounding: cart.calc.rounding,
+      total: cart.calc.total,
+      welcomeMessage: ctx.receiptHeader,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [paying, ctx, session.employee.name, cart.state, cart.calc]);
+
+  function openCustomerScreen() {
+    const res = openCustomerDisplayWindow();
+    setNotice(res.opened ? 'Layar pelanggan dibuka di jendela baru.' : `Jendela pop-up diblokir. Buka manual: ${res.url}`);
+  }
 
   const hasFav = prods.status === 'ready' && prods.data.some((p) => p.isFavorite);
   const hasBundle = prods.status === 'ready' && prods.data.some((p) => p.kind === 'bundle');
@@ -313,6 +351,16 @@ export function Register({
             onClick={() => setShiftOpen(true)}
           >
             Shift
+          </button>
+
+          <button
+            type="button"
+            className="hidden tablet:flex p-6 rounded hover:bg-white/15 text-white items-center justify-center cursor-pointer"
+            onClick={openCustomerScreen}
+            aria-label="Layar pelanggan"
+            title="Layar pelanggan eksternal"
+          >
+            <Monitor className="cg-icon cg-icon--sm" aria-hidden />
           </button>
 
           <button
@@ -943,6 +991,8 @@ export function Register({
               setShowOrders(true);
             } else if (view === 'kitchen') {
               onOpenKitchen?.();
+            } else if (view === 'customerDisplay') {
+              openCustomerScreen();
             } else if (view === 'shift') {
               setShiftOpen(true);
             } else if (view === 'settings') {
