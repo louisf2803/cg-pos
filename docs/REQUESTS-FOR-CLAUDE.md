@@ -106,3 +106,13 @@ membuat migrasi + fungsi server + implementasi `supabase.ts`, lalu mengabari. Fo
 - Untuk: Tampilan pilih meja (`apps/pos/src/screens/TablePicker.tsx`) dan operasi meja (`packages/shared/src/table-ops.ts`) di kasir, agar kasir melihat status meja yang sama informatifnya dengan Majoo asli.
 - Sementara: CG POS tetap pakai status biner kosong/terisi untuk saat ini. Ditulis di sini supaya tidak terlupa; BUKAN diprioritaskan sebelum keputusan skema di atas diambil Claude, dan BUKAN tugas Antigravity sampai keputusan itu selesai (lihat AGENTS.md #3: Antigravity tidak boleh menebak bentuk data baru).
 
+
+## Dari Antigravity (A59) — Metode Pembayaran & Status Kanal CG Order (`/pengaturan/metode-bayar`, `/order-online/*`)
+
+1. **Pengaturan Metode Pembayaran (`/pengaturan/metode-bayar`, `S40`)**:
+   - Saat ini `DataLayer.listPaymentMethods()` bersifat baca-saja (`CASH`, `QRIS`, `EDC`, `TRF`, `FREE`), sedangkan penambahan metode EDC/Transfer/Dompet digital kustom, penyesuaian nama tampil, toggle aktif/nonaktif non-gateway, dan potongan MDR (`feePct` + `feeFixed`) disimpan di peramban (`Pratinjau`). Sesuai kebijakan keamanan, aktivasi QRIS/gateway DOKU dan penyimpanan kunci rahasia sengaja tidak diaktifkan.
+   - **Bentuk data & DataLayer yang dibutuhkan**: `savePaymentMethod(input: PaymentMethodConfigInput)` dan `setPaymentMethodActive(id: string, isActive: boolean)` di `DataLayer` (menyimpan kolom `channel`, `fee_pct`, `fee_fixed`, `account_name`, `account_number`, `settlement_note`, `is_active` pada `pos.payment_methods` agar kasir dan laporan rekonsiliasi non-tunai membaca MDR dan status aktif yang sama).
+
+2. **Status Kanal CG Order & Pesanan Online (`/order-online/*`, `S64`–`S69`)**:
+   - Saat ini pengaturan kesiapan kanal **CG Order** (`mandiri`, `delivery`, `marketplace`, `kios`, `aplikasi`: `status`, `autoAccept`, `prepMinutes`, `priceMarkupPct`, `openHours`, `storefrontSlug`) tersimpan di `localStorage` (`Pratinjau`).
+   - **Bentuk data & DataLayer yang dibutuhkan**: `listOnlineChannels()` / `saveOnlineChannel(channel)` beserta feed `listOnlineOrders()` dan aksi `updateOnlineOrderStatus()` di `DataLayer` untuk menyambungkan status buka/tutup kanal serta pesanan daring secara waktu-nyata dari webhook server.
