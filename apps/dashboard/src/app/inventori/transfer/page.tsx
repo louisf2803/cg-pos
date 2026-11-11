@@ -12,7 +12,10 @@ const num = (n: number) => new Intl.NumberFormat('id-ID', { maximumFractionDigit
 
 export default function StockTransferPage() {
   const data = useData();
-  const state = useAsync(async () => { const [locations, transfers] = await Promise.all([data.listStockLocations(), data.listStockTransfers()]); return { locations, transfers }; }, [data]);
+  const state = useAsync(async () => {
+    const [locations, transfers, settings] = await Promise.all([data.listStockLocations(), data.listStockTransfers(), data.getOutletSettings()]);
+    return { locations, transfers, allowNegativeStock: settings.options.allowNegativeStock };
+  }, [data]);
   const [dlg, setDlg] = useState(false);
   const [notice, setNotice] = useState('');
   const [err, setErr] = useState('');
@@ -62,15 +65,16 @@ export default function StockTransferPage() {
           ))}
         </ul>
       ))}
-      {dlg && state.status === 'ready' && <NewTransfer locations={state.data.locations} onClose={() => setDlg(false)} onDone={(m) => { setDlg(false); setNotice(m); state.reload(); }} />}
+      {dlg && state.status === 'ready' && <NewTransfer locations={state.data.locations} allowNegativeStock={state.data.allowNegativeStock} onClose={() => setDlg(false)} onDone={(m) => { setDlg(false); setNotice(m); state.reload(); }} />}
     </>
   );
 }
 
-function NewTransfer({ locations, onClose, onDone }: { locations: StockLocation[]; onClose: () => void; onDone: (msg: string) => void }) {
+function NewTransfer({ locations, allowNegativeStock, onClose, onDone }: { locations: StockLocation[]; allowNegativeStock: boolean; onClose: () => void; onDone: (msg: string) => void }) {
   const data = useData();
   const d = useDialog(onClose);
   const items = useAsync(() => data.listPurchaseItems(), [data]);
+  const stock = useAsync(() => data.listStock(), [data]);
   const [id] = useState(() => newId());
   const [from, setFrom] = useState(locations[0]!.id);
   const [to, setTo] = useState(locations[1]!.id);
@@ -78,12 +82,19 @@ function NewTransfer({ locations, onClose, onDone }: { locations: StockLocation[
   const [rows, setRows] = useState<{ key: string; productId: string; qty: string }[]>([{ key: newId(), productId: '', qty: '' }]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const outletLocations = locations.filter((l) => l.kind === 'outlet');
+  const fromIsSingleOutlet = outletLocations.length === 1 && from === outletLocations[0]!.id;
+  const stockList = stock.status === 'ready' ? stock.data : [];
+  const stockItemOf = (pid: string) => stockList.find((s) => s.productId === pid);
   const setRow = (key: string, p: Partial<{ productId: string; qty: string }>) => { setRows((r) => r.map((x) => (x.key === key ? { ...x, ...p } : x))); setErr(''); };
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     const lines = rows.map((r) => ({ productId: r.productId, qty: Number(r.qty.replace(',', '.')) }));
-    const problem = transferProblem({ fromId: from, toId: to, lines });
+    const enforceOutletStock = !allowNegativeStock && fromIsSingleOutlet;
+    if (enforceOutletStock && stock.status !== 'ready') return setErr('Sedang memuat sisa stok outlet. Coba sesaat lagi.');
+    const stockByProduct = enforceOutletStock ? new Map(stockList.map((s) => [s.productId, s.qty])) : undefined;
+    const problem = transferProblem({ fromId: from, toId: to, lines }, enforceOutletStock ? { allowNegative: false, stockByProduct } : undefined);
     if (problem) return setErr(problem);
     setBusy(true); setErr('');
     try { const r = await data.createStockTransfer({ id, fromId: from, toId: to, note, lines }); onDone(`Transfer ${r.number} dikirim. Stok keluar dari lokasi asal; tekan Terima saat barang sampai.`); }
@@ -101,12 +112,16 @@ function NewTransfer({ locations, onClose, onDone }: { locations: StockLocation[
             <select id="tf-ke" className="cg-input" value={to} onChange={(e) => { setTo(e.target.value); setErr(''); }}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
         </div>
         {items.status === 'error' && <ErrorBox message={items.message} onRetry={items.reload} />}
+        {!allowNegativeStock && fromIsSingleOutlet && <p className="text-sm text-text-muted m-0">Outlet melarang stok minus: jumlah transfer keluar tidak boleh melebihi sisa stok asal.</p>}
         <ul className="grid gap-8" aria-label="Barang yang dipindah">
           {rows.map((r, i) => (
             <li key={r.key} className="flex gap-8 items-end min-w-0">
               <div className="cg-field grow min-w-0"><label className="cg-label" htmlFor={`tf-b-${i}`}>Barang {i + 1}</label>
                 <select id={`tf-b-${i}`} className="cg-input" value={r.productId} onChange={(e) => setRow(r.key, { productId: e.target.value })}>
-                  <option value="">Pilih barang…</option>{items.status === 'ready' && items.data.map((it) => <option key={it.productId} value={it.productId}>{it.name}</option>)}</select></div>
+                  <option value="">Pilih barang…</option>{items.status === 'ready' && items.data.map((it) => {
+                    const s = fromIsSingleOutlet ? stockItemOf(it.productId) : undefined;
+                    return <option key={it.productId} value={it.productId}>{it.name}{s ? ` (sisa ${num(s.qty)} ${it.baseUnit})` : ''}</option>;
+                  })}</select></div>
               <div className="cg-field" style={{ width: 110 }}><label className="cg-label" htmlFor={`tf-q-${i}`}>Jumlah{unitOf(r.productId) ? ` (${unitOf(r.productId)})` : ''}</label>
                 <input id={`tf-q-${i}`} className="cg-input cg-num" inputMode="decimal" value={r.qty} onChange={(e) => setRow(r.key, { qty: e.target.value.replace(/[^\d.,]/g, '') })} /></div>
               <button type="button" className="cg-btn cg-btn--ghost" disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))} aria-label={`Hapus barang ${i + 1}`}><Trash2 className="cg-icon" aria-hidden /></button>

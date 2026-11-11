@@ -40,4 +40,28 @@ describe('transfer stok: data tiruan', () => {
     await expect(d.createStockTransfer({ id: 't4', fromId: a!.id, toId: a!.id, lines: [{ productId: 'ing-kopi', qty: 1 }] })).rejects.toMatchObject({ code: 'invalid' });
     await expect(d.createStockTransfer({ id: 't5', fromId: a!.id, toId: b!.id, lines: [{ productId: 'tidak-ada', qty: 1 }] })).rejects.toMatchObject({ code: 'invalid' });
   });
+
+  it('menolak transfer keluar dari outlet melebihi stok saat allowNegativeStock=false', async () => {
+    const stockMap = new Map([['p8', 3], ['p13', 0]]);
+    expect(transferProblem({ fromId: 'a', toId: 'b', lines: [{ productId: 'p8', qty: 4 }] }, { allowNegative: false, stockByProduct: stockMap })).toMatch(/melebihi sisa stok/);
+    expect(transferProblem({ fromId: 'a', toId: 'b', lines: [{ productId: 'p13', qty: 1 }] }, { allowNegative: false, stockByProduct: stockMap })).toMatch(/habis/);
+    expect(transferProblem({ fromId: 'a', toId: 'b', lines: [{ productId: 'p8', qty: 3 }] }, { allowNegative: false, stockByProduct: stockMap })).toBeNull();
+    expect(transferProblem({ fromId: 'a', toId: 'b', lines: [{ productId: 'p8', qty: 4 }] }, { allowNegative: true, stockByProduct: stockMap })).toBeNull();
+
+    const d = createFakeData();
+    const s = await d.getOutletSettings();
+    await d.saveOutletOptions({ ...s.options, allowNegativeStock: false });
+    const [outletLoc, gudangLoc] = await d.listStockLocations();
+    const p8Before = (await d.listStock({ search: 'Air mineral' }))[0]!.qty;
+    expect(p8Before).toBe(3);
+
+    await expect(d.createStockTransfer({ id: 't-over', fromId: outletLoc!.id, toId: gudangLoc!.id, lines: [{ productId: 'p8', qty: 4 }] })).rejects.toMatchObject({ code: 'invalid' });
+    expect((await d.listStock({ search: 'Air mineral' }))[0]!.qty).toBe(3);
+
+    // Tepat menghabiskan sisa stok diperbolehkan, lalu retry idempoten tetap sukses meski saldo kini 0
+    const ok = await d.createStockTransfer({ id: 't-exact', fromId: outletLoc!.id, toId: gudangLoc!.id, lines: [{ productId: 'p8', qty: 3 }] });
+    expect(ok.number).toMatch(/^TRF-/);
+    expect((await d.listStock({ search: 'Air mineral' }))[0]!.qty).toBe(0);
+    expect((await d.createStockTransfer({ id: 't-exact', fromId: outletLoc!.id, toId: gudangLoc!.id, lines: [{ productId: 'p8', qty: 3 }] })).number).toBe(ok.number);
+  });
 });

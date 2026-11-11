@@ -926,10 +926,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         .sort((a, b) => a.name.localeCompare(b.name, 'id'));
     },
     async postStock(input: StockPostInput) {
-      const problem = stockPostProblem(input);
-      if (problem) throw new DataError('invalid', problem);
-      if (!stockBal(input.productId)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
+      const basic = stockPostProblem(input);
+      if (basic) throw new DataError('invalid', basic);
+      const bal = stockBal(input.productId);
+      if (!bal) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
       if (!stockKeys.has(input.id)) {
+        const negProblem = stockPostProblem(input, { allowNegative: CTX.settings.allowNegativeStock, currentQty: bal.qty });
+        if (negProblem) throw new DataError('invalid', negProblem);
         stockKeys.add(input.id);
         recordStock(input.productId, input.kind === 'adjust_in' ? input.qty : -input.qty, input.kind, { unitCost: input.kind === 'adjust_in' ? input.unitCost : undefined, reason: input.reason?.trim() || undefined, refType: 'manual' });
       }
@@ -1282,11 +1285,17 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const problem = transferProblem(input);
       if (problem) throw new DataError('invalid', problem);
       if (!locNames[input.fromId] || !locNames[input.toId]) throw new DataError('not_found', 'Lokasi tidak ditemukan.');
+      const stockByProduct = new Map<string, number>();
       const lines = input.lines.map((l) => {
         const b = stockBal(l.productId);
         if (!b) throw new DataError('invalid', 'Ada barang yang stoknya tidak dilacak.');
+        if (input.fromId === LOC_OUTLET) stockByProduct.set(l.productId, b.qty);
         return { productId: l.productId, name: b.name, qty: l.qty, receivedQty: 0, cost: costs.get(l.productId) ?? 0 };
       });
+      if (input.fromId === LOC_OUTLET) {
+        const stockErr = transferProblem(input, { allowNegative: CTX.settings.allowNegativeStock, stockByProduct });
+        if (stockErr) throw new DataError('invalid', stockErr);
+      }
       for (const l of lines) {
         if (input.fromId === LOC_OUTLET) recordStock(l.productId, -l.qty, 'transfer_out', { reason: `Transfer ke ${locNames[input.toId]}`, refType: 'transfer' });
         else whQty.set(l.productId, (whQty.get(l.productId) ?? 0) - l.qty);
