@@ -5,17 +5,21 @@ Dibaca oleh sesi `/goal` (Claude Code di PC Louis). Jalankan di salinan repo TER
 `node scripts/goal-check.mjs`. Baca `AGENTS.md` dan `docs/ANTIGRAVITY.md` sekali di awal sesi.
 
 ## Pembagian peran supaya tidak dobel
-- **Tugas terjadwal "Cek & merge" (tiap 20 menit, cloud):** satu-satunya yang me-merge cabang `ag/*` ke `main` setelah typecheck, tes, dan build lulus.
-  Sesi ini TIDAK me-merge, kecuali cabang sudah menggantung lebih dari 60 menit padahal semua cek lulus.
-- **Tugas terjadwal "Kejar paritas" (tiap 2 jam, cloud):** verifikasi alur ke Majoo asli (akun TRIAL CLAUDE) dan sisi server. Sesi ini tidak
-  membuka Majoo; bila alur belum jelas, tulis "perlu verifikasi Majoo" di `docs/MAJOO-VERIFICATION.md`, jangan menebak.
-- **Sesi ini:** meninjau hasil yang sudah masuk `main`, menyatakan sebuah fitur selesai (hanya reviewer yang boleh mengubah `docs/features.csv`
+- **Tidak ada lagi tugas terjadwal di cloud** (dimatikan Louis, 12 Nov 2026). Sesi `/goal` ini satu-satunya pe-merge cabang `ag/*` ke `main`.
+- **Verifikasi ke Majoo asli:** sesi ini tidak membuka Majoo. Bila alur belum jelas, tulis "perlu verifikasi Majoo" di `docs/MAJOO-VERIFICATION.md`
+  (Louis bisa memverifikasi sendiri atau meminta di chat), jangan menebak. Pakai dokumentasi publik Majoo bila ada.
+- **Sesi ini:** me-merge cabang `ag/*` yang lulus cek (langkah 1), meninjau hasil yang sudah masuk `main`, menyatakan sebuah fitur selesai (hanya reviewer yang boleh mengubah `docs/features.csv`
   dan `docs/wave.csv`), menjaga antrean tugas, mengerjakan permintaan sisi server secara LOKAL, dan menjalankan `goal-check`.
 - Antigravity tidak menyentuh `docs/features.csv`, `docs/wave.csv`, `docs/bugs.md`.
 
 ## Satu siklus (jangan membaca file besar utuh; pakai `tail`, `grep`, dan `--list`)
 0. `git pull --ff-only`. Bandingkan SHA `main` dengan baris terakhir `docs/REVIEW-LOG.md`.
-1. **Tidak ada commit baru di `main` dan antrean masih ≥ 4 tugas terbuka?** Tulis satu baris "idle" di REVIEW-LOG dan lompat ke langkah 6.
+0b. **Merge cabang Antigravity.** `git fetch origin`, lalu untuk tiap `ag/a<N>-*` yang belum ada di `main` dan punya commit baru: baca `git diff main...ag/<nama>`.
+   JANGAN merge dan tulis catatan revisi di file tugasnya bila: menyentuh `packages/db/migrations`, `packages/shared/src/data.ts`, `packages/shared/src/supabase.ts`
+   (kecuali tugasnya mengizinkan), menyimpan PIN/password mentah, mengaktifkan DOKU/QRIS, atau menambah kunci rahasia. Bila aman, wajib lulus:
+   `pnpm -r typecheck`, `pnpm -F @cgpos/shared test`, `pnpm -F @cgpos/dashboard build` (tambah `pnpm -F @cgpos/pos build` bila menyentuh `apps/pos`),
+   `bash scripts/lint-tailwind.sh origin/main` bila ada. Lulus semua: `git merge --no-edit` lalu `git push origin HEAD:main`. Satu cabang per kali, urut nomor tugas.
+1. **Tidak ada commit baru di `main`, tidak ada cabang `ag/*` baru, dan antrean masih ≥ 4 tugas terbuka?** Tulis satu baris "idle" di REVIEW-LOG dan lompat ke langkah 6.
 2. **Tinjau yang baru masuk (maks 5 tugas per siklus).** Untuk tiap tugas `a<N>` yang baru digabung: baca file tugasnya di `docs/queue/`, entri terakhirnya di
    `docs/PROGRESS.md` (`tail -60`), dan buka paling banyak 2 gambar di `docs/shots/<id>/` (390 px dan 1280 px). Build sudah dijalankan saat merge; jalankan ulang
    hanya jika ada laporan masalah. Standar selesai (`AGENTS.md` #7): alur dan data hasilnya sama dengan Majoo, bukan sekadar tampilan.
