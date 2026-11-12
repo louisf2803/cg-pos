@@ -1,36 +1,29 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Copy,
   Edit2,
   Info,
-  Monitor,
   Plus,
   Search,
   Shield,
-  Smartphone,
   Trash2,
   Users,
   X,
 } from 'lucide-react';
 import {
-  buildDefaultDashboardPerms,
-  buildDefaultPosPerms,
-  createDefaultRoleDefinitions,
   createBlankCustomRole,
-  migrateRoleDefinition,
   duplicateRoleName,
+  extractLegacyCustomRoles,
   isBuiltInRole,
-  mergeRoleOverrides,
+  mergeServerRoles,
+  migrateRoleDefinition,
   newId,
-  POS_GRANULAR_PERMISSIONS,
   resolveRolePermissions,
-  validateRoleName,
-  type DashboardAccessLevel,
+  roleActionErrorMessage,
+  upsertCustomRole,
   type ManagedEmployee,
-  type PosAccessLevel,
-  type Role,
   type RoleDefinition,
 } from '@cgpos/shared';
 import { MODUL } from '@/lib/nav';
@@ -84,33 +77,21 @@ function buildDashboardModuleList(): DashboardModuleInfo[] {
 const DASHBOARD_MODULES = buildDashboardModuleList();
 const DASHBOARD_MODULE_IDS = DASHBOARD_MODULES.map((m) => m.id);
 
-const DASH_LEVELS: { value: DashboardAccessLevel; label: string }[] = [
-  { value: 'none', label: 'Tidak ada' },
-  { value: 'read', label: 'Lihat saja' },
-  { value: 'write', label: 'Lihat & ubah' },
-];
-
-const POS_LEVELS: { value: PosAccessLevel; label: string }[] = [
-  { value: 'allow', label: 'Boleh sendiri' },
-  { value: 'approve', label: 'Butuh PIN atasan' },
-  { value: 'deny', label: 'Tidak boleh' },
-];
-
-function loadSavedRoles(): RoleDefinition[] {
+function readLegacyRolesFromStorage(): RoleDefinition[] {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createDefaultRoleDefinitions(DASHBOARD_MODULE_IDS);
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return createDefaultRoleDefinitions(DASHBOARD_MODULE_IDS);
-    return mergeRoleOverrides(parsed, DASHBOARD_MODULE_IDS);
+    return extractLegacyCustomRoles(window.localStorage.getItem(STORAGE_KEY), DASHBOARD_MODULE_IDS);
   } catch {
-    return createDefaultRoleDefinitions(DASHBOARD_MODULE_IDS);
+    return [];
   }
 }
 
-function saveRolesToStorage(roles: RoleDefinition[]): void {
+function writeLegacyRolesToStorage(roles: RoleDefinition[]): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(roles));
+    if (roles.length === 0) {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(roles));
+    }
   } catch {
     /* abaikan bila penyimpanan lokal tidak tersedia */
   }
@@ -142,33 +123,49 @@ function summarizeRoleAccess(role: RoleDefinition): {
 export default function HakAksesPage() {
   const data = useData();
   const empAsync = useAsync(() => data.listManagedEmployees(), [data]);
+  const rolesAsync = useAsync(() => data.listRoles(), [data]);
 
-  const [roles, setRoles] = useState<RoleDefinition[]>(() =>
-    createDefaultRoleDefinitions(DASHBOARD_MODULE_IDS)
-  );
-  const [hydrated, setHydrated] = useState(false);
+  const [customRoles, setCustomRoles] = useState<RoleDefinition[]>([]);
+  const [legacyRoles, setLegacyRoles] = useState<RoleDefinition[]>([]);
+  const [migrationDismissed, setMigrationDismissed] = useState(false);
+  const [migrating, setMigrating] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'builtin' | 'custom'>('all');
 
   const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
   const [isNewRole, setIsNewRole] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
+  const [wizardError, setWizardError] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RoleDefinition | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState('');
 
-  useEffect(() => {
-    setRoles(loadSavedRoles());
-    setHydrated(true);
-  }, []);
+  const rolesData = rolesAsync.status === 'ready' ? rolesAsync.data : null;
+  const employeesData = empAsync.status === 'ready' ? empAsync.data : null;
 
-  const persistRoles = (next: RoleDefinition[]) => {
-    setRoles(next);
-    saveRolesToStorage(next);
-  };
+  useEffect(() => {
+    if (rolesData) {
+      setCustomRoles(rolesData);
+      if (rolesData.length === 0) {
+        setLegacyRoles(readLegacyRolesFromStorage());
+      } else {
+        setLegacyRoles([]);
+      }
+    }
+  }, [rolesData]);
+
+  const roles = useMemo(
+    () => mergeServerRoles(customRoles, DASHBOARD_MODULE_IDS),
+    [customRoles],
+  );
 
   const employees: ManagedEmployee[] = useMemo(
-    () => (empAsync.status === 'ready' ? empAsync.data : []),
-    [empAsync]
+    () => employeesData ?? [],
+    [employeesData],
   );
 
   // Hitung karyawan terpasang per peran bawaan berdasarkan role server
@@ -206,15 +203,19 @@ export default function HakAksesPage() {
   const handleOpenCreate = () => {
     const blank = createBlankCustomRole(DASHBOARD_MODULE_IDS, newId());
     setIsNewRole(true);
+    setWizardError(null);
     setEditingRole(blank);
   };
 
   const handleOpenEdit = (role: RoleDefinition) => {
     setIsNewRole(false);
+    setWizardError(null);
     setEditingRole(migrateRoleDefinition(role, DASHBOARD_MODULE_IDS));
   };
 
-  const handleDuplicate = (source: RoleDefinition) => {
+  const handleDuplicate = async (source: RoleDefinition) => {
+    if (duplicatingId) return;
+    setActionError(null);
     const copyName = duplicateRoleName(source.name, roles);
     const migratedSource = migrateRoleDefinition(source, DASHBOARD_MODULE_IDS);
     const duplicated = migrateRoleDefinition(
@@ -228,30 +229,96 @@ export default function HakAksesPage() {
       },
       DASHBOARD_MODULE_IDS,
     );
-    const next = [...roles, duplicated];
-    persistRoles(next);
-    setToastMsg(`Peran "${duplicated.name}" dibuat sebagai salinan.`);
-  };
-
-  const handleSaveRole = (saved: RoleDefinition) => {
-    if (isNewRole) {
-      persistRoles([...roles, saved]);
-      setToastMsg(`Peran baru "${saved.name}" berhasil ditambahkan.`);
-    } else {
-      persistRoles(roles.map((r) => (r.id === saved.id ? saved : r)));
-      setToastMsg(`Perubahan hak akses untuk "${saved.name}" tersimpan.`);
+    setDuplicatingId(source.id);
+    try {
+      const savedFromServer = await data.saveRolePermissions(duplicated);
+      setCustomRoles((prev) =>
+        upsertCustomRole(prev, duplicated.id, savedFromServer, DASHBOARD_MODULE_IDS),
+      );
+      setToastMsg(`Peran "${savedFromServer.name}" dibuat sebagai salinan di server.`);
+    } catch (err) {
+      setActionError(roleActionErrorMessage(err, 'Gagal menduplikasi peran ke server.'));
+    } finally {
+      setDuplicatingId(null);
     }
-    setEditingRole(null);
   };
 
-  const handleConfirmDelete = (target: RoleDefinition) => {
-    if (isBuiltInRole(target)) return;
-    persistRoles(roles.filter((r) => r.id !== target.id));
-    setToastMsg(`Peran kustom "${target.name}" telah dihapus.`);
-    setDeleteTarget(null);
+  const handleSaveRole = async (draft: RoleDefinition) => {
+    setSavingRole(true);
+    setWizardError(null);
+    setActionError(null);
+    try {
+      const savedFromServer = await data.saveRolePermissions(draft);
+      setCustomRoles((prev) =>
+        upsertCustomRole(prev, draft.id, savedFromServer, DASHBOARD_MODULE_IDS),
+      );
+      setEditingRole(null);
+      setToastMsg(
+        isNewRole
+          ? `Peran baru "${savedFromServer.name}" berhasil disimpan ke server.`
+          : `Perubahan hak akses untuk "${savedFromServer.name}" tersimpan.`,
+      );
+    } catch (err) {
+      setWizardError(roleActionErrorMessage(err, 'Gagal menyimpan hak akses ke server.'));
+    } finally {
+      setSavingRole(false);
+    }
   };
 
-  const isLoading = empAsync.status === 'loading' || !hydrated;
+  const handleConfirmDelete = async (target: RoleDefinition) => {
+    if (isBuiltInRole(target) || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await data.deleteRole(target.id);
+      setCustomRoles((prev) => prev.filter((r) => r.id !== target.id));
+      setToastMsg(`Peran kustom "${target.name}" telah dihapus.`);
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(roleActionErrorMessage(err, 'Gagal menghapus peran dari server.'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleMigrateLegacyRoles = async () => {
+    if (migrating || legacyRoles.length === 0) return;
+    setMigrating(true);
+    setActionError(null);
+    let remaining = [...legacyRoles];
+    let migratedCount = 0;
+    try {
+      for (const item of legacyRoles) {
+        const savedFromServer = await data.saveRolePermissions({ ...item, isBuiltIn: false });
+        setCustomRoles((prev) =>
+          upsertCustomRole(prev, item.id, savedFromServer, DASHBOARD_MODULE_IDS),
+        );
+        migratedCount += 1;
+        remaining = remaining.filter((r) => r.id !== item.id);
+        writeLegacyRolesToStorage(remaining);
+      }
+      setLegacyRoles([]);
+      setMigrationDismissed(true);
+      setToastMsg(`${migratedCount} peran dari pratinjau lokal berhasil dipindahkan ke server.`);
+    } catch (err) {
+      setLegacyRoles(remaining);
+      setActionError(
+        roleActionErrorMessage(
+          err,
+          `Sebagian peran gagal dipindahkan (${migratedCount} berhasil). Silakan coba lagi.`,
+        ),
+      );
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  const isLoading = rolesAsync.status === 'loading' || empAsync.status === 'loading';
+  const showMigrationBanner =
+    rolesAsync.status === 'ready' &&
+    customRoles.length === 0 &&
+    legacyRoles.length > 0 &&
+    !migrationDismissed;
 
   return (
     <>
@@ -271,18 +338,71 @@ export default function HakAksesPage() {
         }
       />
 
-      {/* Lencana pratinjau penyimpanan lokal */}
-      <div className="cg-banner cg-banner--warning mb-16">
+      {/* Keterangan status penyimpanan & penegakan bertahap */}
+      <div className="cg-banner cg-banner--info mb-16">
         <Info className="cg-icon cg-icon--sm mt-4 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-8 mb-4">
-            <span className="cg-badge cg-badge--warning">Pratinjau — belum tersambung server</span>
-          </div>
           <p className="text-sm leading-relaxed">
-            Pengaturan matriks izin per peran saat ini disimpan sementara di peramban ini (penyimpanan lokal) sambil menunggu dukungan tabel peran &amp; hak akses di server. Jumlah karyawan aktif dibaca langsung dari data karyawan outlet.
+            Daftar peran kustom kini tersimpan dan disinkronkan lewat server. Penegakan izin di setiap layar kasir dan dashboard masih berjalan bertahap (tahap 1: penyimpanan konfigurasi peran; tautan karyawan ke peran kustom menyusul).
           </p>
         </div>
       </div>
+
+      {showMigrationBanner && (
+        <div
+          role="region"
+          aria-label="Migrasi peran pratinjau lokal"
+          data-testid="legacy-role-migration-banner"
+          className="cg-banner cg-banner--warning mb-16 flex-wrap items-center justify-between gap-12"
+        >
+          <div className="flex items-start gap-8 min-w-0 flex-1">
+            <Info className="cg-icon cg-icon--sm mt-4 shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-text">
+                Ditemukan {legacyRoles.length} peran dari pratinjau lokal
+              </div>
+              <p className="text-xs text-text-muted mt-4">
+                Simpan peran kustom lama dari peramban ini ke akun server atau abaikan jika ingin memulai bersih.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-8 shrink-0">
+            <button
+              type="button"
+              className="cg-btn cg-btn--ghost cg-btn--sm"
+              disabled={migrating}
+              onClick={() => {
+                setMigrationDismissed(true);
+                setLegacyRoles([]);
+              }}
+            >
+              Abaikan
+            </button>
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary cg-btn--sm"
+              disabled={migrating}
+              onClick={() => void handleMigrateLegacyRoles()}
+            >
+              {migrating ? 'Memindahkan...' : 'Pindahkan ke server'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {actionError && (
+        <div role="alert" className="cg-banner cg-banner--danger mb-16 flex items-center justify-between gap-12">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm"
+            aria-label="Tutup pesan galat"
+            onClick={() => setActionError(null)}
+          >
+            <X className="cg-icon cg-icon--sm" aria-hidden />
+          </button>
+        </div>
+      )}
 
       {toastMsg && (
         <div role="status" className="cg-banner cg-banner--info mb-16 flex items-center justify-between gap-12">
@@ -304,7 +424,11 @@ export default function HakAksesPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {rolesAsync.status === 'error' ? (
+        <div className="mb-16">
+          <ErrorBox message={rolesAsync.message} onRetry={rolesAsync.reload} />
+        </div>
+      ) : isLoading ? (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat daftar peran">
           <div className="grid grid-cols-2 laptop:grid-cols-4 gap-12">
             {[0, 1, 2, 3].map((i) => (
@@ -471,7 +595,7 @@ export default function HakAksesPage() {
                               </span>
                               {!builtIn && (
                                 <span className="block text-xs text-text-muted font-normal mt-4">
-                                  Menunggu sinkron peran
+                                  tautan karyawan menyusul
                                 </span>
                               )}
                             </td>
@@ -489,11 +613,12 @@ export default function HakAksesPage() {
                                 <button
                                   type="button"
                                   className="cg-btn cg-btn--ghost cg-btn--sm"
-                                  onClick={() => handleDuplicate(role)}
+                                  disabled={duplicatingId !== null}
+                                  onClick={() => void handleDuplicate(role)}
                                   aria-label={`Duplikat peran ${role.name}`}
                                 >
                                   <Copy className="cg-icon cg-icon--sm" aria-hidden />
-                                  Duplikat
+                                  {duplicatingId === role.id ? 'Menyalin...' : 'Duplikat'}
                                 </button>
                                 <button
                                   type="button"
@@ -509,7 +634,10 @@ export default function HakAksesPage() {
                                       ? `Hapus ${role.name} dinonaktifkan karena peran bawaan`
                                       : `Hapus peran ${role.name}`
                                   }
-                                  onClick={() => setDeleteTarget(role)}
+                                  onClick={() => {
+                                    setDeleteError(null);
+                                    setDeleteTarget(role);
+                                  }}
                                 >
                                   <Trash2 className="cg-icon cg-icon--sm" aria-hidden />
                                   Hapus
@@ -555,6 +683,11 @@ export default function HakAksesPage() {
                         <div className="text-right shrink-0">
                           <div className="text-xs text-text-muted">Karyawan</div>
                           <div className="font-semibold cg-num">{empCount}</div>
+                          {!builtIn && (
+                            <div className="text-xs text-text-muted mt-4">
+                              tautan karyawan menyusul
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -582,17 +715,21 @@ export default function HakAksesPage() {
                         <button
                           type="button"
                           className="cg-btn cg-btn--ghost cg-btn--sm flex-1"
-                          onClick={() => handleDuplicate(role)}
+                          disabled={duplicatingId !== null}
+                          onClick={() => void handleDuplicate(role)}
                         >
                           <Copy className="cg-icon cg-icon--sm" aria-hidden />
-                          Duplikat
+                          {duplicatingId === role.id ? 'Menyalin...' : 'Duplikat'}
                         </button>
                         <button
                           type="button"
                           className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
                           disabled={builtIn}
                           aria-label={`Hapus peran ${role.name}`}
-                          onClick={() => setDeleteTarget(role)}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteTarget(role);
+                          }}
                         >
                           <Trash2 className="cg-icon cg-icon--sm" aria-hidden />
                         </button>
@@ -612,7 +749,12 @@ export default function HakAksesPage() {
           isNew={isNewRole}
           allRoles={roles}
           dashboardModuleIds={DASHBOARD_MODULE_IDS}
-          onClose={() => setEditingRole(null)}
+          serverError={wizardError}
+          saving={savingRole}
+          onClose={() => {
+            setWizardError(null);
+            setEditingRole(null);
+          }}
           onSave={handleSaveRole}
         />
       )}
@@ -620,8 +762,15 @@ export default function HakAksesPage() {
       {deleteTarget && (
         <DeleteRoleDialog
           role={deleteTarget}
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={() => handleConfirmDelete(deleteTarget)}
+          deleting={deleting}
+          errorMessage={deleteError}
+          onClose={() => {
+            if (!deleting) {
+              setDeleteError(null);
+              setDeleteTarget(null);
+            }
+          }}
+          onConfirm={() => void handleConfirmDelete(deleteTarget)}
         />
       )}
     </>
@@ -630,10 +779,14 @@ export default function HakAksesPage() {
 
 function DeleteRoleDialog({
   role,
+  deleting,
+  errorMessage,
   onClose,
   onConfirm,
 }: {
   role: RoleDefinition;
+  deleting: boolean;
+  errorMessage: string | null;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -644,14 +797,19 @@ function DeleteRoleDialog({
         Hapus peran kustom?
       </h2>
       <p className="cg-modal__body">
-        Anda yakin ingin menghapus peran <strong>{role.name}</strong>? Pengaturan izin untuk peran ini akan dihapus dari penyimpanan lokal.
+        Anda yakin ingin menghapus peran <strong>{role.name}</strong> dari server? Karyawan yang memakai peran ini akan kehilangan tautannya.
       </p>
+      {errorMessage && (
+        <div role="alert" className="cg-banner cg-banner--danger mb-12">
+          <span>{errorMessage}</span>
+        </div>
+      )}
       <div className="cg-modal__actions">
-        <button type="button" className="cg-btn cg-btn--secondary" onClick={onClose}>
+        <button type="button" className="cg-btn cg-btn--secondary" disabled={deleting} onClick={onClose}>
           Batal
         </button>
-        <button type="button" className="cg-btn cg-btn--danger" onClick={onConfirm}>
-          Ya, hapus
+        <button type="button" className="cg-btn cg-btn--danger" disabled={deleting} onClick={onConfirm}>
+          {deleting ? 'Menghapus...' : 'Ya, hapus'}
         </button>
       </div>
     </dialog>
