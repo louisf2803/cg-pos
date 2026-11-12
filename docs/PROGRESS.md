@@ -988,4 +988,6 @@ Pusat notifikasi stok terverifikasi penuh: lonceng topbar interaktif dengan badg
 Layar `/pengaturan/karyawan` diperbarui: banner keamanan akses & enkripsi server (bcrypt), indikator status PIN diatur/tersimpan di tabel desktop dan kartu mobile, tracking sesi update PIN. Kebutuhan skema `hasPin`, `isLocked`, dan `qrId` dicatat di `docs/REQUESTS-FOR-CLAUDE.md`. Typecheck lulus, `pin.test.ts` (3) dan `roles-ui.test.ts` (7) lulus, `lint-tailwind` bersih.
 ## Antigravity (12 Nov 2026) — A101 Analisa Perputaran Stok dan Kepuasan Pelanggan Selesai
 Layar `/analisa/perputaran-stok` (rasio perputaran stok, klasifikasi cepat/sedang/lambat/macet, 4 KPI, ekspor CSV) dan `/analisa/kepuasan` (indeks kepuasan, tab rating, filter saluran, tindak lanjut, banner pratinjau) terverifikasi penuh dan aktif di `nav.ts`. 5 tes `analysis.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+## Antigravity (12 Nov 2026) — A102 Beranda Ringkasan Semua Outlet Selesai
+Layar beranda `/` (`page.tsx`) terverifikasi ujung ke ujung: agregasi multi-outlet (`selectedOutlet === 'semua'`), perbandingan periode sebelumnya (`percentChange`, `prevReport`), akumulasi MTD & proyeksi akhir bulan, status belum dibayar/terbayar, grafik 24-jam spline SVG interaktif, dan 8 widget ringkasan lengkap. 8 tes `dashboard-layout.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 
