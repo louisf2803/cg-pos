@@ -4,17 +4,19 @@ import { ArrowLeft, ClipboardCheck, Download, Plus, Save, Trash2, Upload } from 
 import {
   buildOpnameCsvTemplate,
   buildOpnameResultCsv,
+  buildOpnameResultXlsx,
+  buildOpnameXlsxTemplate,
   formatRp,
   newId,
   opnameDifference,
   opnameProblem,
-  parseOpnameCsv,
+  parseOpnameSpreadsheet,
   type ParseOpnameCsvResult,
   type StockItem,
   type StockOpname,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
-import { downloadCsvWithHistory } from '@/lib/export';
+import { downloadCsvWithHistory, downloadXlsxWithHistory } from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
@@ -135,7 +137,7 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
   }
   const invalid = (loaded?.items ?? []).some((i) => Number.isNaN(parsed(i)));
 
-  function downloadTemplate() {
+  function downloadTemplate(format: 'xlsx' | 'csv' = 'xlsx') {
     if (!loaded) return;
     const draftCounts = new Map<string, number>();
     for (const item of loaded.items) {
@@ -143,20 +145,33 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
       if (n !== null && !Number.isNaN(n)) draftCounts.set(item.productId, n);
     }
     const label = loaded.opname?.number ?? 'draf-baru';
-    const csvContent = buildOpnameCsvTemplate(loaded.items, draftCounts, system);
-    downloadCsvWithHistory({
-      fileName: `templat-opname-${label.toLowerCase()}.csv`,
-      csvContent,
-      reportName: 'Templat stok opname',
+    const baseOpts = {
       period: loaded.opname?.number ?? 'Draf baru',
       rowCount: loaded.items.length,
       sourceUrl: '/inventori/opname',
+    };
+    if (format === 'xlsx') {
+      downloadXlsxWithHistory({
+        ...baseOpts,
+        fileName: `templat-opname-${label.toLowerCase()}.xlsx`,
+        bytes: buildOpnameXlsxTemplate(loaded.items, draftCounts, system),
+        reportName: 'Templat Excel stok opname',
+      });
+      setErr('');
+      setMsg('Templat Excel (.xlsx) berhasil diunduh. Isi kolom "Hitung Fisik", lalu klik Impor Excel / CSV.');
+      return;
+    }
+    downloadCsvWithHistory({
+      ...baseOpts,
+      fileName: `templat-opname-${label.toLowerCase()}.csv`,
+      csvContent: buildOpnameCsvTemplate(loaded.items, draftCounts, system),
+      reportName: 'Templat CSV stok opname',
     });
     setErr('');
-    setMsg('Templat CSV berhasil diunduh. Isi kolom "Hitung Fisik", lalu klik Impor CSV.');
+    setMsg('Templat CSV berhasil diunduh. Isi kolom "Hitung Fisik", lalu klik Impor Excel / CSV.');
   }
 
-  function applyCsvImport(res: ParseOpnameCsvResult) {
+  function applySpreadsheetImport(res: ParseOpnameCsvResult) {
     const updates: Record<string, string> = {};
     for (const r of res.rows) {
       if (r.status === 'valid' && r.countedQty !== null) {
@@ -166,7 +181,7 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
     setCounts((prev) => ({ ...prev, ...updates }));
     setImportOpen(false);
     setErr('');
-    setMsg(`${res.validCount} baris hitung fisik dari CSV diterapkan ke draf. Klik Simpan draf atau Selesaikan opname.`);
+    setMsg(`${res.validCount} baris hitung fisik dari berkas diterapkan ke draf. Klik Simpan draf atau Selesaikan opname.`);
   }
 
   return (
@@ -183,11 +198,11 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
             <div className="cg-field grow" style={{ minWidth: 180 }}><label className="cg-label" htmlFor="op-catatan">Catatan</label>
               <input id="op-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
             <div className="flex flex-wrap gap-8">
-              <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={downloadTemplate} disabled={loaded.items.length === 0}>
-                <Download className="cg-icon" aria-hidden /> Unduh templat CSV
+              <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => downloadTemplate('xlsx')} disabled={loaded.items.length === 0}>
+                <Download className="cg-icon" aria-hidden /> Unduh templat Excel
               </button>
               <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setImportOpen(true)} disabled={loaded.items.length === 0}>
-                <Upload className="cg-icon" aria-hidden /> Impor CSV
+                <Upload className="cg-icon" aria-hidden /> Impor Excel / CSV
               </button>
               <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setCounts((c) => ({ ...c, ...Object.fromEntries(rows.filter((i) => (c[i.productId] ?? '').trim() === '').map((i) => [i.productId, String(sysOf(i))])) }))}>Isi kosong dengan jumlah sistem</button>
             </div>
@@ -233,7 +248,7 @@ function Editor({ id, onBack, onFinal }: { id: string; onBack: (msg?: string) =>
           system={system}
           onDownloadTemplate={downloadTemplate}
           onClose={() => setImportOpen(false)}
-          onApply={applyCsvImport}
+          onApply={applySpreadsheetImport}
         />
       )}
     </>
@@ -266,7 +281,7 @@ function ImportOpnameDialog({
 }: {
   items: StockItem[];
   system: Map<string, number>;
-  onDownloadTemplate: () => void;
+  onDownloadTemplate: (format: 'xlsx' | 'csv') => void;
   onClose: () => void;
   onApply: (result: ParseOpnameCsvResult) => void;
 }) {
@@ -287,10 +302,10 @@ function ImportOpnameDialog({
     }
     setFileName(file.name);
     try {
-      const text = await file.text();
-      setParsed(parseOpnameCsv(text, items, system));
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      setParsed(parseOpnameSpreadsheet(file.name, bytes, items, system));
     } catch {
-      setReadErr('Berkas tidak dapat dibaca. Pastikan format CSV UTF-8 valid.');
+      setReadErr('Berkas tidak dapat dibaca. Pastikan memakai format Excel (.xlsx) atau CSV UTF-8.');
       setParsed(null);
     }
   }
@@ -305,17 +320,28 @@ function ImportOpnameDialog({
     >
       <div className="grid gap-12 min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-8">
-          <h2 id="judul-impor-opname" className="cg-modal__title">Impor hitung fisik (CSV)</h2>
-          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onDownloadTemplate}>
-            <Download className="cg-icon" aria-hidden /> Unduh templat
-          </button>
+          <h2 id="judul-impor-opname" className="cg-modal__title">Impor hitung fisik (Excel / CSV)</h2>
+          <div className="flex flex-wrap gap-8">
+            <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => onDownloadTemplate('xlsx')}>
+              <Download className="cg-icon" aria-hidden /> Templat Excel
+            </button>
+            <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => onDownloadTemplate('csv')}>
+              <Download className="cg-icon" aria-hidden /> Templat CSV
+            </button>
+          </div>
         </div>
         <p className="text-sm text-text-muted">
-          Unggah berkas CSV (pemisah titik koma atau koma) yang memiliki kolom <strong>Hitung Fisik</strong> serta <strong>ID Produk</strong> atau <strong>Nama Item</strong>. Baris kosong dilewati.
+          Unggah berkas Excel (<strong>.xlsx</strong>) atau <strong>CSV</strong> (pemisah titik koma atau koma) yang memiliki kolom <strong>Hitung Fisik</strong> serta <strong>ID Produk</strong> atau <strong>Nama Item</strong>. Baris kosong dilewati.
         </p>
         <div className="cg-field">
-          <label className="cg-label" htmlFor="op-csv-input">Pilih berkas CSV</label>
-          <input id="op-csv-input" type="file" accept=".csv,.txt,text/csv" className="cg-input" onChange={(e) => void onFile(e)} />
+          <label className="cg-label" htmlFor="op-spreadsheet-input">Pilih berkas Excel (.xlsx) atau CSV</label>
+          <input
+            id="op-spreadsheet-input"
+            type="file"
+            accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+            className="cg-input"
+            onChange={(e) => void onFile(e)}
+          />
           {fileName && <p className="text-sm text-text-muted mt-4">Berkas dipilih: <strong>{fileName}</strong></p>}
         </div>
         {readErr && <p role="alert" className="cg-banner cg-banner--danger">{readErr}</p>}
@@ -331,7 +357,7 @@ function ImportOpnameDialog({
               <p className="cg-banner cg-banner--warning">Berkas melebihi 3.000 baris; hanya 3.000 baris pertama yang diproses.</p>
             )}
             {parsed.rows.length === 0 ? (
-              <div className="cg-empty"><p><strong>Tidak ada baris data pada berkas CSV.</strong></p></div>
+              <div className="cg-empty"><p><strong>Tidak ada baris data pada berkas.</strong></p></div>
             ) : (
               <div className="cg-data-wrap min-w-0" style={{ maxHeight: 280, overflowY: 'auto' }}>
                 <table className="cg-data" aria-label="Pratinjau impor opname" style={{ minWidth: 0 }}>
@@ -398,15 +424,26 @@ function ImportOpnameDialog({
 function Viewer({ id, onBack }: { id: string; onBack: () => void }) {
   const data = useData();
   const state = useAsync(() => data.getOpname(id), [data, id]);
-  function downloadResult() {
+  function downloadResult(format: 'xlsx' | 'csv') {
     if (state.status !== 'ready' || !state.data) return;
-    downloadCsvWithHistory({
-      fileName: `opname-${state.data.number.toLowerCase()}.csv`,
-      csvContent: buildOpnameResultCsv(state.data),
+    const baseOpts = {
       reportName: `Hasil opname ${state.data.number}`,
       period: fmtWhen(state.data.countedAt),
       rowCount: state.data.lines.length,
       sourceUrl: '/inventori/opname',
+    };
+    if (format === 'xlsx') {
+      downloadXlsxWithHistory({
+        ...baseOpts,
+        fileName: `opname-${state.data.number.toLowerCase()}.xlsx`,
+        bytes: buildOpnameResultXlsx(state.data),
+      });
+      return;
+    }
+    downloadCsvWithHistory({
+      ...baseOpts,
+      fileName: `opname-${state.data.number.toLowerCase()}.csv`,
+      csvContent: buildOpnameResultCsv(state.data),
     });
   }
   return (
@@ -415,9 +452,14 @@ function Viewer({ id, onBack }: { id: string; onBack: () => void }) {
         actions={
           <div className="flex flex-wrap gap-8">
             {state.status === 'ready' && state.data && (
-              <button type="button" className="cg-btn cg-btn--secondary" onClick={downloadResult}>
-                <Download className="cg-icon" aria-hidden /> Unduh CSV
-              </button>
+              <>
+                <button type="button" className="cg-btn cg-btn--secondary" onClick={() => downloadResult('xlsx')}>
+                  <Download className="cg-icon" aria-hidden /> Unduh Excel
+                </button>
+                <button type="button" className="cg-btn cg-btn--secondary" onClick={() => downloadResult('csv')}>
+                  <Download className="cg-icon" aria-hidden /> Unduh CSV
+                </button>
+              </>
             )}
             <button type="button" className="cg-btn cg-btn--ghost" onClick={onBack}><ArrowLeft className="cg-icon" aria-hidden /> Kembali</button>
           </div>

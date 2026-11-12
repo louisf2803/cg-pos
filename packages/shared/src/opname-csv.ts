@@ -1,5 +1,7 @@
+import { strFromU8 } from 'fflate';
 import { toCsv } from './report';
 import { MAX_OPNAME_LINES, opnameDifference, type StockItem, type StockOpname } from './stock';
+import { buildXlsxBytes, parseXlsxRows } from './xlsx';
 
 export type OpnameCsvRowStatus = 'valid' | 'blank' | 'error';
 
@@ -120,12 +122,11 @@ export function parseDelimitedCsv(text: string): string[][] {
   return rows;
 }
 
-/** Membuat berkas templat CSV ber-BOM (untuk Excel) berisi daftar stok outlet dan hitung draf saat ini. */
-export function buildOpnameCsvTemplate(
+function opnameTemplateRows(
   stockItems: readonly StockItem[],
   currentCounts?: ReadonlyMap<string, number>,
   systemQtyOverrides?: ReadonlyMap<string, number>,
-): string {
+): (string | number)[][] {
   const sorted = [...stockItems].sort((a, b) => a.name.localeCompare(b.name, 'id'));
   const rows: (string | number)[][] = [
     ['ID Produk', 'Nama Item', 'Jenis', 'Kategori', 'Satuan', 'Stok Sistem', 'Hitung Fisik'],
@@ -143,11 +144,28 @@ export function buildOpnameCsvTemplate(
       draftQty !== undefined ? draftQty : '',
     ]);
   }
-  return toCsv(rows);
+  return rows;
 }
 
-/** Mengekspor rincian opname (termasuk yang sudah selesai) ke format CSV ber-BOM. */
-export function buildOpnameResultCsv(opname: StockOpname): string {
+/** Membuat berkas templat CSV ber-BOM (untuk Excel) berisi daftar stok outlet dan hitung draf saat ini. */
+export function buildOpnameCsvTemplate(
+  stockItems: readonly StockItem[],
+  currentCounts?: ReadonlyMap<string, number>,
+  systemQtyOverrides?: ReadonlyMap<string, number>,
+): string {
+  return toCsv(opnameTemplateRows(stockItems, currentCounts, systemQtyOverrides));
+}
+
+/** Membuat berkas templat Excel (.xlsx) berisi daftar stok outlet dan hitung draf saat ini. */
+export function buildOpnameXlsxTemplate(
+  stockItems: readonly StockItem[],
+  currentCounts?: ReadonlyMap<string, number>,
+  systemQtyOverrides?: ReadonlyMap<string, number>,
+): Uint8Array {
+  return buildXlsxBytes([{ name: 'Templat Stok Opname', rows: opnameTemplateRows(stockItems, currentCounts, systemQtyOverrides) }]);
+}
+
+function opnameResultRows(opname: StockOpname): (string | number)[][] {
   const rows: (string | number)[][] = [
     ['ID Produk', 'Nama Item', 'Satuan', 'Stok Sistem', 'Hitung Fisik', 'Selisih', 'Nilai Selisih'],
   ];
@@ -162,7 +180,17 @@ export function buildOpnameResultCsv(opname: StockOpname): string {
       line.value,
     ]);
   }
-  return toCsv(rows);
+  return rows;
+}
+
+/** Mengekspor rincian opname (termasuk yang sudah selesai) ke format CSV ber-BOM. */
+export function buildOpnameResultCsv(opname: StockOpname): string {
+  return toCsv(opnameResultRows(opname));
+}
+
+/** Mengekspor rincian opname (termasuk yang sudah selesai) ke format Excel (.xlsx). */
+export function buildOpnameResultXlsx(opname: StockOpname): Uint8Array {
+  return buildXlsxBytes([{ name: 'Hasil Stok Opname', rows: opnameResultRows(opname) }]);
 }
 
 const normHeader = (s: string) => s.trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
@@ -200,23 +228,24 @@ function parseQtyCell(raw: string): { blank: true } | { blank: false; value: num
   return { blank: false, value: num };
 }
 
-/** Memvalidasi dan memetakan baris CSV hasil opname fisik ke item stok outlet. */
-export function parseOpnameCsv(
-  csvText: string,
+const emptyOpnameResult = (headerError?: string): ParseOpnameCsvResult => ({
+  rows: [],
+  totalRows: 0,
+  validCount: 0,
+  blankCount: 0,
+  errorCount: 0,
+  truncated: false,
+  ...(headerError ? { headerError } : {}),
+});
+
+/** Memvalidasi dan memetakan baris tabel spreadsheet hasil opname fisik ke item stok outlet. */
+export function parseOpnameRows(
+  parsed: readonly (readonly string[])[],
   stockItems: readonly StockItem[],
   systemQtyOverrides?: ReadonlyMap<string, number>,
 ): ParseOpnameCsvResult {
-  const parsed = parseDelimitedCsv(csvText);
   if (parsed.length === 0) {
-    return {
-      rows: [],
-      totalRows: 0,
-      validCount: 0,
-      blankCount: 0,
-      errorCount: 0,
-      truncated: false,
-      headerError: 'Berkas CSV kosong atau tidak memiliki baris header.',
-    };
+    return emptyOpnameResult('Berkas kosong atau tidak memiliki baris header.');
   }
 
   const headers = parsed[0]!.map(normHeader);
@@ -225,15 +254,7 @@ export function parseOpnameCsv(
   const colQty = findCol(headers, ['hitung fisik', 'stok fisik', 'jumlah fisik', 'fisik', 'counted qty', 'countedqty', 'qty', 'jumlah']);
 
   if (colQty === -1 || (colId === -1 && colName === -1)) {
-    return {
-      rows: [],
-      totalRows: 0,
-      validCount: 0,
-      blankCount: 0,
-      errorCount: 0,
-      truncated: false,
-      headerError: 'Header CSV wajib memiliki kolom "Hitung Fisik" serta "ID Produk" atau "Nama Item".',
-    };
+    return emptyOpnameResult('Header berkas wajib memiliki kolom "Hitung Fisik" serta "ID Produk" atau "Nama Item".');
   }
 
   const byId = new Map(stockItems.map((item) => [item.productId, item]));
@@ -346,24 +367,24 @@ export function parseOpnameCsv(
         countedQty: qtyRes.value,
         difference: null,
         status: 'error',
-        errorReason: 'Item dihitung lebih dari satu kali pada berkas CSV.',
-      });
-      continue;
-    }
-
-    seenValidIds.add(item.productId);
-    validCount++;
-    rows.push({
-      lineNumber,
-      productId: item.productId,
-      name: item.name,
-      unit: item.unit,
-      systemQty: sysQty,
-      countedQty: qtyRes.value,
-      difference: opnameDifference(sysQty, qtyRes.value),
-      status: 'valid',
+      errorReason: 'Item dihitung lebih dari satu kali pada berkas.',
     });
+    continue;
   }
+
+  seenValidIds.add(item.productId);
+  validCount++;
+  rows.push({
+    lineNumber,
+    productId: item.productId,
+    name: item.name,
+    unit: item.unit,
+    systemQty: sysQty,
+    countedQty: qtyRes.value,
+    difference: opnameDifference(sysQty, qtyRes.value),
+    status: 'valid',
+  });
+}
 
   return {
     rows,
@@ -373,5 +394,51 @@ export function parseOpnameCsv(
     errorCount,
     truncated,
   };
+}
+
+/** Memvalidasi dan memetakan berkas CSV hasil opname fisik ke item stok outlet. */
+export function parseOpnameCsv(
+  csvText: string,
+  stockItems: readonly StockItem[],
+  systemQtyOverrides?: ReadonlyMap<string, number>,
+): ParseOpnameCsvResult {
+  return parseOpnameRows(parseDelimitedCsv(csvText), stockItems, systemQtyOverrides);
+}
+
+/** Memvalidasi dan memetakan berkas Excel (.xlsx) hasil opname fisik ke item stok outlet. */
+export function parseOpnameXlsx(
+  bytes: Uint8Array,
+  stockItems: readonly StockItem[],
+  systemQtyOverrides?: ReadonlyMap<string, number>,
+): ParseOpnameCsvResult {
+  try {
+    const parsed = parseXlsxRows(bytes, 0);
+    return parseOpnameRows(parsed, stockItems, systemQtyOverrides);
+  } catch (err) {
+    return emptyOpnameResult(err instanceof Error ? err.message : 'Berkas Excel (.xlsx) tidak dapat dibaca.');
+  }
+}
+
+/** Membaca berkas Excel (.xlsx) maupun CSV secara otomatis berdasarkan isi byte dan nama berkas. */
+export function parseOpnameSpreadsheet(
+  fileName: string,
+  bytes: Uint8Array,
+  stockItems: readonly StockItem[],
+  systemQtyOverrides?: ReadonlyMap<string, number>,
+): ParseOpnameCsvResult {
+  const lower = fileName.toLowerCase();
+  const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+  if (isZip || lower.endsWith('.xlsx')) {
+    return parseOpnameXlsx(bytes, stockItems, systemQtyOverrides);
+  }
+  const isOldXls = bytes.length >= 4 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
+  if (isOldXls || lower.endsWith('.xls')) {
+    return emptyOpnameResult('Format .xls (Excel 97-2003) belum didukung. Simpan ulang berkas sebagai .xlsx atau .csv.');
+  }
+  const hasControlByte = bytes.some((b) => b < 0x09 || (b >= 0x0e && b < 0x20));
+  if (hasControlByte) {
+    return emptyOpnameResult('Berkas tidak dapat dibaca. Pastikan memakai format .xlsx atau CSV UTF-8.');
+  }
+  return parseOpnameCsv(strFromU8(bytes), stockItems, systemQtyOverrides);
 }
 
