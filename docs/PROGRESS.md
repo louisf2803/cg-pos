@@ -980,3 +980,6 @@ Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude ham
   - **`apps/dashboard` (`app/laporan/hpp/page.tsx`, `lib/nav.ts`)**: halaman laporan HPP dan margin per produk (`built: true`) dengan 4 kartu KPI, filter rentang tanggal `RangePicker`, kategori, status HPP (tipis/negatif/lengkap), filter produk terjual, sorting, `ColumnChooser`, tampilan kartu mobile responsif, dan ekspor CSV; verifikasi `typecheck`, vitest `hpp-report.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
 - **A96 (`ag/a96-catatan-kelola`)**:
   - **`apps/dashboard` (`app/pengaturan/catatan/page.tsx`, `app/dapur/page.tsx`)**: layar kelola catatan siap pakai per kategori (/pengaturan/catatan) sudah lengkap dan tersambung DataLayer (`listNotePresets`/`saveNotePreset`/`removeNotePreset`); menambahkan penyorotan catatan item dan catatan pesanan di tiket KDS layar dapur (/dapur); verifikasi `typecheck`, vitest `notes.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
+## Antigravity (12 Nov 2026) — A97 Kelola Stasiun Cetak dan Templat Tiket Selesai
+Layar `/pengaturan/stasiun-cetak` terverifikasi penuh (daftar stasiun, pemetaan produk ke stasiun, mode cetak auto/ask/off, dan editor templat tiket 58/80mm). 18 tes `station.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+
