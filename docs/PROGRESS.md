@@ -963,3 +963,7 @@ Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_sugges
 
 ## Claude (12 Nov 2026) — 20 tugas fitur "sebagian" disiapkan untuk Antigravity: A93 sampai A112
 Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude hampir habis; Louis akan menyuruh Claude memeriksa hasilnya sekitar pukul 08.10). Urutan pengerjaan: A86 (selesai), A87 sampai A92 (sudah ada), lalu A93 sampai A112. Tiap tugas dimulai dengan audit; kekurangan yang butuh data/skema baru ditulis di `docs/REQUESTS-FOR-CLAUDE.md`, bukan dikerjakan dengan data palsu. Migrasi 0038 sampai 0043 sudah di produksi (DataLayer siap). Saat Claude kembali: tinjau cabang `ag/a87` dan seterusnya (typecheck, tes, build, lint, lihat screenshot 390 dan 1280), gabungkan, lalu nilai ulang status fitur dengan bukti.
+
+- **A93 (`ag/a93-hpp-margin`)**:
+  - **`packages/shared` (`hpp-report.ts`, `test/hpp-report.test.ts`)**: helper murni `buildHppReport` & `filterAndSortHppItems` untuk agregasi HPP rata-rata (resep rata-rata/harga beli & stok langsung), harga jual, laba kotor, margin %, beserta filter & urutan; lolos unit test.
+  - **`apps/dashboard` (`app/laporan/hpp/page.tsx`, `lib/nav.ts`)**: halaman laporan HPP dan margin per produk (`built: true`) dengan 4 kartu KPI, filter rentang tanggal `RangePicker`, kategori, status HPP (tipis/negatif/lengkap), filter produk terjual, sorting, `ColumnChooser`, tampilan kartu mobile responsif, dan ekspor CSV; verifikasi `typecheck`, vitest `hpp-report.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
