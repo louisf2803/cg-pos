@@ -16,7 +16,7 @@ import type { StockLocation, StockTransfer, StockTransferInput } from './stock-t
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
-  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceOpen, AttendanceRecord,
+  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceOpen, AttendanceRecord, PriceChange,
 } from './types';
 import type { ShiftReportRow } from './shift-report';
 
@@ -245,6 +245,8 @@ export interface DataLayer {
   listRefunds(orderId: string): Promise<Refund[]>;
   /** Semua refund dalam rentang tanggal (untuk laporan penjualan bersih dan kontrol). */
   listRefundsBetween(range: SalesRange): Promise<Refund[]>;
+  /** Baris pesanan yang harganya diubah kasir (pesanan dibuka dalam rentang), terbaru dulu. Pesanan batal ikut dengan statusnya. */
+  listPriceChanges(range: SalesRange): Promise<PriceChange[]>;
   /** authMethod: 'pin' (bawaan) atau 'code' bila pemberi izin memakai kode otorisasi; dicatat di riwayat void. */
   voidUnpaidOrder(orderId: string, reason: string, authorizedBy: string, authMethod?: 'pin' | 'code'): Promise<Order>;
   getOrder(id: string): Promise<Order | null>;

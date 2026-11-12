@@ -68,7 +68,12 @@ export interface ShiftReport {
 
 /** Satu pilihan Ekstra yang menempel pada baris pesanan; harganya per satu unit produk. */
 export interface ItemExtra { optionId: string; name: string; price: number }
-export interface OrderItem { id: string; productId: string; name: string; qty: number; unitPrice: number; lineTotal: number; note?: string; extras?: ItemExtra[] }
+export interface OrderItem { id: string; productId: string; name: string; qty: number; unitPrice: number; /** harga daftar sebelum diubah kasir; hanya ada bila harga baris diubah */ basePrice?: number; lineTotal: number; note?: string; extras?: ItemExtra[] }
+/** Satu baris pesanan yang harganya diubah kasir (dasar laporan Perubahan Harga Kasir). diff dan lineImpact negatif = harga diturunkan. */
+export interface PriceChange {
+  orderId: string; orderNumber: string; orderStatus: Order['status']; itemId: string; itemName: string; qty: number;
+  basePrice: number; unitPrice: number; diff: number; diffPct: number; lineImpact: number; cashierId: string; cashierName: string; at: string;
+}
 export interface ExtraOption { id: string; name: string; price: number; sort: number }
 /** Grup Ekstra (modifier): satu atau banyak pilihan, wajib atau tidak, dengan harga tambahan per pilihan. */
 export interface ExtraGroup { id: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect: number | null; options: ExtraOption[]; productIds: string[] }

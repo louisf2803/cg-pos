@@ -17,10 +17,11 @@ import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
 import { attendanceMinutes, attendanceProblem } from './attendance';
+import { priceDelta } from './price-change';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
-  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord,
+  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord, PriceChange,
 } from './types';
 import { computeOrder } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem } from './outlet';
@@ -1723,6 +1724,18 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         }
       }
       return clone(named(o));
+    },
+    async listPriceChanges(range: SalesRange) {
+      const out: PriceChange[] = [];
+      for (const o of orders) {
+        if (o.openedAt < range.from || o.openedAt >= range.to) continue;
+        for (const it of o.items) {
+          const d = it.basePrice == null ? null : priceDelta(it.basePrice, it.unitPrice);
+          if (!d) continue;
+          out.push({ orderId: o.id, orderNumber: o.number, orderStatus: o.status, itemId: it.id, itemName: it.name, qty: it.qty, basePrice: it.basePrice!, unitPrice: it.unitPrice, diff: d.diff, diffPct: d.diffPct, lineImpact: d.diff * it.qty, cashierId: o.cashierId, cashierName: employees.find((e) => e.id === o.cashierId)?.name ?? '(karyawan dihapus)', at: o.openedAt });
+        }
+      }
+      return clone(out.sort((a, b) => (a.at < b.at ? 1 : -1)));
     },
     async listRefundsBetween(range: SalesRange) {
       return clone(refunds.filter((r) => r.createdAt >= range.from && r.createdAt < range.to).map(({ shiftId: _s, methodKind: _k, ...r }) => r));
