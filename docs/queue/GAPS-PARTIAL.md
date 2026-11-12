@@ -1,0 +1,83 @@
+# Kekurangan fitur Gelombang A berstatus "sebagian" (46)
+
+Diturunkan otomatis dari kolom `notes` di `docs/features.csv` (kalimat "Belum: ..."), 12 Nov 2026. Fitur tanpa daftar "Belum" jelas (17) perlu ditinjau satu per satu: alur ujung ke ujungnya belum pernah dibandingkan dengan Majoo. Daftar ini bahan prioritas, bukan janji: tiap butir perlu dipilah menjadi tugas server (Claude) dan tugas layar (Antigravity).
+
+## Dengan kekurangan tercatat (29)
+
+- **Filter kategori khusus: semua, favorit, paket, promo, deposit** (kasir)
+  - Belum: filter Deposit (fitur deposit belum ada)
+- **Pilih mode tampilan kasir (grid, SKU, meja, reservasi, jasa, buku menu)** (kasir)
+  - Belum: mode reservasi dan buku menu; mode meja tetap lewat pemilih meja di jenis pesanan Makan di tempat; mode jasa lewat Item bebas
+- **Catatan per item atau per order (kategori catatan)** (kasir)
+  - Belum: layar dashboard kelola catatan (A48), catatan tampil di layar dapur
+- **Mode meja dengan denah dan status berwarna** (meja)
+  - Belum: denah gambar bebas (posisi x,y), batas waktu duduk
+- **Gabung meja dengan tagihan, pisah item, grup meja** (meja)
+  - Belum: pisah item/tagihan terpisah, grup meja
+- **Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo** (pembayaran)
+  - Belum: harga grosir dan promo dihitung ulang (pisah diblokir bila ada diskon pesanan), meja tetap di pesanan asal (bagian pisah berlabel), struk gabungan
+- **Bayar QRIS dinamis lewat DOKU, QR tampil di layar kasir** (pembayaran)
+  - Belum: pembuatan QR lewat Edge Function + rahasia DOKU. Sengaja tidak diaktifkan sesuai keputusan Louis
+- **Cetak struk ke printer Bluetooth atau jaringan** (struk)
+  - Belum: printer jaringan (LAN), iPhone/iPad (tidak didukung peramban), cetak dapur
+- **Cetak bill sebelum bayar dan struk dapur atau checker** (struk)
+  - Belum: layar dashboard kelola stasiun/templat (A44), printer fisik
+- **Pengaturan tampilan struk (logo, teks)** (struk)
+  - Belum: logo (butuh bucket penyimpanan gambar), kode QR/barcode pembayaran di struk, media sosial di footer
+- **Penjualan tetap berjalan offline dan sinkron saat online** (offline)
+  - Belum: login PIN offline, refund/void/shift offline, sync_pull lengkap ke cache, cetak dengan nomor resmi
+- **Produk ekstra (modifier): grup wajib atau opsional, pilih satu atau banyak, maksimal pilihan, harga tambahan** (produk)
+  - Belum: tautan opsi ke bahan baku (stok ekstra tidak terpotong)
+- **Produk layanan (jasa)** (produk)
+  - Belum: tab/halaman khusus Produk layanan dengan durasi atau staf, kasir mode jasa terpisah
+- **Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order** (pajak dan biaya)
+  - Belum: pajak per produk dari layar, beberapa jenis pajak dengan tarif berbeda per jenis order
+- **Outlet: informasi bisnis, rekening, grup outlet** (outlet)
+  - Belum: rekening, grup outlet, multi-outlet, logo
+- **Karyawan, peran, dan hak akses** (karyawan)
+  - Belum: izin per fitur yang bisa diubah, QR ID, status PIN sudah diatur, kunci saat salah beruntun di UI dashboard
+- **Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter** (inventori)
+  - Belum: gudang dan banyak lokasi, impor Excel
+- **Pemesanan stok (PO) dengan referensi permintaan atau tanpa referensi, diskon, pajak, biaya lain, uang muka** (inventori)
+  - Belum: referensi permintaan barang, uang muka
+- **Faktur pembelian: termin, penerimaan sebagian, lampiran** (inventori)
+  - Belum: lampiran, pembatalan faktur
+- **Notifikasi stok minimum, habis, dan minus** (inventori)
+  - Belum: notifikasi ke email/HP
+- **Batasi penjualan dan mutasi saat stok habis** (inventori)
+  - Belum: penolakan di server (sync_push), ubin ukuran (varian) dan mutasi stok manual
+- **HPP dengan metode rata-rata** (inventori)
+  - Belum: laporan HPP dan margin per produk
+- **Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsiliasi)** (finance)
+  - Belum: penyimpanan server dan pencocokan dengan settlement DOKU (ditunda)
+- **CRM: loyalty, grup loyalty, loyalty ulang tahun, kampanye** (crm)
+  - Belum: kampanye.
+- **Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti** (laporan)
+  - Belum: Deposit.
+- **Laporan kas kasir, penjualan per terminal, tutup kasir, tutup toko** (laporan)
+  - Belum: per terminal/perangkat, ekspor
+- **Daftar transaksi tertunda (gagal sinkron): kirim ulang atau hapus dengan PIN** (offline)
+  - Belum: refund/void/buka-tutup shift offline, login PIN offline, bukti sinkron lintas perangkat
+- **Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas** (kasir)
+  - Belum: tutup kasir otomatis (butuh penjadwal), foto bukti kas (kasir belum bisa mengambil foto)
+- **Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja** (meja)
+  - Belum: reset dan pindah meja berPIN, gabung sisa pesanan jadi satu transaksi
+
+## Tanpa daftar kekurangan, perlu ditinjau (17)
+- Denah meja kustom dengan drag posisi (meja)
+- Refund: opsi kembalikan stok dan ongkos kirim (void dan refund)
+- Tukar poin loyalty (potongan atau produk gratis) (promo)
+- Dashboard web beranda ringkasan real-time semua outlet (dashboard)
+- Penjadwalan harga (produk)
+- Grup pelanggan dan harga spesial (produk)
+- Daftar pelanggan dengan riwayat transaksi, poin, deposit (pelanggan)
+- Retur pembelian (inventori)
+- Paket deposit (beli saldo, pakai di POS) (deposit)
+- Reservasi dan appointment dengan kalender (reservasi)
+- Komisi per kasir (karyawan)
+- Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai (finance)
+- Harga grosir bertingkat (sampai 5 tingkat) (produk)
+- Analisa: jam teramai produk dan penjualan, perputaran stok, kepuasan pelanggan (laporan)
+- Kirim pesanan dine-in ke dapur per item yang dicentang (meja)
+- Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR) (pembayaran)
+- Order Online / kanal pesan mandiri (QR swalayan, antar makanan, marketplace, kios, aplikasi konsumen): status kanal, jam layanan, estimasi persiapan (integrasi)
