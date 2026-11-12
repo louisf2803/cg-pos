@@ -239,6 +239,40 @@ export function parseXlsxRows(bytes: Uint8Array, sheetIndex = 0): string[][] {
   return parseWorksheetXml(strFromU8(sheetBytes), sharedStrings);
 }
 
+/**
+ * Membaca berkas spreadsheet `.xlsx` maupun CSV UTF-8 secara otomatis berdasarkan
+ * signature byte dan ekstensi nama berkas, sekaligus menolak `.xls` lama atau biner rusak.
+ */
+export function readSpreadsheetRows(
+  fileName: string,
+  bytes: Uint8Array,
+  parseCsv: (text: string) => string[][],
+  sheetIndex = 0,
+): { format: 'xlsx' | 'csv'; rows: string[][] } {
+  const lower = fileName.toLowerCase();
+  const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+  if (isZip || lower.endsWith('.xlsx')) {
+    return { format: 'xlsx', rows: parseXlsxRows(bytes, sheetIndex) };
+  }
+  const isOldXls =
+    bytes.length >= 4 &&
+    bytes[0] === 0xd0 &&
+    bytes[1] === 0xcf &&
+    bytes[2] === 0x11 &&
+    bytes[3] === 0xe0;
+  if (isOldXls || lower.endsWith('.xls')) {
+    throw new Error('Format .xls (Excel 97-2003) belum didukung. Simpan ulang berkas sebagai .xlsx atau .csv.');
+  }
+  if (bytes.length > MAX_XLSX_BYTES) {
+    throw new Error('Ukuran berkas melebihi batas maksimal 15 MB.');
+  }
+  const hasControlByte = bytes.some((b) => b < 0x09 || (b >= 0x0e && b < 0x20));
+  if (hasControlByte) {
+    throw new Error('Berkas tidak dapat dibaca. Pastikan memakai format .xlsx atau CSV UTF-8.');
+  }
+  return { format: 'csv', rows: parseCsv(strFromU8(bytes)) };
+}
+
 function sanitizeSheetName(name: string, index: number): string {
   const cleaned = name.replace(/[\\/?*\[\]:]/g, ' ').trim().slice(0, 31);
   return cleaned || `Sheet${index + 1}`;

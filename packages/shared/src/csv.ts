@@ -1,4 +1,5 @@
 import type { CatalogProduct, Category } from './types';
+import { buildXlsxBytes, parseXlsxRows, readSpreadsheetRows, type SpreadsheetCell } from './xlsx';
 
 export interface ProductCsvRow {
   lineNumber: number;
@@ -108,28 +109,38 @@ export function parseCsvText(text: string): string[][] {
   return rows;
 }
 
+const PRODUCT_HEADER_CELLS: readonly string[] = ['SKU', 'Nama', 'Kategori', 'Harga jual', 'Aktif'];
+
+const PRODUCT_SAMPLE_ROWS: readonly (readonly [string, string, string, number, string])[] = [
+  ['KP-001', 'Kopi Tubruk', 'Kopi', 15000, 'ya'],
+  ['NK-001', 'Es Teh Manis', 'Non Kopi', 8000, 'ya'],
+  ['MK-001', 'Roti Bakar Cokelat', 'Makanan', 18000, 'ya'],
+];
+
+const emptyProductResult = (headerError?: string): ParseProductCsvResult => ({
+  rows: [],
+  totalRows: 0,
+  newCount: 0,
+  updateCount: 0,
+  errorCount: 0,
+  truncated: false,
+  ...(headerError ? { headerError } : {}),
+});
+
 /**
- * Validasi dan pemetaan baris CSV produk ke bentuk yang siap diterapkan ke katalog.
+ * Validasi dan pemetaan baris tabel produk ke bentuk yang siap diterapkan ke katalog.
  * - Kolom wajib di header: SKU, Nama, Kategori, Harga jual, Aktif.
  * - Validasi: nama wajib diisi, harga bilangan bulat >= 0, SKU unik di berkas, kategori harus terdaftar.
  * - Batas maksimal: 2000 baris.
  */
-export function parseProductCsv(
-  csvText: string,
+export function parseProductRows(
+  rawRows: readonly (readonly string[])[],
   categories: Category[],
-  catalog: CatalogProduct[] = []
+  catalog: CatalogProduct[] = [],
+  emptyMessage = 'Berkas kosong.'
 ): ParseProductCsvResult {
-  const rawRows = parseCsvText(csvText);
   if (rawRows.length === 0) {
-    return {
-      rows: [],
-      totalRows: 0,
-      newCount: 0,
-      updateCount: 0,
-      errorCount: 0,
-      truncated: false,
-      headerError: 'Berkas CSV kosong.',
-    };
+    return emptyProductResult(emptyMessage);
   }
 
   const headerRow = rawRows[0]!;
@@ -303,6 +314,54 @@ export function parseProductCsv(
   };
 }
 
+/**
+ * Validasi dan pemetaan berkas CSV produk ke bentuk yang siap diterapkan ke katalog.
+ */
+export function parseProductCsv(
+  csvText: string,
+  categories: Category[],
+  catalog: CatalogProduct[] = []
+): ParseProductCsvResult {
+  return parseProductRows(parseCsvText(csvText), categories, catalog, 'Berkas CSV kosong.');
+}
+
+/**
+ * Validasi dan pemetaan berkas Excel (.xlsx) produk ke bentuk yang siap diterapkan ke katalog.
+ */
+export function parseProductXlsx(
+  bytes: Uint8Array,
+  categories: Category[],
+  catalog: CatalogProduct[] = []
+): ParseProductCsvResult {
+  try {
+    return parseProductRows(parseXlsxRows(bytes, 0), categories, catalog, 'Berkas Excel (.xlsx) kosong.');
+  } catch (err) {
+    return emptyProductResult(err instanceof Error ? err.message : 'Berkas Excel (.xlsx) tidak dapat dibaca.');
+  }
+}
+
+/**
+ * Membaca dan memvalidasi berkas impor produk (.xlsx maupun CSV UTF-8) secara otomatis.
+ */
+export function parseProductSpreadsheet(
+  fileName: string,
+  bytes: Uint8Array,
+  categories: Category[],
+  catalog: CatalogProduct[] = []
+): ParseProductCsvResult {
+  try {
+    const { format, rows } = readSpreadsheetRows(fileName, bytes, parseCsvText, 0);
+    return parseProductRows(
+      rows,
+      categories,
+      catalog,
+      format === 'xlsx' ? 'Berkas Excel (.xlsx) kosong.' : 'Berkas CSV kosong.'
+    );
+  } catch (err) {
+    return emptyProductResult(err instanceof Error ? err.message : 'Berkas spreadsheet tidak dapat dibaca.');
+  }
+}
+
 function csvEscape(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '';
   const s = String(value);
@@ -312,54 +371,71 @@ function csvEscape(value: string | number | boolean | null | undefined): string 
   return s;
 }
 
+function productCatalogRows(
+  products: CatalogProduct[],
+  categories: Category[]
+): (readonly SpreadsheetCell[])[] {
+  const catMap = new Map(categories.map((c) => [c.id, c.name]));
+  const rows: (readonly SpreadsheetCell[])[] = [];
+
+  for (const p of products) {
+    const catName = p.categoryId ? (catMap.get(p.categoryId) ?? '') : '';
+    if (p.variants.length === 0) {
+      rows.push([p.sku ?? '', p.name, catName, p.price, p.isActive ? 'ya' : 'tidak']);
+    } else {
+      for (const v of p.variants) {
+        rows.push([
+          v.sku ?? '',
+          `${p.name} (${v.label})`,
+          catName,
+          v.price,
+          p.isActive && v.isActive ? 'ya' : 'tidak',
+        ]);
+      }
+    }
+  }
+
+  return rows;
+}
+
 /**
  * Ekspor daftar katalog menjadi string CSV UTF-8 dengan BOM.
  * Format kolom: SKU,Nama,Kategori,Harga jual,Aktif
  */
 export function exportProductsToCsv(products: CatalogProduct[], categories: Category[]): string {
-  const catMap = new Map(categories.map((c) => [c.id, c.name]));
-  const lines: string[] = [];
-  lines.push('SKU,Nama,Kategori,Harga jual,Aktif');
-
-  for (const p of products) {
-    const catName = p.categoryId ? (catMap.get(p.categoryId) ?? '') : '';
-    if (p.variants.length === 0) {
-      lines.push(
-        [
-          csvEscape(p.sku ?? ''),
-          csvEscape(p.name),
-          csvEscape(catName),
-          csvEscape(p.price),
-          csvEscape(p.isActive ? 'ya' : 'tidak'),
-        ].join(',')
-      );
-    } else {
-      for (const v of p.variants) {
-        lines.push(
-          [
-            csvEscape(v.sku ?? ''),
-            csvEscape(`${p.name} (${v.label})`),
-            csvEscape(catName),
-            csvEscape(v.price),
-            csvEscape(p.isActive && v.isActive ? 'ya' : 'tidak'),
-          ].join(',')
-        );
-      }
-    }
-  }
-
+  const rows = [PRODUCT_HEADER_CELLS, ...productCatalogRows(products, categories)];
+  const lines = rows.map((row) => row.map((cell) => csvEscape(cell)).join(','));
   return '\uFEFF' + lines.join('\r\n');
+}
+
+/**
+ * Ekspor daftar katalog menjadi berkas Excel (.xlsx).
+ */
+export function exportProductsToXlsx(products: CatalogProduct[], categories: Category[]): Uint8Array {
+  return buildXlsxBytes([
+    {
+      name: 'Katalog Produk',
+      rows: [PRODUCT_HEADER_CELLS, ...productCatalogRows(products, categories)],
+    },
+  ]);
 }
 
 /**
  * Contoh berkas CSV untuk unduhan panduan impor.
  */
 export function generateProductTemplateCsv(): string {
-  const lines = [
-    'SKU,Nama,Kategori,Harga jual,Aktif',
-    'KP-001,Kopi Tubruk,Kopi,15000,ya',
-    'NK-001,Es Teh Manis,Non Kopi,8000,ya',
-    'MK-001,Roti Bakar Cokelat,Makanan,18000,ya',
-  ];
-  return '\uFEFF' + lines.join('\r\n');
+  const rows = [PRODUCT_HEADER_CELLS, ...PRODUCT_SAMPLE_ROWS];
+  return '\uFEFF' + rows.map((row) => row.map((cell) => csvEscape(cell)).join(',')).join('\r\n');
+}
+
+/**
+ * Contoh berkas Excel (.xlsx) untuk unduhan panduan impor.
+ */
+export function generateProductTemplateXlsx(): Uint8Array {
+  return buildXlsxBytes([
+    {
+      name: 'Contoh Produk',
+      rows: [PRODUCT_HEADER_CELLS, ...PRODUCT_SAMPLE_ROWS],
+    },
+  ]);
 }

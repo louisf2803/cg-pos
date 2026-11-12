@@ -1,7 +1,6 @@
-import { strFromU8 } from 'fflate';
 import { toCsv } from './report';
 import { MAX_OPNAME_LINES, opnameDifference, type StockItem, type StockOpname } from './stock';
-import { buildXlsxBytes, parseXlsxRows } from './xlsx';
+import { buildXlsxBytes, parseXlsxRows, readSpreadsheetRows } from './xlsx';
 
 export type OpnameCsvRowStatus = 'valid' | 'blank' | 'error';
 
@@ -426,19 +425,11 @@ export function parseOpnameSpreadsheet(
   stockItems: readonly StockItem[],
   systemQtyOverrides?: ReadonlyMap<string, number>,
 ): ParseOpnameCsvResult {
-  const lower = fileName.toLowerCase();
-  const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
-  if (isZip || lower.endsWith('.xlsx')) {
-    return parseOpnameXlsx(bytes, stockItems, systemQtyOverrides);
+  try {
+    const { rows } = readSpreadsheetRows(fileName, bytes, parseDelimitedCsv, 0);
+    return parseOpnameRows(rows, stockItems, systemQtyOverrides);
+  } catch (err) {
+    return emptyOpnameResult(err instanceof Error ? err.message : 'Berkas spreadsheet tidak dapat dibaca.');
   }
-  const isOldXls = bytes.length >= 4 && bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
-  if (isOldXls || lower.endsWith('.xls')) {
-    return emptyOpnameResult('Format .xls (Excel 97-2003) belum didukung. Simpan ulang berkas sebagai .xlsx atau .csv.');
-  }
-  const hasControlByte = bytes.some((b) => b < 0x09 || (b >= 0x0e && b < 0x20));
-  if (hasControlByte) {
-    return emptyOpnameResult('Berkas tidak dapat dibaca. Pastikan memakai format .xlsx atau CSV UTF-8.');
-  }
-  return parseOpnameCsv(strFromU8(bytes), stockItems, systemQtyOverrides);
 }
 
