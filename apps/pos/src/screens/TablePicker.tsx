@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { formatRp, type TableStatus } from '@cgpos/shared';
+import { findGroupForTable, formatRp, type TableGroup, type TableStatus } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
@@ -13,6 +13,14 @@ export function TablePicker({ currentTableId, canResume, onPick, onResume, onClo
   const st = useAsync(async () => ({ floors: await data.listFloors(), tables: await data.listTableStatus() }), [data]);
   const [floor, setFloor] = useState<string | null>(null);
   const [hint, setHint] = useState('');
+  const [groups] = useState<TableGroup[]>(() => {
+    try {
+      const raw = localStorage.getItem('cgpos_pos_table_groups');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const floors = st.status === 'ready' ? st.data.floors : [];
   const active = floor ?? floors[0]?.id ?? null;
   const shown = useMemo(() => (st.status === 'ready' ? st.data.tables.filter((t) => (active ? t.floorId === active : true)) : []), [st, active]);
@@ -42,6 +50,11 @@ export function TablePicker({ currentTableId, canResume, onPick, onResume, onClo
                         if (canResume) onResume(t); else setHint(`Meja ${t.name} sedang dipakai. Simpan atau kosongkan pesanan yang sedang dibuat dulu untuk membukanya.`);
                       }}>
                       <strong>{t.name}</strong>
+                      {findGroupForTable(t.id, groups) && (
+                        <span className="text-[10px] text-accent font-semibold truncate block">
+                          Grup: {findGroupForTable(t.id, groups)!.name}
+                        </span>
+                      )}
                       <span className={`cg-badge ${busy ? 'cg-badge--warning' : 'cg-badge--accent'}`}>{busy ? 'Terisi' : mine ? 'Dipilih' : 'Kosong'}</span>
                       {busy && <span className="text-sm cg-num">{formatRp(t.order!.total)}</span>}
                     </button>

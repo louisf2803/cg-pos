@@ -11,8 +11,11 @@ import {
   Play,
   Printer,
   RefreshCw,
+  RotateCcw,
   Search,
+  Split,
   Undo2,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -29,7 +32,13 @@ import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { DiscountLines, Modal } from '../ui';
 import { ReceiptDialog } from './Receipt';
-import { MergeTableDialog, MoveTableDialog } from './TableMove';
+import {
+  MergeTableDialog,
+  MoveTableDialog,
+  ResetTableDialog,
+  SplitOrderDialog,
+  TableGroupDialog,
+} from './TableMove';
 import { useApprover, ApproverFields } from '../lib/approver';
 
 const REASONS = ['Salah input pesanan', 'Pelanggan batal', 'Pesanan ganda', 'Lainnya'];
@@ -97,6 +106,9 @@ export function Orders({
   const [voiding, setVoiding] = useState<Order | null>(null);
   const [moving, setMoving] = useState<Order | null>(null);
   const [merging, setMerging] = useState<Order | null>(null);
+  const [splitting, setSplitting] = useState<Order | null>(null);
+  const [resetting, setResetting] = useState<Order | null>(null);
+  const [grouping, setGrouping] = useState(false);
   const [bill, setBill] = useState<Order | null>(null);
   const [billKind, setBillKind] = useState<'receipt' | 'bill'>('receipt');
   const [notice, setNotice] = useState('');
@@ -104,6 +116,7 @@ export function Orders({
 
   // Ambil daftar meja untuk nama meja
   const tableList = useAsync(() => data.listTables(), [data]);
+  const tableStatusList = useAsync(() => data.listTableStatus(), [data]);
   const names = useMemo<Record<string, string>>(
     () => (tableList.status === 'ready' ? Object.fromEntries(tableList.data.map((t) => [t.id, t.name])) : {}),
     [tableList]
@@ -182,6 +195,16 @@ export function Orders({
           >
             <Filter className="cg-icon cg-icon--xs" aria-hidden />
             <span>Filter{hasActiveFilter ? ' (1)' : ''}</span>
+          </button>
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm"
+            onClick={() => setGrouping(true)}
+            title="Kelola grup meja gabungan"
+            aria-label="Grup meja"
+          >
+            <Users className="cg-icon cg-icon--xs" aria-hidden />
+            <span className="hidden tablet:inline">Grup meja</span>
           </button>
           <button
             type="button"
@@ -625,6 +648,25 @@ export function Orders({
                                           <Merge className="cg-icon cg-icon--xs" aria-hidden />
                                           <span>Gabung meja</span>
                                         </button>
+                                        {(target.items.length >= 2 ||
+                                          target.items.some((i) => i.qty > 1)) && (
+                                          <button
+                                            type="button"
+                                            className="cg-btn cg-btn--ghost cg-btn--sm"
+                                            onClick={() => setSplitting(target)}
+                                          >
+                                            <Split className="cg-icon cg-icon--xs" aria-hidden />
+                                            <span>Pisah item</span>
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          className="cg-btn cg-btn--ghost cg-btn--sm text-warning-strong"
+                                          onClick={() => setResetting(target)}
+                                        >
+                                          <RotateCcw className="cg-icon cg-icon--xs" aria-hidden />
+                                          <span>Reset meja</span>
+                                        </button>
                                       </>
                                     )}
                                     {!partial && (
@@ -744,10 +786,53 @@ export function Orders({
           order={merging}
           names={names}
           onClose={() => setMerging(null)}
-          onDone={(o, from) => {
+          onDone={(o, mergedCount) => {
             setMerging(null);
-            setNotice(`Pesanan ${from.number} digabung ke ${o.number} (meja ${names[o.tableId ?? ''] ?? '—'}).`);
+            setNotice(
+              `${mergedCount} pesanan berhasil digabung ke ${o.number} (meja ${
+                names[o.tableId ?? ''] ?? '—'
+              }).`,
+            );
             list.reload();
+          }}
+        />
+      )}
+      {splitting && (
+        <SplitOrderDialog
+          order={splitting}
+          tableName={names[splitting.tableId ?? ''] ?? '—'}
+          onClose={() => setSplitting(null)}
+          onDone={(orig, split) => {
+            setSplitting(null);
+            setNotice(
+              `Pesanan ${orig.number} dipisahkan. Tagihan baru: ${split.number} (${formatRp(
+                split.total,
+              )}).`,
+            );
+            list.reload();
+          }}
+        />
+      )}
+      {resetting && (
+        <ResetTableDialog
+          order={resetting}
+          tableName={names[resetting.tableId ?? ''] ?? '—'}
+          onClose={() => setResetting(null)}
+          onDone={(num) => {
+            setResetting(null);
+            setNotice(
+              `Meja ${names[resetting.tableId ?? ''] ?? '—'} telah direset (pesanan ${num} dibatalkan).`,
+            );
+            list.reload();
+          }}
+        />
+      )}
+      {grouping && (
+        <TableGroupDialog
+          tables={tableStatusList.status === 'ready' ? tableStatusList.data : []}
+          onClose={() => setGrouping(false)}
+          onDone={(grps) => {
+            setNotice(`Pengaturan grup meja diperbarui (${grps.length} grup aktif).`);
           }}
         />
       )}

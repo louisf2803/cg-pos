@@ -93,4 +93,5 @@ export * from './waste-report';
 export * from './hpp-report';
 export * from './deposit-report';
 export * from './cashier-report';
+export * from './table-group';
 
