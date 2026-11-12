@@ -79,6 +79,7 @@ export const MODUL: NavModule[] = [
           { section: 'Penjualan', href: '/laporan/jenis-order', label: 'Jenis order', screen: 'S80', tier: 2, built: true },
           { section: 'Penjualan', href: '/laporan/void', label: 'Void', screen: 'S80', tier: 2, built: true },
           { section: 'Penjualan', href: '/laporan/refund', label: 'Refund', screen: 'S80', tier: 2, built: true },
+          { section: 'Penjualan', href: '/laporan/harga-diubah', label: 'Perubahan harga kasir', screen: 'S80', tier: 2, built: true },
           { section: 'Operasional', href: '/laporan/dapur', label: 'Dapur', screen: 'S80', tier: 3, built: true },
           { section: 'Operasional', href: '/laporan/meja', label: 'Meja', screen: 'S80', tier: 2, built: true },
           { section: 'Operasional', href: '/laporan/kasir', label: 'Kasir dan tutup kasir', screen: 'S80', tier: 2, built: true },
