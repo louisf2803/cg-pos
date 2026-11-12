@@ -16,9 +16,10 @@ import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProdu
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
+import { attendanceMinutes, attendanceProblem } from './attendance';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
-  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement,
+  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord,
 } from './types';
 import { computeOrder } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem } from './outlet';
@@ -194,6 +195,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
+  let attendance: AttendanceRecord[] = [];
   let products: Product[] = [];
   let orders: Order[] = [];
   let shifts: Shift[] = [];
@@ -410,6 +412,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     floors = opts.seed === false ? [] : [{ id: 'f-1', name: 'Lantai 1', sort: 1 }, { id: 'f-teras', name: 'Teras', sort: 2 }];
     tables = opts.seed === false ? [] : ['T1', 'T2', 'T3', 'T4'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-1', name: n, sort: i + 1 })).concat(['T5', 'T6'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-teras', name: n, sort: i + 5 })));
     employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
+    attendance = [];
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
@@ -1427,6 +1430,65 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const e = employees.find((x) => x.id === employeeId);
       if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
       e.pin = pin;
+    },
+    async attendanceOpen() {
+      return attendance.filter((a) => !a.clockOutAt).map((a) => ({ employeeId: a.employeeId, clockInAt: a.clockInAt }));
+    },
+    async attendanceClockIn(employeeId, pin, photo) {
+      const e = employees.find((x) => x.id === employeeId && x.isActive);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      if (e.pin === '' || e.pin !== pin) throw new DataError('bad_pin', 'PIN salah');
+      if (attendance.some((a) => a.employeeId === employeeId && !a.clockOutAt)) throw new DataError('invalid', 'Karyawan ini sudah clock in');
+      const bad = photo ? photoProblem(photo) : null;
+      if (bad) throw new DataError('invalid', bad);
+      const rec: AttendanceRecord = {
+        id: newId(), employeeId, employeeName: e.name, outletId: CTX.outletId, clockInAt: now().toISOString(), edited: false,
+        ...(photo ? { clockInPhotoUrl: bytesToDataUri(photo) } : {}),
+      };
+      attendance.push(rec);
+      return { id: rec.id, clockInAt: rec.clockInAt };
+    },
+    async attendanceClockOut(employeeId, pin, photo) {
+      const e = employees.find((x) => x.id === employeeId && x.isActive);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      if (e.pin === '' || e.pin !== pin) throw new DataError('bad_pin', 'PIN salah');
+      const rec = attendance.find((a) => a.employeeId === employeeId && !a.clockOutAt);
+      if (!rec) throw new DataError('invalid', 'Karyawan ini belum clock in');
+      const bad = photo ? photoProblem(photo) : null;
+      if (bad) throw new DataError('invalid', bad);
+      rec.clockOutAt = new Date(Math.max(now().getTime(), Date.parse(rec.clockInAt))).toISOString();
+      if (photo) rec.clockOutPhotoUrl = bytesToDataUri(photo);
+      return { id: rec.id, clockInAt: rec.clockInAt, clockOutAt: rec.clockOutAt };
+    },
+    async listAttendance(range: SalesRange, employeeId?: string) {
+      return clone(attendance
+        .filter((a) => a.clockInAt >= range.from && a.clockInAt < range.to && (!employeeId || a.employeeId === employeeId))
+        .sort((x, y) => (x.clockInAt < y.clockInAt ? 1 : -1))
+        .map((a) => ({ ...a, minutes: attendanceMinutes(a.clockInAt, a.clockOutAt) })));
+    },
+    async saveAttendance(input: AttendanceInput) {
+      const problem = attendanceProblem(input, now());
+      if (problem) throw new DataError('invalid', problem);
+      const e = employees.find((x) => x.id === input.employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      const open = !input.clockOutAt;
+      if (open && attendance.some((a) => a.employeeId === input.employeeId && !a.clockOutAt && a.id !== input.id)) {
+        throw new DataError('invalid', 'Karyawan ini masih punya catatan yang belum clock out');
+      }
+      const note = (input.note ?? '').trim().slice(0, 300) || undefined;
+      let rec = input.id ? attendance.find((a) => a.id === input.id) : undefined;
+      if (input.id && !rec) throw new DataError('not_found', 'Catatan absensi tidak ditemukan');
+      if (!rec) { rec = { id: newId(), employeeId: e.id, employeeName: e.name, outletId: CTX.outletId, clockInAt: input.clockInAt, edited: true }; attendance.push(rec); }
+      rec.employeeId = e.id; rec.employeeName = e.name; rec.clockInAt = new Date(input.clockInAt).toISOString();
+      if (input.clockOutAt) rec.clockOutAt = new Date(input.clockOutAt).toISOString(); else delete rec.clockOutAt;
+      if (note) rec.note = note; else delete rec.note;
+      rec.edited = true;
+      return clone({ ...rec, minutes: attendanceMinutes(rec.clockInAt, rec.clockOutAt) });
+    },
+    async deleteAttendance(id) {
+      const i = attendance.findIndex((a) => a.id === id);
+      if (i < 0) throw new DataError('not_found', 'Catatan absensi tidak ditemukan');
+      attendance.splice(i, 1);
     },
     async listPaymentMethods() { return clone(METHODS); },
 

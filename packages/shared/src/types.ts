@@ -40,6 +40,16 @@ export interface Employee { id: string; name: string; role: 'owner' | 'manager' 
 /** Karyawan untuk layar pengelolaan (termasuk yang nonaktif). */
 export interface ManagedEmployee extends Employee { isActive: boolean }
 export interface EmployeeInput { id?: string; name: string; role: 'manager' | 'cashier'; isActive?: boolean }
+/** Satu catatan absensi. Waktu selalu dari server. minutes = lama kerja, ada bila sudah clock out. */
+export interface AttendanceRecord {
+  id: string; employeeId: string; employeeName: string; outletId: string; clockInAt: string; clockOutAt?: string;
+  /** tautan bertanda tangan berumur pendek ke selfie (bucket privat); hanya untuk pemilik/manajer */
+  clockInPhotoUrl?: string; clockOutPhotoUrl?: string; note?: string; edited: boolean; minutes?: number;
+}
+/** Karyawan yang sedang clock in (belum clock out) di outlet perangkat ini. */
+export interface AttendanceOpen { employeeId: string; clockInAt: string }
+/** Koreksi atau tambah catatan oleh pemilik/manajer (tanpa PIN karyawan). Tanpa id = catatan baru. */
+export interface AttendanceInput { id?: string; employeeId: string; clockInAt: string; clockOutAt?: string; note?: string }
 export interface PaymentMethod { id: string; code: string; name: string; kind: 'cash' | 'noncash' | 'gateway' | 'complimentary' | 'deposit'; requiresOnline: boolean }
 
 export interface Shift {

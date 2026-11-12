@@ -24,6 +24,7 @@ export * from './permissions';
 export * from './shift-report';
 export * from './payment-rules';
 export * from './photo';
+export * from './attendance';
 export * from './customer';
 export * from './promo';
 export * from './loyalty';

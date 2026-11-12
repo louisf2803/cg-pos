@@ -15,7 +15,7 @@ import type { StockLocation, StockTransfer, StockTransferInput } from './stock-t
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
-  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement,
+  SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceOpen, AttendanceRecord,
 } from './types';
 import type { ShiftReportRow } from './shift-report';
 
@@ -181,6 +181,17 @@ export interface DataLayer {
   verifyPin(employeeId: string, pin: string): Promise<boolean>;
   /** Atur PIN 6 digit karyawan (khusus owner/manajer). PIN tidak pernah dibaca kembali; hanya hash-nya disimpan di server. */
   setEmployeePin(employeeId: string, pin: string): Promise<void>;
+  /** Karyawan yang sedang clock in di outlet perangkat ini (POS memakainya untuk menampilkan siapa yang sudah masuk). */
+  attendanceOpen(): Promise<AttendanceOpen[]>;
+  /** Clock in dengan PIN karyawan. Jam dari server. Selfie opsional (bucket privat). Galat: bad_pin, invalid (sudah clock in), not_found. */
+  attendanceClockIn(employeeId: string, pin: string, photo?: ProductPhotoInput): Promise<{ id: string; clockInAt: string }>;
+  /** Clock out dengan PIN karyawan. Galat: bad_pin, invalid (belum clock in). */
+  attendanceClockOut(employeeId: string, pin: string, photo?: ProductPhotoInput): Promise<{ id: string; clockInAt: string; clockOutAt: string }>;
+  /** Catatan absensi untuk pemilik/manajer (clockInAt dalam rentang), terbaru dulu; employeeId untuk satu karyawan. */
+  listAttendance(range: SalesRange, employeeId?: string): Promise<AttendanceRecord[]>;
+  /** Koreksi atau tambah catatan (pemilik/manajer). Satu karyawan hanya boleh punya satu catatan yang belum clock out. */
+  saveAttendance(input: AttendanceInput): Promise<AttendanceRecord>;
+  deleteAttendance(id: string): Promise<void>;
   /** Semua karyawan outlet ini, termasuk nonaktif. Untuk layar pengelolaan. */
   listManagedEmployees(): Promise<ManagedEmployee[]>;
   /** Tambah atau ubah karyawan (kasir atau manajer). Peran pemilik tidak diatur dari sini. */

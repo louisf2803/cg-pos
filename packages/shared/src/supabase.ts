@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
-import { photoPath, photoProblem } from './photo';
+import { photoExt, photoPath, photoProblem, type ProductPhotoInput } from './photo';
+import { attendanceMinutes, attendanceProblem } from './attendance';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
 import {
@@ -26,6 +27,9 @@ import {
 } from './finance';
 
 const PHOTO_BUCKET = 'menu-images';
+/** Bucket PRIVAT untuk selfie absensi (migrasi 0036): tampilan lewat tautan bertanda tangan, bukan URL publik. */
+const ATTENDANCE_BUCKET = 'attendance-photos';
+const ATTENDANCE_URL_TTL = 600;
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
@@ -36,7 +40,7 @@ import { DataError } from './types';
 import { couponInputProblem, normalizeCode, promotionProblem } from './promo';
 import type {
   Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
-  Shift, ShiftReport, CashMovement,
+  Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord,
 } from './types';
 import type { OrderType } from './order-calc';
 import { computeOrder } from './order-calc';
@@ -181,6 +185,55 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (/unit does not belong/i.test(m)) return new DataError('invalid', 'Satuan tidak sesuai dengan barangnya.');
     if (/invalid line|invalid received|invalid amount|invalid term|negative|too many lines|no lines|larger than/i.test(m)) return new DataError('invalid', 'Isian pembelian ditolak server. Periksa jumlah, harga, diskon, dan baris.');
     return mapDbError(error);
+  }
+
+  function mapAttendanceError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur absensi belum aktif di database (migrasi 0035 belum diterapkan).');
+    if (/invalid pin/i.test(m)) return new DataError('bad_pin', 'PIN salah, atau akun terkunci sementara karena terlalu banyak salah.');
+    if (/already clocked in/i.test(m)) return new DataError('invalid', 'Karyawan ini sudah clock in.');
+    if (/not clocked in/i.test(m)) return new DataError('invalid', 'Karyawan ini belum clock in.');
+    if (/employee not at this outlet/i.test(m)) return new DataError('forbidden', 'Karyawan ini tidak terdaftar di outlet ini.');
+    if (/invalid photo path/i.test(m)) return new DataError('invalid', 'Foto selfie ditolak server.');
+    if (/clock out before clock in|time in the future|clock in required/i.test(m)) return new DataError('invalid', 'Jam masuk dan pulang tidak valid. Pulang harus setelah masuk dan tidak di masa depan.');
+    if (/employee not found|outlet not found|attendance not found/i.test(m)) return new DataError('not_found', 'Karyawan atau catatan absensi tidak ditemukan.');
+    if (/not allowed/i.test(m)) return new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengoreksi absensi.');
+    if (error.code === '23505') return new DataError('invalid', 'Karyawan ini masih punya catatan yang belum clock out.');
+    return mapDbError(error);
+  }
+
+  /** Periksa PIN dulu (salah = berhenti sebelum foto diunggah), lalu unggah selfie ke bucket privat. Mengembalikan jalur objek atau null. */
+  async function attendanceVerifyAndUpload(orgId: string, deviceId: string, employeeId: string, pin: string, kind: 'in' | 'out', photo?: ProductPhotoInput): Promise<string | null> {
+    const { data, error } = await db().rpc('verify_pin', { p_device: deviceId, p_employee: employeeId, p_pin: pin });
+    if (error) throw mapDbError(error);
+    if (data !== true) throw new DataError('bad_pin', 'PIN salah, atau akun terkunci sementara karena terlalu banyak salah.');
+    if (!photo) return null;
+    const problem = photoProblem(photo);
+    if (problem) throw new DataError('invalid', problem);
+    const path = `${orgId}/${employeeId}/${now().getTime()}-${kind}.${photoExt(photo.contentType)}`;
+    const up = await client.storage.from(ATTENDANCE_BUCKET).upload(path, photo.data, { contentType: photo.contentType, upsert: false });
+    if (up.error) throw new DataError('invalid', `Foto selfie gagal diunggah: ${up.error.message}`);
+    return path;
+  }
+
+  /** Catatan absensi + nama karyawan + tautan foto bertanda tangan (hanya pengelola yang berhak melihat objeknya). */
+  async function attendanceRows(build: (qb: any) => any): Promise<AttendanceRecord[]> {
+    const rows = await pageAll((from, to) => build(db().from('attendance').select('id,employee_id,outlet_id,clock_in_at,clock_in_photo_path,clock_out_at,clock_out_photo_path,note,edited_by')).order('clock_in_at', { ascending: false }).range(from, to));
+    if (rows.length === 0) return [];
+    const names = new Map<string, string>(((must(await db().from('employees').select('id,name')) as Row[] | null) ?? []).map((e) => [e.id as string, e.name as string]));
+    const paths = [...new Set(rows.flatMap((x) => [x.clock_in_photo_path, x.clock_out_photo_path]).filter((p): p is string => !!p))];
+    const urls = new Map<string, string>();
+    if (paths.length > 0) {
+      const signed = await client.storage.from(ATTENDANCE_BUCKET).createSignedUrls(paths, ATTENDANCE_URL_TTL);
+      for (const s of signed.data ?? []) if (s.path && s.signedUrl) urls.set(s.path, s.signedUrl);
+    }
+    return rows.map((x): AttendanceRecord => ({
+      id: x.id as string, employeeId: x.employee_id as string, employeeName: names.get(x.employee_id as string) ?? '(karyawan dihapus)', outletId: x.outlet_id as string,
+      clockInAt: x.clock_in_at as string, ...(x.clock_out_at ? { clockOutAt: x.clock_out_at as string } : {}),
+      ...(x.clock_in_photo_path && urls.has(x.clock_in_photo_path as string) ? { clockInPhotoUrl: urls.get(x.clock_in_photo_path as string)! } : {}),
+      ...(x.clock_out_photo_path && urls.has(x.clock_out_photo_path as string) ? { clockOutPhotoUrl: urls.get(x.clock_out_photo_path as string)! } : {}),
+      ...(x.note ? { note: x.note as string } : {}), edited: !!x.edited_by, minutes: attendanceMinutes(x.clock_in_at as string, (x.clock_out_at as string | null) ?? undefined),
+    }));
   }
 
   function mapFinanceError(error: { code?: string; message?: string }): DataError {
@@ -1787,6 +1840,60 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (!/^\d{6}$/.test(pin)) throw new DataError('invalid', 'PIN harus 6 digit angka');
       const { error } = await db().rpc('admin_set_pin', { p_employee: employeeId, p_pin: pin });
       if (error) throw mapDbError(error);
+    },
+
+    // ---------- absensi ----------
+    async attendanceOpen() {
+      const { deviceId } = await requireDevice();
+      const { data, error } = await db().rpc('attendance_status', { p_device: deviceId });
+      if (error) throw mapAttendanceError(error);
+      return ((data ?? []) as Row[]).map((x) => ({ employeeId: x.employee_id as string, clockInAt: x.clock_in_at as string }));
+    },
+    async attendanceClockIn(employeeId, pin, photo) {
+      const { r, deviceId } = await requireDevice();
+      const path = await attendanceVerifyAndUpload(r.orgId, deviceId, employeeId, pin, 'in', photo);
+      const { data, error } = await db().rpc('attendance_clock_in', { p_device: deviceId, p_employee: employeeId, p_pin: pin, p_photo_path: path });
+      if (error) throw mapAttendanceError(error);
+      const o = data as Row;
+      return { id: o.id as string, clockInAt: o.clock_in_at as string };
+    },
+    async attendanceClockOut(employeeId, pin, photo) {
+      const { r, deviceId } = await requireDevice();
+      const path = await attendanceVerifyAndUpload(r.orgId, deviceId, employeeId, pin, 'out', photo);
+      const { data, error } = await db().rpc('attendance_clock_out', { p_device: deviceId, p_employee: employeeId, p_pin: pin, p_photo_path: path });
+      if (error) throw mapAttendanceError(error);
+      const o = data as Row;
+      return { id: o.id as string, clockInAt: o.clock_in_at as string, clockOutAt: o.clock_out_at as string };
+    },
+    async listAttendance(range, employeeId) {
+      return attendanceRows((qb) => {
+        let q = qb.gte('clock_in_at', range.from).lt('clock_in_at', range.to);
+        if (employeeId) q = q.eq('employee_id', employeeId);
+        return q;
+      });
+    },
+    async saveAttendance(input: AttendanceInput) {
+      const problem = attendanceProblem(input, now());
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      let outletId = r.ctx.outletId;
+      if (input.id) {
+        const cur = must(await db().from('attendance').select('outlet_id').eq('id', input.id).maybeSingle()) as Row | null;
+        if (!cur) throw new DataError('not_found', 'Catatan absensi tidak ditemukan');
+        outletId = cur.outlet_id as string;
+      }
+      const { data, error } = await db().rpc('attendance_admin_save', {
+        p_id: input.id ?? null, p_org: r.orgId, p_employee: input.employeeId, p_outlet: outletId,
+        p_clock_in: input.clockInAt, p_clock_out: input.clockOutAt ?? null, p_note: input.note ?? null,
+      });
+      if (error) throw mapAttendanceError(error);
+      const saved = (await attendanceRows((qb) => qb.eq('id', data as string)))[0];
+      if (!saved) throw new DataError('not_found', 'Catatan absensi tidak ditemukan');
+      return saved;
+    },
+    async deleteAttendance(id) {
+      const { error } = await db().rpc('attendance_admin_delete', { p_id: id });
+      if (error) throw mapAttendanceError(error);
     },
     async listPaymentMethods() {
       const rows = must(await db().from('payment_methods').select('id,code,name,kind,requires_online')
