@@ -32,6 +32,9 @@ export interface StockMove {
   reason?: string; refType?: string; occurredAt: string;
 }
 
+/** Mutasi stok lintas produk: StockMove + nama dan satuan barang. Dipakai laporan seperti Stok terbuang (tanpa satu kueri per produk). */
+export interface StockMoveEntry extends StockMove { productName: string; unit: string }
+
 /** Jenis yang boleh dicatat manual dari dashboard. */
 export type ManualStockKind = 'adjust_in' | 'adjust_out' | 'waste';
 export const MANUAL_STOCK_KINDS: ManualStockKind[] = ['adjust_in', 'adjust_out', 'waste'];

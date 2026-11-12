@@ -5,7 +5,7 @@ import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncid
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
 import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
-import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput } from './stock';
+import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput, StockMoveEntry, StockMoveKind } from './stock';
 import type { KitchenStatus, KitchenTicket } from './kitchen';
 import type { PrintStation, PrintStationInput, SentLine } from './station';
 import type { NotePreset, NotePresetInput } from './notes';
@@ -126,6 +126,8 @@ export interface DataLayer {
   postStock(input: StockPostInput): Promise<StockItem>;
   /** Kartu stok: gerakan satu item, terbaru dulu. */
   listStockMoves(productId: string, q?: { limit?: number }): Promise<StockMove[]>;
+  /** Mutasi stok semua barang outlet ini yang terjadi dalam rentang (occurredAt, ISO UTC), terbaru dulu; kinds menyaring jenis (mis. ['waste']). */
+  listStockMovesBetween(range: SalesRange, kinds?: StockMoveKind[]): Promise<StockMoveEntry[]>;
   /** Batas stok minimum untuk peringatan (kosong = tanpa peringatan). Pemilik dan manajer. */
   setStockMin(productId: string, min: number | null): Promise<void>;
 

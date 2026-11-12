@@ -30,3 +30,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=ad2d33a | merge A75 (produk xlsx), A78 (pengaturan stok), A77 STATUS, status non-DB (typecheck, 521 tes, build, lint); review: Impor dan ekspor produk => yes; Notifikasi stok dan Batasi penjualan tetap partial; tugas payroll dinomori ulang A80 dan A81; goal 15/72
 2026-11-12 | main=19dade7 | listPriceChanges (DataLayer, 525 tes) + A82 ditulis; goal 15/72
 2026-11-12 | main=0f559c3 | DataLayer peran kustom (0033; 531 tes) + A83 ditulis; goal 15/72
+2026-11-12 | main=5c36743 | DataLayer listStockMovesBetween (533 tes) + A84 ditulis; antrean Antigravity A80 sampai A84 menunggu (4 kali tunggu tanpa cabang baru); goal 15/72

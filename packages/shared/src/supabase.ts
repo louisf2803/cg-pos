@@ -8,7 +8,7 @@ import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
 import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
-import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
+import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveEntry, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
 import {
   invoiceOutstanding, purchaseInvoiceProblem, purchaseOrderProblem, purchasePayProblem, purchaseReceiveProblem, supplierProblem,
   type PayAccount, type PurchaseInvoice, type PurchaseInvoiceInput, type PurchaseInvoiceSummary, type PurchaseItem, type PurchaseLine, type PurchaseOrder, type PurchaseOrderInput, type PurchaseOrderSummary, type PurchasePayInput, type PurchasePayment, type PurchaseReceiveInput, type Supplier, type SupplierInput,
@@ -1203,6 +1203,26 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       ]);
       const unitName = new Map((must(units) as Row[]).map((u) => [u.id as string, u.name as string]));
       return toStockItem(must(p) as Row, unitName, (must(b) as Row | null) ?? undefined);
+    },
+    async listStockMovesBetween(range, kinds) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const items = new Map((await self.listStock()).map((i) => [i.productId, i]));
+      const rows = await pageAll((from, to) => {
+        let q = db().from('stock_movements').select('id,product_id,kind,qty_delta,unit_cost,total_cost,qty_after,avg_cost_after,reason,ref_type,occurred_at')
+          .eq('location_id', loc).gte('occurred_at', range.from).lt('occurred_at', range.to);
+        if (kinds?.length) q = q.in('kind', kinds);
+        return q.order('occurred_at', { ascending: false }).order('created_at', { ascending: false }).range(from, to);
+      });
+      return rows.map((r): StockMoveEntry => {
+        const it = items.get(r.product_id as string);
+        return {
+          id: r.id as string, productId: r.product_id as string, kind: r.kind as StockMoveKind, qtyDelta: Number(r.qty_delta), unitCost: Number(r.unit_cost), totalCost: Number(r.total_cost),
+          qtyAfter: Number(r.qty_after ?? 0), avgCostAfter: Number(r.avg_cost_after ?? 0), occurredAt: r.occurred_at as string,
+          ...(r.reason ? { reason: r.reason as string } : {}), ...(r.ref_type ? { refType: r.ref_type as string } : {}),
+          productName: it?.name ?? '(barang tidak lagi dilacak)', unit: it?.unit ?? '',
+        };
+      });
     },
     async listStockMoves(productId, q) {
       const { ctx } = await resolve();

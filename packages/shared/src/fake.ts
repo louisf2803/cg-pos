@@ -954,6 +954,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       }
       return stockItem(input.productId);
     },
+    async listStockMovesBetween(range, kinds) {
+      return clone(moves.filter((m) => m.occurredAt >= range.from && m.occurredAt < range.to && (!kinds?.length || kinds.includes(m.kind)))
+        .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
+        .map((m) => { const b = stockBal(m.productId); return { ...m, productName: b?.name ?? '(barang dihapus)', unit: b?.unit ?? '' }; }));
+    },
     async listStockMoves(productId, q) { return clone(moves.filter((m) => m.productId === productId).slice(0, q?.limit ?? 100)); },
     async setStockMin(productId, min) {
       if (!stockBal(productId)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
