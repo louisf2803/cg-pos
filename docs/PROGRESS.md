@@ -932,3 +932,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — DataLayer aset tetap (0040, sudah di produksi) + tugas UI A88
 `packages/shared/src/fixed-assets.ts` + 5 metode DataLayer (`listFixedAssets`, `listAssetDepreciations`, `saveFixedAsset`, `depreciateFixedAssets`, `disposeFixedAsset`); 10 tes baru. Halaman aset Majoo tidak bisa dibuka Louis, jadi rancangan dibuat sendiri mengikuti menu Majoo (Daftar, Penyusutan, Pelepasan, Laporan). Asumsi: garis lurus mulai bulan setelah perolehan. Tugas layar: `docs/queue/A88.md`. Lapisan Supabase belum diuji ke database nyata.
+
+## Claude (12 Nov 2026) — 0041 tagihan rutin + persetujuan siap, BELUM di produksi
+`packages/db/migrations/0041_recurring_bills_approvals.sql`: `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC `recurring_bill_pay`, `approval_request`, `approval_decide`, `approval_cancel`. Aditif. Tes `19_recurring_approvals.sql` lulus dan diuji negatif. ASUMSI (Majoo tidak bisa dilihat; rancangan sendiri atas arahan Louis): mitra = tabel `suppliers` yang ada; bayar tagihan membuat jurnal dan memajukan jatuh tempo; penyetuju bukan pengaju kecuali pemilik. Pemeriksa izin sesi menolak apply_migration tanpa persetujuan langsung per penerapan; menunggu Louis.
