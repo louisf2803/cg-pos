@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  countEmployeesForRole,
   createBlankCustomRole,
   duplicateRoleName,
   extractLegacyCustomRoles,
@@ -22,6 +23,7 @@ import {
   newId,
   resolveRolePermissions,
   roleActionErrorMessage,
+  roleDeletionWarningMessage,
   upsertCustomRole,
   type ManagedEmployee,
   type RoleDefinition,
@@ -168,11 +170,9 @@ export default function HakAksesPage() {
     [employeesData],
   );
 
-  // Hitung karyawan terpasang per peran bawaan berdasarkan role server
-  const employeeCountForRole = (role: RoleDefinition): number => {
-    if (!role.isBuiltIn) return 0;
-    return employees.filter((e) => e.role === role.baseRole && e.isActive).length;
-  };
+  // Hitung karyawan terpasang per peran (bawaan & kustom) dari data karyawan aktif
+  const employeeCountForRole = (role: RoleDefinition): number =>
+    countEmployeesForRole(role, employees, { activeOnly: true });
 
   const filteredRoles = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -343,7 +343,7 @@ export default function HakAksesPage() {
         <Info className="cg-icon cg-icon--sm mt-4 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-relaxed">
-            Daftar peran kustom kini tersimpan dan disinkronkan lewat server. Penegakan izin di setiap layar kasir dan dashboard masih berjalan bertahap (tahap 1: penyimpanan konfigurasi peran; tautan karyawan ke peran kustom menyusul).
+            Daftar peran kustom kini tersimpan dan disinkronkan lewat server. Tautan peran kustom ke setiap karyawan dapat dikelola melalui menu Pengaturan Karyawan.
           </p>
         </div>
       </div>
@@ -593,11 +593,6 @@ export default function HakAksesPage() {
                                 <Users className="cg-icon cg-icon--sm text-text-muted" aria-hidden />
                                 {empCount}
                               </span>
-                              {!builtIn && (
-                                <span className="block text-xs text-text-muted font-normal mt-4">
-                                  tautan karyawan menyusul
-                                </span>
-                              )}
                             </td>
                             <td className="text-right whitespace-nowrap align-top">
                               <div className="inline-flex items-center justify-end gap-8">
@@ -683,11 +678,6 @@ export default function HakAksesPage() {
                         <div className="text-right shrink-0">
                           <div className="text-xs text-text-muted">Karyawan</div>
                           <div className="font-semibold cg-num">{empCount}</div>
-                          {!builtIn && (
-                            <div className="text-xs text-text-muted mt-4">
-                              tautan karyawan menyusul
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -762,6 +752,7 @@ export default function HakAksesPage() {
       {deleteTarget && (
         <DeleteRoleDialog
           role={deleteTarget}
+          employees={employees}
           deleting={deleting}
           errorMessage={deleteError}
           onClose={() => {
@@ -779,25 +770,28 @@ export default function HakAksesPage() {
 
 function DeleteRoleDialog({
   role,
+  employees,
   deleting,
   errorMessage,
   onClose,
   onConfirm,
 }: {
   role: RoleDefinition;
+  employees: readonly ManagedEmployee[];
   deleting: boolean;
   errorMessage: string | null;
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const dlg = useDialog(onClose);
+  const warningText = roleDeletionWarningMessage(role, employees);
   return (
     <dialog {...dlg.props} aria-labelledby="del-role-title">
       <h2 id="del-role-title" className="cg-modal__title">
         Hapus peran kustom?
       </h2>
-      <p className="cg-modal__body">
-        Anda yakin ingin menghapus peran <strong>{role.name}</strong> dari server? Karyawan yang memakai peran ini akan kehilangan tautannya.
+      <p className="cg-modal__body text-sm text-text-muted leading-relaxed" data-testid="del-role-warning">
+        {warningText}
       </p>
       {errorMessage && (
         <div role="alert" className="cg-banner cg-banner--danger mb-12">
