@@ -63,6 +63,7 @@ export function toDiscounts(raw: unknown): DiscountEntry[] {
     id: d.id, source: d.source as DiscountEntry['source'], label: DISCOUNT_LABEL[d.source as keyof typeof DISCOUNT_LABEL] ?? 'Diskon', amount: num(d.amount),
     ...(d.source === 'points' ? { points: num(d.points_used) } : {}),
     ...(d.promotion_id ? { promotionId: d.promotion_id } : {}), ...(d.coupon_id ? { couponId: d.coupon_id } : {}), ...(d.authorized_by ? { authorizedBy: d.authorized_by } : {}),
+    ...(d.reference ? { reference: d.reference as string } : {}),
   }));
 }
 

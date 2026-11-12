@@ -68,4 +68,17 @@ describe('ESC/POS', () => {
   it('halaman uji sesuai lebar kertas', () => {
     for (const line of asText(testPageBytes('58', 'Coffee Ground')).split('\n')) expect(line.length).toBeLessThanOrEqual(32);
   });
+  it('mencetak nomor referensi kupon/promo di bawah Potongan bila ada', () => {
+    const withDisc = {
+      ...order,
+      discountTotal: 5000,
+      total: 45000,
+      paidTotal: 45000,
+      discounts: [{ id: 'd1', source: 'coupon', label: 'Potongan 5 ribu', amount: 5000, reference: 'CPN-001' }],
+    } as unknown as Order;
+    const t = asText(receiptBytes({ order: withDisc, ctx, cashierName: 'Budi', kind: 'receipt', paper: '58' }));
+    expect(t).toContain('Potongan');
+    expect(t).toContain('Potongan 5 ribu - Ref: CPN-001');
+    for (const line of t.split('\n')) expect(line.length).toBeLessThanOrEqual(32);
+  });
 });

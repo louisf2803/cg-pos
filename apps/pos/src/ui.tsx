@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { discountDisplayLabel, formatRp } from '@cgpos/shared';
 
 /** Dialog: fokus masuk ke dalam, Tab terkurung, Escape menutup, fokus kembali ke pemicu. */
 export function Modal({ title, children, onClose, labelledBy = 'modal-title' }: { title: string; children: ReactNode; onClose?: () => void; labelledBy?: string }) {
@@ -37,4 +38,19 @@ export function ProductPhoto({ src, fallback }: { src?: string; fallback: ReactN
   const [bad, setBad] = useState(false);
   if (!src || bad) return <>{fallback}</>;
   return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBad(true)} />;
+}
+
+/** Rincian baris potongan pesanan (menampilkan nomor referensi kupon/promo bila ada). */
+export function DiscountLines({ entries, inset = true }: { entries?: { id: string; label: string; amount: number; reference?: string }[]; inset?: boolean }) {
+  if (!entries?.length) return null;
+  return (
+    <div className="grid gap-4">
+      {entries.map((d) => (
+        <div key={d.id} className={`flex justify-between gap-8 text-xs text-text-muted${inset ? ' pl-8' : ''}`}>
+          <span className="min-w-0 break-words">{discountDisplayLabel(d)}</span>
+          <span className="cg-num shrink-0">-{formatRp(d.amount)}</span>
+        </div>
+      ))}
+    </div>
+  );
 }

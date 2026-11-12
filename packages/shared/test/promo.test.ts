@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  accessFor, appliedFromEntries, cartGross, couponInputProblem, couponProblem, createFakeData, fitDiscounts, manualProblem, newId, normalizeCode,
+  accessFor, appliedFromEntries, cartGross, couponInputProblem, couponProblem, couponReferenceProblem, COUPON_REFERENCE_MAX,
+  createFakeData, discountDisplayLabel, fitDiscounts, manualProblem, newApplied, newId, normalizeCode, normalizeCouponReference,
   promoProductIds, promotionAmount, promotionBlock, promotionProblem, resolveDiscounts, type AppliedDiscount, type Promotion, type PromoCart,
 } from '../src';
 
@@ -186,5 +187,57 @@ describe('promoProductIds (filter Promo di kasir)', () => {
   });
   it('promo gratis item memasukkan produk syarat dan produk gratisnya', () => {
     expect([...promoProductIds([mk({ kind: 'free_item', productIds: ['s'], freeProductId: 'f' })], now, 'dine_in')].sort()).toEqual(['f', 's']);
+  });
+});
+
+describe('nomor referensi kupon/promo', () => {
+  it('merapikan spasi ujung dan menolak panjang berlebih atau karakter kontrol', () => {
+    expect(normalizeCouponReference('')).toBeUndefined();
+    expect(normalizeCouponReference('   ')).toBeUndefined();
+    expect(normalizeCouponReference('  CPN-001  ')).toBe('CPN-001');
+
+    expect(couponReferenceProblem('')).toBeNull();
+    expect(couponReferenceProblem('   ')).toBeNull();
+    expect(couponReferenceProblem('a'.repeat(COUPON_REFERENCE_MAX))).toBeNull();
+    expect(couponReferenceProblem(`  ${'a'.repeat(COUPON_REFERENCE_MAX)}  `)).toBeNull();
+    expect(couponReferenceProblem('a'.repeat(COUPON_REFERENCE_MAX + 1))).toMatch(/60/);
+    expect(couponReferenceProblem('CPN\u00001')).toMatch(/kontrol/);
+    expect(couponReferenceProblem('CPN\n1')).toMatch(/kontrol/);
+
+    expect(discountDisplayLabel({ label: 'Diskon 5 ribu' })).toBe('Diskon 5 ribu');
+    expect(discountDisplayLabel({ label: 'Diskon 5 ribu', reference: 'CPN-001' })).toBe('Diskon 5 ribu · Ref: CPN-001');
+  });
+
+  it('mempertahankan nomor referensi lewat newApplied -> resolveDiscounts -> saveOrder -> getOrder -> appliedFromEntries', async () => {
+    const p = promo({ id: 'pr-cpn', kind: 'amount_order', value: 5000, name: 'Potongan kupon' });
+    const app = newApplied({ source: 'coupon', promotionId: p.id, couponId: 'cp-1', code: 'HEMAT5', label: p.name, reference: '  CPN-001  ' });
+    expect(app.reference).toBe('CPN-001');
+    const c = cart([L('p1', 1, 20000)]);
+    const res = resolveDiscounts([app], [p], c, NOW);
+    expect(res.entries).toHaveLength(1);
+    expect(res.entries[0]!.reference).toBe('CPN-001');
+
+    const d = createFakeData({ now: () => NOW });
+    await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
+    const cpn = (await d.findCoupon('HEMAT5'))!;
+    const saved = await d.saveOrder({
+      id: newId(), type: 'takeaway', items: [{ id: newId(), productId: 'p1', name: 'Kopi susu gula aren', qty: 1, unitPrice: 20000 }],
+      orderDiscount: 5000,
+      discounts: [{ id: newId(), source: 'coupon', promotionId: cpn.promotion.id, couponId: cpn.coupon.id, label: cpn.promotion.name, amount: 5000, reference: '  VOUCHER-42  ' }],
+    }, 'e-sari');
+    expect(saved.discounts?.[0]?.reference).toBe('VOUCHER-42');
+
+    const loaded = (await d.getOrder(saved.id))!;
+    expect(loaded.discounts?.[0]?.reference).toBe('VOUCHER-42');
+    const reapplied = appliedFromEntries(loaded.discounts ?? []);
+    expect(reapplied[0]?.reference).toBe('VOUCHER-42');
+    const reresolved = resolveDiscounts(reapplied, await d.listPromotions(), c, NOW);
+    expect(reresolved.entries[0]?.reference).toBe('VOUCHER-42');
+
+    await expect(d.saveOrder({
+      id: newId(), type: 'takeaway', items: [{ id: newId(), productId: 'p1', name: 'Kopi susu gula aren', qty: 1, unitPrice: 20000 }],
+      orderDiscount: 5000,
+      discounts: [{ id: newId(), source: 'coupon', promotionId: cpn.promotion.id, couponId: cpn.coupon.id, label: cpn.promotion.name, amount: 5000, reference: 'x'.repeat(61) }],
+    }, 'e-sari')).rejects.toThrow(/60/);
   });
 });

@@ -59,6 +59,9 @@ describe('pemetaan baris', () => {
         { id: 'i1', product_id: 'p1', name: 'Kopi', qty: '2', unit_price: '20000', line_total: '40000', sort: 0, voided_at: null },
         { id: 'i3', product_id: 'p3', name: 'Batal', qty: '1', unit_price: '1000', line_total: '1000', sort: 2, voided_at: 'x' },
       ],
+      order_discounts: [
+        { id: 'd1', source: 'coupon', promotion_id: 'pr1', coupon_id: 'cp1', amount: '5000', reference: 'CPN-001' },
+      ],
       payments: [
         { id: 'y2', method_id: 'm', amount: '9500', tendered: '10000', change_given: '500', status: 'succeeded', paid_at: '2026-11-09T05:02:00Z', payment_methods: { name: 'Tunai', kind: 'cash' } },
         { id: 'y1', method_id: 'm2', amount: '40000', tendered: null, change_given: '0', status: 'succeeded', paid_at: '2026-11-09T05:01:00Z', payment_methods: { name: 'Kartu', kind: 'noncash' } },
@@ -68,6 +71,7 @@ describe('pemetaan baris', () => {
     expect(o.items.map((i) => i.id)).toEqual(['i1', 'i2']);
     expect(o.payments.map((p) => p.id)).toEqual(['y1', 'y2']);
     expect(o.payments[1]).toMatchObject({ tendered: 10000, change: 500, methodName: 'Tunai', kind: 'cash' });
+    expect(o.discounts).toMatchObject([{ id: 'd1', source: 'coupon', promotionId: 'pr1', couponId: 'cp1', amount: 5000, reference: 'CPN-001' }]);
     expect(o).toMatchObject({ total: 49500, paidTotal: 49500, type: 'dine_in', status: 'paid' });
   });
 });

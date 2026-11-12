@@ -26,4 +26,15 @@ describe('ReceiptBody mengikuti templat', () => {
   it('pilihan lama kasir (0027) tetap dihormati', () => {
     expect(html({ ...ctx, receiptShowCashier: false } as OutletContext)).not.toContain('Kasir:');
   });
+  it('menampilkan nomor referensi diskon/kupon di struk bila ada', () => {
+    const withDiscountRef = {
+      ...order,
+      discountTotal: 5000,
+      total: 45000,
+      paidTotal: 45000,
+      discounts: [{ id: 'd1', source: 'coupon', label: 'Potongan 5 ribu', amount: 5000, reference: 'CPN-001' }],
+    } as unknown as Order;
+    const h = renderToStaticMarkup(<ReceiptBody order={withDiscountRef} ctx={ctx} cashierName="Budi" kind="receipt" paper="80" />);
+    expect(h).toContain('Potongan 5 ribu · Ref: CPN-001');
+  });
 });

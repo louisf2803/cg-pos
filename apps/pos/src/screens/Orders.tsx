@@ -27,7 +27,7 @@ import {
 } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
-import { Modal } from '../ui';
+import { DiscountLines, Modal } from '../ui';
 import { ReceiptDialog } from './Receipt';
 import { MergeTableDialog, MoveTableDialog } from './TableMove';
 import { useApprover, ApproverFields } from '../lib/approver';
@@ -667,6 +667,15 @@ export function Orders({
                                 </li>
                               ))}
                             </ul>
+                            {target.discountTotal > 0 && (
+                              <div className="pt-8 border-t border-border space-y-4 text-xs">
+                                <div className="flex justify-between gap-12 text-danger-strong font-medium">
+                                  <span>Potongan</span>
+                                  <span className="cg-num tabular-nums">-{formatRp(target.discountTotal)}</span>
+                                </div>
+                                <DiscountLines entries={target.discounts} />
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
