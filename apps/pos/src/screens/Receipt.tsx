@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bluetooth, Printer } from 'lucide-react';
-import { canPrintAgain, formatRp, orderTypeLabel, receiptBytes, resolveReceiptTemplate, taxDisplay, testPageBytes, type Order, type OutletContext } from '@cgpos/shared';
+import { canPrintAgain, discountDisplayLabel, formatRp, orderTypeLabel, receiptBytes, resolveReceiptTemplate, taxDisplay, testPageBytes, type Order, type OutletContext } from '@cgpos/shared';
 import { bluetoothSupported, connectPrinter, disconnectPrinter, printBytes, reconnectPrinter, setOpenDrawer, usePrinter } from '../lib/printer';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -48,7 +48,14 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { 
       ))}
       <hr />
       <div className="receipt__row"><span>Subtotal</span><span>{formatRp(d.subtotal)}</span></div>
-      {d.discount > 0 && <div className="receipt__row"><span>Potongan</span><span>-{formatRp(d.discount)}</span></div>}
+      {d.discount > 0 && (
+        <>
+          <div className="receipt__row"><span>Potongan</span><span>-{formatRp(d.discount)}</span></div>
+          {order.discounts?.filter((x) => x.reference).map((x) => (
+            <div key={x.id} className="receipt__note">{discountDisplayLabel(x)}</div>
+          ))}
+        </>
+      )}
       {order.serviceCharge > 0 && <div className="receipt__row"><span>Biaya layanan</span><span>{formatRp(order.serviceCharge)}</span></div>}
       {d.tax > 0 && !d.inclusive && <div className="receipt__row"><span>Pajak</span><span>{formatRp(d.tax)}</span></div>}
       {order.rounding !== 0 && <div className="receipt__row"><span>Pembulatan</span><span>{formatRp(order.rounding)}</span></div>}

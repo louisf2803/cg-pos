@@ -1,4 +1,5 @@
 import { formatRp } from './money';
+import { discountDisplayLabel } from './promo';
 import { orderTypeLabel } from './report';
 import { taxDisplay } from './outlet';
 import { resolveReceiptTemplate, themeCols, type PrintTheme } from './receipt-template';
@@ -91,7 +92,10 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
   p.push({ text: dash });
   const d = taxDisplay(order);
   row('Subtotal', formatRp(d.subtotal));
-  if (d.discount > 0) row('Potongan', `-${formatRp(d.discount)}`);
+  if (d.discount > 0) {
+    row('Potongan', `-${formatRp(d.discount)}`);
+    for (const x of order.discounts ?? []) if (x.reference) text(`  ${discountDisplayLabel(x)}`);
+  }
   if (order.serviceCharge > 0) row('Biaya layanan', formatRp(order.serviceCharge));
   if (d.tax > 0 && !d.inclusive) row('Pajak', formatRp(d.tax));
   if (order.rounding !== 0) row('Pembulatan', formatRp(order.rounding));

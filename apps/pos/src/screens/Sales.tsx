@@ -28,7 +28,7 @@ import {
 } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
-import { Modal } from '../ui';
+import { DiscountLines, Modal } from '../ui';
 import { ReceiptDialog } from './Receipt';
 
 type SalesTab = 'paid' | 'void' | 'refund';
@@ -975,9 +975,12 @@ function SalesDetailModal({
             <span className="cg-num">{formatRp(order.subtotal)}</span>
           </div>
           {order.discountTotal > 0 && (
-            <div className="flex justify-between gap-12 text-accent">
-              <span>Potongan</span>
-              <span className="cg-num">-{formatRp(order.discountTotal)}</span>
+            <div className="space-y-4">
+              <div className="flex justify-between gap-12 text-accent">
+                <span>Potongan</span>
+                <span className="cg-num">-{formatRp(order.discountTotal)}</span>
+              </div>
+              <DiscountLines entries={order.discounts} />
             </div>
           )}
           {order.serviceCharge > 0 && (

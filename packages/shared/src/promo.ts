@@ -41,6 +41,29 @@ export function promotionProblem(i: PromotionInput): string | null {
 }
 
 export const normalizeCode = (s: string) => s.trim().toUpperCase().replace(/\s+/g, '');
+export const COUPON_REFERENCE_MAX = 60;
+
+/** Rapikan nomor referensi kupon/promo (trim spasi ujung; kosong menjadi undefined). */
+export function normalizeCouponReference(s: string | undefined): string | undefined {
+  const t = (s ?? '').trim();
+  return t || undefined;
+}
+
+/** Alasan nomor referensi kupon/promo tidak sah (maks 60 huruf, tanpa karakter kontrol), atau null. */
+export function couponReferenceProblem(s: string | undefined): string | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  if (/[\u0000-\u001F\u007F]/.test(t)) return 'Nomor referensi tidak boleh berisi karakter kontrol.';
+  if (t.length > COUPON_REFERENCE_MAX) return `Nomor referensi maksimal ${COUPON_REFERENCE_MAX} karakter.`;
+  return null;
+}
+
+/** Label diskon beserta nomor referensi bila ada (tampil konsisten di keranjang, bayar, dan struk). */
+export const discountDisplayLabel = (d: { label: string; reference?: string }): string => (
+  d.reference ? `${d.label} · Ref: ${d.reference}` : d.label
+);
+
 export function couponCodeProblem(code: string): string | null {
   const c = normalizeCode(code);
   if (c.length < 3 || c.length > 20) return 'Kode kupon 3 sampai 20 karakter.';
@@ -138,6 +161,8 @@ export interface AppliedDiscount {
   /** tukar poin: jumlah poin; `fixed` = nilai rupiahnya */
   points?: number;
   promotionId?: string; couponId?: string; code?: string;
+  /** nomor referensi kupon/promo yang diketik kasir (opsional, maks 60 huruf) */
+  reference?: string;
   label: string;
   /** diskon manual */
   manual?: { mode: 'percent' | 'amount'; value: number };
@@ -164,10 +189,11 @@ export function resolveDiscounts(applied: AppliedDiscount[], promos: Promotion[]
   const ordered = [...applied.filter((a) => a.source !== 'points'), ...applied.filter((a) => a.source === 'points')];
   for (const a of ordered) {
     let amount = 0; let reason: string | null = null;
+    const ref = normalizeCouponReference(a.reference);
     if (a.source === 'points') {
       amount = a.fixed ?? 0;
       if (amount > left) { skipped.push({ id: a.id, label: a.label, reason: 'Potongan poin melebihi sisa tagihan.' }); continue; }
-      if (amount > 0) { left -= amount; entries.push({ id: a.id, source: 'points', points: a.points, label: a.label, amount, authorizedBy: a.authorizedBy }); }
+      if (amount > 0) { left -= amount; entries.push({ id: a.id, source: 'points', points: a.points, label: a.label, amount, authorizedBy: a.authorizedBy, ...(ref ? { reference: ref } : {}) }); }
       continue;
     }
     if (a.manual) {
@@ -182,7 +208,7 @@ export function resolveDiscounts(applied: AppliedDiscount[], promos: Promotion[]
     amount = Math.min(amount, left);
     if (reason || amount <= 0) { skipped.push({ id: a.id, label: a.label, reason: reason ?? 'Tidak ada potongan.' }); continue; }
     left -= amount;
-    entries.push({ id: a.id, source: a.source, promotionId: a.promotionId, couponId: a.couponId, label: a.label, amount, authorizedBy: a.authorizedBy });
+    entries.push({ id: a.id, source: a.source, promotionId: a.promotionId, couponId: a.couponId, label: a.label, amount, authorizedBy: a.authorizedBy, ...(ref ? { reference: ref } : {}) });
   }
   return { entries, total: gross - left, skipped };
 }
@@ -201,11 +227,19 @@ export function fitDiscounts(entries: DiscountEntry[], total: number): DiscountE
 
 /** Entri diskon tersimpan pada pesanan lama menjadi pilihan di keranjang. */
 export function appliedFromEntries(entries: DiscountEntry[]): AppliedDiscount[] {
-  return entries.map((e) => ({
-    id: e.id, source: e.source, points: e.points, promotionId: e.promotionId, couponId: e.couponId, label: e.label, authorizedBy: e.authorizedBy,
-    ...(e.source === 'points' ? { fixed: e.amount } : e.source === 'manual' || !e.promotionId ? { manual: { mode: 'amount' as const, value: e.amount } } : { fixed: e.amount }),
-  }));
+  return entries.map((e) => {
+    const ref = normalizeCouponReference(e.reference);
+    return {
+      id: e.id, source: e.source, points: e.points, promotionId: e.promotionId, couponId: e.couponId, label: e.label, authorizedBy: e.authorizedBy,
+      ...(ref ? { reference: ref } : {}),
+      ...(e.source === 'points' ? { fixed: e.amount } : e.source === 'manual' || !e.promotionId ? { manual: { mode: 'amount' as const, value: e.amount } } : { fixed: e.amount }),
+    };
+  });
 }
 
-export const newApplied = (a: Omit<AppliedDiscount, 'id'>): AppliedDiscount => ({ id: newId(), ...a });
+export const newApplied = (a: Omit<AppliedDiscount, 'id'>): AppliedDiscount => {
+  const { reference, ...rest } = a;
+  const ref = normalizeCouponReference(reference);
+  return { id: newId(), ...rest, ...(ref ? { reference: ref } : {}) };
+};
 export { ALL_TYPES as ALL_ORDER_TYPES };

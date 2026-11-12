@@ -5,7 +5,7 @@ import { createTableOps } from './table-ops';
 import { sanitizeReceiptTemplate } from './receipt-template';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
-import { couponInputProblem, fitDiscounts, normalizeCode, promotionProblem } from './promo';
+import { couponInputProblem, couponReferenceProblem, fitDiscounts, normalizeCode, normalizeCouponReference, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
 import { priceOverridePctProblem } from './price-override';
@@ -1503,7 +1503,16 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         shiftId: shift?.id, cashierId, status: 'open', items, subtotal: 0, discountTotal: 0, serviceCharge: 0, taxTotal: 0, rounding: 0, total: 0, paidTotal: 0,
         payments: [], openedAt: at.toISOString(),
       };
-      const entries: DiscountEntry[] = fitDiscounts(draft.discounts ?? ((draft.orderDiscount ?? 0) > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon manual', amount: draft.orderDiscount! }] : []), calc.discountTotal);
+      const rawEntries: DiscountEntry[] = fitDiscounts(draft.discounts ?? ((draft.orderDiscount ?? 0) > 0 ? [{ id: newId(), source: 'manual', label: 'Diskon manual', amount: draft.orderDiscount! }] : []), calc.discountTotal);
+      for (const e of rawEntries) {
+        const refErr = couponReferenceProblem(e.reference);
+        if (refErr) throw new DataError('invalid', refErr);
+      }
+      const entries: DiscountEntry[] = rawEntries.map((e) => {
+        const ref = normalizeCouponReference(e.reference);
+        const { reference: _drop, ...rest } = e;
+        return ref ? { ...rest, reference: ref } : rest;
+      });
       const pp = pointsProblem(draft, entries);
       if (pp) throw new DataError('invalid', pp);
       Object.assign(o, { discounts: entries, type: draft.type, tableId: draft.tableId, customerId: draft.customerId, label: draft.label, guestCount: draft.guestCount, items, subtotal: calc.subtotal, discountTotal: calc.discountTotal,

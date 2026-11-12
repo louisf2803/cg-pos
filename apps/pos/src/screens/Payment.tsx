@@ -9,7 +9,7 @@ import { ApproverFields, useApprover } from '../lib/approver';
 import { useSession } from '../lib/session';
 import { forwardNotice, forwardOrder } from '../lib/stations';
 import { TicketStrip } from './TicketHost';
-import { Modal } from '../ui';
+import { DiscountLines, Modal } from '../ui';
 
 const ICON: Record<PaymentMethod['kind'], typeof Banknote> = { cash: Banknote, noncash: CreditCard, gateway: QrCode, complimentary: Landmark, deposit: Landmark };
 
@@ -498,9 +498,12 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
                 <span className="tabular-nums text-text font-medium">{formatRp(current.subtotal)}</span>
               </div>
               {current.discountTotal > 0 && (
-                <div className="flex justify-between text-danger-strong">
-                  <span>Potongan</span>
-                  <span className="tabular-nums font-medium">-{formatRp(current.discountTotal)}</span>
+                <div className="space-y-4">
+                  <div className="flex justify-between text-danger-strong">
+                    <span>Potongan</span>
+                    <span className="tabular-nums font-medium">-{formatRp(current.discountTotal)}</span>
+                  </div>
+                  <DiscountLines entries={current.discounts} />
                 </div>
               )}
               {current.taxTotal > 0 && (

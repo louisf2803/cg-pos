@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Star, Tag, X } from 'lucide-react';
 import {
-  couponProblem, describePromotion, formatRp, manualProblem, maxRedeemPoints, newApplied, normalizeCode, promotionAmount, promotionBlock, redeemAmount, redeemProblem,
+  COUPON_REFERENCE_MAX, couponProblem, couponReferenceProblem, describePromotion, formatRp, manualProblem, maxRedeemPoints,
+  newApplied, normalizeCode, normalizeCouponReference, promotionAmount, promotionBlock, redeemAmount, redeemProblem,
   type AppliedDiscount, type LoyaltyRules, type PromoCart, type Promotion, type ResolvedDiscounts,
 } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
@@ -26,6 +27,7 @@ export function DiscountDialog({ applied, resolved, promos, cart, gross, custome
           {applied.map((d) => (
             <li key={d.id} className="flex items-center justify-between gap-8 border border-border rounded-md px-12 py-8">
               <span className="min-w-0 break-words">{d.label}{d.code && <span className="text-text-muted"> ({d.code})</span>}
+                {d.reference && <span className="block text-sm text-text-muted">Ref: {d.reference}</span>}
                 {skippedOf(d.id) && <span className="block text-sm text-danger-strong">Tidak berlaku: {skippedOf(d.id)}</span>}</span>
               <span className="flex items-center gap-4 shrink-0">
                 <span className="cg-num">{amountOf(d.id) ? `-${formatRp(amountOf(d.id)!)}` : '—'}</span>
@@ -72,12 +74,16 @@ export function DiscountDialog({ applied, resolved, promos, cart, gross, custome
 function CouponTab({ cart, applied, onAdd }: { cart: PromoCart; applied: AppliedDiscount[]; onAdd: (d: AppliedDiscount) => void }) {
   const data = useData();
   const [code, setCode] = useState('');
+  const [reference, setReference] = useState('');
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
   async function apply() {
     const c = normalizeCode(code);
     if (!c) return setErr('Masukkan kode kupon.');
+    const refErr = couponReferenceProblem(reference);
+    if (refErr) return setErr(refErr);
+    const ref = normalizeCouponReference(reference);
     setBusy(true); setErr(''); setOk('');
     try {
       const hit = await data.findCoupon(c);
@@ -86,8 +92,8 @@ function CouponTab({ cart, applied, onAdd }: { cart: PromoCart; applied: Applied
       const now = new Date();
       const problem = couponProblem(hit.coupon, hit.promotion, now, hit.coupon.usedCount) ?? promotionBlock({ ...hit.promotion, isActive: true }, cart, now);
       if (problem) return setErr(problem);
-      onAdd(newApplied({ source: 'coupon', promotionId: hit.promotion.id, couponId: hit.coupon.id, code: hit.coupon.code, label: hit.promotion.name }));
-      setOk(`Kupon ${hit.coupon.code} dipakai.`); setCode('');
+      onAdd(newApplied({ source: 'coupon', promotionId: hit.promotion.id, couponId: hit.coupon.id, code: hit.coupon.code, label: hit.promotion.name, ...(ref ? { reference: ref } : {}) }));
+      setOk(`Kupon ${hit.coupon.code} dipakai.`); setCode(''); setReference('');
     } catch (e) { setErr(e instanceof Error && e.message ? e.message : 'Kupon gagal diperiksa. Cek koneksi internet.'); }
     finally { setBusy(false); }
   }
@@ -95,6 +101,8 @@ function CouponTab({ cart, applied, onAdd }: { cart: PromoCart; applied: Applied
     <form className="grid gap-12" onSubmit={(e) => { e.preventDefault(); void apply(); }}>
       <div className="cg-field"><label className="cg-label" htmlFor="kupon-kode">Kode kupon</label>
         <input id="kupon-kode" className="cg-input" autoCapitalize="characters" autoComplete="off" maxLength={20} value={code} onChange={(e) => { setCode(e.target.value); setErr(''); }} /></div>
+      <div className="cg-field"><label className="cg-label" htmlFor="kupon-referensi">Nomor referensi (opsional)</label>
+        <input id="kupon-referensi" className="cg-input" autoComplete="off" maxLength={COUPON_REFERENCE_MAX} placeholder="Mis. kode voucer rekanan atau catatan kampanye" value={reference} onChange={(e) => { setReference(e.target.value); setErr(''); }} /></div>
       <p className="text-text-muted text-sm">Kupon diperiksa ke server, jadi butuh koneksi internet.</p>
       {err && <p role="alert" className="text-danger-strong">{err}</p>}
       {ok && <p role="status">{ok}</p>}

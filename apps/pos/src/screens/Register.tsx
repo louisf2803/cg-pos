@@ -10,7 +10,7 @@ import { useSession } from '../lib/session';
 import { forwardNotice, forwardOrder, useTickets } from '../lib/stations';
 import { TicketStrip } from './TicketHost';
 import { useOnline } from '../lib/online';
-import { Modal, ProductPhoto } from '../ui';
+import { DiscountLines, Modal, ProductPhoto } from '../ui';
 import { Orders } from './Orders';
 import { TablePicker } from './TablePicker';
 import { DeviceSettings } from './DeviceSettings';
@@ -875,6 +875,7 @@ export function Register({
                   {cart.discounts.total > 0 ? `-${formatRp(cart.discounts.total)}` : 'Opsional'}
                 </span>
               </button>
+              <DiscountLines entries={cart.discounts.entries} inset={false} />
               {cart.discounts.skipped.map((d) => (
                 <p key={d.id} role="status" className="text-sm text-danger-strong break-words">
                   {d.label} tidak berlaku lagi: {d.reason}
