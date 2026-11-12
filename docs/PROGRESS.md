@@ -920,3 +920,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — 0039 radius absensi siap, BELUM di produksi
 `packages/db/migrations/0039_attendance_radius.sql`: `attendance_clock_in` menerima `p_lat`/`p_lng`; mode `block` menolak absen di luar radius (`outside radius`) dan tanpa lokasi (`location required`); mode `flag` menerima dan mencatat jarak; kolom `clock_in_lat/lng/distance_m`. Tes `19_attendance_radius.sql` lulus (diuji negatif). Menunggu persetujuan Louis; setelah itu `supabase.ts`/`data.ts` (lokasi opsional di `attendanceClockIn`) dan POS membaca GPS peramban. Catatan: lokasi dikirim klien, jadi pembatas kelalaian, bukan anti-pemalsuan.
+
+## Claude (12 Nov 2026) — 0039 DITERAPKAN ke produksi (persetujuan Louis)
+`attendance_clock_in` kini menerima `p_lat`/`p_lng` (opsional, jadi klien lama yang mengirim 4 argumen tetap jalan). Berikutnya: `data.ts`/`supabase.ts` (lokasi opsional di `attendanceClockIn`), POS membaca GPS, DataLayer SDM (0038), tugas UI.
