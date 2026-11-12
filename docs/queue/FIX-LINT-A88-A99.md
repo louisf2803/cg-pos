@@ -10,3 +10,6 @@ Berkas yang melanggar (jumlah baris): keuangan/tagihan-rutin/page.tsx (13), inve
 
 ## Rebase A87
 `ag/a87-struktur-sdm` BELUM digabung karena konflik 12 hunk di `apps/dashboard/src/app/pengaturan/karyawan/page.tsx` dengan A86 (kolom Peran Kustom). Lakukan: `git fetch && git rebase origin/main` pada cabang itu, selesaikan konflik dengan MEMPERTAHANKAN kolom/pilihan peran kustom A86 DAN pilihan Jabatan/Unit/Tipe A87, jalankan typecheck + lint, lalu `git push --force-with-lease`. Tandai di `docs/PROGRESS.md`.
+
+STATUS: SELESAI 6abe4d0
+
