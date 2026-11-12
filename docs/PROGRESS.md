@@ -950,3 +950,8 @@ Tabel `stock_requests`, `stock_request_lines` + RPC permintaan barang aktif deng
 
 ## Claude (12 Nov 2026) — DataLayer permintaan barang (0042, sudah di produksi) + tugas UI A90
 `packages/shared/src/stock-requests.ts` + 5 metode DataLayer (`listStockRequests`, `createStockRequest`, `decideStockRequest`, `fulfillStockRequest`, `cancelStockRequest`); tes baru diuji negatif. Tugas layar: `docs/queue/A90.md`. Lapisan Supabase belum diuji ke database nyata.
+
+- **A86 (`ag/a86-peran-karyawan`)**:
+  - **`packages/shared` (`roles-ui.ts`, `test/roles-ui.test.ts`)**: menambahkan helper murni `countEmployeesForRole`, `getCustomRoleForEmployee`, dan `roleDeletionWarningMessage` beserta 7 tes unit (551 tes shared lulus).
+  - **`apps/dashboard` (`app/pengaturan/karyawan/page.tsx`, `app/karyawan/hak-akses/page.tsx`)**: menambahkan pemilihan peran kustom di daftar dan dialog ubah karyawan dengan penonaktifan peran kustom untuk pemilik (pesan peringatan pencegahan); menghitung jumlah karyawan terpasang sebenarnya di peran kustom pada hak-akses; pesan konfirmasi hapus peran menyebut jumlah karyawan terdampak.
+  - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test`, `pnpm -F @cgpos/dashboard build`, `lint-tailwind.sh origin/main` bersih; uji E2E browser Playwright di `1280px` dan `390px` tanpa reload (alur buat peran -> pilih peran karyawan -> hitungan terpasang naik jadi 2 -> peringatan hapus) dengan 0 galat konsol dan 0 overflow horizontal (`docs/shots/a86/{1280,390}.png`).

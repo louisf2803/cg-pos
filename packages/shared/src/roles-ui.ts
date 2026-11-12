@@ -5,6 +5,7 @@ import {
   migrateRoleDefinition,
   type RoleDefinition,
 } from './permission-matrix';
+import type { ManagedEmployee } from './types';
 
 /**
  * Gabungkan peran bawaan (owner, manager, cashier) dengan peran kustom dari server.
@@ -91,4 +92,53 @@ export function roleActionErrorMessage(err: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+/**
+ * Hitung jumlah karyawan untuk peran tertentu (bawaan atau kustom).
+ * - Peran kustom: karyawan dengan roleId === role.id.
+ * - Peran bawaan: karyawan tanpa roleId kustom (!roleId) dan role === role.baseRole.
+ * Bawaannya hanya menghitung karyawan aktif (activeOnly = true) untuk konsistensi kartu metrik.
+ */
+export function countEmployeesForRole(
+  role: RoleDefinition,
+  employees: readonly ManagedEmployee[],
+  options?: { activeOnly?: boolean },
+): number {
+  const activeOnly = options?.activeOnly ?? true;
+  if (!role.isBuiltIn) {
+    return employees.filter(
+      (e) => e.roleId === role.id && (!activeOnly || e.isActive),
+    ).length;
+  }
+  return employees.filter(
+    (e) => !e.roleId && e.role === role.baseRole && (!activeOnly || e.isActive),
+  ).length;
+}
+
+/**
+ * Ambil peran kustom yang sedang terpasang pada karyawan, atau null jika memakai peran bawaan / tidak ditemukan.
+ */
+export function getCustomRoleForEmployee(
+  employee: ManagedEmployee,
+  customRoles: readonly RoleDefinition[],
+): RoleDefinition | null {
+  if (!employee.roleId) return null;
+  return customRoles.find((r) => r.id === employee.roleId && !r.isBuiltIn) ?? null;
+}
+
+/**
+ * Pesan peringatan saat menghapus peran kustom:
+ * Menampilkan jumlah karyawan yang akan kehilangan tautan bila masih ada karyawan yang menggunakannya.
+ */
+export function roleDeletionWarningMessage(
+  role: RoleDefinition,
+  employees: readonly ManagedEmployee[],
+): string {
+  const linkedCount = employees.filter((e) => e.roleId === role.id).length;
+  if (linkedCount > 0) {
+    return `Peran ini sedang digunakan oleh ${linkedCount} karyawan. Jika dihapus, tautan peran kustom pada karyawan tersebut akan dilepas dan mereka otomatis kembali ke peran bawaan.`;
+  }
+  return `Anda yakin ingin menghapus peran kustom "${role.name}" dari server? Peran yang dihapus tidak dapat dipulihkan.`;
+}
+
 
