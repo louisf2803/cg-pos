@@ -226,4 +226,9 @@ Pada `ManagedEmployee` (`data.listManagedEmployees`), saat ini belum ada field:
 Untuk melengkapi fitur pajak gelombang A (`pajak dan biaya`):
 1. **Pajak Per Produk**: tambahkan `tax_exempt boolean DEFAULT false` (atau `tax_rate numeric(5,2)`) pada tabel `products` + propagasi pada `CatalogProduct`, `CatalogInput`, dan `saveCatalogProduct` agar produk tertentu bisa dikecualikan dari pajak atau memiliki tarif khusus.
 2. **Pajak Per Jenis Order**: tambahkan `order_types text[]` pada tabel `taxes` (atau relasi `tax_order_types`) dan perbarui `TaxSettings` agar outlet bisa membedakan tarif pajak per jenis pesanan (mis. Dine-in kena PB1, Takeaway bebas pajak).
+## Dari Antigravity (A111) — Penukaran Produk Gratis dari Poin Loyalty
+Penukaran poin saat ini sudah berjalan untuk potongan rupiah (`redeemValuePerPoint`). Untuk mendukung produk gratis:
+1. **Tabel `loyalty_product_rewards`**: (`id`, `org_id`, `product_id`, `points_cost`, `is_active`, `created_at`)
+2. **DataLayer**: `listLoyaltyRewards(): Promise<LoyaltyReward[]>` dan `saveLoyaltyReward(input: LoyaltyRewardInput): Promise<LoyaltyReward>`.
+3. **Validasi Kasir / Sinkronisasi (`sync_push`)**: Izinkan penukaran produk gratis di kasir dengan mencatat baris pesanan berharga Rp 0 dan memotong saldo poin pelanggan sebesar `points_cost`.
 

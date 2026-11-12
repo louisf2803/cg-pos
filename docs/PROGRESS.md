@@ -1021,4 +1021,6 @@ Alur refund di kasir (`apps/pos/src/screens/Orders.tsx`) dan riwayat laporan ref
   - **`apps/dashboard` (`components/shift-reports.tsx`)**: menambahkan tab `Rekap Kasir & Terminal` di Laporan Kasir, filter kasir/terminal, filter status shift, pencarian kasir, informasi terminal pada baris shift, dan ekspor CSV dinamis per tab; verifikasi `typecheck`, vitest `cashier-report.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
 ## Antigravity (12 Nov 2026) — A100 Pajak per Produk dari Layar Produk Selesai
 Layar `/pengaturan/pajak` dan formulir `/produk` (`product-form.tsx`) diperbarui dengan penjelasan kebijakan pajak outlet dan penanda bahwa penetapan tarif khusus per produk & pembedaan tarif per jenis order menunggu skema server. Permintaan skema dicatat detail di `docs/REQUESTS-FOR-CLAUDE.md`. 24 tes `tax.test.ts` & `calc.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+## Antigravity (12 Nov 2026) — A111 Tukar Poin: Potongan dan Produk Gratis Selesai
+Layar `/loyalty` diperbarui: potongan rupiah dari poin terverifikasi nyata (`data.saveLoyaltyRules`, `DiscountDialog.tsx`), dan kartu informasi penukaran produk gratis ditambahkan dengan status menunggu skema server. Kebutuhan tabel `loyalty_product_rewards` & penegakan kasir dicatat di `docs/REQUESTS-FOR-CLAUDE.md`. 9 tes `loyalty.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 
