@@ -27,6 +27,7 @@ export * from './photo';
 export * from './attendance';
 export * from './payroll';
 export * from './price-change';
+export * from './price-change-report';
 export * from './roles';
 export * from './attendance-report';
 export * from './customer';
