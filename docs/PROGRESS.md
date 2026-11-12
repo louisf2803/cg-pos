@@ -960,3 +960,6 @@ Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_sugges
 
 ## Claude (12 Nov 2026) — DataLayer pemetaan harga beli (0043, sudah di produksi) + tugas UI A91
 `packages/shared/src/purchase-price.ts` + 3 metode DataLayer (`listPurchasePriceMappings`, `setPurchasePriceMapping`, `suggestPurchasePrice`); 3 tes baru diuji negatif. Tugas layar: `docs/queue/A91.md`. Lapisan Supabase belum diuji ke database nyata. Prioritas berikutnya: tinjau 46 fitur `partial` ujung ke ujung (bukan menambah backend baru).
+
+## Claude (12 Nov 2026) — 20 tugas fitur "sebagian" disiapkan untuk Antigravity: A93 sampai A112
+Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude hampir habis; Louis akan menyuruh Claude memeriksa hasilnya sekitar pukul 08.10). Urutan pengerjaan: A86 (selesai), A87 sampai A92 (sudah ada), lalu A93 sampai A112. Tiap tugas dimulai dengan audit; kekurangan yang butuh data/skema baru ditulis di `docs/REQUESTS-FOR-CLAUDE.md`, bukan dikerjakan dengan data palsu. Migrasi 0038 sampai 0043 sudah di produksi (DataLayer siap). Saat Claude kembali: tinjau cabang `ag/a87` dan seterusnya (typecheck, tes, build, lint, lihat screenshot 390 dan 1280), gabungkan, lalu nilai ulang status fitur dengan bukti.
