@@ -173,3 +173,17 @@ Pembulatan tunai dan non-tunai terpisah dengan pecahan terkecil,kasir,should,yes
 "Tiket dapur berstatus dengan timer, ambang peringatan dan terlambat, filter",dapur,could,yes,yes,"S60 (giliran 15): status Baru/Diproses/Siap/Disajikan per baris (maju per baris atau per tiket), timer menit tunggu, batas peringatan dan terlambat bisa diatur (tersimpan di peramban), tiket terlambat berwarna merah, filter lajur"
 "Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",pembayaran,could,yes,partial,"dashboard.majoo.id menu Pengaturan > Metode Pembayaran | A59 (2026-11-11, Antigravity): /pengaturan/metode-bayar — kelola metode berbasis data.listPaymentMethods() + simulasi MDR interaktif, filter kanal (Tunai/QRIS/Dompet digital/Kartu-EDC/Transfer-VA/Komplimen), tambah/ubah/toggle metode non-gateway (tanpa PIN/aktivasi gateway sesuai aturan repo)."
 "Order Online / kanal pesan mandiri (QR swalayan, antar makanan, marketplace, kios, aplikasi konsumen): status kanal, jam layanan, estimasi persiapan",integrasi,could,yes,partial,"dashboard.majoo.id menu Order Online | A59 (2026-11-11, Antigravity): /order-online/pesanan tab Status Kanal + /order-online/{mandiri,delivery,marketplace,kios,aplikasi} — panel status kesiapan kanal clean-room CG Order (Buka/Jeda, jam layanan, estimasi menit persiapan, selisih harga %, konfirmasi otomatis). Pratinjau konfigurasi lokal menunggu endpoint server; integrasi nyata ke marketplace/ojol pihak ketiga tetap di luar lingkup (lihat baris skip terkait)."
+Laporan uang muka (Penjualan > Laporan Penjualan),laporan,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Laporan reservasi dan utilisasi (jasa dan ruangan),laporan,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Daftar harga ojek online,produk,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Beli kampanye marketing,crm,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Pengaturan akses absensi,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Radius absensi (batas lokasi absen),hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Kirim notifikasi ke karyawan (majoo Teams),hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Tingkat jabatan karyawan,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Organisasi karyawan,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Tipe karyawan,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Quick PIN karyawan,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Alur persetujuan pembelian,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Alur persetujuan keuangan,hr,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo
+Daftar mitra (pengeluaran),finance,should,yes,no,Dari menu dashboard Majoo; keputusan Louis 12 Nov 2026: buat mirip Majoo

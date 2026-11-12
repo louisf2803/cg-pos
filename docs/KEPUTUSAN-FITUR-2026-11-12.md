@@ -1,0 +1,137 @@
+# Keputusan fitur CG POS (Louis, 12 Nov 2026)
+
+Hasil pilihan Louis dari daftar fitur Majoo (kasir dan dashboard) yang dicocokkan dengan kondisi CG POS. Menggantikan keputusan Gelombang A/B/X sebelumnya untuk baris yang tercantum. Baris "belum dipilih" tidak diubah. Diterapkan ke `docs/wave.csv` dan `docs/features.csv` oleh reviewer.
+
+== BUAT MIRIP MAJOO ==
+- [Fitur / kasir] Filter kategori khusus: semua, favorit, paket, promo, deposit (Sebagian)
+- [Fitur / kasir] Pilih mode tampilan kasir (grid, SKU, meja, reservasi, jasa, buku menu) (Sebagian)
+- [Fitur / kasir] Catatan per item atau per order (kategori catatan) (Sebagian)
+- [Fitur / meja] Mode meja dengan denah dan status berwarna (Sebagian)
+- [Fitur / meja] Gabung meja dengan tagihan, pisah item, grup meja (Sebagian)
+- [Fitur / meja] Denah meja dari gambar (grid meja) di dashboard (Belum)
+- [Fitur / meja] Denah meja kustom dengan drag posisi (Sebagian)
+- [Fitur / pembayaran] Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo (Sebagian)
+- [Fitur / pembayaran] Bayar QRIS dinamis lewat DOKU, QR tampil di layar kasir (Sebagian)
+- [Fitur / void dan refund] Refund: opsi kembalikan stok dan ongkos kirim (Sebagian)
+- [Fitur / promo] Tukar poin loyalty (potongan atau produk gratis) (Sebagian)
+- [Fitur / struk] Cetak struk ke printer Bluetooth atau jaringan (Sebagian)
+- [Fitur / struk] Cetak bill sebelum bayar dan struk dapur atau checker (Sebagian)
+- [Fitur / struk] Kirim struk digital lewat WhatsApp, email, atau SMS (Belum)
+- [Fitur / struk] Pengaturan tampilan struk (logo, teks) (Sebagian)
+- [Fitur / offline] Penjualan tetap berjalan offline dan sinkron saat online (Sebagian)
+- [Fitur / dashboard] Dashboard web beranda ringkasan real-time semua outlet (Sebagian)
+- [Fitur / produk] Produk ekstra (modifier): grup wajib atau opsional, pilih satu atau banyak, maksimal pilihan, harga tambahan (Sebagian)
+- [Fitur / produk] Produk layanan (jasa) (Sebagian)
+- [Fitur / produk] Penjadwalan harga (Sebagian)
+- [Fitur / produk] Hak kasir mengubah harga jual (Belum)
+- [Fitur / produk] Grup pelanggan dan harga spesial (Sebagian)
+- [Fitur / pajak dan biaya] Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order (Sebagian)
+- [Fitur / outlet] Outlet: informasi bisnis, rekening, grup outlet (Sebagian)
+- [Fitur / karyawan] Karyawan, peran, dan hak akses (Sebagian)
+- [Fitur / pelanggan] Daftar pelanggan dengan riwayat transaksi, poin, deposit (Sebagian)
+- [Fitur / inventori] Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter (Sebagian)
+- [Fitur / inventori] Permintaan barang (barang jual) (Belum)
+- [Fitur / inventori] Pemesanan stok (PO) dengan referensi permintaan atau tanpa referensi, diskon, pajak, biaya lain, uang muka (Sebagian)
+- [Fitur / inventori] Faktur pembelian: termin, penerimaan sebagian, lampiran (Sebagian)
+- [Fitur / inventori] Produksi stok (konversi bahan jadi) dengan acuan produksi (Belum)
+- [Fitur / inventori] Notifikasi stok minimum, habis, dan minus (Sebagian)
+- [Fitur / inventori] Batasi penjualan dan mutasi saat stok habis (Sebagian)
+- [Fitur / inventori] HPP dengan metode rata-rata (Sebagian)
+- [Fitur / inventori] Pemetaan harga beli manual dan terakhir (Belum)
+- [Fitur / finance] Pencatatan biaya dan tagihan rutin terjadwal (Belum)
+- [Fitur / finance] Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsiliasi) (Sebagian)
+- [Fitur / finance] Faktur penjualan dengan termin dan status bayar (Belum)
+- [Fitur / finance] Penawaran, pesanan penjualan, pengiriman, penerimaan penjualan (alur B2B) (Belum)
+- [Fitur / finance] Perbandingan laporan antar outlet (Belum)
+- [Fitur / finance] Manajemen aset tetap (Belum)
+- [Fitur / crm] CRM: loyalty, grup loyalty, loyalty ulang tahun, kampanye (Sebagian)
+- [Fitur / deposit] Paket deposit (beli saldo, pakai di POS) (Sebagian)
+- [Fitur / reservasi] Reservasi dan appointment dengan kalender (Sebagian)
+- [Fitur / pembayaran] Laporan settlement QRIS: tab berhasil, gagal, diproses, tertunda; biaya transaksi; tanggal settlement (Belum)
+- [Fitur / finance] Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi manual (Belum)
+- [Fitur / karyawan] Komisi per kasir (Sebagian)
+- [Fitur / laporan] Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti (Sebagian)
+- [Fitur / finance] Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai (Sebagian)
+- [Fitur / produk] Harga grosir bertingkat (sampai 5 tingkat) (Sebagian)
+- [Fitur / produk] Penjadwalan perubahan harga dan resep, harga berdasarkan waktu (Belum)
+- [Fitur / produk] Master resep dan kategori catatan (Belum)
+- [Fitur / laporan] Laporan kas kasir, penjualan per terminal, tutup kasir, tutup toko (Sebagian)
+- [Fitur / laporan] Analisa: jam teramai produk dan penjualan, perputaran stok, kepuasan pelanggan (Sebagian)
+- [Fitur / offline] Daftar transaksi tertunda (gagal sinkron): kirim ulang atau hapus dengan PIN (Sebagian)
+- [Fitur / offline] Server lokal master dan client di jaringan outlet dengan tes koneksi dan riwayat sinkronisasi (Belum)
+- [Fitur / kasir] Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas (Sebagian)
+- [Fitur / meja] Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja (Sebagian)
+- [Fitur / meja] Kirim pesanan dine-in ke dapur per item yang dicentang (Sebagian)
+- [Fitur / kasir] Buat faktur penjualan dari layar pembayaran (Jadikan Invoice) (Belum)
+- [Fitur / pembayaran] Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR) (Sebagian)
+- [Fitur / integrasi] Order Online / kanal pesan mandiri (QR swalayan, antar makanan, marketplace, kios, aplikasi konsumen): status kanal, jam layanan, estimasi persiapan (Sebagian)
+- [Menu dashboard / Penjualan] Penjualan Outlet
+- [Menu dashboard / Penjualan] Laporan Uang Muka
+- [Menu dashboard / Penjualan] Laporan Reservasi
+- [Menu dashboard / Penjualan] Laporan Reservasi & Utilisasi
+- [Menu dashboard / Penjualan] QRIS
+- [Menu dashboard / Penjualan] Order Online
+- [Menu dashboard / Penjualan] Produk Layanan
+- [Menu dashboard / Penjualan] Daftar Harga Ojek Online
+- [Menu dashboard / Penjualan] Harga Berdasarkan Waktu
+- [Menu dashboard / Penjualan] Permintaan Barang
+- [Menu dashboard / Penjualan] Acuan Produksi Stok
+- [Menu dashboard / Penjualan] Daftar Penawaran Penjualan
+- [Menu dashboard / Penjualan] Daftar Pesanan Penjualan
+- [Menu dashboard / Penjualan] Daftar Pengiriman Penjualan
+- [Menu dashboard / Penjualan] Daftar Invoice
+- [Menu dashboard / Penjualan] Beli Kampanye Marketing
+- [Menu dashboard / Order Online] Pengaturan Lainnya
+- [Menu dashboard / Karyawan] Akses Absensi
+- [Menu dashboard / Karyawan] Radius Absensi
+- [Menu dashboard / Karyawan] Kirim Notifikasi
+- [Menu dashboard / Karyawan] Tingkat Jabatan
+- [Menu dashboard / Karyawan] Organisasi
+- [Menu dashboard / Karyawan] Tipe Karyawan
+- [Menu dashboard / Karyawan] Quick PIN
+- [Menu dashboard / Karyawan] Persetujuan Pembelian
+- [Menu dashboard / Karyawan] Persetujuan Keuangan
+- [Menu dashboard / Keuangan] Daftar Tagihan Rutin
+- [Menu dashboard / Keuangan] Daftar Mitra
+- [Menu dashboard / Keuangan] Manajemen Aset
+
+== TIDAK PERLU ==
+- [Fitur / kasir] Mode SKU untuk ritel (cari dan scan kode) (Sebagian)
+- [Fitur / kasir] Custom amount (jual item tak terdaftar) (Sebagian)
+- [Fitur / meja] Batas waktu duduk dan pengingat per meja (Sebagian)
+- [Fitur / pembayaran] Bayar dengan saldo deposit pelanggan (Belum)
+- [Fitur / pembayaran] E-wallet langsung (Dana, Gopay, OVO, LinkAja, ShopeePay) (Belum)
+- [Fitur / offline] Sinkronisasi manual standar (perubahan saja) dan total (Belum)
+- [Fitur / offline] Wajib sinkron setelah offline lebih dari 14 hari (Belum)
+- [Fitur / offline] Mode server lokal di jaringan outlet (Belum)
+- [Fitur / laporan] Email laporan harian otomatis saat outlet tutup (Belum)
+- [Fitur / inventori] Nomor batch, kedaluwarsa, dan nomor seri (Belum)
+- [Fitur / kasir] Buku menu (mode tampilan untuk katalog besar) (Belum)
+- [Fitur / owner] Aplikasi owner (pantau bisnis dari HP) (Belum)
+- [Fitur / customer app] Pemesanan dari HP pelanggan (consumer app, web dulu) (Belum)
+- [Fitur / layanan majoo] majoo Pay (agen pembayaran, EDC), Capital, Supplies, Ads, majoowira, Smart EDC (Dilewati)
+- [Fitur / integrasi] Integrasi Shopee, Tokopedia, GoFood, GrabFood, GrabMart (Dilewati)
+- [Fitur / integrasi] Integrasi Satu Sehat (Dilewati)
+- [Fitur / dukungan] Layanan pelanggan Majoo 24 jam, demo, dan pelatihan (Dilewati)
+- [Fitur / produk] Produk fasilitas (jenis produk untuk reservasi fasilitas) (Sebagian)
+- [Fitur / inventori] Serial number dan batch number per produk (Belum)
+- [Fitur / inventori] Laporan stok kedaluwarsa (Belum)
+- [Fitur / kasir] Batch order: pesanan lama dan baru dipisah dalam satu order (Belum)
+- [Fitur / kasir] Pilih orientasi tablet atau ponsel dengan login ulang (Belum)
+- [Fitur / kasir] Mode jasa dengan formulir pemesan, pengambil, waktu selesai dan status pekerjaan (Belum)
+- [Menu dashboard / Penjualan] Penjualan per Deposit (?)
+- [Menu dashboard / Penjualan] Laporan Stok Kedaluwarsa
+- [Menu dashboard / Penjualan] Laporan Serial Number
+- [Menu dashboard / Penjualan] Laporan Batch Number
+- [Menu dashboard / Penjualan] Kirim Kampanye Marketing
+- [Menu dashboard / Karyawan] Akses majoo Teams
+- [Menu dashboard / Whatsapp] Daftar Pesan
+- [Menu dashboard / Whatsapp] Pengaturan WhatsApp
+- [Menu dashboard / Whatsapp] Daftar Notifikasi
+- [Menu dashboard / Whatsapp] Pengaturan Notifikasi
+- [Menu dashboard / Whatsapp] Transaksi Dihapus
+
+== BELUM DIPILIH (tidak diubah) ==
+- [Fitur / inventori] Retur pembelian (Sebagian)
+- [Fitur / kasir] Nomor antrean per perangkat atau terpusat berurutan (Belum)
+- [Menu dashboard / Lainnya > Pengaturan] Informasi Rekening, Langganan & Support, Tiket Support, Klaim Voucher, Daftar Outlet, Produk dan Inventori, Daftar Ruangan, Jenis Ruangan, PDF, Daftar Kasir, Daftar Perangkat, Perangkat Pay Go, Daftar Akses Support
