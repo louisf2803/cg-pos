@@ -276,7 +276,7 @@ export const MODUL: NavModule[] = [
         items: [
           { href: '/karyawan/tim', label: 'Struktur tim', screen: 'S43', tier: 3 },
           { href: '/karyawan/master', label: 'Pengaturan master karyawan', screen: 'S43', tier: 3 },
-          { href: '/karyawan/persetujuan', label: 'Alur persetujuan', screen: 'S43', tier: 3 },
+          { href: '/persetujuan', label: 'Alur persetujuan', screen: 'S43', tier: 2, built: true },
         ],
       },
     ],
@@ -301,6 +301,7 @@ export const MODUL: NavModule[] = [
           { href: '/keuangan/kas', label: 'Buku kas dan bank', screen: 'S73', tier: 2, built: true },
           { href: '/keuangan/transfer', label: 'Daftar transfer', screen: 'S73', tier: 2, built: true },
           { href: '/keuangan/biaya', label: 'Penerimaan dan pengeluaran', screen: 'S76', tier: 2, built: true },
+          { href: '/keuangan/tagihan-rutin', label: 'Tagihan rutin terjadwal', screen: 'S76', tier: 2, built: true },
           { href: '/keuangan/rekonsiliasi', label: 'Rekonsiliasi non-tunai', screen: 'S75', tier: 2, built: true },
         ],
       },
