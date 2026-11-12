@@ -1016,3 +1016,6 @@ Alur refund di kasir (`apps/pos/src/screens/Orders.tsx`) dan riwayat laporan ref
 - **A94 (`ag/a94-laporan-deposit`)**:
   - **`packages/shared` (`deposit-report.ts`, `test/deposit-report.test.ts`)**: helper murni `summarizeCustomerDepositBalances` dan `filterCustomerDepositBalances` beserta unit test.
   - **`apps/dashboard` (`app/laporan/deposit/page.tsx`)**: menambahkan tab `Saldo per Pelanggan` (total beli paket, pemakaian, refund, sisa saldo), 4 kartu KPI saldo beredar, fungsi unduh CSV lengkap untuk Penjualan, Refund, dan Saldo Pelanggan; tetap mempertahankan banner pratinjau karena skema/DataLayer deposit nyata masih menunggu migrasi server; verifikasi `typecheck`, vitest `deposit-report.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
+- **A95 (`ag/a95-kas-terminal`)**:
+  - **`packages/shared` (`cashier-report.ts`, `test/cashier-report.test.ts`)**: helper murni `groupShiftsByCashier` dan `filterShiftRows` untuk agregasi shift per kasir/terminal dan penyaringan; unit test lulus.
+  - **`apps/dashboard` (`components/shift-reports.tsx`)**: menambahkan tab `Rekap Kasir & Terminal` di Laporan Kasir, filter kasir/terminal, filter status shift, pencarian kasir, informasi terminal pada baris shift, dan ekspor CSV dinamis per tab; verifikasi `typecheck`, vitest `cashier-report.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
