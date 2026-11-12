@@ -935,3 +935,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — 0041 tagihan rutin + persetujuan siap, BELUM di produksi
 `packages/db/migrations/0041_recurring_bills_approvals.sql`: `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC `recurring_bill_pay`, `approval_request`, `approval_decide`, `approval_cancel`. Aditif. Tes `19_recurring_approvals.sql` lulus dan diuji negatif. ASUMSI (Majoo tidak bisa dilihat; rancangan sendiri atas arahan Louis): mitra = tabel `suppliers` yang ada; bayar tagihan membuat jurnal dan memajukan jatuh tempo; penyetuju bukan pengaju kecuali pemilik. Pemeriksa izin sesi menolak apply_migration tanpa persetujuan langsung per penerapan; menunggu Louis.
+
+## Claude (12 Nov 2026) — 0041 DITERAPKAN ke produksi (persetujuan Louis)
+Tabel `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC bayar tagihan dan persetujuan aktif dengan RLS pengelola; `anon` tidak punya akses. Berikutnya: DataLayer dan tugas UI.
