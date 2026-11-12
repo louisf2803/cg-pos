@@ -140,7 +140,7 @@ export const MODUL: NavModule[] = [
           { section: 'Pembelian', href: '/inventori/faktur', label: 'Faktur pembelian', screen: 'S52', tier: 2, built: true },
           { section: 'Pembelian', href: '/inventori/bayar-faktur', label: 'Pembayaran faktur', screen: 'S53', tier: 2, built: true },
           { section: 'Pembelian', href: '/inventori/retur', label: 'Retur pembelian', screen: 'S59', tier: 3, built: true },
-          { section: 'Pembelian', href: '/inventori/permintaan', label: 'Permintaan barang', screen: 'S50', tier: 2 },
+          { section: 'Pembelian', href: '/inventori/permintaan', label: 'Permintaan barang', screen: 'S50', tier: 2, built: true },
           { section: 'Mitra', href: '/inventori/pemasok', label: 'Daftar pemasok', screen: 'S58', tier: 2, built: true },
         ],
       },
