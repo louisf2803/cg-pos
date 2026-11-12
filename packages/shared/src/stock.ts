@@ -58,6 +58,61 @@ export function stockStatus(qty: number, min?: number): StockStatus {
 /** Perlu perhatian: habis, minus, atau di bawah batas minimum. */
 export const needsAttention = (s: StockStatus) => s !== 'ok';
 
+export interface StockAlertSummary {
+  total: number;
+  outCount: number;
+  negativeCount: number;
+  lowCount: number;
+  attentionCount: number;
+  configuredMinCount: number;
+  okCount: number;
+}
+
+/** Menghitung ringkasan status peringatan stok dan jumlah item dengan batas minimum aktif. */
+export function summarizeStockAlerts(items: readonly StockItem[]): StockAlertSummary {
+  let outCount = 0;
+  let negativeCount = 0;
+  let lowCount = 0;
+  let configuredMinCount = 0;
+  let okCount = 0;
+  for (const item of items) {
+    if (item.minQty !== undefined && item.minQty > 0) configuredMinCount++;
+    if (item.status === 'out') outCount++;
+    else if (item.status === 'negative') negativeCount++;
+    else if (item.status === 'low') lowCount++;
+    else okCount++;
+  }
+  return {
+    total: items.length,
+    outCount,
+    negativeCount,
+    lowCount,
+    attentionCount: outCount + negativeCount + lowCount,
+    configuredMinCount,
+    okCount,
+  };
+}
+
+/** Mengurai teks batas minimum stok: kosong -> null (nonaktif), maksimal 4 angka di belakang koma. */
+export function parseStockMinInput(raw: string): { value: number | null } | { error: string } {
+  const trimmed = raw.trim();
+  if (trimmed === '') return { value: null };
+  if (trimmed.startsWith('-')) return { error: 'Batas minimum harus angka 0 atau lebih.' };
+  if (/\s/.test(trimmed)) return { error: 'Batas minimum tidak boleh mengandung spasi.' };
+  if (trimmed.includes('.') && trimmed.includes(',')) {
+    return { error: 'Jangan campur titik dan koma pada angka (mis. 5 atau 2.5).' };
+  }
+  const normalized = trimmed.replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(normalized)) {
+    return { error: 'Batas minimum harus angka 0 atau lebih.' };
+  }
+  const num = Number(normalized);
+  if (!Number.isFinite(num) || num < 0) return { error: 'Batas minimum harus angka 0 atau lebih.' };
+  if (num > 1_000_000_000) return { error: 'Batas minimum terlalu besar.' };
+  if (round4(num) !== num) return { error: 'Batas minimum paling banyak 4 angka di belakang koma.' };
+  return { value: num };
+}
+
 export function stockFilterMatches(item: StockItem, f: StockFilter | undefined): boolean {
   if (!f) return true;
   return f === 'alert' ? needsAttention(item.status) : item.status === f;
