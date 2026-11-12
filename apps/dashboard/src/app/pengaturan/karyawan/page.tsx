@@ -56,6 +56,7 @@ export default function KaryawanDanAkses() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successPinName, setSuccessPinName] = useState<string | null>(null);
+  const [updatedPinIds, setUpdatedPinIds] = useState<Set<string>>(new Set());
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -259,6 +260,19 @@ export default function KaryawanDanAkses() {
         </div>
       </div>
 
+      {/* Keamanan PIN & Kunci Akses */}
+      <div className="cg-banner bg-surface-raised border border-border text-xs text-text-muted flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+        <div className="flex items-center gap-8">
+          <ShieldCheck className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
+          <span>
+            <strong>Keamanan Akses Kasir:</strong> PIN kasir 6 digit dienkripsi satu arah di server (bcrypt) dan tidak disimpan dalam teks biasa. Proteksi kunci akun saat salah PIN beruntun dan pemindaian QR ID menunggu dukungan skema server.
+          </span>
+        </div>
+        <span className="cg-badge cg-badge--secondary text-[11px] shrink-0 self-start sm:self-auto">
+          Enkripsi Server
+        </span>
+      </div>
+
       {/* 3. Bar Kontrol: Pencarian + Filter Status + Filter Peran */}
       <div className="flex flex-wrap items-center justify-between gap-12 p-12 rounded-xl bg-surface-raised border border-border cg-card">
         {/* Input Pencarian */}
@@ -424,17 +438,30 @@ export default function KaryawanDanAkses() {
 
                             {/* Status */}
                             <td className="py-12 px-16">
-                              {e.isActive ? (
-                                <span className="inline-flex items-center gap-4 text-xs font-semibold text-success">
-                                  <CheckCircle2 className="w-12 h-12" aria-hidden />
-                                  <span>Aktif</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-4 text-xs font-semibold text-text-muted">
-                                  <XCircle className="w-12 h-12" aria-hidden />
-                                  <span>Nonaktif</span>
-                                </span>
-                              )}
+                              <div className="flex flex-col gap-4">
+                                {e.isActive ? (
+                                  <span className="inline-flex items-center gap-4 text-xs font-semibold text-success">
+                                    <CheckCircle2 className="w-12 h-12" aria-hidden />
+                                    <span>Aktif</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-4 text-xs font-semibold text-text-muted">
+                                    <XCircle className="w-12 h-12" aria-hidden />
+                                    <span>Nonaktif</span>
+                                  </span>
+                                )}
+                                {updatedPinIds.has(e.id) ? (
+                                  <span className="inline-flex items-center gap-4 text-[11px] font-medium text-success">
+                                    <KeyRound className="w-10 h-10" aria-hidden />
+                                    <span>PIN baru diatur</span>
+                                  </span>
+                                ) : e.isActive ? (
+                                  <span className="inline-flex items-center gap-4 text-[11px] font-medium text-text-muted" title="PIN dienkripsi satu arah di server">
+                                    <KeyRound className="w-10 h-10" aria-hidden />
+                                    <span>PIN tersimpan</span>
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
 
                             {/* Tindakan: Tombol Rapi + Menu */}
@@ -539,7 +566,7 @@ export default function KaryawanDanAkses() {
                           <h3 className="font-bold text-text text-sm break-words">{e.name}</h3>
                           <span className="text-[11px] font-mono text-text-muted">{code}</span>
                         </div>
-                        <div>
+                        <div className="flex flex-col items-end gap-4">
                           {e.isActive ? (
                             <span className="inline-flex items-center gap-4 px-8 py-2 rounded-full text-[11px] font-semibold bg-success/15 text-success">
                               <CheckCircle2 className="w-10 h-10" aria-hidden />
@@ -551,6 +578,12 @@ export default function KaryawanDanAkses() {
                               <span>Nonaktif</span>
                             </span>
                           )}
+                          {updatedPinIds.has(e.id) ? (
+                            <span className="inline-flex items-center gap-4 px-8 py-2 rounded-full text-[11px] font-medium bg-success/10 text-success">
+                              <KeyRound className="w-10 h-10" aria-hidden />
+                              <span>PIN diatur</span>
+                            </span>
+                          ) : null}
                         </div>
                       </div>
 
@@ -736,6 +769,7 @@ export default function KaryawanDanAkses() {
           onClose={() => setTargetPin(null)}
           onSaved={() => {
             setSuccessPinName(targetPin.name);
+            setUpdatedPinIds((prev) => new Set(prev).add(targetPin.id));
             setTargetPin(null);
           }}
         />

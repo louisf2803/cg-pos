@@ -216,3 +216,10 @@ Setelah `0033`–`0036` diterapkan dan audit ulang `packages/shared/src/data.ts`
 3. **Koneksi `DataLayer` ke migrasi `0033` (RBAC peran & izin granular)**: tabel `roles` dan RPC `save_role_permissions` / `delete_role` sudah ada di produksi (`PROGRESS.md` baris 860), tetapi `listRoles`, `saveRolePermissions`, `deleteRole`, dan `roleId` pada karyawan belum ditambahkan ke `DataLayer`/`supabase.ts` sehingga `/karyawan/hak-akses` masih memakai `localStorage`.
 4. **Mutasi stok terbuang lintas item (`/inventori/terbuang`, `S56`)**: `DataLayer.listStockMoves(productId)` hanya membaca per satu produk; dibutuhkan metode agregat/lintas produk per rentang tanggal (`listWasteMoves(range)` atau `listAllStockMoves({ from, to, kind })`) agar `/inventori/terbuang` tidak melakukan kueri `N+1` per produk.
 5. **Bahan baku per pilihan ekstra (`extra_option_ingredients`, `0006`)**: tabel sudah ada di DB (`MAJOO-VERIFICATION.md` baris 48), tetapi `ExtraOption`/`ExtraGroupInput` di `types.ts` & `DataLayer` belum mengeksposnya (serta menunggu jawaban Louis pada baris 51–54 tentang pemisahan/penyatuan Varian vs Ekstra).
+
+## Dari Antigravity (A99) — Status PIN Karyawan, Kunci Akun Salah Beruntun & QR ID
+Pada `ManagedEmployee` (`data.listManagedEmployees`), saat ini belum ada field:
+1. `hasPin: boolean`: status apakah karyawan sudah memiliki PIN yang aktif (bukan PIN mentah, hanya boolean apakah PIN sudah diatur atau belum) agar tabel karyawan dapat menampilkan badge 'PIN diatur' / 'Belum diatur'.
+2. `isLocked: boolean` & `lockedUntil?: string`: status terkunci akibat salah PIN beruntun di kasir (mis. 5x salah beruntun), beserta metode `unlockEmployeePin(employeeId: string): Promise<void>`.
+3. `qrId?: string` (atau kode barcode/QR kartu karyawan) untuk login cepat via pemindai QR/kartu di kasir.
+
