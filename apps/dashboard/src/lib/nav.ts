@@ -261,7 +261,7 @@ export const MODUL: NavModule[] = [
         label: 'Kehadiran',
         icon: Clock,
         items: [
-          { href: '/karyawan/absensi', label: 'Absensi karyawan', screen: 'S43', tier: 3 },
+          { href: '/karyawan/absensi', label: 'Absensi karyawan', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/jadwal', label: 'Jadwal kerja', screen: 'S43', tier: 3 },
         ],
       },
