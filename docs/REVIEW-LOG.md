@@ -37,3 +37,6 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=08fea7b | merge A81 payroll bulanan (typecheck, 544 tes, build, lint; memakai buildWorksheet); diuji sendiri alur payroll lengkap di 1280 dan 390; Absensi dan payroll karyawan => yes (batasan: Radius Absensi, uji Supabase nyata); goal 17/72
 2026-11-12 | main=227dde6 | merge A84 laporan stok terbuang dan STATUS A81 (typecheck, 547 tes, build, lint); Stok terbuang sudah yes dan bukan Gelombang A (wave '-'): hitungan tujuan tidak berubah; goal 17/72
 2026-11-12 | main=81a18db | DataLayer setEmployeeRoleId (548 tes) + A86 ditulis; daftar fitur Majoo untuk dipilih Louis diterbitkan (artifact); goal 17/72
+
+## Review 12 Nov 2026 — merge ag/a86-peran-karyawan
+Tinjau diff, `pnpm -r typecheck`, 578 tes shared, build dashboard, `lint-tailwind` bersih; screenshot 390 dan 1280 diperiksa (pilih peran kustom per karyawan, pemilik dinonaktifkan dengan keterangan, hitungan karyawan per peran naik jadi 2, peringatan hapus menyebut jumlah). Digabung. Status `Karyawan, peran, dan hak akses` TETAP partial: peran kustom belum membatasi akses di layar lain atau RLS (penegakan granular belum ada), jadi belum memenuhi paritas fungsi. Catatan kecil: screenshot 1280 menampilkan judul halaman tertutup bilah navigasi (artefak tangkapan, bukan galat).
