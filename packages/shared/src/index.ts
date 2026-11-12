@@ -72,6 +72,7 @@ export * from './facility';
 export * from './payment-methods';
 export * from './customer-config';
 export * from './pos-history';
+export * from './xlsx';
 export * from './opname-csv';
 export * from './customer-display';
 

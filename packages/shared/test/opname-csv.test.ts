@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   buildOpnameCsvTemplate,
   buildOpnameResultCsv,
+  buildOpnameResultXlsx,
+  buildOpnameXlsxTemplate,
+  buildXlsxBytes,
   detectCsvDelimiter,
   parseDelimitedCsv,
   parseOpnameCsv,
+  parseOpnameSpreadsheet,
+  parseOpnameXlsx,
+  parseXlsxRows,
   type StockItem,
   type StockOpname,
 } from '../src';
@@ -100,6 +106,40 @@ describe('opname-csv', () => {
     expect(csv.startsWith('\uFEFF')).toBe(true);
     expect(csv).toContain('ID Produk;Nama Item;Satuan;Stok Sistem;Hitung Fisik;Selisih;Nilai Selisih');
     expect(csv).toContain('p-kopi;Kopi Susu Gula Aren;gelas;20;18;-2;-14000');
+
+    const xlsx = buildOpnameResultXlsx(opname);
+    expect(parseXlsxRows(xlsx)).toEqual([
+      ['ID Produk', 'Nama Item', 'Satuan', 'Stok Sistem', 'Hitung Fisik', 'Selisih', 'Nilai Selisih'],
+      ['p-kopi', 'Kopi Susu Gula Aren', 'gelas', '20', '18', '-2', '-14000'],
+    ]);
+  });
+
+  it('membuat templat Excel (.xlsx) dan membaca ulang berkas .xlsx beserta penolakan .xls lama', () => {
+    const tplBytes = buildOpnameXlsxTemplate(STOCK, new Map([['p-kopi', 18]]));
+    const parsedTpl = parseOpnameXlsx(tplBytes, STOCK);
+    expect(parsedTpl.headerError).toBeUndefined();
+    expect(parsedTpl.validCount).toBe(1);
+    expect(parsedTpl.blankCount).toBe(1);
+    expect(parsedTpl.rows.find((r) => r.productId === 'p-kopi')?.difference).toBe(-2);
+    expect(parsedTpl.rows.find((r) => r.productId === 'p-susu')?.status).toBe('blank');
+
+    const edited = buildXlsxBytes([
+      {
+        name: 'Sheet1',
+        rows: [
+          ['Nama Item', 'Hitung Fisik'],
+          ['kopi susu gula aren', 17],
+          ['Susu UHT Full Cream', '10,5'],
+        ],
+      },
+    ]);
+    const autoXlsx = parseOpnameSpreadsheet('hitung-rak.xlsx', edited, STOCK);
+    expect(autoXlsx.validCount).toBe(2);
+    expect(autoXlsx.errorCount).toBe(0);
+    expect(autoXlsx.rows[1]).toMatchObject({ productId: 'p-susu', countedQty: 10.5, difference: -2 });
+
+    const oldXls = parseOpnameSpreadsheet('lama.xls', new Uint8Array([0xd0, 0xcf, 0x11, 0xe0]), STOCK);
+    expect(oldXls.headerError).toMatch(/\.xls/);
   });
 });
 
