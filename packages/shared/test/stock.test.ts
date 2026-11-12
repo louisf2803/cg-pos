@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { applyStockMove, createFakeData, makeStockItem, newId, stockFilterMatches, stockPostProblem, stockStatus } from '../src';
+import {
+  applyStockMove,
+  createFakeData,
+  makeStockItem,
+  newId,
+  parseStockMinInput,
+  stockFilterMatches,
+  stockPostProblem,
+  stockStatus,
+  summarizeStockAlerts,
+} from '../src';
 
 const mk = () => { const d = createFakeData({ now: () => new Date('2026-11-09T05:00:00Z') }); d.reset(); return d; };
 
@@ -205,5 +215,33 @@ describe('stok opname: data palsu', () => {
     expect((await d.listOpnames()).map((o) => o.id)).toEqual([b]);
     expect(await d.getOpname(a)).toBeNull();
     await expect(d.deleteOpname(a)).rejects.toThrow(/tidak ditemukan/);
+  });
+
+  it('parseStockMinInput dan summarizeStockAlerts', () => {
+    expect(parseStockMinInput('')).toEqual({ value: null });
+    expect(parseStockMinInput('  ')).toEqual({ value: null });
+    expect(parseStockMinInput('5')).toEqual({ value: 5 });
+    expect(parseStockMinInput('2,5')).toEqual({ value: 2.5 });
+    expect(parseStockMinInput('0')).toEqual({ value: 0 });
+    expect(parseStockMinInput('-1')).toHaveProperty('error');
+    expect(parseStockMinInput('1.23456')).toHaveProperty('error');
+    expect(parseStockMinInput('abc')).toHaveProperty('error');
+
+    const items = [
+      makeStockItem({ productId: '1', name: 'A', kind: 'ingredient', unit: 'gram', qty: 0, avgCost: 10, minQty: 5 }),
+      makeStockItem({ productId: '2', name: 'B', kind: 'ingredient', unit: 'gram', qty: -2, avgCost: 10 }),
+      makeStockItem({ productId: '3', name: 'C', kind: 'goods', unit: 'pcs', qty: 3, avgCost: 100, minQty: 5 }),
+      makeStockItem({ productId: '4', name: 'D', kind: 'goods', unit: 'pcs', qty: 20, avgCost: 100, minQty: 5 }),
+      makeStockItem({ productId: '5', name: 'E', kind: 'goods', unit: 'pcs', qty: 10, avgCost: 100 }),
+    ];
+    expect(summarizeStockAlerts(items)).toEqual({
+      total: 5,
+      outCount: 1,
+      negativeCount: 1,
+      lowCount: 1,
+      attentionCount: 3,
+      configuredMinCount: 3,
+      okCount: 2,
+    });
   });
 });
