@@ -1,0 +1,55 @@
+feature,status,catatan
+Manajemen aset tetap,ada,"A88: daftar, penyusutan, pelepasan, laporan; alur diuji manual di Chrome 13 Nov (hitungan benar)"
+Pencatatan biaya dan tagihan rutin terjadwal,ada,A89 + migrasi 0041
+Alur persetujuan pembelian,ada,A89 + migrasi 0041 (belum menahan transaksi lain)
+Alur persetujuan keuangan,ada,A89 + migrasi 0041 (belum menahan transaksi lain)
+Daftar mitra (pengeluaran),ada,A89: tautan ke daftar pemasok yang ada
+Permintaan barang (barang jual),ada,A90 + migrasi 0042
+Pemetaan harga beli manual dan terakhir,ada,A91 + migrasi 0043
+HPP dengan metode rata-rata,ada,A93: laporan HPP dan margin
+"Laporan kas kasir, penjualan per terminal, tutup kasir, tutup toko",ada,A95: rekap per kasir/terminal + ekspor
+Catatan per item atau per order (kategori catatan),ada,A96: kelola catatan + tampil di dapur
+Cetak bill sebelum bayar dan struk dapur atau checker,ada,A97: stasiun cetak dan templat; printer fisik belum dicoba
+"Notifikasi stok minimum, habis, dan minus",ada,"A98: lonceng, popover, halaman pengaturan stok"
+"Analisa: jam teramai produk dan penjualan, perputaran stok, kepuasan pelanggan",ada,A101: perputaran stok dan kepuasan (kepuasan berlabel pratinjau)
+Dashboard web beranda ringkasan real-time semua outlet,ada,"A102: multi-outlet, banding periode"
+Komisi per kasir,ada,A103: laporan komisi + ekspor
+"Order Online / kanal pesan mandiri (QR swalayan, antar makanan, marketplace, kios, aplikasi konsumen): status kanal, jam layanan, estimasi persiapan",ada,A108: 6 rute; integrasi marketplace nyata dibuang
+Retur pembelian,ada,A109
+Refund: opsi kembalikan stok dan ongkos kirim,ada,A112: restock ada; ongkos kirim tidak berlaku (belum ada pesanan antar)
+"Bayar QRIS dinamis lewat DOKU, QR tampil di layar kasir",ada,"A92: ""Payment belum tersambung"" = definisi selesai Louis 12 Nov"
+Cetak struk ke printer Bluetooth atau jaringan,ada,Bluetooth sudah ada; printer LAN dibuang
+"Produk ekstra (modifier): grup wajib atau opsional, pilih satu atau banyak, maksimal pilihan, harga tambahan",ada,inti ada; tautan opsi ke bahan baku belum (menunggu jawaban Varian vs Ekstra)
+"Daftar pelanggan dengan riwayat transaksi, poin, deposit",ada,dashboard Pelanggan lengkap
+Penjualan tetap berjalan offline dan sinkron saat online,ada,inti ada: antrean idempoten; login PIN/refund/void offline belum
+Daftar transaksi tertunda (gagal sinkron): kirim ulang atau hapus dengan PIN,ada,inti ada: kirim ulang/hapus dengan PIN
+Kirim pesanan dine-in ke dapur per item yang dicentang,ada,diteruskan otomatis ke stasiun; layar kelola stasiun A97
+"Pilih mode tampilan kasir (grid, SKU, meja, reservasi, jasa, buku menu)",ada,kartu/daftar; SKU dan buku menu dibuang; reservasi tidak dikerjakan
+Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai,ada,akun Kas/Bank/Piutang non-tunai ada
+"Filter kategori khusus: semua, favorit, paket, promo, deposit",sebagian,Favorit/Paket/Promo ada; Deposit belum (A113)
+Mode meja dengan denah dan status berwarna,sebagian,grid per lantai ada; denah gambar/seret masih pratinjau (A114)
+"Gabung meja dengan tagihan, pisah item, grup meja",sebagian,gabung ada; pisah item/grup belum (A115)
+Denah meja kustom dengan drag posisi,sebagian,pratinjau localStorage
+"Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo",sebagian,pisah item ada; grosir/promo belum dihitung ulang (A116)
+"Pengaturan tampilan struk (logo, teks)",sebagian,templat ada; logo/QR/media sosial belum
+Produk layanan (jasa),sebagian,jenis jasa ada; durasi/staf dan mode jasa belum
+"Outlet: informasi bisnis, rekening, grup outlet",sebagian,"rekening, grup outlet, logo belum"
+"Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter",sebagian,gudang di daftar stok dan impor Excel belum
+"Pemesanan stok (PO) dengan referensi permintaan atau tanpa referensi, diskon, pajak, biaya lain, uang muka",sebagian,referensi permintaan dan uang muka belum
+"Faktur pembelian: termin, penerimaan sebagian, lampiran",sebagian,lampiran dan pembatalan belum
+Batasi penjualan dan mutasi saat stok habis,sebagian,penegakan server (sync_push) belum
+Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsiliasi),sebagian,halaman ada; simpan ke server belum
+"CRM: loyalty, grup loyalty, loyalty ulang tahun, kampanye",sebagian,kampanye belum
+"Paket deposit (beli saldo, pakai di POS)",sebagian,kerangka ada; skema server belum
+"Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti",sebagian,Deposit masih pratinjau (A94)
+"Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas",sebagian,tutup kasir otomatis dan foto bukti kas belum
+"Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",sebagian,PIN pindah/reset meja belum
+"Karyawan, peran, dan hak akses",sebagian,A86 ada; penegakan izin per fitur di layar/RLS belum
+"Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",sebagian,sebagian pengaturan masih di peramban
+Harga grosir bertingkat (sampai 5 tingkat),sebagian,A104 pratinjau; tabel server belum
+Penjadwalan harga,sebagian,A105 pratinjau; tabel server belum
+Grup pelanggan dan harga spesial,sebagian,A106 pratinjau; tabel server belum
+Tukar poin loyalty (potongan atau produk gratis),sebagian,potongan ada; produk gratis belum
+Reservasi dan appointment dengan kalender,sebagian,A110 kalender ada; masih pratinjau lokal
+"Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order",sebagian,A100: pajak per produk dan per jenis order menunggu skema
+Denah meja dari gambar (grid meja) di dashboard,belum,A114

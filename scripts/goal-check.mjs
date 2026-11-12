@@ -2,6 +2,9 @@
 // Cek apakah "Gelombang A" CG POS sudah selesai. Tanpa dependensi.
 //   node scripts/goal-check.mjs            -> ringkasan + GOAL MET / GOAL NOT MET
 //   node scripts/goal-check.mjs --list     -> tambah daftar fitur Gelombang A yang belum yes (maks 40)
+//   node scripts/goal-check.mjs --semi     -> SEMI GOAL (keputusan Louis 13 Nov 2026): fitur dihitung ada bila clone = yes ATAU docs/semi.csv
+//                                             mencatat status 'ada' (kode ada dan kira-kira bisa dipakai); TANPA syarat screenshot.
+//                                             Bukti Playwright dan pencocokan alur Majoo menyusul setelah semua fitur ada.
 // Aturan:
 //   - Fitur Gelombang A (docs/wave.csv, kolom wave = A) selesai bila kolom clone di docs/features.csv = yes.
 //   - Tiap fitur yang selesai wajib punya bukti: kolom evidence di docs/wave.csv berisi satu atau lebih
@@ -14,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const list = process.argv.includes('--list');
+const semi = process.argv.includes('--semi');
 
 function parseCsv(text) {
   const rows = [];
@@ -84,6 +88,23 @@ if (list) {
   todo.slice(0, 40).forEach((t) => console.log('  ' + t));
   if (todo.length > 40) console.log(`  ... +${todo.length - 40} lagi`);
   missing.slice(0, 20).forEach((t) => console.log('  [bukti kurang] ' + t));
+}
+
+if (semi) {
+  const semiRows = existsSync(join(root, 'docs/semi.csv')) ? parseCsv(readFileSync(join(root, 'docs/semi.csv'), 'utf8')) : [];
+  const semiStatus = new Map(semiRows.map((r) => [r.feature, r.status]));
+  let sDone = 0, sPart = 0, sNone = 0; const sTodo = [];
+  for (const w of waves) {
+    if (w.wave !== 'A') continue;
+    const st = semiStatus.get(w.feature);
+    if (clone.get(w.feature) === 'yes' || st === 'ada') sDone++;
+    else { if (st === 'sebagian') sPart++; else sNone++; sTodo.push('[' + (st || 'belum dinilai') + '] ' + w.feature); }
+  }
+  console.log('SEMI Gelombang A: ' + sDone + '/' + total + ' ada di kode | sebagian ' + sPart + ', belum ' + sNone + ' | bug S1/S2 terbuka: ' + openBugs);
+  if (list) sTodo.slice(0, 60).forEach((x) => console.log('  ' + x));
+  const sMet = total > 0 && sDone === total && openBugs === 0 && orphan === 0;
+  console.log(sMet ? 'SEMI MET' : 'SEMI NOT MET');
+  process.exit(sMet ? 0 : 1);
 }
 const met = total > 0 && done === total && noEvidence === 0 && openBugs === 0 && orphan === 0;
 console.log(met ? 'GOAL MET' : 'GOAL NOT MET');
