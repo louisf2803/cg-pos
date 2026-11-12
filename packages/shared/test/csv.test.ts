@@ -1,10 +1,16 @@
+import { strToU8 } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import {
   exportProductsToCsv,
+  exportProductsToXlsx,
   generateProductTemplateCsv,
+  generateProductTemplateXlsx,
   parseCsvText,
   parseProductCsv,
+  parseProductSpreadsheet,
+  parseProductXlsx,
 } from '../src/csv';
+import { buildXlsxBytes } from '../src/xlsx';
 import type { CatalogProduct, Category } from '../src/types';
 
 describe('parseCsvText', () => {
@@ -231,5 +237,119 @@ describe('exportProductsToCsv & generateProductTemplateCsv', () => {
     expect(template).toContain('SKU,Nama,Kategori,Harga jual,Aktif');
     const parsed = parseCsvText(template);
     expect(parsed.length).toBeGreaterThan(1);
+  });
+});
+
+describe('Produk Excel (.xlsx) impor & ekspor', () => {
+  const categories: Category[] = [
+    { id: 'cat-kopi', name: 'Kopi, Teh & Minuman', sort: 1 },
+    { id: 'cat-makan', name: 'Makanan', sort: 2 },
+  ];
+
+  const catalog: CatalogProduct[] = [
+    {
+      id: 'p1',
+      name: 'Kopi "Tubruk"',
+      categoryId: 'cat-kopi',
+      kind: 'goods',
+      trackStock: true,
+      isActive: true,
+      isFavorite: false,
+      price: 15000,
+      sku: 'KP-001',
+      variants: [],
+    },
+    {
+      id: 'p2',
+      name: 'Es Cincau',
+      categoryId: 'cat-kopi',
+      kind: 'goods',
+      trackStock: true,
+      isActive: true,
+      isFavorite: false,
+      price: 10000,
+      variants: [
+        { id: 'v1', label: 'Sedang', price: 10000, sku: 'EC-M', isActive: true },
+        { id: 'v2', label: 'Besar', price: 12000, sku: 'EC-L', isActive: false },
+      ],
+    },
+  ];
+
+  it('mengekspor katalog ke .xlsx dan membacanya kembali lewat parseProductSpreadsheet', () => {
+    const xlsxBytes = exportProductsToXlsx(catalog, categories);
+    expect(xlsxBytes[0]).toBe(0x50);
+    expect(xlsxBytes[1]).toBe(0x4b);
+
+    const res = parseProductSpreadsheet('katalog-produk.xlsx', xlsxBytes, categories, catalog);
+    expect(res.headerError).toBeUndefined();
+    expect(res.totalRows).toBe(3);
+    expect(res.updateCount).toBe(3);
+    expect(res.errorCount).toBe(0);
+    expect(res.rows[0]!.name).toBe('Kopi "Tubruk"');
+    expect(res.rows[0]!.price).toBe(15000);
+    expect(res.rows[0]!.existingId).toBe('p1');
+    expect(res.rows[1]!.existingId).toBe('v1');
+    expect(res.rows[1]!.isActive).toBe(true);
+    expect(res.rows[2]!.existingId).toBe('v2');
+    expect(res.rows[2]!.isActive).toBe(false);
+  });
+
+  it('mengimpor .xlsx campuran baru, perbarui, dan salah termasuk sel boolean Excel', () => {
+    const bytes = buildXlsxBytes([
+      {
+        name: 'Impor',
+        rows: [
+          ['SKU', 'Nama', 'Kategori', 'Harga jual', 'Aktif'],
+          ['KP-001', 'Kopi Tubruk Baru', 'Kopi, Teh & Minuman', 17500, true],
+          ['MK-009', 'Nasi Goreng Kampung', 'Makanan', 24000, false],
+          ['ERR-1', 'Salah Kategori', 'Tidak Ada', 10000, 'ya'],
+        ],
+      },
+    ]);
+
+    const res = parseProductXlsx(bytes, categories, catalog);
+    expect(res.headerError).toBeUndefined();
+    expect(res.totalRows).toBe(3);
+    expect(res.updateCount).toBe(1);
+    expect(res.newCount).toBe(1);
+    expect(res.errorCount).toBe(1);
+    expect(res.rows[0]!.isActive).toBe(true);
+    expect(res.rows[0]!.price).toBe(17500);
+    expect(res.rows[1]!.isActive).toBe(false);
+    expect(res.rows[2]!.errorReason).toContain('Tidak Ada');
+  });
+
+  it('menghasilkan contoh berkas .xlsx yang valid', () => {
+    const tplBytes = generateProductTemplateXlsx();
+    expect(tplBytes[0]).toBe(0x50);
+    expect(tplBytes[1]).toBe(0x4b);
+    const tplCats: Category[] = [
+      { id: 'c1', name: 'Kopi', sort: 1 },
+      { id: 'c2', name: 'Non Kopi', sort: 2 },
+      { id: 'c3', name: 'Makanan', sort: 3 },
+    ];
+    const parsed = parseProductXlsx(tplBytes, tplCats, []);
+    expect(parsed.headerError).toBeUndefined();
+    expect(parsed.newCount).toBe(3);
+    expect(parsed.errorCount).toBe(0);
+  });
+
+  it('mendeteksi CSV via parseProductSpreadsheet dan menolak .xls / biner rusak', () => {
+    const csvRes = parseProductSpreadsheet(
+      'produk.csv',
+      strToU8('SKU,Nama,Kategori,Harga jual,Aktif\nMK-2,Bakmi,Makanan,22000,ya'),
+      categories,
+      catalog
+    );
+    expect(csvRes.headerError).toBeUndefined();
+    expect(csvRes.newCount).toBe(1);
+
+    const xlsHeader = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0x00, 0x00]);
+    const xlsRes = parseProductSpreadsheet('lama.xls', xlsHeader, categories, catalog);
+    expect(xlsRes.headerError).toContain('.xls');
+
+    const garbage = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0xff]);
+    const badRes = parseProductSpreadsheet('rusak.dat', garbage, categories, catalog);
+    expect(badRes.headerError).toBeDefined();
   });
 });

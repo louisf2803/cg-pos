@@ -15,13 +15,20 @@ import {
 } from 'lucide-react';
 import {
   exportProductsToCsv,
+  exportProductsToXlsx,
   formatRp,
   generateProductTemplateCsv,
-  parseProductCsv,
+  generateProductTemplateXlsx,
+  parseProductSpreadsheet,
   type ParseProductCsvResult,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
-import { downloadCsvWithHistory, triggerCsvDownload } from '@/lib/export';
+import {
+  downloadCsvWithHistory,
+  downloadXlsxWithHistory,
+  triggerCsvDownload,
+  triggerXlsxDownload,
+} from '@/lib/export';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
@@ -55,9 +62,28 @@ export default function ImporEksporProduk() {
     return { catalog, categories };
   }, [data]);
 
-  function handleDownloadSample() {
+  function handleDownloadSampleExcel() {
+    const bytes = generateProductTemplateXlsx();
+    triggerXlsxDownload(bytes, 'contoh-produk.xlsx');
+  }
+
+  function handleDownloadSampleCsv() {
     const csv = generateProductTemplateCsv();
     triggerCsvDownload(csv, 'contoh-produk.csv');
+  }
+
+  function handleExportExcel() {
+    if (state.status !== 'ready') return;
+    const bytes = exportProductsToXlsx(state.data.catalog, state.data.categories);
+    const todayStr = getTodayString();
+    downloadXlsxWithHistory({
+      fileName: `produk-${todayStr}.xlsx`,
+      bytes,
+      reportName: 'Ekspor Katalog Produk (Excel)',
+      period: todayStr,
+      rowCount: state.data.catalog.length,
+      sourceUrl: '/produk/impor',
+    });
   }
 
   function handleExportCsv() {
@@ -74,7 +100,7 @@ export default function ImporEksporProduk() {
     });
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -84,28 +110,26 @@ export default function ImporEksporProduk() {
     setSummary(null);
     setProgress(null);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = String(event.target?.result ?? '');
-        if (state.status !== 'ready') {
-          setParseErr('Data katalog belum siap. Silakan coba sesaat lagi.');
-          return;
-        }
-        const res = parseProductCsv(text, state.data.categories, state.data.catalog);
-        if (res.headerError) {
-          setParseErr(res.headerError);
-        } else {
-          setParsed(res);
-        }
-      } catch (err) {
-        setParseErr(err instanceof Error ? err.message : 'Gagal membaca berkas CSV.');
+    try {
+      if (state.status !== 'ready') {
+        setParseErr('Data katalog belum siap. Silakan coba sesaat lagi.');
+        return;
       }
-    };
-    reader.onerror = () => {
-      setParseErr('Gagal membuka berkas CSV yang dipilih.');
-    };
-    reader.readAsText(file);
+      const buffer = await file.arrayBuffer();
+      const res = parseProductSpreadsheet(
+        file.name,
+        new Uint8Array(buffer),
+        state.data.categories,
+        state.data.catalog
+      );
+      if (res.headerError) {
+        setParseErr(res.headerError);
+      } else {
+        setParsed(res);
+      }
+    } catch (err) {
+      setParseErr(err instanceof Error ? err.message : 'Gagal membaca berkas spreadsheet.');
+    }
   }
 
   function handleReset() {
@@ -185,7 +209,7 @@ export default function ImporEksporProduk() {
     <>
       <PageHeader
         title="Impor dan ekspor produk"
-        subtitle="Kelola katalog produk secara massal menggunakan berkas spreadsheet CSV."
+        subtitle="Kelola katalog produk secara massal menggunakan berkas Excel (.xlsx) maupun CSV."
         actions={
           <div className="flex flex-wrap items-center gap-8">
             <Link href="/produk" className="cg-btn cg-btn--ghost">
@@ -194,17 +218,25 @@ export default function ImporEksporProduk() {
             <button
               type="button"
               className="cg-btn cg-btn--secondary"
-              onClick={handleDownloadSample}
+              onClick={handleDownloadSampleExcel}
             >
-              <FileSpreadsheet className="cg-icon" aria-hidden /> Unduh contoh berkas
+              <FileSpreadsheet className="cg-icon" aria-hidden /> Unduh contoh Excel
             </button>
             <button
               type="button"
-              className="cg-btn cg-btn--primary"
+              className="cg-btn cg-btn--secondary"
               onClick={handleExportCsv}
               disabled={state.status !== 'ready'}
             >
               <Download className="cg-icon" aria-hidden /> Unduh CSV katalog
+            </button>
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary"
+              onClick={handleExportExcel}
+              disabled={state.status !== 'ready'}
+            >
+              <Download className="cg-icon" aria-hidden /> Unduh Excel katalog
             </button>
           </div>
         }
@@ -226,11 +258,11 @@ export default function ImporEksporProduk() {
             <div className="flex items-start gap-12">
               <FileText className="cg-icon cg-icon--lg text-accent-strong shrink-0 mt-2" aria-hidden />
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold m-0 mb-4">Pilih berkas CSV produk</h2>
+                <h2 className="text-base font-semibold m-0 mb-4">Pilih berkas Excel (.xlsx) atau CSV produk</h2>
                 <p className="text-sm text-text-muted m-0">
                   Kolom yang dibutuhkan: <strong>SKU</strong>, <strong>Nama</strong>, <strong>Kategori</strong>,{' '}
                   <strong>Harga jual</strong>, dan <strong>Aktif</strong> (ya/tidak).
-                  Nama produk wajib diisi, harga berupa angka bulat positif, dan kategori harus sudah terdaftar pada menu kategori.
+                  Nama produk wajib diisi, harga berupa angka bulat positif, kategori harus sudah terdaftar pada menu kategori, dan berkas <code>.xls</code> lama perlu disimpan ulang sebagai <code>.xlsx</code> atau <code>.csv</code>.
                 </p>
               </div>
             </div>
@@ -239,16 +271,23 @@ export default function ImporEksporProduk() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleFileChange}
                 className="cg-sr"
-                id="product-csv-upload"
+                id="product-spreadsheet-upload"
                 disabled={applying}
               />
-              <label htmlFor="product-csv-upload" className="cg-btn cg-btn--secondary cursor-pointer">
+              <label htmlFor="product-spreadsheet-upload" className="cg-btn cg-btn--secondary cursor-pointer">
                 <Upload className="cg-icon" aria-hidden />
-                {selectedFileName ? 'Ganti berkas CSV' : 'Pilih berkas CSV'}
+                {selectedFileName ? 'Ganti berkas Excel / CSV' : 'Pilih berkas Excel / CSV'}
               </label>
+              <button
+                type="button"
+                className="cg-btn cg-btn--ghost cg-btn--sm"
+                onClick={handleDownloadSampleCsv}
+              >
+                <FileText className="cg-icon cg-icon--sm" aria-hidden /> Unduh contoh CSV
+              </button>
 
               {selectedFileName && (
                 <div className="flex items-center gap-8 text-sm">
