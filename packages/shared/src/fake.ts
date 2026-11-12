@@ -18,6 +18,8 @@ import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type Auth
 import { DataError } from './types';
 import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
+import { roleSaveProblem } from './roles';
+import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
@@ -198,6 +200,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let attendance: AttendanceRecord[] = [];
+  let customRoles: RoleDefinition[] = [];
   let compensation = new Map<string, Omit<EmployeeCompensation, 'employeeName'>>();
   let schedules = new Map<string, WeeklySchedule>();
   let payrollRules: Record<string, unknown> = {};
@@ -421,6 +424,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     tables = opts.seed === false ? [] : ['T1', 'T2', 'T3', 'T4'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-1', name: n, sort: i + 1 })).concat(['T5', 'T6'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-teras', name: n, sort: i + 5 })));
     employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
     attendance = [];
+    customRoles = [];
     compensation = new Map(); schedules = new Map(); payrollRules = {}; incidents = []; cashAdvances = []; payrollRecords = [];
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
@@ -1601,6 +1605,22 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       for (const x of payrollRecords) if (x.month === month && x.year === year && x.status === 'PAID') { x.status = 'DRAFT'; delete x.paidAt; n++; }
       cashAdvances = cashAdvances.filter((c) => !(c.kind === 'PAYMENT_PAYROLL' && c.payrollPeriod === period));
       return n;
+    },
+    async listRoles() { return clone(customRoles); },
+    async saveRolePermissions(role) {
+      if (isBuiltInRole(role)) throw new DataError('forbidden', 'Peran bawaan tidak bisa diubah. Duplikasi dulu menjadi peran kustom.');
+      const problem = roleSaveProblem(role) ?? validateRoleName(role.name, customRoles, role.id);
+      if (problem) throw new DataError('invalid', problem);
+      const saved: RoleDefinition = { ...clone(role), name: role.name.trim(), isBuiltIn: false, id: role.id || newId() };
+      const i = customRoles.findIndex((x) => x.id === saved.id);
+      if (i >= 0) customRoles[i] = saved; else customRoles.push(saved);
+      return clone(saved);
+    },
+    async deleteRole(roleId) {
+      if (isBuiltInRole(roleId)) throw new DataError('forbidden', 'Peran bawaan tidak bisa dihapus.');
+      const i = customRoles.findIndex((x) => x.id === roleId);
+      if (i < 0) throw new DataError('not_found', 'Peran tidak ditemukan.');
+      customRoles.splice(i, 1);
     },
     async listPaymentMethods() { return clone(METHODS); },
 

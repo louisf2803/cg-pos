@@ -4,6 +4,8 @@ import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRu
 import { photoExt, photoPath, photoProblem, type ProductPhotoInput } from './photo';
 import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
+import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
+import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
@@ -219,6 +221,17 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       commission: Number(x.commission), cashAdvanceDeduction: Number(x.cash_advance_deduction), netSalary: Number(x.net_salary),
       ...(x.paid_at ? { paidAt: x.paid_at as string } : {}),
     }));
+  }
+
+  function mapRoleError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m) || error.code === '42P01') return new DataError('invalid', 'Fitur peran belum aktif di database (migrasi 0033 belum diterapkan).');
+    if (/role not found/i.test(m)) return new DataError('not_found', 'Peran tidak ditemukan.');
+    if (/cannot delete a built-in role/i.test(m)) return new DataError('forbidden', 'Peran bawaan tidak bisa dihapus.');
+    if (/invalid base_role|too many rows/i.test(m)) return new DataError('invalid', 'Isian peran ditolak server.');
+    if (error.code === '23505') return new DataError('invalid', 'Nama peran sudah dipakai. Gunakan nama lain.');
+    if (/not allowed/i.test(m) || error.code === '42501') return new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengelola peran.');
+    return mapDbError(error);
   }
 
   function mapAttendanceError(error: { code?: string; message?: string }): DataError {
@@ -1928,6 +1941,32 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteAttendance(id) {
       const { error } = await db().rpc('attendance_admin_delete', { p_id: id });
       if (error) throw mapAttendanceError(error);
+    },
+
+    // ---------- peran kustom (tabel 0033) ----------
+    async listRoles() {
+      const r = await resolve();
+      const roles = (must(await db().from('roles').select('*').eq('org_id', r.orgId).eq('is_built_in', false).is('deleted_at', null).order('name')) as Row[] | null) ?? [];
+      if (roles.length === 0) return [];
+      const ids = roles.map((x) => x.id as string);
+      const grab = async (table: string) => (must(await db().from(table).select('*').in('role_id', ids)) as Row[] | null) ?? [];
+      const [dm, pm, df, pf] = await Promise.all([grab('role_dashboard_perms'), grab('role_pos_perms_module'), grab('role_dashboard_feature_perms'), grab('role_pos_feature_perms')]);
+      const mine = (rows: Row[], id: string) => rows.filter((x) => x.role_id === id);
+      return roles.map((role) => roleFromRows({ role, dashModules: mine(dm, role.id as string), posModules: mine(pm, role.id as string), dashFeatures: mine(df, role.id as string), posFeatures: mine(pf, role.id as string) }));
+    },
+    async saveRolePermissions(role: RoleDefinition) {
+      const problem = roleSaveProblem(role);
+      if (problem) throw new DataError(isBuiltInRole(role) ? 'forbidden' : 'invalid', problem);
+      const r = await resolve();
+      const { data, error } = await db().rpc('save_role_permissions', roleToRpcArgs(role, r.orgId));
+      if (error) throw mapRoleError(error);
+      const saved = (await self.listRoles()).find((x) => x.id === (data as string));
+      if (!saved) throw new DataError('not_found', 'Peran tidak ditemukan setelah disimpan.');
+      return saved;
+    },
+    async deleteRole(roleId) {
+      const { error } = await db().rpc('delete_role', { p_id: roleId });
+      if (error) throw mapRoleError(error);
     },
     // ---------- payroll (semua tabel dilindungi RLS pemilik/manajer) ----------
     async listCompensation() {

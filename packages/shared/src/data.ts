@@ -1,5 +1,6 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
+import type { RoleDefinition } from './permission-matrix';
 import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
 import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
@@ -193,6 +194,15 @@ export interface DataLayer {
   /** Koreksi atau tambah catatan (pemilik/manajer). Satu karyawan hanya boleh punya satu catatan yang belum clock out. */
   saveAttendance(input: AttendanceInput): Promise<AttendanceRecord>;
   deleteAttendance(id: string): Promise<void>;
+  /**
+   * Peran KUSTOM org ini (tabel 0033). Peran bawaan (owner, manager, cashier) tidak disimpan di server: ambil dari
+   * createDefaultRoleDefinitions lalu gabungkan dengan mergeRoleOverrides([...bawaan, ...hasil ini]).
+   */
+  listRoles(): Promise<RoleDefinition[]>;
+  /** Simpan peran kustom (baru atau ubah). Peran baru mendapat id UUID dari server: pakai id pada hasil. Hanya pemilik/manajer; ownerAppAccess hanya bisa diaktifkan pemilik/admin. */
+  saveRolePermissions(role: RoleDefinition): Promise<RoleDefinition>;
+  /** Hapus peran kustom; karyawan yang memakainya kehilangan tautan peran. Peran bawaan ditolak (forbidden). */
+  deleteRole(roleId: string): Promise<void>;
 
   // ----- payroll (khusus pemilik/manajer; kasir dan akun perangkat tidak boleh membaca gaji) -----
   /** Semua karyawan aktif dengan gaji pokok dan tunjangannya (bawaan: tetap, semua nol). */
