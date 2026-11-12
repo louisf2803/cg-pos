@@ -26,6 +26,7 @@ import {
   type ManagedEmployee,
   type RoleDefinition,
 } from '@cgpos/shared';
+import type { JobLevel, OrgUnit, EmployeeType, EmployeeHr } from '@cgpos/shared/src/hr';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -40,14 +41,18 @@ const ACCESS_TEXT: Record<Access, string> = {
 export default function KaryawanDanAkses() {
   const data = useData();
 
-  // Load context outlet, karyawan, & peran kustom
+  // Load context outlet, karyawan, peran kustom, & struktur SDM
   const contextAsync = useAsync(async () => {
-    const [ctx, employees, roles] = await Promise.all([
+    const [ctx, employees, roles, jobLevels, orgUnits, employeeTypes, employeeHr] = await Promise.all([
       data.getContext(),
       data.listManagedEmployees(),
       data.listRoles(),
+      data.listJobLevels(),
+      data.listOrgUnits(),
+      data.listEmployeeTypes(),
+      data.listEmployeeHr(),
     ]);
-    return { ctx, employees, roles };
+    return { ctx, employees, roles, jobLevels, orgUnits, employeeTypes, employeeHr };
   }, [data]);
 
   const [targetPin, setTargetPin] = useState<Employee | null>(null);
@@ -106,6 +111,12 @@ export default function KaryawanDanAkses() {
   const ctx = contextAsync.status === 'ready' ? contextAsync.data.ctx : null;
   const customRoles: RoleDefinition[] =
     contextAsync.status === 'ready' ? contextAsync.data.roles.filter((r) => !r.isBuiltIn) : [];
+  const jobLevels: JobLevel[] = contextAsync.status === 'ready' ? contextAsync.data.jobLevels : [];
+  const orgUnits: OrgUnit[] = contextAsync.status === 'ready' ? contextAsync.data.orgUnits : [];
+  const employeeTypes: EmployeeType[] =
+    contextAsync.status === 'ready' ? contextAsync.data.employeeTypes : [];
+  const employeeHrList: EmployeeHr[] =
+    contextAsync.status === 'ready' ? contextAsync.data.employeeHr : [];
 
   const quota = useMemo(() => {
     const activeStaff = employeesList.filter((e) => e.role === 'cashier' && e.isActive);
@@ -359,6 +370,10 @@ export default function KaryawanDanAkses() {
                         const code = `KRY-${String(idx + 1).padStart(3, '0')}`;
                         const outletDisplay = e.role === 'owner' ? 'Semua Outlet' : (ctx?.outletName || 'Outlet Utama');
                         const customRole = getCustomRoleForEmployee(e, customRoles);
+                        const empHr = employeeHrList.find((h) => h.employeeId === e.id);
+                        const empJob = empHr?.jobLevelId ? jobLevels.find((j) => j.id === empHr.jobLevelId) : null;
+                        const empUnit = empHr?.orgUnitId ? orgUnits.find((u) => u.id === empHr.orgUnitId) : null;
+                        const empType = empHr?.employeeTypeId ? employeeTypes.find((t) => t.id === empHr.employeeTypeId) : null;
 
                         return (
                           <tr key={e.id} className={`border-b border-border last:border-0 ${e.isActive ? '' : 'opacity-60 bg-surface/30'}`}>
@@ -368,7 +383,7 @@ export default function KaryawanDanAkses() {
                               <div className="text-[11px] font-mono text-text-muted">{code}</div>
                             </td>
 
-                            {/* Posisi / Peran Bawaan + Lencana Kustom */}
+                            {/* Posisi / Peran Bawaan + Lencana Kustom & SDM */}
                             <td className="py-12 px-16">
                               <div className="flex flex-col gap-4 items-start">
                                 <span
@@ -388,6 +403,30 @@ export default function KaryawanDanAkses() {
                                     data-testid={`badge-custom-${e.id}`}
                                   >
                                     {customRole.name}
+                                  </span>
+                                )}
+                                {empJob && (
+                                  <span
+                                    className="cg-badge cg-badge--info text-[11px]"
+                                    data-testid={`badge-job-${e.id}`}
+                                  >
+                                    {empJob.name}
+                                  </span>
+                                )}
+                                {empUnit && (
+                                  <span
+                                    className="cg-badge text-[11px] bg-surface border border-border text-text"
+                                    data-testid={`badge-unit-${e.id}`}
+                                  >
+                                    {empUnit.name}
+                                  </span>
+                                )}
+                                {empType && (
+                                  <span
+                                    className="cg-badge text-[11px] bg-accent/10 text-accent border border-accent/20"
+                                    data-testid={`badge-type-${e.id}`}
+                                  >
+                                    {empType.name}
                                   </span>
                                 )}
                               </div>
@@ -552,6 +591,10 @@ export default function KaryawanDanAkses() {
                   const code = `KRY-${String(idx + 1).padStart(3, '0')}`;
                   const outletDisplay = e.role === 'owner' ? 'Semua Outlet' : (ctx?.outletName || 'Outlet Utama');
                   const customRole = getCustomRoleForEmployee(e, customRoles);
+                  const empHr = employeeHrList.find((h) => h.employeeId === e.id);
+                  const empJob = empHr?.jobLevelId ? jobLevels.find((j) => j.id === empHr.jobLevelId) : null;
+                  const empUnit = empHr?.orgUnitId ? orgUnits.find((u) => u.id === empHr.orgUnitId) : null;
+                  const empType = empHr?.employeeTypeId ? employeeTypes.find((t) => t.id === empHr.employeeTypeId) : null;
 
                   return (
                     <div
@@ -568,12 +611,12 @@ export default function KaryawanDanAkses() {
                         </div>
                         <div className="flex flex-col items-end gap-4">
                           {e.isActive ? (
-                            <span className="inline-flex items-center gap-4 px-8 py-2 rounded-full text-[11px] font-semibold bg-success/15 text-success">
+                            <span className="inline-flex items-center gap-4 px-8 py-[2px] rounded-full text-[11px] font-semibold bg-success/15 text-success">
                               <CheckCircle2 className="w-10 h-10" aria-hidden />
                               <span>Aktif</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-4 px-8 py-2 rounded-full text-[11px] font-semibold bg-surface text-text-muted">
+                            <span className="inline-flex items-center gap-4 px-8 py-[2px] rounded-full text-[11px] font-semibold bg-surface text-text-muted">
                               <XCircle className="w-10 h-10" aria-hidden />
                               <span>Nonaktif</span>
                             </span>
@@ -587,10 +630,10 @@ export default function KaryawanDanAkses() {
                         </div>
                       </div>
 
-                      {/* Baris Tengah: Peran & Outlet */}
+                      {/* Baris Tengah: Peran, SDM & Outlet */}
                       <div className="flex flex-wrap items-center gap-8 text-xs">
                         <span
-                          className={`inline-flex items-center px-8 py-2 rounded-full font-semibold ${
+                          className={`inline-flex items-center px-8 py-[2px] rounded-full font-semibold ${
                             e.role === 'owner'
                               ? 'bg-info/10 text-info'
                               : e.role === 'manager'
@@ -606,6 +649,30 @@ export default function KaryawanDanAkses() {
                             data-testid={`mobile-badge-custom-${e.id}`}
                           >
                             {customRole.name}
+                          </span>
+                        )}
+                        {empJob && (
+                          <span
+                            className="cg-badge cg-badge--info text-[11px]"
+                            data-testid={`mobile-badge-job-${e.id}`}
+                          >
+                            {empJob.name}
+                          </span>
+                        )}
+                        {empUnit && (
+                          <span
+                            className="cg-badge text-[11px] bg-surface border border-border text-text"
+                            data-testid={`mobile-badge-unit-${e.id}`}
+                          >
+                            {empUnit.name}
+                          </span>
+                        )}
+                        {empType && (
+                          <span
+                            className="cg-badge text-[11px] bg-accent/10 text-accent border border-accent/20"
+                            data-testid={`mobile-badge-type-${e.id}`}
+                          >
+                            {empType.name}
                           </span>
                         )}
                         <span className="text-text-muted flex items-center gap-4">
@@ -754,6 +821,14 @@ export default function KaryawanDanAkses() {
         <EmployeeDialog
           employee={editEmployee === 'new' ? undefined : editEmployee}
           customRoles={customRoles}
+          jobLevels={jobLevels}
+          orgUnits={orgUnits}
+          employeeTypes={employeeTypes}
+          employeeHr={
+            editEmployee && editEmployee !== 'new'
+              ? employeeHrList.find((h) => h.employeeId === editEmployee.id)
+              : undefined
+          }
           onClose={() => setEditEmployee(null)}
           onSaved={() => {
             setEditEmployee(null);
@@ -970,11 +1045,19 @@ function PinDialog({
 function EmployeeDialog({
   employee,
   customRoles,
+  jobLevels,
+  orgUnits,
+  employeeTypes,
+  employeeHr,
   onClose,
   onSaved,
 }: {
   employee?: ManagedEmployee;
   customRoles: readonly RoleDefinition[];
+  jobLevels: readonly JobLevel[];
+  orgUnits: readonly OrgUnit[];
+  employeeTypes: readonly EmployeeType[];
+  employeeHr?: EmployeeHr;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -985,6 +1068,9 @@ function EmployeeDialog({
     employee?.role === 'manager' ? 'manager' : 'cashier',
   );
   const [roleId, setRoleId] = useState<string>(employee?.roleId ?? '');
+  const [jobLevelId, setJobLevelId] = useState<string>(employeeHr?.jobLevelId ?? '');
+  const [orgUnitId, setOrgUnitId] = useState<string>(employeeHr?.orgUnitId ?? '');
+  const [employeeTypeId, setEmployeeTypeId] = useState<string>(employeeHr?.employeeTypeId ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1005,6 +1091,12 @@ function EmployeeDialog({
       if (initialRoleId !== roleId) {
         await data.setEmployeeRoleId(targetId, roleId ? roleId : null);
       }
+      await data.saveEmployeeHr({
+        employeeId: targetId,
+        jobLevelId: jobLevelId ? jobLevelId : null,
+        orgUnitId: orgUnitId ? orgUnitId : null,
+        employeeTypeId: employeeTypeId ? employeeTypeId : null,
+      });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan data karyawan.');
@@ -1076,6 +1168,66 @@ function EmployeeDialog({
           <p className="text-[11px] text-text-muted mt-4">
             Pilih peran kustom untuk menetapkan izin spesifik, atau gunakan Bawaan untuk hak akses standar.
           </p>
+        </div>
+
+        <div className="cg-field">
+          <label className="cg-label text-xs font-semibold" htmlFor="dialog-job-level">
+            Tingkat Jabatan
+          </label>
+          <select
+            id="dialog-job-level"
+            className="cg-input text-xs"
+            value={jobLevelId}
+            onChange={(e) => setJobLevelId(e.target.value)}
+            data-testid="dialog-job-level"
+          >
+            <option value="">— Belum ditentukan —</option>
+            {jobLevels.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.name} (Tingkat {j.rank})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="cg-field">
+          <label className="cg-label text-xs font-semibold" htmlFor="dialog-org-unit">
+            Unit Organisasi
+          </label>
+          <select
+            id="dialog-org-unit"
+            className="cg-input text-xs"
+            value={orgUnitId}
+            onChange={(e) => setOrgUnitId(e.target.value)}
+            data-testid="dialog-org-unit"
+          >
+            <option value="">— Belum ditentukan —</option>
+            {orgUnits.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="cg-field">
+          <label className="cg-label text-xs font-semibold" htmlFor="dialog-employee-type">
+            Tipe Karyawan
+          </label>
+          <select
+            id="dialog-employee-type"
+            className="cg-input text-xs"
+            value={employeeTypeId}
+            onChange={(e) => setEmployeeTypeId(e.target.value)}
+            data-testid="dialog-employee-type"
+          >
+            <option value="">— Belum ditentukan —</option>
+            {employeeTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {!employee && (
