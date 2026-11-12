@@ -83,4 +83,5 @@ export * from './xlsx';
 export * from './opname-csv';
 export * from './customer-display';
 export * from './roles-ui';
+export * from './waste-report';
 
