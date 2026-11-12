@@ -963,3 +963,6 @@ Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_sugges
 
 ## Claude (12 Nov 2026) — 20 tugas fitur "sebagian" disiapkan untuk Antigravity: A93 sampai A112
 Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude hampir habis; Louis akan menyuruh Claude memeriksa hasilnya sekitar pukul 08.10). Urutan pengerjaan: A86 (selesai), A87 sampai A92 (sudah ada), lalu A93 sampai A112. Tiap tugas dimulai dengan audit; kekurangan yang butuh data/skema baru ditulis di `docs/REQUESTS-FOR-CLAUDE.md`, bukan dikerjakan dengan data palsu. Migrasi 0038 sampai 0043 sudah di produksi (DataLayer siap). Saat Claude kembali: tinjau cabang `ag/a87` dan seterusnya (typecheck, tes, build, lint, lihat screenshot 390 dan 1280), gabungkan, lalu nilai ulang status fitur dengan bukti.
+
+## Claude (13 Nov 2026) — tugas A113 sampai A138 untuk semua fitur Gelombang A yang masih sebagian/belum
+26 tugas baru (satu per layar) mencakup 42 fitur; 5 fitur lain sudah tercakup A87, A89, A92. Tugas yang ditandai "butuh skema/DataLayer": Antigravity audit `data.ts`, tulis permintaan di `docs/REQUESTS-FOR-CLAUDE.md`, kerjakan bagian layar yang bisa, lanjut. Daftar permintaan itu menjadi pekerjaan server Claude berikutnya. Urutan: A87-A112 (ditinjau Claude dulu), lalu A113-A138.
