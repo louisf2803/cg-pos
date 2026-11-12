@@ -82,7 +82,7 @@ function AddAssetModal({
         <div className="flex items-start justify-between border-b border-border pb-12">
           <div>
             <h3 className="font-bold text-base text-text">Tambah Aset Tetap Baru</h3>
-            <p className="text-xs text-text-muted mt-2">
+            <p className="text-xs text-text-muted mt-4">
               Aset yang telah dicatat tidak dapat diubah kembali; pastikan data perolehan sudah benar.
             </p>
           </div>
@@ -309,7 +309,7 @@ export default function FixedAssetListPage() {
           <Search className="cg-icon cg-icon--sm absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
           <input
             type="text"
-            className="cg-input pl-36 text-sm w-full"
+            className="cg-input pl-[36px] text-sm w-full"
             placeholder="Cari nama aset..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}

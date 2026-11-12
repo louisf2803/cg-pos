@@ -100,7 +100,7 @@ function EditPriceMappingDialog({
         <div className="flex items-start justify-between border-b border-border pb-12">
           <div>
             <h3 className="font-bold text-base text-text">Pengaturan Harga Beli Barang</h3>
-            <p className="text-xs text-text-muted mt-2">{item.name}</p>
+            <p className="text-xs text-text-muted mt-4">{item.name}</p>
           </div>
           <button
             type="button"
@@ -120,7 +120,7 @@ function EditPriceMappingDialog({
         )}
 
         {/* Mode Selector */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           <label className="text-xs font-semibold text-text-muted block">
             Metode Penentuan Harga Beli
           </label>
@@ -142,11 +142,11 @@ function EditPriceMappingDialog({
                 disabled={saving}
               />
               <div>
-                <span className="font-bold text-sm text-text block flex items-center gap-6">
+                <span className="font-bold text-sm text-text block flex items-center gap-8">
                   <Clock className="cg-icon cg-icon--xs text-accent" aria-hidden />
                   Pembelian Terakhir (Otomatis)
                 </span>
-                <span className="text-xs text-text-muted block mt-2">
+                <span className="text-xs text-text-muted block mt-4">
                   Harga beli otomatis terisi mengikuti harga satuan pada faktur pembelian terbaru yang tidak batal.
                   Jika belum pernah ada faktur, harga akan dibiarkan kosong untuk diisi petugas.
                 </span>
@@ -170,11 +170,11 @@ function EditPriceMappingDialog({
                 disabled={saving}
               />
               <div>
-                <span className="font-bold text-sm text-text block flex items-center gap-6">
+                <span className="font-bold text-sm text-text block flex items-center gap-8">
                   <Tag className="cg-icon cg-icon--xs text-accent" aria-hidden />
                   Manual (Harga Tetap)
                 </span>
-                <span className="text-xs text-text-muted block mt-2">
+                <span className="text-xs text-text-muted block mt-4">
                   Tentukan harga beli tetap untuk barang ini (misalnya harga kontrak pengadaan dari vendor).
                 </span>
               </div>
@@ -230,7 +230,7 @@ function EditPriceMappingDialog({
 
         {mode === 'last' && currentMapping?.mode === 'manual' && (
           <div className="p-12 rounded-lg bg-warning/10 border border-warning/20 text-xs text-text">
-            <span className="font-semibold text-warning block mb-2">Informasi:</span>
+            <span className="font-semibold text-warning block mb-4">Informasi:</span>
             Menyimpan pengaturan dengan mode &quot;Pembelian terakhir&quot; akan menghapus harga manual yang sebelumnya tersimpan (Rp {currentMapping.manualPrice}).
           </div>
         )}
@@ -340,7 +340,7 @@ export default function PurchasePricePage() {
           <Search className="cg-icon cg-icon--sm absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
           <input
             type="text"
-            className="cg-input pl-36 text-sm w-full"
+            className="cg-input pl-[36px] text-sm w-full"
             placeholder="Cari nama barang..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -447,7 +447,7 @@ export default function PurchasePricePage() {
                                 {PURCHASE_PRICE_SOURCE_LABEL.manual}
                               </span>
                             ) : s?.source === 'last' ? (
-                              <div className="space-y-2">
+                              <div className="space-y-4">
                                 <span className="font-semibold text-text block">
                                   Faktur {s.invoiceNumber || '-'}
                                 </span>
@@ -497,7 +497,7 @@ export default function PurchasePricePage() {
                         <div className="min-w-0 flex-1">
                           <h4 className="font-bold text-sm text-text truncate">{item.name}</h4>
                           <span
-                            className={`inline-block px-6 py-[1px] rounded-full text-[10px] font-semibold mt-2 ${
+                            className={`inline-block px-8 py-[1px] rounded-full text-[10px] font-semibold mt-4 ${
                               isManual
                                 ? 'bg-info/10 text-info border border-info/20'
                                 : 'bg-success/10 text-success border border-success/20'

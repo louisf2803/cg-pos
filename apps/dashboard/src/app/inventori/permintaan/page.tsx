@@ -176,7 +176,7 @@ function CreateRequestDialog({
         <div className="flex items-start justify-between border-b border-border pb-12">
           <div>
             <h3 className="font-bold text-base text-text">Buat Permintaan Barang Antar Lokasi</h3>
-            <p className="text-xs text-text-muted mt-2">
+            <p className="text-xs text-text-muted mt-4">
               Minta stok produk dari gudang utama atau outlet lain untuk memenuhi persediaan.
             </p>
           </div>
@@ -387,7 +387,7 @@ function DecideDialog({
               <h3 className="font-bold text-base text-text">
                 {isApprove ? 'Setujui Permintaan Barang' : 'Tolak Permintaan Barang'}
               </h3>
-              <p className="text-xs text-text-muted mt-2">{request.number}</p>
+              <p className="text-xs text-text-muted mt-4">{request.number}</p>
             </div>
           </div>
           <button
@@ -501,7 +501,7 @@ function FulfillDialog({
             <Truck className="cg-icon cg-icon--md" aria-hidden />
             <div>
               <h3 className="font-bold text-base text-text">Penuhi Permintaan Barang</h3>
-              <p className="text-xs text-text-muted mt-2">{request.number}</p>
+              <p className="text-xs text-text-muted mt-4">{request.number}</p>
             </div>
           </div>
           <button
@@ -532,7 +532,7 @@ function FulfillDialog({
           <p className="font-semibold text-text mb-4">Daftar Barang yang Dikirim:</p>
           <ul className="divide-y divide-border">
             {request.lines.map((line, idx) => (
-              <li key={idx} className="py-6 flex justify-between">
+              <li key={idx} className="py-8 flex justify-between">
                 <span>{line.name}</span>
                 <span className="font-bold cg-num">{line.qty} unit</span>
               </li>
@@ -721,7 +721,7 @@ export default function StockRequestsPage() {
             <button
               key={tab.id}
               type="button"
-              className={`flex items-center gap-6 px-12 py-8 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-8 px-12 py-8 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
                 active
                   ? 'bg-accent/15 text-accent'
                   : 'text-text-muted hover:text-text hover:bg-surface'
@@ -730,7 +730,7 @@ export default function StockRequestsPage() {
             >
               <span>{tab.label}</span>
               <span
-                className={`px-6 py-[1px] rounded-full text-[11px] cg-num ${
+                className={`px-8 py-[1px] rounded-full text-[11px] cg-num ${
                   active ? 'bg-accent text-white' : 'bg-surface border border-border text-text-muted'
                 }`}
               >
@@ -835,7 +835,7 @@ export default function StockRequestsPage() {
                         {statusBadge(req.status)}
                       </td>
                       <td className="py-12 px-16 text-right">
-                        <div className="inline-flex items-center justify-end gap-6">
+                        <div className="inline-flex items-center justify-end gap-8">
                           {actions.decide && (
                             <>
                               <button

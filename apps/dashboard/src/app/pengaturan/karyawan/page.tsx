@@ -261,14 +261,14 @@ export default function KaryawanDanAkses() {
       </div>
 
       {/* Keamanan PIN & Kunci Akses */}
-      <div className="cg-banner bg-surface-raised border border-border text-xs text-text-muted flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+      <div className="cg-banner bg-surface-raised border border-border text-xs text-text-muted flex flex-col tablet:flex-row tablet:items-center justify-between gap-8">
         <div className="flex items-center gap-8">
           <ShieldCheck className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
           <span>
             <strong>Keamanan Akses Kasir:</strong> PIN kasir 6 digit dienkripsi satu arah di server (bcrypt) dan tidak disimpan dalam teks biasa. Proteksi kunci akun saat salah PIN beruntun dan pemindaian QR ID menunggu dukungan skema server.
           </span>
         </div>
-        <span className="cg-badge cg-badge--secondary text-[11px] shrink-0 self-start sm:self-auto">
+        <span className="cg-badge cg-badge--secondary text-[11px] shrink-0 self-start tablet:self-auto">
           Enkripsi Server
         </span>
       </div>
@@ -452,12 +452,12 @@ export default function KaryawanDanAkses() {
                                 )}
                                 {updatedPinIds.has(e.id) ? (
                                   <span className="inline-flex items-center gap-4 text-[11px] font-medium text-success">
-                                    <KeyRound className="w-10 h-10" aria-hidden />
+                                    <KeyRound className="w-12 h-12" aria-hidden />
                                     <span>PIN baru diatur</span>
                                   </span>
                                 ) : e.isActive ? (
                                   <span className="inline-flex items-center gap-4 text-[11px] font-medium text-text-muted" title="PIN dienkripsi satu arah di server">
-                                    <KeyRound className="w-10 h-10" aria-hidden />
+                                    <KeyRound className="w-12 h-12" aria-hidden />
                                     <span>PIN tersimpan</span>
                                   </span>
                                 ) : null}
@@ -579,8 +579,8 @@ export default function KaryawanDanAkses() {
                             </span>
                           )}
                           {updatedPinIds.has(e.id) ? (
-                            <span className="inline-flex items-center gap-4 px-8 py-2 rounded-full text-[11px] font-medium bg-success/10 text-success">
-                              <KeyRound className="w-10 h-10" aria-hidden />
+                            <span className="inline-flex items-center gap-4 px-8 py-4 rounded-full text-[11px] font-medium bg-success/10 text-success">
+                              <KeyRound className="w-12 h-12" aria-hidden />
                               <span>PIN diatur</span>
                             </span>
                           ) : null}
