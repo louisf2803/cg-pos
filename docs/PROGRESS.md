@@ -914,3 +914,6 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 
 ## Claude (12 Nov 2026) — Batch 1 sisi server: migrasi 0038 siap, BELUM di produksi
 `packages/db/migrations/0038_hr_structure.sql`: `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_settings` (radius per outlet), `employee_notifications`; semua hanya pemilik/manajer. Tes `19_hr_structure.sql` lulus (diuji negatif). Quick PIN ditunda (tunggu jawaban Louis). Penegakan radius di `attendance_clock_in` menunggu jawaban blokir atau tandai. Menunggu persetujuan Louis untuk terapkan 0038 ke produksi, lalu DataLayer dan tugas UI.
+
+## Claude (12 Nov 2026) — 0038 DITERAPKAN ke produksi (persetujuan Louis)
+Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_settings` (bawaan mode `block`), `employee_notifications` ada di produksi dengan RLS pemilik/manajer. Keputusan: Quick PIN dibatalkan (pakai PIN karyawan yang ada); absen di luar radius (GPS) DIBLOKIR. Berikutnya: DataLayer, migrasi 0039 (penegakan radius di `attendance_clock_in`, parameter lat/lng), tugas UI.

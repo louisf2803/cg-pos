@@ -1,7 +1,7 @@
 -- CG POS · 0038_hr_structure
 -- Struktur SDM: tingkat jabatan, organisasi (unit/divisi), tipe karyawan, profil SDM per karyawan, pengaturan lokasi absensi per outlet
 -- (radius), dan notifikasi ke karyawan. Semua HANYA untuk pemilik/manajer (pos.can_manage), sama seperti payroll.
--- Quick PIN sengaja BELUM ada: menunggu jawaban Louis tentang bedanya dengan PIN biasa (AGENTS.md #4: PIN tidak boleh disimpan mentah).
+-- Quick PIN tidak dibuat: keputusan Louis 12 Nov 2026, samakan saja dengan PIN karyawan yang sudah ada.
 
 create table pos.job_levels (
   id uuid primary key default gen_random_uuid(),
@@ -49,14 +49,14 @@ create table pos.employee_hr (
 );
 
 -- Lokasi dan radius absensi per outlet. mode: 'flag' = absen di luar radius tetap diterima tetapi ditandai; 'block' = ditolak.
--- Penegakan di pos.attendance_clock_in menunggu jawaban Louis (memblokir atau menandai); tabel ini hanya menyimpan pengaturan.
+-- Keputusan Louis 12 Nov 2026: di luar radius DIBLOKIR (bawaan 'block'). Penegakan di pos.attendance_clock_in menyusul di migrasi berikutnya; tabel ini hanya menyimpan pengaturan.
 create table pos.attendance_settings (
   outlet_id uuid primary key,
   org_id uuid not null references pos.orgs(id) on delete cascade,
   latitude numeric(9,6) check (latitude between -90 and 90),
   longitude numeric(9,6) check (longitude between -180 and 180),
   radius_m integer check (radius_m between 10 and 5000),
-  mode text not null default 'flag' check (mode in ('flag', 'block')),
+  mode text not null default 'block' check (mode in ('flag', 'block')),
   require_photo boolean not null default true,
   updated_at timestamptz not null default now(),
   foreign key (outlet_id, org_id) references pos.outlets(id, org_id) on delete cascade,

@@ -5,10 +5,10 @@ Sumber: `docs/wave.csv` (baris `A`), `docs/features.csv`, `docs/KEPUTUSAN-FITUR-
 Aturan yang berlaku: QRIS hanya menampilkan "Payment belum tersambung" (tanpa DOKU); tidak ada struk WhatsApp/email/SMS; tidak ada bayar dengan saldo deposit.
 
 ## Batch 1 — SDM lanjutan (pengembangan dari absensi dan payroll yang sudah ada)
-Fitur: Pengaturan akses absensi, Radius absensi, Tingkat jabatan, Organisasi, Tipe karyawan, Quick PIN karyawan, Kirim notifikasi ke karyawan.
-- Claude: tabel `job_levels`, `org_units`, `employee_types`, kolom radius lokasi di outlet, aturan akses absensi per peran. Quick PIN: JANGAN simpan PIN mentah (AGENTS.md #4), hanya hash.
+Fitur: Pengaturan akses absensi, Radius absensi, Tingkat jabatan, Organisasi, Tipe karyawan, Kirim notifikasi ke karyawan. (Quick PIN dibatalkan: samakan dengan PIN karyawan yang ada.)
+- Claude: tabel `job_levels`, `org_units`, `employee_types`, kolom radius lokasi di outlet, aturan akses absensi per peran. Server SUDAH di produksi (0038, 12 Nov 2026). Berikutnya: DataLayer lalu layar; absen di luar radius DIBLOKIR (GPS perangkat), penegakannya di migrasi 0039.
 - Antigravity: layar pengaturan di `/karyawan/*`, peta radius sederhana (tanpa layanan peta pihak ketiga).
-- Perlu jawaban Louis (tulis di `MAJOO-VERIFICATION.md`): apa beda Quick PIN dengan PIN biasa di Majoo; apakah radius memblokir absen atau hanya menandai.
+- Jawaban Louis (12 Nov 2026): Quick PIN tidak perlu; radius pakai GPS dan di luar radius diblokir.
 
 ## Batch 2 — Persetujuan dan tagihan
 Fitur: Alur persetujuan pembelian, Alur persetujuan keuangan, Daftar mitra, Pencatatan biaya dan tagihan rutin, Permintaan barang, Pemetaan harga beli manual dan terakhir.
