@@ -21,3 +21,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=aeef24a | Postgres lokal siap: run.sh lulus dengan 0001-0033; goal 12/72
 2026-11-12 | main=198c280 | 0034 diterapkan ke produksi atas persetujuan Louis; kode klien digabung; A73 ditulis; goal 12/72
 2026-11-12 | main=6887d44 | absensi: 0035 dan 0036 diterapkan ke produksi atas persetujuan Louis; DataLayer absensi digabung; A76 dan A77 ditulis (diganti nomor karena A74 dipakai Antigravity); payroll belum; goal 12/72
+2026-11-12 | main=d359dd5 | merge A73 dan A74 (typecheck, 481 tes, build dashboard+pos, lint; dependensi baru fflate diperiksa); review: Terapkan kupon dengan referensi + Stok opname impor Excel => yes; goal 14/72
