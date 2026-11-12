@@ -1019,3 +1019,6 @@ Alur refund di kasir (`apps/pos/src/screens/Orders.tsx`) dan riwayat laporan ref
 - **A95 (`ag/a95-kas-terminal`)**:
   - **`packages/shared` (`cashier-report.ts`, `test/cashier-report.test.ts`)**: helper murni `groupShiftsByCashier` dan `filterShiftRows` untuk agregasi shift per kasir/terminal dan penyaringan; unit test lulus.
   - **`apps/dashboard` (`components/shift-reports.tsx`)**: menambahkan tab `Rekap Kasir & Terminal` di Laporan Kasir, filter kasir/terminal, filter status shift, pencarian kasir, informasi terminal pada baris shift, dan ekspor CSV dinamis per tab; verifikasi `typecheck`, vitest `cashier-report.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
+## Antigravity (12 Nov 2026) — A100 Pajak per Produk dari Layar Produk Selesai
+Layar `/pengaturan/pajak` dan formulir `/produk` (`product-form.tsx`) diperbarui dengan penjelasan kebijakan pajak outlet dan penanda bahwa penetapan tarif khusus per produk & pembedaan tarif per jenis order menunggu skema server. Permintaan skema dicatat detail di `docs/REQUESTS-FOR-CLAUDE.md`. 24 tes `tax.test.ts` & `calc.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+

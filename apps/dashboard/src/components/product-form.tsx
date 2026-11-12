@@ -279,6 +279,15 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
         )}
 
         {initial && <label className="flex items-center gap-8"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Produk aktif (tampil di kasir)</label>}
+
+        <div className="p-12 rounded-lg bg-surface-raised border border-border text-xs text-text-muted flex items-start justify-between gap-8" role="note">
+          <div>
+            <span className="font-semibold text-text block">Aturan Pajak Produk</span>
+            <span>Produk ini mengikuti kebijakan pajak outlet aktif. Pemilihan tarif khusus atau pembebasan pajak per produk menunggu dukungan skema server lanjutan.</span>
+          </div>
+          <span className="cg-badge cg-badge--secondary text-[11px] shrink-0">Otomatis Outlet</span>
+        </div>
+
         <div className="flex gap-8">
           <button className="cg-btn cg-btn--primary" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan produk'}</button>
           <button type="button" className="cg-btn cg-btn--secondary" onClick={() => router.push('/produk')}>Batal</button>

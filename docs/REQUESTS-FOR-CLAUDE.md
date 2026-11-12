@@ -222,4 +222,8 @@ Pada `ManagedEmployee` (`data.listManagedEmployees`), saat ini belum ada field:
 1. `hasPin: boolean`: status apakah karyawan sudah memiliki PIN yang aktif (bukan PIN mentah, hanya boolean apakah PIN sudah diatur atau belum) agar tabel karyawan dapat menampilkan badge 'PIN diatur' / 'Belum diatur'.
 2. `isLocked: boolean` & `lockedUntil?: string`: status terkunci akibat salah PIN beruntun di kasir (mis. 5x salah beruntun), beserta metode `unlockEmployeePin(employeeId: string): Promise<void>`.
 3. `qrId?: string` (atau kode barcode/QR kartu karyawan) untuk login cepat via pemindai QR/kartu di kasir.
+## Dari Antigravity (A100) — Dukungan Pajak Per Produk & Per Jenis Order
+Untuk melengkapi fitur pajak gelombang A (`pajak dan biaya`):
+1. **Pajak Per Produk**: tambahkan `tax_exempt boolean DEFAULT false` (atau `tax_rate numeric(5,2)`) pada tabel `products` + propagasi pada `CatalogProduct`, `CatalogInput`, dan `saveCatalogProduct` agar produk tertentu bisa dikecualikan dari pajak atau memiliki tarif khusus.
+2. **Pajak Per Jenis Order**: tambahkan `order_types text[]` pada tabel `taxes` (atau relasi `tax_order_types`) dan perbarui `TaxSettings` agar outlet bisa membedakan tarif pajak per jenis pesanan (mis. Dine-in kena PB1, Takeaway bebas pajak).
 
