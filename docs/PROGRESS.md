@@ -1033,3 +1033,8 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A116 Split Bill: Grosir dan Promo Dihitung Ulang, Struk Gabungan
+- `packages/shared` (`split-bill.ts`, `split-bill.test.ts`): perluasan `splitByItem` dengan opsi pemblokiran bila ada diskon tingkat pesanan (`hasOrderDiscount`), hitung ulang harga grosir bertingkat berdasarkan kuantitas baru `paid` vs `remain` (`resolveTieredPrice`), serta penyusun data struk gabungan `buildCombinedReceiptSummary`. 8 unit tests lulus.
+- `apps/pos` (`SplitBillDialog.tsx`, `Register.tsx`, `Receipt.tsx`): blokir pisah bill di dialog kasir bila pesanan memiliki diskon pesanan; pesanan yang dipisah tetap mempertahankan `tableId` dan label meja asal; tampilan tab dan cetak "Struk Gabungan" di dialog struk bila terdapat lebih dari 1 transaksi pada meja yang sama.
+- Lolos: `pnpm -r typecheck`, `pnpm -F @cgpos/shared exec vitest run test/split-bill.test.ts`, pos tests, `lint-tailwind.sh origin/main` bersih.
