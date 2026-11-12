@@ -30,8 +30,8 @@ Kebijakan RLS mereka `USING (true)` untuk semua pengguna (siapa pun bisa baca/tu
 ## Tahap pengerjaan (satu PR per tahap)
 - **Tahap 1 (selesai, tanpa database):** `packages/shared/src/payroll.ts` + `payroll.test.ts`: rumus gaji bersih, aturan, kasbon, jadwal, dan `deriveAttendance` (telat/absen otomatis). 505 tes lulus.
 - **Tahap 2 (SELESAI dan di produksi, 12 Nov 2026, atas persetujuan Louis):** migrasi 0037: `employee_compensation`, `employee_schedules`, `payroll_rules`, `employee_incidents` (kesalahan operasional + hari diizinkan), `cash_advances`, `payroll_records` (+ kunci periode). RLS hanya `pos.can_manage`; tidak terbaca akun perangkat/kasir. Tes SQL lokal.
-- **Tahap 3 (SELESAI, 12 Nov 2026):** DataLayer payroll di `data.ts`, `fake.ts`, `supabase.ts` + `buildWorksheet`, `cashAdvanceBalances`, `pastAbsencesInYear`, dan validasi di `payroll.ts`; 516 tes lulus. Catatan: implementasi Supabase belum diuji terhadap database nyata (hanya typecheck dan kunci RPC yang cocok dengan fungsi server yang lulus tes SQL); uji manual saat UI A78/A79 jadi.
-- **Tahap 4 (UI, Antigravity; tugas A78 lalu A79 sudah ditulis):** `/karyawan/jadwal` (jadwal kerja), `/karyawan/payroll` (gaji bulanan, kunci periode), catatan harian, kasbon, slip gaji cetak, pengaturan aturan payroll.
+- **Tahap 3 (SELESAI, 12 Nov 2026):** DataLayer payroll di `data.ts`, `fake.ts`, `supabase.ts` + `buildWorksheet`, `cashAdvanceBalances`, `pastAbsencesInYear`, dan validasi di `payroll.ts`; 516 tes lulus. Catatan: implementasi Supabase belum diuji terhadap database nyata (hanya typecheck dan kunci RPC yang cocok dengan fungsi server yang lulus tes SQL); uji manual saat UI A80/A81 jadi.
+- **Tahap 4 (UI, Antigravity; tugas A80 lalu A81 sudah ditulis):** `/karyawan/jadwal` (jadwal kerja), `/karyawan/payroll` (gaji bulanan, kunci periode), catatan harian, kasbon, slip gaji cetak, pengaturan aturan payroll.
 
 ## Pertanyaan terbuka (jangan menebak)
 - Cuti: Coffee Ground punya halaman `leaves`. Apakah cuti/izin perlu fitur sendiri sekarang, atau cukup "hari diizinkan" di catatan harian?

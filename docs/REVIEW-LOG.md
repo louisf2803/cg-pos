@@ -26,4 +26,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=09707ef | merge A77 laporan absensi dashboard (typecheck, 487 tes, build, lint); diuji sendiri (tambah catatan, lama kerja benar, 390 px rapi); Absensi dan payroll no -> partial (payroll belum); goal 14/72
 2026-11-12 | main=3b79b40 | payroll tahap 1 (fungsi hitung murni, 505 tes; publikasi disetujui Louis); absensi: payroll ikut lingkup; goal 14/72
 2026-11-12 | main=9c09454 | payroll tahap 2: 0037 diterapkan ke produksi atas persetujuan Louis; tahap 3 DataLayer berikutnya; goal 14/72
-2026-11-12 | main=2b90ffc | payroll tahap 3 (DataLayer, 516 tes); A78 dan A79 ditulis; goal 14/72
+2026-11-12 | main=2b90ffc | payroll tahap 3 (DataLayer, 516 tes); A80 dan A81 ditulis (diganti nomor karena A75 dan A78 dipakai Antigravity); goal 14/72
