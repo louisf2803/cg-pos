@@ -1033,3 +1033,12 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A117 Kirim Tiket Dapur per Baris & Status Selesai
+Kirim tiket dapur per baris item dan status massal di KDS (`apps/pos/src/screens/KitchenDisplay.tsx` dan `apps/dashboard/src/app/dapur/page.tsx`): pemilihan item satuan & pilih semua per tiket, aksi massal Mulai Olah / Tandai Siap / Kirim Ulang, transisi status per baris, dan penyorotan catatan item. Helper murni `packages/shared/src/kitchen-selection.ts` + 4 unit tests. Typecheck, vitest, dan lint-tailwind bersih.
+
+## Antigravity (13 Nov 2026) — A118 Pengaturan Struk Lanjut (Logo, Medsos, QR Code & Barcode) Selesai
+Pengaturan struk lanjut di `/pengaturan/struk` dan struk POS (`Receipt.tsx` & `escpos.ts`): unggah logo/URL dengan pratinjau, tautan media sosial (Instagram, Facebook, Website) di footer, kode QR dinamis/kustom, barcode struk, serta potongan teks ESC/POS Bluetooth. Helper murni `packages/shared/src/receipt-template.ts` diperluas + 12 unit tests. Typecheck, vitest, dan lint-tailwind bersih.
+
+## Antigravity (13 Nov 2026) — A119 Mode Offline Lanjut (Login PIN, Void/Refund/Shift, Server Lokal) Selesai
+Mode offline lanjut kasir: login PIN offline via salted hash SHA-256 (`packages/shared/src/hash.ts`) tanpa menyimpan PIN mentah, void/refund offline, buka dan tutup shift offline dengan penjagaan antrean tertunda, penarikan data lengkap ke cache (`syncPull` 13 endpoint), riwayat sinkronisasi (`getSyncHistory`), serta pengaturan jaringan outlet (peran Cloud, Master, Klien) dan pengujian latensi koneksi di `DeviceSettings.tsx`. 8 unit tests offline di `test/offline.test.ts` lulus, typecheck monorepo lolos, dan lint-tailwind bersih.
