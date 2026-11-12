@@ -14,6 +14,7 @@ atau `docs/bugs.md`.** Laporkan hasil kerjamu di `docs/PROGRESS.md` (ringkas) se
 
 ## Lingkup
 - **Gelombang A (wajib, bisa dicek di laptop dan HP):** semua fitur PERLU yang tidak bergantung pada perangkat atau layanan luar.
+- **PEMBARUAN 12 Nov 2026 (keputusan Louis, menimpa dua butir di bawah):** lingkup sekarang mengikuti `docs/wave.csv` (95 fitur Gelombang A) dan `docs/KEPUTUSAN-FITUR-2026-11-12.md`. Fitur yang dulu "dibuang" tetapi kini Gelombang A (gabung meja, denah kustom, reservasi, produksi stok, pemetaan harga beli, server lokal, dst.) BOLEH dikerjakan; yang kini X (mode SKU, saldo deposit sebagai alat bayar, aplikasi owner, consumer app, menu WhatsApp) JANGAN. DOKU/QRIS tetap dilarang (AGENTS.md #4) sampai Louis mencabutnya.
 - **Gelombang B (antarmuka dan model data saja):** cetak ke printer (Bluetooth/jaringan), kirim struk digital (WhatsApp/email/SMS), mode offline,
   seluruh alur DOKU/QRIS (QR dinamis, RRN, status, notifikasi, refund QRIS), integrasi nyata marketplace/antar makanan, aplikasi owner native, scan barcode kamera.
   Jangan memanggil layanan nyata dan jangan mengaktifkan DOKU (AGENTS.md #4).
