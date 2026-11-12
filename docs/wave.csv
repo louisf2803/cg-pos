@@ -144,7 +144,7 @@ Laporan hutang per pemasok dan piutang per pelanggan,A,docs/evidence/hutang-piut
 "Daftar akun: header dan detail, 15 kategori, akun sistem terkunci, aktif/nonaktif",-,,
 Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai,A,,
 HPP per bahan baku dari resep memakai biaya rata-rata bergerak,-,,
-Kasir boleh ubah harga jual dengan batas maksimal persen per produk,A,,
+Kasir boleh ubah harga jual dengan batas maksimal persen per produk,A,docs/shots/a82|docs/shots/a71,
 Satuan ganda per produk dengan konversi dan minimum pembelian,-,,
 Harga grosir bertingkat (sampai 5 tingkat),A,,
 Serial number dan batch number per produk,X,,
