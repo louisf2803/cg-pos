@@ -9,8 +9,9 @@ const LOCK_SECONDS = 30;
  * Keypad PIN 6 digit dengan papan ketik, batas salah 5 kali lalu tunggu 30 detik.
  * Dipakai layar masuk dan layar kunci. `verify` boleh melempar galat (mis. tak ada koneksi): pesannya ditampilkan.
  */
-export function PinPad({ verify, onSuccess, onBack, backLabel = 'Ganti' }: {
+export function PinPad({ verify, onSuccess, onBack, backLabel = 'Ganti', badPinMessage = 'PIN salah. Coba lagi.', formatError }: {
   verify: (pin: string) => Promise<boolean>; onSuccess: () => void; onBack?: () => void; backLabel?: string;
+  badPinMessage?: string; formatError?: (err: unknown) => string;
 }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -33,12 +34,13 @@ export function PinPad({ verify, onSuccess, onBack, backLabel = 'Ganti' }: {
     try {
       if (await verify(value)) { onSuccess(); return; }
       const n = tries + 1;
-      setTries(n); setError('PIN salah. Coba lagi.'); setPin('');
+      setTries(n); setError(badPinMessage); setPin('');
       if (n >= MAX_TRIES) { setLockedUntil(Date.now() + LOCK_SECONDS * 1000); setNow(Date.now()); setTries(0); setError(''); }
     } catch (e) {
-      setPin(''); setError(`PIN belum bisa diperiksa. ${e instanceof Error ? e.message : ''}`.trim());
+      setPin('');
+      setError(formatError ? formatError(e) : `PIN belum bisa diperiksa. ${e instanceof Error ? e.message : ''}`.trim());
     } finally { busy.current = false; setChecking(false); }
-  }, [verify, onSuccess, tries]);
+  }, [verify, onSuccess, tries, badPinMessage, formatError]);
 
   const press = useCallback((d: string) => {
     if (locked || checking) return;

@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Search,
   Settings,
+  UserCheck,
   Wifi,
   WifiOff,
 } from 'lucide-react';
@@ -65,11 +66,13 @@ export function KitchenDisplay({
   ctx,
   canSwitchToRegister,
   onSwitchToRegister,
+  onOpenAttendance,
   onLock,
 }: {
   ctx: OutletContext;
   canSwitchToRegister: boolean;
   onSwitchToRegister: () => void;
+  onOpenAttendance?: () => void;
   onLock: () => void;
 }) {
   const data = useData();
@@ -233,6 +236,17 @@ export function KitchenDisplay({
         </div>
 
         <div className="flex items-center gap-6 shrink-0">
+          {onOpenAttendance && (
+            <button
+              type="button"
+              className="px-10 py-6 rounded bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-6 cursor-pointer"
+              onClick={onOpenAttendance}
+              aria-label="Absensi karyawan"
+            >
+              <UserCheck className="cg-icon cg-icon--xs" aria-hidden />
+              <span className="hidden tablet:inline">Absensi</span>
+            </button>
+          )}
           {canSwitchToRegister && (
             <button
               type="button"

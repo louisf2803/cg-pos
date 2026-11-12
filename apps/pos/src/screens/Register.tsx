@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, Monitor, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
+import { ClipboardList, Lock, Monitor, Tag, UserCheck, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
 import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
@@ -46,12 +46,14 @@ export function Register({
   ctx,
   canOpenKitchen = false,
   onOpenKitchen,
+  onOpenAttendance,
   onCloseShift,
   onLock,
 }: {
   ctx: OutletContext;
   canOpenKitchen?: boolean;
   onOpenKitchen?: () => void;
+  onOpenAttendance?: () => void;
   onCloseShift: () => void;
   onLock: () => void;
 }) {
@@ -358,6 +360,18 @@ export function Register({
           >
             Shift
           </button>
+
+          {onOpenAttendance && (
+            <button
+              type="button"
+              className="hidden laptop:inline-flex items-center gap-4 px-10 py-6 rounded-md bg-white/15 hover:bg-white/25 text-white text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer"
+              onClick={onOpenAttendance}
+              aria-label="Absensi karyawan"
+            >
+              <UserCheck className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Absensi</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -1065,6 +1079,8 @@ export function Register({
               openCustomerScreen();
             } else if (view === 'shift') {
               setShiftOpen(true);
+            } else if (view === 'attendance') {
+              onOpenAttendance?.();
             } else if (view === 'settings') {
               setSettings(true);
             } else if (view === 'lock') {

@@ -1,4 +1,7 @@
-import type { AttendanceRecord, AttendanceInput } from './types';
+import { DataError, type AttendanceRecord, type AttendanceInput } from './types';
+
+export const SELFIE_MAX_SIDE = 640;
+export const SELFIE_JPEG_QUALITY = 0.7;
 
 /** Lama kerja dalam menit penuh; kosong bila belum clock out atau waktunya tidak masuk akal. */
 export function attendanceMinutes(clockInAt: string, clockOutAt?: string): number | undefined {
@@ -43,4 +46,74 @@ export function summarizeAttendance(records: AttendanceRecord[]): AttendanceSumm
     by.set(r.employeeId, row);
   }
   return [...by.values()].sort((x, y) => x.employeeName.localeCompare(y.employeeName, 'id'));
+}
+
+/** Hitung ukuran pengecilan selfie agar sisi terpanjang tidak melebihi `max` px dan tidak memperbesar foto kecil. */
+export function selfieTargetSize(width: number, height: number, max: number = SELFIE_MAX_SIDE): { width: number; height: number } {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || !Number.isFinite(max) || width <= 0 || height <= 0 || max <= 0) {
+    return { width: 0, height: 0 };
+  }
+  const longest = Math.max(width, height);
+  if (longest <= max) {
+    return { width: Math.round(width), height: Math.round(height) };
+  }
+  const scale = max / longest;
+  return {
+    width: Math.min(max, Math.max(1, Math.round(width * scale))),
+    height: Math.min(max, Math.max(1, Math.round(height * scale))),
+  };
+}
+
+/** Format jam absensi HH.MM sesuai zona waktu outlet (mis. "08.02"). */
+export function formatAttendanceTime(iso: string, timeZone = 'Asia/Jakarta'): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return '—';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(ms));
+  const h = parts.find((p) => p.type === 'hour')?.value ?? '00';
+  const m = parts.find((p) => p.type === 'minute')?.value ?? '00';
+  return `${h}.${m}`;
+}
+
+/** Lama berjalan sejak clock in dalam menit penuh (minimal 0). */
+export function attendanceOpenMinutes(clockInAt: string, now: Date = new Date()): number {
+  const a = Date.parse(clockInAt);
+  if (!Number.isFinite(a)) return 0;
+  return Math.max(0, Math.floor((now.getTime() - a) / 60000));
+}
+
+/** Pesan konfirmasi setelah absen masuk / pulang berhasil. */
+export function attendanceActionSuccessText(input: {
+  kind: 'in' | 'out';
+  employeeName: string;
+  clockInAt: string;
+  clockOutAt?: string;
+  timeZone?: string;
+}): string {
+  const tz = input.timeZone ?? 'Asia/Jakarta';
+  if (input.kind === 'in') {
+    return `${input.employeeName} masuk ${formatAttendanceTime(input.clockInAt, tz)}`;
+  }
+  const outTime = formatAttendanceTime(input.clockOutAt ?? input.clockInAt, tz);
+  const mins = attendanceMinutes(input.clockInAt, input.clockOutAt) ?? 0;
+  return `${input.employeeName} pulang ${outTime}, lama kerja ${formatDuration(mins)}`;
+}
+
+/** Pesan galat ramah untuk layar absensi POS (tidak pernah menyebut sisa percobaan PIN). */
+export function attendanceErrorText(err: unknown): { kind: 'bad_pin' | 'other'; message: string } {
+  if (err instanceof DataError) {
+    if (err.code === 'bad_pin') return { kind: 'bad_pin', message: 'PIN salah' };
+    if (err.code === 'network') return { kind: 'other', message: 'Tidak ada koneksi, coba lagi' };
+    if (err.code === 'invalid') return { kind: 'other', message: err.message };
+    if (err.code === 'forbidden') return { kind: 'other', message: err.message || 'Tidak diizinkan mencatat absensi.' };
+    return { kind: 'other', message: err.message };
+  }
+  return {
+    kind: 'other',
+    message: err instanceof Error && err.message ? err.message : 'Gagal menyimpan absensi.',
+  };
 }

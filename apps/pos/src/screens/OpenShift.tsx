@@ -4,7 +4,7 @@ import { useData } from '../lib/app-data';
 
 const PRESETS = [0, 100_000, 200_000, 500_000];
 
-export function OpenShift({ employee, onOpened, onLogout, defaultCash }: { employee: Employee; onOpened: (s: Shift) => void; onLogout: () => void; defaultCash?: number | null }) {
+export function OpenShift({ employee, onOpened, onLogout, onOpenAttendance, defaultCash }: { employee: Employee; onOpened: (s: Shift) => void; onLogout: () => void; onOpenAttendance?: () => void; defaultCash?: number | null }) {
   const data = useData();
   const [raw, setRaw] = useState(defaultCash != null ? String(defaultCash) : '');
   const [err, setErr] = useState('');
@@ -35,6 +35,11 @@ export function OpenShift({ employee, onOpened, onLogout, defaultCash }: { emplo
           {PRESETS.map((p) => <button type="button" key={p} className="cg-chip" aria-pressed={parseRp(raw) === p && raw !== ''} onClick={() => { setRaw(String(p)); setErr(''); }}>{p === 0 ? 'Rp 0' : formatRp(p)}</button>)}
         </div>
         <button className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block" disabled={saving}>{saving ? 'Membuka…' : 'Buka kasir'}</button>
+        {onOpenAttendance && (
+          <button type="button" className="cg-btn cg-btn--secondary cg-btn--block" onClick={onOpenAttendance}>
+            Absensi karyawan
+          </button>
+        )}
         <button type="button" className="cg-btn cg-btn--ghost cg-btn--block" onClick={onLogout}>Bukan saya, ganti karyawan</button>
       </form>
     </main>

@@ -9,6 +9,7 @@ import {
   Settings,
   Store,
   TrendingUp,
+  UserCheck,
   X,
 } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export interface SideDrawerProps {
   canOpenKitchen?: boolean;
   onClose: () => void;
   onNavigate: (
-    view: 'register' | 'sales' | 'orders' | 'kitchen' | 'customerDisplay' | 'shift' | 'settings' | 'lock' | 'closeShift',
+    view: 'register' | 'sales' | 'orders' | 'kitchen' | 'customerDisplay' | 'shift' | 'attendance' | 'settings' | 'lock' | 'closeShift',
   ) => void;
 }
 
@@ -188,6 +189,18 @@ export function SideDrawer({
           >
             <Clock className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
             <span>Shift</span>
+          </button>
+
+          <button
+            type="button"
+            className="w-full flex items-center gap-12 px-12 py-10 rounded-lg text-sm font-semibold text-text hover:bg-surface hover:text-accent transition-colors text-left"
+            onClick={() => {
+              onClose();
+              onNavigate('attendance');
+            }}
+          >
+            <UserCheck className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
+            <span>Absensi</span>
           </button>
 
           <button

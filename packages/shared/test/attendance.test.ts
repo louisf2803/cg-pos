@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { attendanceMinutes, attendanceProblem, createFakeData, DataError, formatDuration, summarizeAttendance, type AttendanceRecord } from '../src';
+import {
+  attendanceActionSuccessText,
+  attendanceErrorText,
+  attendanceMinutes,
+  attendanceOpenMinutes,
+  attendanceProblem,
+  createFakeData,
+  DataError,
+  formatAttendanceTime,
+  formatDuration,
+  selfieTargetSize,
+  summarizeAttendance,
+  type AttendanceRecord,
+} from '../src';
 
 describe('helper absensi', () => {
   it('menghitung menit kerja hanya bila sudah clock out dan urutannya benar', () => {
@@ -105,5 +118,53 @@ describe('absensi di data demo', () => {
     expect(await d.listAttendance({ from: '2026-11-13T00:00:00.000Z', to: '2026-11-14T00:00:00.000Z' })).toEqual([]);
     d.reset();
     expect(await d.listAttendance({ from: '2026-11-01T00:00:00.000Z', to: '2026-11-30T00:00:00.000Z' })).toEqual([]);
+  });
+});
+
+describe('helper UI absensi POS', () => {
+  it('menghitung ukuran pengecilan selfie tanpa melebihi max dan tidak memperbesar foto kecil', () => {
+    expect(selfieTargetSize(1280, 720, 640)).toEqual({ width: 640, height: 360 });
+    expect(selfieTargetSize(720, 1280, 640)).toEqual({ width: 360, height: 640 });
+    expect(selfieTargetSize(640, 480, 640)).toEqual({ width: 640, height: 480 });
+    expect(selfieTargetSize(320, 240, 640)).toEqual({ width: 320, height: 240 });
+    expect(selfieTargetSize(0, 480, 640)).toEqual({ width: 0, height: 0 });
+    expect(selfieTargetSize(-10, 480, 640)).toEqual({ width: 0, height: 0 });
+  });
+
+  it('memformat jam HH.MM sesuai zona waktu dan lama berjalan', () => {
+    expect(formatAttendanceTime('2026-11-12T01:02:00.000Z', 'Asia/Jakarta')).toBe('08.02');
+    expect(formatAttendanceTime('2026-11-12T09:10:00.000Z', 'Asia/Jakarta')).toBe('16.10');
+    expect(formatAttendanceTime('bukan-tanggal', 'Asia/Jakarta')).toBe('—');
+    expect(attendanceOpenMinutes('2026-11-12T01:00:00.000Z', new Date('2026-11-12T02:15:30.000Z'))).toBe(75);
+    expect(attendanceOpenMinutes('2026-11-12T05:00:00.000Z', new Date('2026-11-12T04:00:00.000Z'))).toBe(0);
+  });
+
+  it('membuat pesan sukses masuk/pulang dan memetakan galat tanpa membocorkan sisa percobaan', () => {
+    expect(attendanceActionSuccessText({
+      kind: 'in',
+      employeeName: 'Sari',
+      clockInAt: '2026-11-12T01:02:00.000Z',
+      timeZone: 'Asia/Jakarta',
+    })).toBe('Sari masuk 08.02');
+    expect(attendanceActionSuccessText({
+      kind: 'out',
+      employeeName: 'Sari',
+      clockInAt: '2026-11-12T01:02:00.000Z',
+      clockOutAt: '2026-11-12T09:10:00.000Z',
+      timeZone: 'Asia/Jakarta',
+    })).toBe('Sari pulang 16.10, lama kerja 8 jam 08 menit');
+
+    expect(attendanceErrorText(new DataError('bad_pin', 'PIN salah, sisa 2 percobaan'))).toEqual({
+      kind: 'bad_pin',
+      message: 'PIN salah',
+    });
+    expect(attendanceErrorText(new DataError('invalid', 'Karyawan ini sudah clock in'))).toEqual({
+      kind: 'other',
+      message: 'Karyawan ini sudah clock in',
+    });
+    expect(attendanceErrorText(new DataError('network', 'fetch failed'))).toEqual({
+      kind: 'other',
+      message: 'Tidak ada koneksi, coba lagi',
+    });
   });
 });

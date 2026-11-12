@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ChefHat, Monitor, UserRound } from 'lucide-react';
+import { ChefHat, Monitor, UserCheck, UserRound } from 'lucide-react';
 import {
   canSwitchPosAppMode,
   resolvePosAppMode,
@@ -16,8 +16,10 @@ import { PinPad } from './PinPad';
 /** Layar pilih karyawan dengan PIN 6 digit; hak akses dan setelan perangkat menentukan mode kasir atau layar dapur. */
 export function Login({
   onSuccess,
+  onOpenAttendance,
 }: {
   onSuccess: (e: Employee, requestedMode?: PosAppMode) => void;
+  onOpenAttendance?: () => void;
 }) {
   const data = useData();
   const auth = useAuth();
@@ -96,6 +98,16 @@ export function Login({
                 ))}
               </ul>
             ))}
+            {onOpenAttendance && (
+              <button
+                type="button"
+                className="cg-btn cg-btn--secondary w-full flex items-center justify-center gap-8"
+                onClick={onOpenAttendance}
+              >
+                <UserCheck className="cg-icon cg-icon--sm" aria-hidden />
+                <span>Absensi karyawan</span>
+              </button>
+            )}
             {auth && (
               <button
                 className="cg-btn cg-btn--ghost cg-btn--sm justify-self-center"

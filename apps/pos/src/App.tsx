@@ -14,6 +14,7 @@ import { useAsync } from './lib/use-async';
 import { SessionCtx, type Session } from './lib/session';
 import { useAuth } from './lib/auth';
 import { Login } from './screens/Login';
+import { Attendance } from './screens/Attendance';
 import { clearTickets } from './lib/stations';
 import { NoDevice } from './screens/NoDevice';
 import { OpenShift } from './screens/OpenShift';
@@ -38,6 +39,7 @@ function Shell() {
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<View>('register');
   const [lock, setLock] = useState<null | 'manual' | 'idle'>(null);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
   const prefs = useDevicePrefs();
 
   const login = useCallback(
@@ -53,6 +55,7 @@ function Shell() {
   const logout = useCallback(() => {
     setSession(null);
     setLock(null);
+    setAttendanceOpen(false);
     clearTickets();
     if (ctx.status === 'ready') {
       publishCustomerDisplay(
@@ -84,7 +87,17 @@ function Shell() {
 
   // data nyata tetapi akun belum punya perangkat kasir: PIN tidak bisa diperiksa tanpa perangkat
   if (ctx.data.deviceCode === '-') return <NoDevice outletName={ctx.data.outletName} />;
-  if (!session) return <Login onSuccess={(e, requestedMode) => void login(e, requestedMode)} />;
+  if (!session) {
+    return (
+      <>
+        <Login
+          onSuccess={(e, requestedMode) => void login(e, requestedMode)}
+          onOpenAttendance={() => setAttendanceOpen(true)}
+        />
+        {attendanceOpen && <Attendance ctx={ctx.data} onClose={() => setAttendanceOpen(false)} />}
+      </>
+    );
+  }
 
   const canSwitch = canSwitchPosAppMode(session.employee.role);
 
@@ -98,6 +111,7 @@ function Shell() {
             ctx={ctx.data}
             canSwitchToRegister={canSwitch}
             onSwitchToRegister={() => setView('register')}
+            onOpenAttendance={() => setAttendanceOpen(true)}
             onLock={lockNow}
           />
         ) : !session.shift ? (
@@ -105,6 +119,7 @@ function Shell() {
             employee={session.employee}
             onOpened={setShift}
             onLogout={logout}
+            onOpenAttendance={() => setAttendanceOpen(true)}
             defaultCash={ctx.data.settings.defaultOpeningCash}
           />
         ) : (
@@ -112,10 +127,12 @@ function Shell() {
             ctx={ctx.data}
             canOpenKitchen={canSwitch}
             onOpenKitchen={() => setView('kitchen')}
+            onOpenAttendance={() => setAttendanceOpen(true)}
             onCloseShift={() => setView('close')}
             onLock={lockNow}
           />
         )}
+        {attendanceOpen && <Attendance ctx={ctx.data} onClose={() => setAttendanceOpen(false)} />}
       </div>
       {lock && <LockScreen reason={lock} onUnlock={() => setLock(null)} onSwitch={logout} />}
     </SessionCtx.Provider>
