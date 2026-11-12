@@ -17,6 +17,7 @@ import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
 import { attendanceMinutes, attendanceProblem } from './attendance';
+import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord,
@@ -196,6 +197,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let outlet = { address: '', phone: '', receiptFooter: '' };
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let attendance: AttendanceRecord[] = [];
+  let compensation = new Map<string, Omit<EmployeeCompensation, 'employeeName'>>();
+  let schedules = new Map<string, WeeklySchedule>();
+  let payrollRules: Record<string, unknown> = {};
+  let incidents: EmployeeIncident[] = [];
+  let cashAdvances: (CashAdvance)[] = [];
+  let payrollRecords: PayrollRecord[] = [];
   let products: Product[] = [];
   let orders: Order[] = [];
   let shifts: Shift[] = [];
@@ -413,6 +420,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     tables = opts.seed === false ? [] : ['T1', 'T2', 'T3', 'T4'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-1', name: n, sort: i + 1 })).concat(['T5', 'T6'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-teras', name: n, sort: i + 5 })));
     employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
     attendance = [];
+    compensation = new Map(); schedules = new Map(); payrollRules = {}; incidents = []; cashAdvances = []; payrollRecords = [];
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
@@ -1489,6 +1497,109 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = attendance.findIndex((a) => a.id === id);
       if (i < 0) throw new DataError('not_found', 'Catatan absensi tidak ditemukan');
       attendance.splice(i, 1);
+    },
+    // ---------- payroll ----------
+    async listCompensation() {
+      return employees.filter((e) => e.isActive).map((e) => {
+        const c = compensation.get(e.id);
+        return { employeeId: e.id, employeeName: e.name, status: c?.status ?? 'permanent', basicSalary: c?.basicSalary ?? 0, mealAllowance: c?.mealAllowance ?? 0, bpjsAllowance: c?.bpjsAllowance ?? 0, cashAdvanceInstallment: c?.cashAdvanceInstallment ?? 0 } as EmployeeCompensation;
+      });
+    },
+    async saveCompensation(input) {
+      const e = employees.find((x) => x.id === input.employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      const problem = compensationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      compensation.set(e.id, { ...input });
+      return { ...input, employeeName: e.name };
+    },
+    async listSchedules() { return clone(Object.fromEntries(schedules)); },
+    async saveSchedule(employeeId, schedule) {
+      if (!employees.some((x) => x.id === employeeId)) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      const problem = scheduleProblem(schedule);
+      if (problem) throw new DataError('invalid', problem);
+      if (schedule.length === 0) schedules.delete(employeeId); else schedules.set(employeeId, clone(schedule));
+    },
+    async getPayrollRules() { return mergePayrollRules(payrollRules); },
+    async savePayrollRules(rules) {
+      const problem = payrollRulesProblem(rules);
+      if (problem) throw new DataError('invalid', problem);
+      payrollRules = { ...rules };
+      return mergePayrollRules(payrollRules);
+    },
+    async listIncidents(range, employeeId) {
+      return clone(incidents.filter((x) => x.date >= range.from && x.date <= range.to && (!employeeId || x.employeeId === employeeId))
+        .sort((a, b) => (a.date < b.date ? 1 : -1)));
+    },
+    async saveIncident(input) {
+      const problem = incidentProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const e = employees.find((x) => x.id === input.employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      const row: EmployeeIncident = { id: input.id ?? newId(), employeeId: e.id, employeeName: e.name, date: input.date, kind: input.kind, count: input.count ?? 1, ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}) };
+      const i = incidents.findIndex((x) => x.id === row.id);
+      if (input.id && i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
+      if (i >= 0) incidents[i] = row; else incidents.push(row);
+      return clone(row);
+    },
+    async deleteIncident(id) {
+      const i = incidents.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
+      incidents.splice(i, 1);
+    },
+    async listCashAdvances(employeeId) {
+      return clone(cashAdvances.filter((x) => !employeeId || x.employeeId === employeeId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));
+    },
+    async saveCashAdvance(input) {
+      const problem = cashAdvanceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const e = employees.find((x) => x.id === input.employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      const row: CashAdvance = { id: input.id ?? newId(), employeeId: e.id, employeeName: e.name, kind: input.kind, amount: input.amount, date: input.date, ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}) };
+      const i = cashAdvances.findIndex((x) => x.id === row.id);
+      if (input.id && i < 0) throw new DataError('not_found', 'Catatan kasbon tidak ditemukan');
+      if (i >= 0) {
+        if (cashAdvances[i]!.kind === 'PAYMENT_PAYROLL') throw new DataError('forbidden', 'Potong gaji dicatat otomatis dan tidak bisa diubah.');
+        cashAdvances[i] = row;
+      } else cashAdvances.push(row);
+      return clone(row);
+    },
+    async deleteCashAdvance(id) {
+      const i = cashAdvances.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Catatan kasbon tidak ditemukan');
+      if (cashAdvances[i]!.kind === 'PAYMENT_PAYROLL') throw new DataError('forbidden', 'Potong gaji dicatat otomatis dan tidak bisa dihapus.');
+      cashAdvances.splice(i, 1);
+    },
+    async listPayroll(month, year) { return clone(payrollRecords.filter((x) => x.month === month && x.year === year)); },
+    async listPayrollYear(year) { return clone(payrollRecords.filter((x) => x.year === year)); },
+    async savePayrollPeriod(month, year, rows, lock) {
+      if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) throw new DataError('invalid', 'Periode tidak valid');
+      if (payrollRecords.some((x) => x.month === month && x.year === year && x.status === 'PAID')) throw new DataError('order_locked', 'Periode ini sudah dikunci. Buka kunci dulu untuk mengubahnya.');
+      const period = `${String(month).padStart(2, '0')}/${year}`;
+      for (const r of rows) {
+        if (!employees.some((e) => e.id === r.employeeId)) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+        const calc = r.basicSalary + r.mealAllowance - r.bpjsAllowance + r.latenessBonus - r.latenessPenalty - r.absencePenalty - r.operationalPenalty
+          + r.stockanIncentive + r.deepCleaningIncentive - r.stockOpnamePenalty - r.cashAdvanceDeduction + r.commission;
+        if (calc !== r.netSalary) throw new DataError('invalid', 'Gaji bersih tidak cocok dengan komponennya.');
+        if (lock && r.cashAdvanceDeduction > (cashAdvanceBalances(cashAdvances)[r.employeeId] ?? 0)) {
+          throw new DataError('invalid', 'Potongan kasbon melebihi saldo.');
+        }
+      }
+      for (const r of rows) {
+        const e = employees.find((x) => x.id === r.employeeId)!;
+        const rec: PayrollRecord = { ...r, id: payrollRecords.find((x) => x.employeeId === r.employeeId && x.month === month && x.year === year)?.id ?? newId(), employeeName: e.name, month, year, status: lock ? 'PAID' : 'DRAFT', ...(lock ? { paidAt: now().toISOString() } : {}) };
+        const i = payrollRecords.findIndex((x) => x.employeeId === r.employeeId && x.month === month && x.year === year);
+        if (i >= 0) payrollRecords[i] = rec; else payrollRecords.push(rec);
+        cashAdvances = cashAdvances.filter((c) => !(c.employeeId === r.employeeId && c.kind === 'PAYMENT_PAYROLL' && c.payrollPeriod === period));
+        if (lock && r.cashAdvanceDeduction > 0) cashAdvances.push({ id: newId(), employeeId: e.id, employeeName: e.name, kind: 'PAYMENT_PAYROLL', amount: r.cashAdvanceDeduction, date: now().toISOString().slice(0, 10), notes: `Potong gaji ${period}`, payrollPeriod: period });
+      }
+    },
+    async unlockPayroll(month, year) {
+      const period = `${String(month).padStart(2, '0')}/${year}`;
+      let n = 0;
+      for (const x of payrollRecords) if (x.month === month && x.year === year && x.status === 'PAID') { x.status = 'DRAFT'; delete x.paidAt; n++; }
+      cashAdvances = cashAdvances.filter((c) => !(c.kind === 'PAYMENT_PAYROLL' && c.payrollPeriod === period));
+      return n;
     },
     async listPaymentMethods() { return clone(METHODS); },
 

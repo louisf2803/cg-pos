@@ -1,5 +1,6 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
+import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
 import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
@@ -192,6 +193,32 @@ export interface DataLayer {
   /** Koreksi atau tambah catatan (pemilik/manajer). Satu karyawan hanya boleh punya satu catatan yang belum clock out. */
   saveAttendance(input: AttendanceInput): Promise<AttendanceRecord>;
   deleteAttendance(id: string): Promise<void>;
+
+  // ----- payroll (khusus pemilik/manajer; kasir dan akun perangkat tidak boleh membaca gaji) -----
+  /** Semua karyawan aktif dengan gaji pokok dan tunjangannya (bawaan: tetap, semua nol). */
+  listCompensation(): Promise<EmployeeCompensation[]>;
+  saveCompensation(input: Omit<EmployeeCompensation, 'employeeName'>): Promise<EmployeeCompensation>;
+  /** Jadwal kerja mingguan per karyawan (hari + jam mulai shift, jam lokal outlet). Karyawan tanpa jadwal tidak muncul. */
+  listSchedules(): Promise<Record<string, WeeklySchedule>>;
+  saveSchedule(employeeId: string, schedule: WeeklySchedule): Promise<void>;
+  /** Aturan payroll org; kunci yang belum diatur memakai nilai bawaan Coffee Ground. */
+  getPayrollRules(): Promise<PayrollRules>;
+  savePayrollRules(rules: PayrollRules): Promise<PayrollRules>;
+  /** Catatan harian dalam rentang tanggal lokal "yyyy-mm-dd" (kedua ujung ikut), terbaru dulu. */
+  listIncidents(range: { from: string; to: string }, employeeId?: string): Promise<EmployeeIncident[]>;
+  saveIncident(input: EmployeeIncidentInput): Promise<EmployeeIncident>;
+  deleteIncident(id: string): Promise<void>;
+  /** Riwayat kasbon (terbaru dulu), semua karyawan atau satu karyawan. Saldo: cashAdvanceBalance dari payroll.ts. */
+  listCashAdvances(employeeId?: string): Promise<CashAdvance[]>;
+  saveCashAdvance(input: CashAdvanceInput): Promise<CashAdvance>;
+  deleteCashAdvance(id: string): Promise<void>;
+  listPayroll(month: number, year: number): Promise<PayrollRecord[]>;
+  /** Semua gaji tersimpan dalam satu tahun (untuk kuota absen tahunan lewat pastAbsencesInYear). */
+  listPayrollYear(year: number): Promise<PayrollRecord[]>;
+  /** Simpan seluruh gaji satu periode secara atomik. lock = kunci (PAID) dan catat potongan kasbon. Galat: order_locked bila periode sudah dikunci. */
+  savePayrollPeriod(month: number, year: number, rows: PayrollRecordInput[], lock: boolean): Promise<void>;
+  /** Buka kunci periode (khusus pemilik/admin); mengembalikan jumlah catatan yang dibuka. */
+  unlockPayroll(month: number, year: number): Promise<number>;
   /** Semua karyawan outlet ini, termasuk nonaktif. Untuk layar pengelolaan. */
   listManagedEmployees(): Promise<ManagedEmployee[]>;
   /** Tambah atau ubah karyawan (kasir atau manajer). Peran pemilik tidak diatur dari sini. */

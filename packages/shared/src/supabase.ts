@@ -3,6 +3,7 @@ import { createTableOps } from './table-ops';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { photoExt, photoPath, photoProblem, type ProductPhotoInput } from './photo';
 import { attendanceMinutes, attendanceProblem } from './attendance';
+import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
 import {
@@ -185,6 +186,38 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (/unit does not belong/i.test(m)) return new DataError('invalid', 'Satuan tidak sesuai dengan barangnya.');
     if (/invalid line|invalid received|invalid amount|invalid term|negative|too many lines|no lines|larger than/i.test(m)) return new DataError('invalid', 'Isian pembelian ditolak server. Periksa jumlah, harga, diskon, dan baris.');
     return mapDbError(error);
+  }
+
+  function mapPayrollError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m) || error.code === '42P01') return new DataError('invalid', 'Fitur payroll belum aktif di database (migrasi 0037 belum diterapkan).');
+    if (/period locked/i.test(m)) return new DataError('order_locked', 'Periode ini sudah dikunci. Buka kunci dulu untuk mengubahnya.');
+    if (/net salary mismatch/i.test(m)) return new DataError('invalid', 'Gaji bersih tidak cocok dengan komponennya.');
+    if (/cash advance deduction exceeds balance/i.test(m)) return new DataError('invalid', 'Potongan kasbon melebihi saldo.');
+    if (/employee not found/i.test(m)) return new DataError('not_found', 'Karyawan tidak ditemukan.');
+    if (/invalid period|rows must be an array|too many rows/i.test(m)) return new DataError('invalid', 'Isian payroll ditolak server.');
+    if (/not allowed/i.test(m) || error.code === '42501') return new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengelola payroll (buka kunci periode hanya pemilik).');
+    return mapDbError(error);
+  }
+
+  async function employeeNames(): Promise<Map<string, string>> {
+    return new Map(((must(await db().from('employees').select('id,name')) as Row[] | null) ?? []).map((e) => [e.id as string, e.name as string]));
+  }
+
+  async function payrollRows(build: (qb: any) => any): Promise<PayrollRecord[]> {
+    const names = await employeeNames();
+    const rows = await pageAll((from, to) => build(db().from('payroll_records').select('*')).order('employee_id').range(from, to));
+    return rows.map((x): PayrollRecord => ({
+      id: x.id as string, employeeId: x.employee_id as string, employeeName: names.get(x.employee_id as string) ?? '(karyawan dihapus)', month: Number(x.period_month), year: Number(x.period_year),
+      status: x.status === 'PAID' ? 'PAID' : 'DRAFT', employmentStatus: x.employment_status as EmploymentStatus,
+      basicSalary: Number(x.basic_salary), mealAllowance: Number(x.meal_allowance), bpjsAllowance: Number(x.bpjs_allowance),
+      latenessCount: Number(x.lateness_count), latenessBonus: Number(x.lateness_bonus), latenessPenalty: Number(x.lateness_penalty),
+      absenceCount: Number(x.absence_count), absencePenalty: Number(x.absence_penalty), absenceQuotaRemaining: 0,
+      operationalMistakes: Number(x.operational_mistakes_count), operationalPenalty: Number(x.operational_mistakes_penalty),
+      stockOpnamePenalty: Number(x.stock_opname_penalty), stockanIncentive: Number(x.stockan_incentive), deepCleaningIncentive: Number(x.deep_cleaning_incentive),
+      commission: Number(x.commission), cashAdvanceDeduction: Number(x.cash_advance_deduction), netSalary: Number(x.net_salary),
+      ...(x.paid_at ? { paidAt: x.paid_at as string } : {}),
+    }));
   }
 
   function mapAttendanceError(error: { code?: string; message?: string }): DataError {
@@ -1894,6 +1927,117 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteAttendance(id) {
       const { error } = await db().rpc('attendance_admin_delete', { p_id: id });
       if (error) throw mapAttendanceError(error);
+    },
+    // ---------- payroll (semua tabel dilindungi RLS pemilik/manajer) ----------
+    async listCompensation() {
+      const r = await resolve();
+      const emps = (must(await db().from('employees').select('id,name').eq('is_active', true).is('deleted_at', null).order('name')) as Row[] | null) ?? [];
+      const rows = (must(await db().from('employee_compensation').select('employee_id,status,basic_salary,meal_allowance,bpjs_allowance,cash_advance_installment').eq('org_id', r.orgId)) as Row[] | null) ?? [];
+      const by = new Map(rows.map((x) => [x.employee_id as string, x]));
+      return emps.map((e): EmployeeCompensation => {
+        const c = by.get(e.id as string);
+        return { employeeId: e.id as string, employeeName: e.name as string, status: ((c?.status as EmploymentStatus | undefined) ?? 'permanent'), basicSalary: Number(c?.basic_salary ?? 0), mealAllowance: Number(c?.meal_allowance ?? 0), bpjsAllowance: Number(c?.bpjs_allowance ?? 0), cashAdvanceInstallment: Number(c?.cash_advance_installment ?? 0) };
+      });
+    },
+    async saveCompensation(input) {
+      const problem = compensationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const { error } = await db().from('employee_compensation').upsert({ employee_id: input.employeeId, org_id: r.orgId, status: input.status, basic_salary: input.basicSalary, meal_allowance: input.mealAllowance, bpjs_allowance: input.bpjsAllowance, cash_advance_installment: input.cashAdvanceInstallment }, { onConflict: 'employee_id' });
+      if (error) throw mapPayrollError(error);
+      const saved = (await self.listCompensation()).find((x) => x.employeeId === input.employeeId);
+      if (!saved) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      return saved;
+    },
+    async listSchedules() {
+      const rows = (must(await db().from('employee_schedules').select('employee_id,weekday,start_time')) as Row[] | null) ?? [];
+      const out: Record<string, WeeklySchedule> = {};
+      for (const x of rows) (out[x.employee_id as string] ??= []).push({ weekday: Number(x.weekday), start: String(x.start_time).slice(0, 5) });
+      for (const k of Object.keys(out)) out[k]!.sort((a, b) => a.weekday - b.weekday);
+      return out;
+    },
+    async saveSchedule(employeeId, schedule) {
+      const problem = scheduleProblem(schedule);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const del = await db().from('employee_schedules').delete().eq('employee_id', employeeId);
+      if (del.error) throw mapPayrollError(del.error);
+      if (schedule.length > 0) {
+        const { error } = await db().from('employee_schedules').insert(schedule.map((d) => ({ employee_id: employeeId, org_id: r.orgId, weekday: d.weekday, start_time: d.start })));
+        if (error) throw mapPayrollError(error);
+      }
+    },
+    async getPayrollRules() {
+      const r = await resolve();
+      const row = must(await db().from('payroll_rules').select('rules').eq('org_id', r.orgId).maybeSingle()) as Row | null;
+      return mergePayrollRules((row?.rules as Record<string, unknown> | undefined) ?? null);
+    },
+    async savePayrollRules(rules) {
+      const problem = payrollRulesProblem(rules);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const { error } = await db().from('payroll_rules').upsert({ org_id: r.orgId, rules }, { onConflict: 'org_id' });
+      if (error) throw mapPayrollError(error);
+      return mergePayrollRules(rules as unknown as Record<string, unknown>);
+    },
+    async listIncidents(range, employeeId) {
+      const names = await employeeNames();
+      const rows = await pageAll((from, to) => {
+        let q = db().from('employee_incidents').select('id,employee_id,incident_date,kind,count,notes').gte('incident_date', range.from).lte('incident_date', range.to);
+        if (employeeId) q = q.eq('employee_id', employeeId);
+        return q.order('incident_date', { ascending: false }).range(from, to);
+      });
+      return rows.map((x): EmployeeIncident => ({ id: x.id as string, employeeId: x.employee_id as string, employeeName: names.get(x.employee_id as string) ?? '(karyawan dihapus)', date: x.incident_date as string, kind: x.kind as IncidentKind, count: Number(x.count), ...(x.notes ? { notes: x.notes as string } : {}) }));
+    },
+    async saveIncident(input) {
+      const problem = incidentProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = input.id ?? newId();
+      const { error } = await db().from('employee_incidents').upsert({ id, org_id: r.orgId, employee_id: input.employeeId, incident_date: input.date, kind: input.kind, count: input.count ?? 1, notes: input.notes?.trim() || null }, { onConflict: 'id' });
+      if (error) throw mapPayrollError(error);
+      const names = await employeeNames();
+      return { id, employeeId: input.employeeId, employeeName: names.get(input.employeeId) ?? '', date: input.date, kind: input.kind, count: input.count ?? 1, ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}) };
+    },
+    async deleteIncident(id) {
+      const { error } = await db().from('employee_incidents').delete().eq('id', id);
+      if (error) throw mapPayrollError(error);
+    },
+    async listCashAdvances(employeeId) {
+      const names = await employeeNames();
+      const rows = await pageAll((from, to) => {
+        let q = db().from('cash_advances').select('id,employee_id,kind,amount,entry_date,notes,payroll_period');
+        if (employeeId) q = q.eq('employee_id', employeeId);
+        return q.order('entry_date', { ascending: false }).range(from, to);
+      });
+      return rows.map((x): CashAdvance => ({ id: x.id as string, employeeId: x.employee_id as string, employeeName: names.get(x.employee_id as string) ?? '(karyawan dihapus)', kind: x.kind as CashAdvance['kind'], amount: Number(x.amount), date: x.entry_date as string, ...(x.notes ? { notes: x.notes as string } : {}), ...(x.payroll_period ? { payrollPeriod: x.payroll_period as string } : {}) }));
+    },
+    async saveCashAdvance(input) {
+      const problem = cashAdvanceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = input.id ?? newId();
+      const { error } = await db().from('cash_advances').upsert({ id, org_id: r.orgId, employee_id: input.employeeId, kind: input.kind, amount: input.amount, entry_date: input.date, notes: input.notes?.trim() || null }, { onConflict: 'id' });
+      if (error) throw mapPayrollError(error);
+      const names = await employeeNames();
+      return { id, employeeId: input.employeeId, employeeName: names.get(input.employeeId) ?? '', kind: input.kind, amount: input.amount, date: input.date, ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}) };
+    },
+    async deleteCashAdvance(id) {
+      const { error } = await db().from('cash_advances').delete().eq('id', id);
+      if (error) throw mapPayrollError(error);
+    },
+    async listPayroll(month, year) { return payrollRows((qb) => qb.eq('period_month', month).eq('period_year', year)); },
+    async listPayrollYear(year) { return payrollRows((qb) => qb.eq('period_year', year)); },
+    async savePayrollPeriod(month, year, rows, lock) {
+      const r = await resolve();
+      const { error } = await db().rpc('payroll_save_period', { p_org: r.orgId, p_month: month, p_year: year, p_rows: rows.map(payrollRowToRpc), p_lock: lock });
+      if (error) throw mapPayrollError(error);
+    },
+    async unlockPayroll(month, year) {
+      const r = await resolve();
+      const { data, error } = await db().rpc('payroll_unlock', { p_org: r.orgId, p_month: month, p_year: year });
+      if (error) throw mapPayrollError(error);
+      return Number(data ?? 0);
     },
     async listPaymentMethods() {
       const rows = must(await db().from('payment_methods').select('id,code,name,kind,requires_online')
