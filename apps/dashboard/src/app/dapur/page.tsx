@@ -573,6 +573,11 @@ function Ticket({
       <p className="text-sm text-text-muted">
         {orderTypeLabel(t.orderType)}{t.guestCount ? ` · ${t.guestCount} tamu` : ''}{t.queueNo ? ` · antrean ${t.queueNo}` : ''}
       </p>
+      {t.label && (
+        <p className="text-xs text-accent font-semibold mt-4">
+          Catatan pesanan: {t.label}
+        </p>
+      )}
       <ul className="grid gap-4 mt-8">
         {t.items.map((i) => (
           <ItemRow
@@ -635,7 +640,11 @@ function ItemRow({
       <span className="grow min-w-0 break-words">{i.name}
         {stationName && <span className="text-xs text-text-muted ml-[6px]">({stationName})</span>}
         {i.extras.map((e) => <span key={e.name} className="block text-sm text-text-muted">+ {e.name}</span>)}
-        {i.note && <span className="block text-sm"><strong>Catatan:</strong> {i.note}</span>}
+        {i.note && (
+          <span className="block text-xs font-semibold text-accent mt-2 bg-accent/10 px-6 py-2 rounded">
+            Catatan: {i.note}
+          </span>
+        )}
       </span>
       <span className="cg-badge">{KITCHEN_STATUS_LABEL[i.status]}</span>
       {next && (
