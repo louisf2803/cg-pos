@@ -941,3 +941,6 @@ Tabel `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC bayar 
 
 ## Claude (12 Nov 2026) — DataLayer tagihan rutin dan persetujuan (0041, sudah di produksi) + tugas UI A89
 `packages/shared/src/bills.ts` + 9 metode DataLayer; 7 tes baru (diuji negatif). Asumsi (Majoo tidak bisa dilihat): mitra = pemasok yang ada; bayar tagihan membuat jurnal dan memajukan jatuh tempo; penyetuju bukan pengaju kecuali pemilik. Tugas layar: `docs/queue/A89.md`. Lapisan Supabase belum diuji ke database nyata.
+
+## Claude (12 Nov 2026) — 0042 permintaan barang siap, BELUM di produksi
+`packages/db/migrations/0042_stock_requests.sql`: `stock_requests` + `stock_request_lines` + RPC `stock_request_create/decide/fulfill/cancel` (dipenuhi = membuat transfer stok lewat `stock_transfer_create`). Aditif. Tes `19_stock_transfer_requests.sql` lulus dan diuji negatif. ASUMSI (Majoo tidak bisa dilihat): disetujui pengelola di sumber; belum ada tautan ke PO/uang muka. Menunggu persetujuan Louis untuk produksi. Catatan: Antigravity sedang mengerjakan A86 (konfirmasi Louis).
