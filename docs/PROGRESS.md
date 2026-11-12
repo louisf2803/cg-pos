@@ -1033,3 +1033,8 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+- **A113 (`ag/a113-kasir-kategori-mode`)**:
+  - **`apps/pos` (`device-prefs.ts`, `Register.tsx`)**: menambahkan filter kategori `Deposit` di rel navigasi kategori kasir (hanya tampil jika terdapat produk/kategori deposit), menyembunyikan mode SKU dari pilihan `VIEW_MODES` (dibuang Louis), menambahkan `Mode Meja` dan `Mode Jasa` di preferensi perangkat dengan inisialisasi otomatis jenis pesanan (`dine_in` / `service`) dan tombol aksi pilih meja yang diutamakan.
+  - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/pos test --run` (4 lulus), `lint-tailwind.sh origin/main` bersih.
+
