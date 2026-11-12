@@ -26,7 +26,7 @@ Pembulatan pecahan tunai,-,,
 Bayar dengan lebih dari satu metode dalam satu transaksi,-,,
 Split bill per nominal,-,,
 "Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo",A,,
-"Bayar QRIS dinamis lewat DOKU, QR tampil di layar kasir",A,,"Layar bayar QRIS tampil, tetapi tanpa panggilan DOKU: tampilkan pesan ""Payment belum tersambung"". Keputusan Louis 12 Nov 2026"
+"Bayar QRIS dinamis lewat DOKU, QR tampil di layar kasir",A,,"Selesai bila layar QRIS lengkap dan menyatakan ""Payment belum tersambung"" (tugas A92); pembuatan QR lewat DOKU TIDAK dikerjakan. Keputusan Louis 12 Nov 2026"
 Catat nomor referensi gateway (RRN) per transaksi QRIS untuk pelacakan sengketa,B,,
 "Status menunggu pembayaran, cek ulang status otomatis, dan kedaluwarsa QR",B,,
 Terima notifikasi DOKU secara idempoten dan rekonsiliasi status berkala,B,,
@@ -49,7 +49,7 @@ Buka kasir dengan modal awal,-,,
 "Tutup kasir dengan kas akhir, PIN, selisih tunai sistem dan aktual",-,,
 Pengeluaran kas selama shift,-,,
 "Laporan shift: penerimaan per metode, produk terjual, selisih; ringkasan shift berjalan",-,,
-Cetak struk ke printer Bluetooth atau jaringan,A,,
+Cetak struk ke printer Bluetooth atau jaringan,A,,"Lingkup: printer Bluetooth (sudah ada) dan cetak peramban. Printer jaringan (LAN) tidak dikerjakan karena peramban tidak bisa mencetak langsung ke LAN. Keputusan bawaan Claude 12 Nov 2026, Louis boleh membatalkan"
 Cetak bill sebelum bayar dan struk dapur atau checker,A,,
 "Kirim struk digital lewat WhatsApp, email, atau SMS",X,,"Dibatalkan, jadi pengembangan berikutnya (keputusan Louis 12 Nov 2026)"
 "Pengaturan tampilan struk (logo, teks)",A,,
