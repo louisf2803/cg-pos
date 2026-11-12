@@ -20,6 +20,13 @@ export function priceOverridePctProblem(pct: number): string | null {
   if (Math.round(pct * 100) / 100 !== pct) return 'Batas harga paling banyak 2 angka di belakang koma.';
   return null;
 }
+/**
+ * `basePrice` yang dikirim ke server (kolom order_items.base_price): hanya bila harga baris benar-benar diubah dari harga daftar.
+ * Baris yang tidak diubah tidak mengirim apa pun, supaya harga sah lain (item bebas, harga bertingkat, harga spesial) tidak dianggap override.
+ */
+export function declaredBasePrice(line: { unitPrice: number; basePrice?: number }): { basePrice?: number } {
+  return line.basePrice != null && line.basePrice !== line.unitPrice ? { basePrice: line.basePrice } : {};
+}
 /** Pulihkan `basePrice` dan `overridePct` untuk baris keranjang saat memuat ulang pesanan dari daftar produk aktif. */
 export function overridePricingForProduct(product?: { price: number; priceOverridePct?: number }): { basePrice?: number; overridePct?: number } {
   if (!product) return {};

@@ -16,6 +16,37 @@ const SETTINGS = {
   serviceChargeOrderTypes: ['dine_in'], roundingCashStep: 100, roundingNoncashStep: 0, requireOpenShift: true, allowNegativeStock: true,
 } as const;
 
+describe('harga dasar dan referensi diskon (migrasi 0034)', () => {
+  const calc = computeOrder({
+    orderType: 'takeaway', orderDiscount: 1000, roundingStep: 0, settings: SETTINGS,
+    items: [{ id: 'i1', qty: 2, unitPrice: 20000 }], orderTaxes: [],
+  });
+  const base = { id: 'o1', number: 'OUT1/A/261112/001', orderType: 'takeaway' as const, cashierId: 'e1', openedAt: '2026-11-12T01:00:00.000Z', calc, orderDiscount: 1000, authorizedBy: 'e1' };
+  it('mengirim base_price hanya untuk baris yang diubah dan reference hanya bila diisi', () => {
+    const p = buildOrderPayload({
+      ...base,
+      items: [{ id: 'i1', productId: 'p1', productUnitId: 'u1', name: 'Kopi', qty: 2, unitPrice: 20000, basePrice: 22000 }, { id: 'i2', productId: 'p2', productUnitId: 'u2', name: 'Roti', qty: 1, unitPrice: 5000 }],
+      discounts: [{ id: 'd1', source: 'coupon', couponId: 'c1', label: 'Kupon', amount: 1000, reference: 'CPN-001' }],
+    });
+    expect(p.items[0].base_price).toBe(22000);
+    expect('base_price' in p.items[1]).toBe(false);
+    expect(p.discounts[0].reference).toBe('CPN-001');
+    const q = buildOrderPayload({ ...base, items: [{ id: 'i1', productId: 'p1', productUnitId: 'u1', name: 'Kopi', qty: 2, unitPrice: 20000 }], discounts: [{ id: 'd1', source: 'coupon', label: 'Kupon', amount: 1000 }] });
+    expect('reference' in q.discounts[0]).toBe(false);
+  });
+  it('payloadFromStored mempertahankan base_price dan reference agar tidak hilang saat upsert ulang', () => {
+    const p = buildOrderPayload({
+      ...base,
+      items: [{ id: 'i1', productId: 'p1', productUnitId: 'u1', name: 'Kopi', qty: 2, unitPrice: 20000, basePrice: 22000 }],
+      discounts: [{ id: 'd1', source: 'coupon', couponId: 'c1', label: 'Kupon', amount: 1000, reference: 'CPN-001' }],
+    });
+    const stored = { ...p, version: 1, order_items: p.items, order_discounts: p.discounts, order_tax_lines: p.tax_lines };
+    const again = payloadFromStored(stored, 0);
+    expect(again.items[0].base_price).toBe(22000);
+    expect(again.discounts[0].reference).toBe('CPN-001');
+  });
+});
+
 describe('payload klien -> database', () => {
   it('menulis fixture untuk tes SQL', () => {
     const shiftId = newId();

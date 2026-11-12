@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Lock, Monitor, Tag, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
-import { checkStockLimit, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
@@ -196,7 +196,7 @@ export function Register({
       id: cart.state.orderId ?? newId(), type: cart.state.type,
       tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, orderDiscount: cart.discounts.total || undefined, discounts: cart.discounts.entries.length ? cart.discounts.entries : undefined, label: cart.state.label?.trim() || undefined,
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
-      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras, note: l.note?.trim() || undefined })),
+      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined })),
     }, session.employee.id);
     cart.dispatch({ t: 'saved', orderId: o.id });
     waitingOrders.reload();
@@ -207,7 +207,7 @@ export function Register({
   async function splitPay(picks: Record<string, number>) {
     const r = splitByItem(cart.state.lines, picks, newId);
     if (r.problem) throw new Error(r.problem);
-    const items = (ls: typeof r.paid) => ls.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, extras: l.extras, note: l.note?.trim() || undefined }));
+    const items = (ls: typeof r.paid) => ls.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined }));
     const where = cart.state.tableName ?? cart.state.label?.trim();
     // 1) simpan bagian yang dibayar lebih dulu: bila langkah 2 gagal, tidak ada item yang hilang
     const part = await data.saveOrder({

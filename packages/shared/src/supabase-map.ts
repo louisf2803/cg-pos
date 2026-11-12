@@ -139,7 +139,7 @@ export interface NewOrderPayloadInput {
   id: string; number: string; orderType: OrderType; tableId?: string | null; customerId?: string | null; label?: string | null; guestCount?: number | null;
   shiftId?: string | null; cashierId: string; openedAt: string; baseVersion?: number;
   calc: CalcResult; orderDiscount: number; authorizedBy?: string | null; discounts?: DiscountEntry[];
-  items: { id: string; productId: string; productUnitId: string; name: string; sku?: string | null; qty: number; unitPrice: number; note?: string | null; extras?: { optionId: string; name: string; price: number }[] }[];
+  items: { id: string; productId: string; productUnitId: string; name: string; sku?: string | null; qty: number; unitPrice: number; basePrice?: number; note?: string | null; extras?: { optionId: string; name: string; price: number }[] }[];
 }
 
 /** Payload op `order.upsert` dari hasil computeOrder. Angka harus lolos pemeriksaan server (subtotal = jumlah baris, dst). */
@@ -156,12 +156,12 @@ export function buildOrderPayload(i: NewOrderPayloadInput): Row {
     ...(i.calc.grossTotal > i.calc.subtotal ? { tax_inclusive: true } : {}),
     items: i.items.map((it, idx) => ({
       id: it.id, product_id: it.productId, product_unit_id: it.productUnitId, name: it.name, sku: it.sku ?? null,
-      qty: it.qty, unit_price: it.unitPrice, extras_total: Math.round(it.qty * (it.extras ?? []).reduce((a, e) => a + e.price, 0)), discount: 0, tax_amount: lineTax.get(it.id) ?? 0,
+      qty: it.qty, unit_price: it.unitPrice, ...(it.basePrice != null ? { base_price: it.basePrice } : {}), extras_total: Math.round(it.qty * (it.extras ?? []).reduce((a, e) => a + e.price, 0)), discount: 0, tax_amount: lineTax.get(it.id) ?? 0,
       line_total: lineTotal.get(it.id) ?? Math.round(it.qty * it.unitPrice), note: it.note ?? null, is_free: false, sort: idx,
       extras: (it.extras ?? []).map((e) => ({ id: newId(), option_id: e.optionId, name: e.name, price: e.price, qty: it.qty })),
     })),
     discounts: i.calc.discountTotal <= 0 ? [] : (i.discounts?.length ? fitDiscounts(i.discounts, i.calc.discountTotal) : [{ id: newId(), source: 'manual' as const, label: '', amount: i.calc.discountTotal, authorizedBy: i.authorizedBy ?? undefined }])
-      .map((d) => ({ id: d.id, source: d.source, promotion_id: d.promotionId ?? null, coupon_id: d.couponId ?? null, points_used: d.source === 'points' ? d.points ?? 0 : 0, amount: d.amount, authorized_by: d.authorizedBy ?? i.authorizedBy ?? null })),
+      .map((d) => ({ id: d.id, source: d.source, promotion_id: d.promotionId ?? null, coupon_id: d.couponId ?? null, points_used: d.source === 'points' ? d.points ?? 0 : 0, amount: d.amount, authorized_by: d.authorizedBy ?? i.authorizedBy ?? null, ...(d.reference ? { reference: d.reference } : {}) })),
     tax_lines: i.calc.taxLines.map((t) => ({ tax_id: t.taxId ?? null, name: t.name, rate: t.rate, base_amount: t.base, amount: t.amount })),
   };
 }
@@ -189,7 +189,7 @@ export function payloadFromStored(raw: Row, rounding: number): Row {
     ...(storedIsInclusive(raw) ? { tax_inclusive: true } : {}),
     items: ((raw.order_items ?? []) as Row[]).map((it) => ({
       id: it.id, product_id: it.product_id, product_unit_id: it.product_unit_id, name: it.name, sku: it.sku ?? null,
-      qty: num(it.qty), unit_price: num(it.unit_price), extras_total: num(it.extras_total), discount: num(it.discount),
+      qty: num(it.qty), unit_price: num(it.unit_price), ...(it.base_price != null ? { base_price: num(it.base_price) } : {}), extras_total: num(it.extras_total), discount: num(it.discount),
       tax_amount: num(it.tax_amount), line_total: num(it.line_total), note: it.note ?? null, is_free: !!it.is_free,
       sort: num(it.sort), voided_at: it.voided_at ?? null, void_reason: it.void_reason ?? null,
       extras: ((it.order_item_extras ?? []) as Row[]).map((e) => ({ id: e.id, option_id: e.option_id, name: e.name, price: num(e.price), qty: num(e.qty) })),
@@ -197,6 +197,7 @@ export function payloadFromStored(raw: Row, rounding: number): Row {
     discounts: ((raw.order_discounts ?? []) as Row[]).map((d) => ({
       id: d.id, order_item_id: d.order_item_id ?? null, source: d.source, promotion_id: d.promotion_id ?? null,
       coupon_id: d.coupon_id ?? null, points_used: num(d.points_used), amount: num(d.amount), authorized_by: d.authorized_by ?? null,
+      ...(d.reference ? { reference: d.reference } : {}),
     })),
     tax_lines: ((raw.order_tax_lines ?? []) as Row[]).map((t) => ({
       tax_id: t.tax_id ?? null, name: t.name, rate: num(t.rate), base_amount: num(t.base_amount), amount: num(t.amount),

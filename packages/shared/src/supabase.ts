@@ -70,8 +70,8 @@ const ORDER_SELECT =
 /** Untuk membangun ulang payload op: semua kolom yang dibutuhkan _apply_op. */
 const ORDER_RAW_SELECT =
   'id,number,order_type,table_id,customer_id,guest_count,label,note,queue_no,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,client_created_at,' +
-  'order_items(id,product_id,product_unit_id,name,sku,qty,unit_price,extras_total,discount,tax_amount,line_total,note,is_free,sort,voided_at,void_reason,order_item_extras(id,option_id,name,price,qty)),' +
-  'order_discounts(id,order_item_id,source,promotion_id,coupon_id,points_used,amount,authorized_by),' +
+  'order_items(id,product_id,product_unit_id,name,sku,qty,unit_price,base_price,extras_total,discount,tax_amount,line_total,note,is_free,sort,voided_at,void_reason,order_item_extras(id,option_id,name,price,qty)),' +
+  'order_discounts(id,order_item_id,source,promotion_id,coupon_id,points_used,amount,authorized_by,reference),' +
   'order_tax_lines(tax_id,name,rate,base_amount,amount)';
 
 interface Resolved {
@@ -1893,7 +1893,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       const items = draft.items.map((i) => ({
         id: i.id, productId: i.productId, productUnitId: unitOf.get(i.productId)!.id as string, name: i.name,
-        sku: (unitOf.get(i.productId)!.sku as string | null) ?? null, qty: i.qty, unitPrice: i.unitPrice, note: i.note ?? null, extras: i.extras,
+        sku: (unitOf.get(i.productId)!.sku as string | null) ?? null, qty: i.qty, unitPrice: i.unitPrice, ...(i.basePrice != null ? { basePrice: i.basePrice } : {}), note: i.note ?? null, extras: i.extras,
       }));
 
       for (let attempt = 0; ; attempt++) {
