@@ -248,6 +248,7 @@ export const MODUL: NavModule[] = [
         icon: Banknote,
         items: [
           { href: '/karyawan/payroll', label: 'Payroll karyawan', screen: 'S43', tier: 3 },
+          { href: '/karyawan/kasbon', label: 'Kasbon karyawan', screen: 'S43', tier: 3, built: true },
         ],
       },
       {
@@ -262,7 +263,8 @@ export const MODUL: NavModule[] = [
         icon: Clock,
         items: [
           { href: '/karyawan/absensi', label: 'Absensi karyawan', screen: 'S43', tier: 3, built: true },
-          { href: '/karyawan/jadwal', label: 'Jadwal kerja', screen: 'S43', tier: 3 },
+          { href: '/karyawan/jadwal', label: 'Jadwal kerja', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/catatan', label: 'Catatan harian', screen: 'S43', tier: 3, built: true },
         ],
       },
       {
