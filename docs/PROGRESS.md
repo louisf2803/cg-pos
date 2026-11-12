@@ -947,3 +947,6 @@ Tabel `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC bayar 
 
 ## Claude (12 Nov 2026) — 0042 DITERAPKAN ke produksi (persetujuan Louis)
 Tabel `stock_requests`, `stock_request_lines` + RPC permintaan barang aktif dengan RLS pengelola; `anon` tidak punya akses dan `authenticated` hanya bisa membaca (penulisan lewat fungsi). Berikutnya: DataLayer dan tugas UI.
+
+## Claude (12 Nov 2026) — DataLayer permintaan barang (0042, sudah di produksi) + tugas UI A90
+`packages/shared/src/stock-requests.ts` + 5 metode DataLayer (`listStockRequests`, `createStockRequest`, `decideStockRequest`, `fulfillStockRequest`, `cancelStockRequest`); tes baru diuji negatif. Tugas layar: `docs/queue/A90.md`. Lapisan Supabase belum diuji ke database nyata.

@@ -29,6 +29,7 @@ export * from './payroll';
 export * from './hr';
 export * from './fixed-assets';
 export * from './bills';
+export * from './stock-requests';
 export * from './payroll-ui';
 export * from './price-change';
 export * from './price-change-report';

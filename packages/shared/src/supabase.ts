@@ -6,6 +6,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
 import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
+import { stockRequestProblem, type StockRequest, type StockRequestStatus } from './stock-requests';
 import { approvalProblem, recurringBillProblem, type ApprovalRequest, type ApprovalStatus, type RecurringBill, type RecurringBillRun } from './bills';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
@@ -237,6 +238,18 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return mapDbError(error);
   }
 
+  function mapStockRequestError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || error.code === '42P01' || /could not find the function|schema cache/i.test(m)) return new DataError('invalid', 'Fitur permintaan barang belum aktif di database (migrasi 0042 belum diterapkan).');
+    if (/request already decided/i.test(m)) return new DataError('invalid', 'Permintaan ini sudah diputuskan.');
+    if (/request not approved/i.test(m)) return new DataError('invalid', 'Permintaan harus disetujui dulu sebelum dipenuhi.');
+    if (/request not found|location not found/i.test(m)) return new DataError('not_found', 'Permintaan atau lokasi tidak ditemukan.');
+    if (/not allowed|no access/i.test(m) || error.code === '42501') return new DataError('forbidden', 'Hanya pemilik, admin, atau manajer yang boleh mengelola permintaan barang.');
+    if (/from and to must differ/i.test(m)) return new DataError('invalid', 'Lokasi peminta dan sumber tidak boleh sama.');
+    if (/different organizations/i.test(m)) return new DataError('invalid', 'Lokasi berasal dari organisasi yang berbeda.');
+    if (/lines required|invalid line|duplicate product|too many lines|does not track stock/i.test(m)) return new DataError('invalid', 'Isian barang ditolak server: periksa jumlah, barang ganda, dan barang yang stoknya tidak dilacak.');
+    return mapDbError(error);
+  }
   function mapBillError(error: { code?: string; message?: string }): DataError {
     const m = error.message ?? '';
     if (error.code === 'PGRST202' || error.code === '42P01' || /could not find the function|schema cache/i.test(m)) return new DataError('invalid', 'Fitur tagihan rutin dan persetujuan belum aktif di database (migrasi 0041 belum diterapkan).');
@@ -2121,6 +2134,61 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteIncident(id) {
       const { error } = await db().from('employee_incidents').delete().eq('id', id);
       if (error) throw mapPayrollError(error);
+    },
+    async listStockRequests(q) {
+      const locs = new Map((await self.listStockLocations()).map((l) => [l.id, l.name] as const));
+      const rows = await pageAll((from, to) => {
+        let qb = db().from('stock_requests').select('id,number,status,requester_location_id,source_location_id,note,decision_note,transfer_id,created_at');
+        if (q?.status) qb = qb.eq('status', q.status);
+        return qb.order('created_at', { ascending: false }).range(from, to);
+      });
+      if (rows.length === 0) return [];
+      const ids = rows.map((r) => r.id as string);
+      const lineRows = await pageAll((from, to) => db().from('stock_request_lines').select('request_id,product_id,qty,products(name)').in('request_id', ids).range(from, to));
+      const byReq = new Map<string, StockRequest['lines']>();
+      for (const l of lineRows) {
+        const arr = byReq.get(l.request_id as string) ?? [];
+        arr.push({ productId: l.product_id as string, name: ((l.products as { name?: string } | null)?.name) ?? '(barang dihapus)', qty: Number(l.qty) });
+        byReq.set(l.request_id as string, arr);
+      }
+      return rows.map((x): StockRequest => ({
+        id: x.id as string, number: x.number as string, status: x.status as StockRequestStatus,
+        requesterId: x.requester_location_id as string, requesterName: locs.get(x.requester_location_id as string) ?? '(lokasi)',
+        sourceId: x.source_location_id as string, sourceName: locs.get(x.source_location_id as string) ?? '(lokasi)',
+        createdAt: x.created_at as string, lines: byReq.get(x.id as string) ?? [],
+        ...(x.note ? { note: x.note as string } : {}), ...(x.decision_note ? { decisionNote: x.decision_note as string } : {}), ...(x.transfer_id ? { transferId: x.transfer_id as string } : {}),
+      }));
+    },
+    async createStockRequest(input) {
+      const problem = stockRequestProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const id = input.id ?? newId();
+      const { error } = await db().rpc('stock_request_create', { p_id: id, p_requester: input.requesterId, p_source: input.sourceId, p_note: input.note?.trim() || null, p_lines: input.lines.map((l) => ({ product_id: l.productId, qty: l.qty })) });
+      if (error) throw mapStockRequestError(error);
+      const saved = (await self.listStockRequests()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan setelah disimpan');
+      return saved;
+    },
+    async decideStockRequest(id, approve, note) {
+      const { error } = await db().rpc('stock_request_decide', { p_id: id, p_approve: approve, p_note: note?.trim() || null });
+      if (error) throw mapStockRequestError(error);
+      const saved = (await self.listStockRequests()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      return saved;
+    },
+    async fulfillStockRequest(id) {
+      const { error } = await db().rpc('stock_request_fulfill', { p_id: id, p_transfer_id: newId() });
+      if (error) throw mapStockRequestError(error);
+      const saved = (await self.listStockRequests()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      return saved;
+    },
+    async cancelStockRequest(id) {
+      const { error } = await db().rpc('stock_request_cancel', { p_id: id });
+      if (error) throw mapStockRequestError(error);
+      const saved = (await self.listStockRequests()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      return saved;
     },
     async listRecurringBills(q) {
       const rows = await pageAll((from, to) => {

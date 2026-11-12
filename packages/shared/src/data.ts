@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
+import type { StockRequest, StockRequestInput, StockRequestStatus } from './stock-requests';
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
@@ -265,6 +266,14 @@ export interface DataLayer {
   /** Setuju/tolak. Penyetuju bukan pengaju kecuali pemilik; keputusan final. Galat: forbidden, invalid (sudah diputuskan). */
   decideApproval(id: string, approve: boolean, note?: string): Promise<ApprovalRequest>;
   cancelApproval(id: string): Promise<ApprovalRequest>;
+  // ---- permintaan barang antar lokasi (migrasi 0042); pengelola. Rancangan Claude atas arahan Louis. ----
+  listStockRequests(q?: { status?: StockRequestStatus }): Promise<StockRequest[]>;
+  /** Id dibuat klien bila kosong; mengulang id yang sama tidak menggandakan. Galat: invalid, not_found, forbidden. */
+  createStockRequest(input: StockRequestInput): Promise<StockRequest>;
+  decideStockRequest(id: string, approve: boolean, note?: string): Promise<StockRequest>;
+  /** Penuhi permintaan yang disetujui: membuat transfer stok sumber -> peminta (stok sumber berkurang saat itu juga). */
+  fulfillStockRequest(id: string): Promise<StockRequest>;
+  cancelStockRequest(id: string): Promise<StockRequest>;
   /** Riwayat kasbon (terbaru dulu), semua karyawan atau satu karyawan. Saldo: cashAdvanceBalance dari payroll.ts. */
   listCashAdvances(employeeId?: string): Promise<CashAdvance[]>;
   saveCashAdvance(input: CashAdvanceInput): Promise<CashAdvance>;

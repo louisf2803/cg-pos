@@ -20,6 +20,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
+import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
@@ -208,6 +209,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let schedules = new Map<string, WeeklySchedule>();
   let payrollRules: Record<string, unknown> = {};
   let incidents: EmployeeIncident[] = [];
+  const stockRequests: StockRequest[] = [];
   const recurringBills: RecurringBill[] = [];
   const recurringRuns: RecurringBillRun[] = [];
   const approvals: ApprovalRequest[] = [];
@@ -1577,6 +1579,47 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = incidents.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
       incidents.splice(i, 1);
+    },
+    async listStockRequests(q) { return clone(stockRequests.filter((r) => !q?.status || r.status === q.status).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))); },
+    async createStockRequest(input) {
+      const problem = stockRequestProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const id = input.id ?? newId();
+      const dup = stockRequests.find((r) => r.id === id);
+      if (dup) return clone(dup);
+      if (!locNames[input.requesterId] || !locNames[input.sourceId]) throw new DataError('not_found', 'Lokasi tidak ditemukan.');
+      const lines = input.lines.map((l) => {
+        const b = stockBal(l.productId);
+        if (!b) throw new DataError('invalid', 'Ada barang yang stoknya tidak dilacak.');
+        return { productId: l.productId, name: b.name, qty: l.qty };
+      });
+      const row: StockRequest = { id, number: `REQ-${String(stockRequests.length + 1).padStart(6, '0')}`, status: 'requested', requesterId: input.requesterId, requesterName: locNames[input.requesterId]!, sourceId: input.sourceId, sourceName: locNames[input.sourceId]!, createdAt: now().toISOString(), lines, ...(input.note?.trim() ? { note: input.note.trim() } : {}) };
+      stockRequests.push(row);
+      return clone(row);
+    },
+    async decideStockRequest(id, approve, note) {
+      const r = stockRequests.find((x) => x.id === id);
+      if (!r) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      if (r.status !== 'requested') throw new DataError('invalid', 'Permintaan ini sudah diputuskan');
+      r.status = approve ? 'approved' : 'rejected';
+      if (note?.trim()) r.decisionNote = note.trim();
+      return clone(r);
+    },
+    async fulfillStockRequest(id) {
+      const r = stockRequests.find((x) => x.id === id);
+      if (!r) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      if (r.status !== 'approved') throw new DataError('invalid', 'Permintaan harus disetujui dulu');
+      const transferId = newId();
+      await self.createStockTransfer({ id: transferId, fromId: r.sourceId, toId: r.requesterId, note: `Permintaan ${r.number}`, lines: r.lines.map((l) => ({ productId: l.productId, qty: l.qty })) });
+      r.status = 'fulfilled'; r.transferId = transferId;
+      return clone(r);
+    },
+    async cancelStockRequest(id) {
+      const r = stockRequests.find((x) => x.id === id);
+      if (!r) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      if (r.status !== 'requested' && r.status !== 'approved') throw new DataError('invalid', 'Permintaan ini sudah diputuskan');
+      r.status = 'cancelled';
+      return clone(r);
     },
     async listRecurringBills(q) { return clone(recurringBills.filter((b) => q?.includeInactive || b.isActive).sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1))); },
     async saveRecurringBill(input) {
