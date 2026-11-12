@@ -1,8 +1,8 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Check, ChefHat, Maximize, Minimize, Printer, Settings2, Volume2, VolumeX, Warehouse } from 'lucide-react';
+import { Check, ChefHat, Maximize, Minimize, Printer, RotateCcw, Settings2, Volume2, VolumeX, Warehouse } from 'lucide-react';
 import {
-  DEFAULT_KITCHEN_THRESHOLDS, filterRowsByStation, groupTickets, kitchenAlert, KITCHEN_NEXT, KITCHEN_NEXT_LABEL, KITCHEN_STATUS_LABEL, orderTypeLabel, thresholdsProblem, waitMinutes,
+  DEFAULT_KITCHEN_THRESHOLDS, filterRowsByStation, groupTickets, kitchenAlert, KITCHEN_NEXT, KITCHEN_NEXT_LABEL, KITCHEN_STATUS_LABEL, orderTypeLabel, resolveBulkNextStatus, thresholdsProblem, waitMinutes,
   type KitchenRow, type KitchenStatus, type KitchenThresholds, type KitchenTicket, type PrintStation,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
@@ -530,11 +530,13 @@ function Ticket({
   showStationBadge?: boolean;
   stationMap?: Map<string, string>;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const mins = waitMinutes(t.sentAt, now);
   const alert = t.lane === 'served' ? 'ok' : kitchenAlert(mins, th);
   const where = t.tableName ? `Meja ${t.tableName}` : t.label || orderTypeLabel(t.orderType);
   const next = KITCHEN_NEXT[t.lane];
   const current = t.items.filter((i) => i.status === t.lane);
+  const allSelected = t.items.length > 0 && selectedIds.length === t.items.length;
 
   const stationNames = useMemo(() => {
     if (!showStationBadge || !stationMap) return [];
@@ -578,19 +580,111 @@ function Ticket({
           Catatan pesanan: {t.label}
         </p>
       )}
+
+      {/* Kontrol centang semua item */}
+      <div className="flex items-center justify-between pt-4 border-t border-border/50 text-xs text-text-muted mt-6">
+        <label className="inline-flex items-center gap-6 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            onChange={() => {
+              if (allSelected) {
+                setSelectedIds([]);
+              } else {
+                setSelectedIds(t.items.map((i) => i.itemId));
+              }
+            }}
+            className="cursor-pointer"
+            aria-label={`Pilih semua item pesanan ${t.orderNumber}`}
+          />
+          <span>Pilih semua ({selectedIds.length}/{t.items.length})</span>
+        </label>
+        {selectedIds.length > 0 && (
+          <button
+            type="button"
+            className="text-xs text-primary hover:underline"
+            onClick={() => setSelectedIds([])}
+          >
+            Batal pilih
+          </button>
+        )}
+      </div>
+
       <ul className="grid gap-4 mt-8">
         {t.items.map((i) => (
           <ItemRow
             key={i.itemId}
             i={i}
             busy={busy}
+            selected={selectedIds.includes(i.itemId)}
+            onToggle={() =>
+              setSelectedIds((prev) =>
+                prev.includes(i.itemId) ? prev.filter((id) => id !== i.itemId) : [...prev, i.itemId]
+              )
+            }
             onAdvance={onAdvance}
             stationName={showStationBadge && i.stationId ? stationMap?.get(i.stationId) : undefined}
           />
         ))}
       </ul>
+
+      {/* Aksi Bulk Item Terpilih */}
+      {selectedIds.length > 0 && (
+        <div className="p-8 border-t border-border bg-surface-raised space-y-6 mt-8 rounded">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-text">{selectedIds.length} item dicentang:</span>
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() => setSelectedIds([])}
+            >
+              Batal
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-6">
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary cg-btn--sm"
+              disabled={busy}
+              onClick={async () => {
+                const bulk = resolveBulkNextStatus(t.items, selectedIds);
+                await onAdvance(selectedIds, bulk.nextStatus);
+                setSelectedIds([]);
+              }}
+            >
+              {resolveBulkNextStatus(t.items, selectedIds).label} ({selectedIds.length})
+            </button>
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm"
+              disabled={busy}
+              onClick={async () => {
+                await onAdvance(selectedIds, 'ready');
+                setSelectedIds([]);
+              }}
+              title="Tandai langsung semua item terpilih siap saji"
+            >
+              Tandai siap
+            </button>
+            <button
+              type="button"
+              className="cg-btn cg-btn--ghost cg-btn--sm flex items-center gap-4 text-xs"
+              disabled={busy}
+              onClick={async () => {
+                await onAdvance(selectedIds, 'new');
+                setSelectedIds([]);
+              }}
+              title="Kembalikan item terpilih ke antrean baru (kirim ulang)"
+            >
+              <RotateCcw className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Kirim ulang / Baru</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-8 mt-8 flex-wrap">
-        {next && (
+        {next && selectedIds.length === 0 && (
           <button
             className="cg-btn cg-btn--primary"
             disabled={busy}
@@ -599,7 +693,7 @@ function Ticket({
             {KITCHEN_NEXT_LABEL[t.lane]} ({current.length})
           </button>
         )}
-        {t.lane === 'served' && (
+        {t.lane === 'served' && selectedIds.length === 0 && (
           <button
             className="cg-btn cg-btn--ghost"
             disabled={busy}
@@ -625,38 +719,68 @@ function Ticket({
 function ItemRow({
   i,
   busy,
+  selected,
+  onToggle,
   onAdvance,
   stationName,
 }: {
   i: KitchenRow;
   busy: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
   onAdvance: (ids: string[], to: KitchenStatus) => void;
   stationName?: string;
 }) {
   const next = KITCHEN_NEXT[i.status];
   return (
-    <li className="flex items-start gap-8">
-      <span className="cg-num"><strong>{i.qty}×</strong></span>
-      <span className="grow min-w-0 break-words">{i.name}
+    <li className={`flex items-start gap-8 p-4 rounded transition-colors ${selected ? 'bg-primary/5' : ''}`}>
+      {onToggle && (
+        <input
+          type="checkbox"
+          checked={!!selected}
+          onChange={onToggle}
+          className="mt-3 cursor-pointer shrink-0"
+          aria-label={`Pilih ${i.name}`}
+        />
+      )}
+      <span className="cg-num mt-1"><strong>{i.qty}×</strong></span>
+      <span className="grow min-w-0 break-words">
+        {i.name}
         {stationName && <span className="text-xs text-text-muted ml-[6px]">({stationName})</span>}
         {i.extras.map((e) => <span key={e.name} className="block text-sm text-text-muted">+ {e.name}</span>)}
         {i.note && (
-          <span className="block text-xs font-semibold text-accent mt-4 bg-accent/10 px-8 py-4 rounded">
+          <span className="block text-xs font-semibold text-warning-strong mt-4 bg-warning-soft px-8 py-4 rounded border border-warning/30">
             Catatan: {i.note}
           </span>
         )}
       </span>
-      <span className="cg-badge">{KITCHEN_STATUS_LABEL[i.status]}</span>
-      {next && (
-        <button
-          className="cg-btn cg-btn--ghost cg-btn--sm"
-          disabled={busy}
-          onClick={() => onAdvance([i.itemId], next)}
-          aria-label={`${KITCHEN_NEXT_LABEL[i.status]}: ${i.name}`}
-        >
-          <Check className="cg-icon" aria-hidden />
-        </button>
-      )}
+      <span className="cg-badge shrink-0">{KITCHEN_STATUS_LABEL[i.status]}</span>
+      <div className="flex items-center gap-4 shrink-0">
+        {(i.status === 'ready' || i.status === 'served') && (
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm"
+            disabled={busy}
+            onClick={() => onAdvance([i.itemId], 'preparing')}
+            aria-label={`Olah lagi: ${i.name}`}
+            title="Kembalikan ke antrean diproses"
+          >
+            <RotateCcw className="cg-icon cg-icon--xs" aria-hidden />
+          </button>
+        )}
+        {next && (
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm"
+            disabled={busy}
+            onClick={() => onAdvance([i.itemId], next)}
+            aria-label={`${KITCHEN_NEXT_LABEL[i.status]}: ${i.name}`}
+            title={KITCHEN_NEXT_LABEL[i.status]}
+          >
+            <Check className="cg-icon" aria-hidden />
+          </button>
+        )}
+      </div>
     </li>
   );
 }
