@@ -963,3 +963,7 @@ Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_sugges
 
 ## Claude (12 Nov 2026) — 20 tugas fitur "sebagian" disiapkan untuk Antigravity: A93 sampai A112
 Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude hampir habis; Louis akan menyuruh Claude memeriksa hasilnya sekitar pukul 08.10). Urutan pengerjaan: A86 (selesai), A87 sampai A92 (sudah ada), lalu A93 sampai A112. Tiap tugas dimulai dengan audit; kekurangan yang butuh data/skema baru ditulis di `docs/REQUESTS-FOR-CLAUDE.md`, bukan dikerjakan dengan data palsu. Migrasi 0038 sampai 0043 sudah di produksi (DataLayer siap). Saat Claude kembali: tinjau cabang `ag/a87` dan seterusnya (typecheck, tes, build, lint, lihat screenshot 390 dan 1280), gabungkan, lalu nilai ulang status fitur dengan bukti.
+
+## Antigravity (12 Nov 2026) — A102 Beranda Ringkasan Semua Outlet Selesai
+Layar beranda `/` (`page.tsx`) terverifikasi ujung ke ujung: agregasi multi-outlet (`selectedOutlet === 'semua'`), perbandingan periode sebelumnya (`percentChange`, `prevReport`), akumulasi MTD & proyeksi akhir bulan, status belum dibayar/terbayar, grafik 24-jam spline SVG interaktif, dan 8 widget ringkasan lengkap. 8 tes `dashboard-layout.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+
