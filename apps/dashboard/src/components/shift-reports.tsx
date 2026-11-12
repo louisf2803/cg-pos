@@ -1,7 +1,15 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { Download } from 'lucide-react';
-import { combineShiftReports, formatRp, toCsv, type ShiftReportRow, type StoreCloseSummary } from '@cgpos/shared';
+import { Download, Search } from 'lucide-react';
+import {
+  combineShiftReports,
+  filterShiftRows,
+  formatRp,
+  groupShiftsByCashier,
+  toCsv,
+  type ShiftReportRow,
+  type StoreCloseSummary,
+} from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { dateRange } from '@/lib/range';
@@ -50,40 +58,95 @@ function varianceBadge(r: ShiftReportRow) {
 /** Laporan kasir: satu baris per shift, rincian pembayaran dan produk di dialog. */
 export function CashierReport() {
   const [span, setSpan] = useState({ from: todayKey(), to: todayKey() });
+  const [tab, setTab] = useState<'shifts' | 'summary'>('shifts');
+  const [cashierFilter, setCashierFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [search, setSearch] = useState('');
+
   const { ctx, rows } = useShiftRows(span);
   const tz = ctx.status === 'ready' ? ctx.data.timezone : 'Asia/Jakarta';
   const [pick, setPick] = useState<ShiftReportRow | null>(null);
-  const total = useMemo(() => (rows.status === 'ready' ? combineShiftReports(rows.data) : null), [rows]);
+
+  const rawRows = rows.status === 'ready' ? rows.data : [];
+  const filteredRows = useMemo(
+    () => filterShiftRows(rawRows, { cashierId: cashierFilter, status: statusFilter, search }),
+    [rawRows, cashierFilter, statusFilter, search],
+  );
+
+  const cashierSummaries = useMemo(() => groupShiftsByCashier(filteredRows), [filteredRows]);
+  const total = useMemo(() => combineShiftReports(filteredRows), [filteredRows]);
+
+  const cashierOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rawRows) {
+      if (!map.has(r.shift.cashierId)) map.set(r.shift.cashierId, r.cashierName);
+    }
+    return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+  }, [rawRows]);
 
   function downloadCsv() {
-    if (rows.status !== 'ready' || rows.data.length === 0) return;
-    const csvRows: (string | number)[][] = [
-      ['Kasir', 'Waktu buka', 'Waktu tutup', 'Status', 'Modal awal', 'Penjualan tunai', 'Penjualan non-tunai', 'Kas masuk', 'Kas keluar', 'Refund tunai', 'Uang seharusnya', 'Uang dihitung', 'Selisih kas'],
-      ...rows.data.map((r) => [
-        r.cashierName,
-        when(r.shift.openedAt, tz),
-        when(r.shift.closedAt, tz),
-        r.shift.status === 'open' ? 'Berjalan' : 'Tutup',
-        r.shift.openingCash,
-        r.cashSales,
-        r.otherSales,
-        r.cashIn,
-        r.cashOut,
-        r.cashRefunds,
-        r.expectedCash,
-        r.shift.status === 'closed' ? r.counted : '',
-        r.shift.status === 'closed' ? r.variance : '',
-      ]),
-    ];
-    downloadCsvWithHistory({
-      fileName: `laporan-kasir-${span.from}_${span.to}.csv`,
-      csvContent: toCsv(csvRows),
-      reportName: 'Laporan Kasir',
-      period: `${span.from} s.d. ${span.to}`,
-      rowCount: rows.data.length,
-      sourceUrl: '/laporan/kasir',
-      params: { from: span.from, to: span.to },
-    });
+    if (filteredRows.length === 0) return;
+
+    if (tab === 'shifts') {
+      const csvRows: (string | number)[][] = [
+        ['Kasir', 'Terminal', 'Waktu buka', 'Waktu tutup', 'Status', 'Modal awal', 'Penjualan tunai', 'Penjualan non-tunai', 'Kas masuk', 'Kas keluar', 'Refund tunai', 'Uang seharusnya', 'Uang dihitung', 'Selisih kas'],
+        ...filteredRows.map((r) => [
+          r.cashierName,
+          'Terminal Kasir 1',
+          when(r.shift.openedAt, tz),
+          when(r.shift.closedAt, tz),
+          r.shift.status === 'open' ? 'Berjalan' : 'Tutup',
+          r.shift.openingCash,
+          r.cashSales,
+          r.otherSales,
+          r.cashIn,
+          r.cashOut,
+          r.cashRefunds,
+          r.expectedCash,
+          r.shift.status === 'closed' ? r.counted : '',
+          r.shift.status === 'closed' ? r.variance : '',
+        ]),
+      ];
+      downloadCsvWithHistory({
+        fileName: `laporan-kasir-${span.from}_${span.to}.csv`,
+        csvContent: toCsv(csvRows),
+        reportName: 'Laporan Kasir (Shift)',
+        period: `${span.from} s.d. ${span.to}`,
+        rowCount: filteredRows.length,
+        sourceUrl: '/laporan/kasir',
+        params: { from: span.from, to: span.to },
+      });
+    } else {
+      const csvRows: (string | number)[][] = [
+        ['Kasir', 'Terminal', 'Jumlah Shift', 'Shift Berjalan', 'Shift Tutup', 'Total Transaksi', 'Total Modal Awal', 'Total Penjualan Tunai', 'Total Penjualan Non-tunai', 'Kas Masuk', 'Kas Keluar', 'Refund Tunai', 'Total Seharusnya di Laci', 'Total Dihitung', 'Total Selisih Kas'],
+        ...cashierSummaries.map((s) => [
+          s.cashierName,
+          s.terminalName,
+          s.shiftCount,
+          s.openShiftCount,
+          s.closedShiftCount,
+          s.orderCount,
+          s.totalOpeningCash,
+          s.totalCashSales,
+          s.totalOtherSales,
+          s.totalCashIn,
+          s.totalCashOut,
+          s.totalCashRefunds,
+          s.totalExpectedCash,
+          s.totalCountedCash,
+          s.totalVariance,
+        ]),
+      ];
+      downloadCsvWithHistory({
+        fileName: `laporan-kasir-terminal-rekap-${span.from}_${span.to}.csv`,
+        csvContent: toCsv(csvRows),
+        reportName: 'Laporan Kasir dan Terminal (Rekap)',
+        period: `${span.from} s.d. ${span.to}`,
+        rowCount: cashierSummaries.length,
+        sourceUrl: '/laporan/kasir',
+        params: { from: span.from, to: span.to },
+      });
+    }
   }
 
   return (
@@ -94,15 +157,86 @@ export function CashierReport() {
           type="button"
           className="cg-btn cg-btn--secondary"
           onClick={downloadCsv}
-          disabled={rows.status !== 'ready' || rows.data.length === 0}
+          disabled={rows.status !== 'ready' || filteredRows.length === 0}
         >
           <Download className="cg-icon" aria-hidden /> Unduh CSV
         </button>
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-12 mb-16 min-w-0">
+        <div className="cg-tabs" role="tablist" aria-label="Tampilan Laporan Kasir">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'shifts'}
+            className={`cg-tab ${tab === 'shifts' ? 'cg-tab--active' : ''}`}
+            onClick={() => setTab('shifts')}
+          >
+            Daftar Shift ({filteredRows.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'summary'}
+            className={`cg-tab ${tab === 'summary' ? 'cg-tab--active' : ''}`}
+            onClick={() => setTab('summary')}
+          >
+            Rekap Kasir &amp; Terminal ({cashierSummaries.length})
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-8 min-w-0">
+          <select
+            className="cg-input text-xs h-[36px]"
+            value={cashierFilter}
+            onChange={(e) => setCashierFilter(e.target.value)}
+            aria-label="Filter kasir"
+          >
+            <option value="all">Semua Kasir / Terminal</option>
+            {cashierOptions.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="cg-input text-xs h-[36px]"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'open' | 'closed')}
+            aria-label="Filter status shift"
+          >
+            <option value="all">Semua Status</option>
+            <option value="open">Shift Berjalan</option>
+            <option value="closed">Shift Tutup</option>
+          </select>
+
+          <div className="relative min-w-[160px]">
+            <Search className="w-16 h-16 text-text-muted absolute left-[10px] top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden />
+            <input
+              type="search"
+              className="cg-input pl-[34px] text-xs h-[36px]"
+              placeholder="Cari kasir…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Cari nama kasir"
+            />
+          </div>
+        </div>
+      </div>
+
       {rows.status === 'error' && <ErrorBox message={rows.message} onRetry={rows.reload} />}
       {rows.status === 'loading' && <Loading />}
-      {rows.status === 'ready' && total && (rows.data.length === 0 ? (
-        <div className="cg-empty"><p><strong>Tidak ada shift pada rentang tanggal ini.</strong></p><p className="text-text-muted">Shift muncul setelah kasir membuka kasir di outlet.</p></div>
+      {rows.status === 'ready' && total && (rawRows.length === 0 ? (
+        <div className="cg-empty">
+          <p><strong>Tidak ada shift pada rentang tanggal ini.</strong></p>
+          <p className="text-text-muted">Shift muncul setelah kasir membuka kasir di outlet.</p>
+        </div>
+      ) : filteredRows.length === 0 ? (
+        <div className="cg-empty">
+          <p><strong>Tidak ada shift yang cocok dengan filter.</strong></p>
+          <p className="text-text-muted">Ubah penyaring kasir, status, atau kata pencarian di atas.</p>
+        </div>
       ) : (
         <>
           <Stats>
@@ -112,17 +246,93 @@ export function CashierReport() {
             <Stat label="Penjualan non-tunai" value={money(total.otherSales)} />
             <Stat label="Selisih kas (shift tertutup)" value={money(total.variance)} tone={total.variance < 0 ? 'warn' : undefined} />
           </Stats>
-          <div className="cg-data-wrap"><table className="cg-data" aria-label="Laporan kasir">
-            <thead><tr><th>Kasir</th><th>Buka</th><th>Tutup</th><th className="text-right">Modal</th><th className="text-right">Tunai</th><th className="text-right">Non-tunai</th><th className="text-right">Seharusnya</th><th className="text-right">Dihitung</th><th>Kas</th><th><span className="sr-only">Rincian</span></th></tr></thead>
-            <tbody>{rows.data.map((r) => (
-              <tr key={r.shift.id}>
-                <td>{r.cashierName}</td><td className="text-sm whitespace-nowrap">{when(r.shift.openedAt, tz)}</td><td className="text-sm whitespace-nowrap">{when(r.shift.closedAt, tz)}</td>
-                <td className="text-right cg-num">{formatRp(r.shift.openingCash)}</td><td className="text-right cg-num">{formatRp(r.cashSales)}</td><td className="text-right cg-num">{formatRp(r.otherSales)}</td>
-                <td className="text-right cg-num">{formatRp(r.expectedCash)}</td><td className="text-right cg-num">{r.shift.status === 'closed' ? formatRp(r.counted) : '—'}</td>
-                <td>{varianceBadge(r)}</td>
-                <td><button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPick(r)} aria-label={`Rincian shift ${r.cashierName} ${when(r.shift.openedAt, tz)}`}>Rincian</button></td>
-              </tr>))}
-            </tbody></table></div>
+
+          {tab === 'shifts' ? (
+            <div className="cg-data-wrap">
+              <table className="cg-data" aria-label="Laporan kasir per shift">
+                <thead>
+                  <tr>
+                    <th>Kasir</th>
+                    <th>Terminal</th>
+                    <th>Buka</th>
+                    <th>Tutup</th>
+                    <th className="text-right">Modal</th>
+                    <th className="text-right">Tunai</th>
+                    <th className="text-right">Non-tunai</th>
+                    <th className="text-right">Seharusnya</th>
+                    <th className="text-right">Dihitung</th>
+                    <th>Kas</th>
+                    <th><span className="sr-only">Rincian</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((r) => (
+                    <tr key={r.shift.id}>
+                      <td><strong>{r.cashierName}</strong></td>
+                      <td className="text-xs text-text-muted">Terminal 1 (Kasir)</td>
+                      <td className="text-sm whitespace-nowrap">{when(r.shift.openedAt, tz)}</td>
+                      <td className="text-sm whitespace-nowrap">{when(r.shift.closedAt, tz)}</td>
+                      <td className="text-right cg-num">{formatRp(r.shift.openingCash)}</td>
+                      <td className="text-right cg-num">{formatRp(r.cashSales)}</td>
+                      <td className="text-right cg-num">{formatRp(r.otherSales)}</td>
+                      <td className="text-right cg-num">{formatRp(r.expectedCash)}</td>
+                      <td className="text-right cg-num">{r.shift.status === 'closed' ? formatRp(r.counted) : '—'}</td>
+                      <td>{varianceBadge(r)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="cg-btn cg-btn--ghost cg-btn--sm"
+                          onClick={() => setPick(r)}
+                          aria-label={`Rincian shift ${r.cashierName} ${when(r.shift.openedAt, tz)}`}
+                        >
+                          Rincian
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="cg-data-wrap">
+              <table className="cg-data" aria-label="Rekap shift per kasir dan terminal">
+                <thead>
+                  <tr>
+                    <th>Kasir</th>
+                    <th>Terminal</th>
+                    <th className="text-right">Shift (Buka / Tutup)</th>
+                    <th className="text-right">Transaksi</th>
+                    <th className="text-right">Total Modal</th>
+                    <th className="text-right">Total Tunai</th>
+                    <th className="text-right">Total Non-tunai</th>
+                    <th className="text-right">Total Seharusnya</th>
+                    <th className="text-right">Total Dihitung</th>
+                    <th className="text-right">Total Selisih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cashierSummaries.map((s) => (
+                    <tr key={s.cashierId}>
+                      <td><strong>{s.cashierName}</strong></td>
+                      <td className="text-xs text-text-muted">{s.terminalName}</td>
+                      <td className="text-right cg-num">
+                        {s.shiftCount} ({s.openShiftCount} / {s.closedShiftCount})
+                      </td>
+                      <td className="text-right cg-num">{s.orderCount}</td>
+                      <td className="text-right cg-num">{formatRp(s.totalOpeningCash)}</td>
+                      <td className="text-right cg-num">{formatRp(s.totalCashSales)}</td>
+                      <td className="text-right cg-num">{formatRp(s.totalOtherSales)}</td>
+                      <td className="text-right cg-num">{formatRp(s.totalExpectedCash)}</td>
+                      <td className="text-right cg-num">{formatRp(s.totalCountedCash)}</td>
+                      <td className={`text-right cg-num font-semibold ${s.totalVariance < 0 ? 'text-danger' : s.totalVariance > 0 ? 'text-accent-strong' : ''}`}>
+                        {s.totalVariance === 0 ? 'Cocok (Rp 0)' : `${s.totalVariance < 0 ? 'Kurang ' : 'Lebih '}${formatRp(Math.abs(s.totalVariance))}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       ))}
       {pick && <ShiftDialog row={pick} tz={tz} onClose={() => setPick(null)} />}

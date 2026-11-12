@@ -89,4 +89,5 @@ export * from './opname-csv';
 export * from './customer-display';
 export * from './roles-ui';
 export * from './waste-report';
+export * from './cashier-report';
 
