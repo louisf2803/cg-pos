@@ -132,7 +132,7 @@ export const MODUL: NavModule[] = [
         items: [
           { section: 'Stok', href: '/inventori/stok', label: 'Daftar bahan baku', screen: 'S54', tier: 2, built: true },
           { section: 'Stok', href: '/inventori/opname', label: 'Stok opname', screen: 'S55', tier: 2, built: true },
-          { section: 'Stok', href: '/inventori/terbuang', label: 'Stok terbuang', screen: 'S56', tier: 2 },
+          { section: 'Stok', href: '/inventori/terbuang', label: 'Stok terbuang', screen: 'S56', tier: 2, built: true },
           { section: 'Stok', href: '/inventori/satuan', label: 'Satuan barang', screen: 'S54', tier: 2, built: true },
           { section: 'Stok', href: '/inventori/produksi', label: 'Produksi stok', screen: 'S57', tier: 3 },
           { section: 'Stok', href: '/inventori/transfer', label: 'Mutasi antar outlet', screen: 'S54', tier: 2, built: true },
