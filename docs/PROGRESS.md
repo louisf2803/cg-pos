@@ -1024,3 +1024,6 @@ Layar `/pengaturan/pajak` dan formulir `/produk` (`product-form.tsx`) diperbarui
 ## Antigravity (12 Nov 2026) — A111 Tukar Poin: Potongan dan Produk Gratis Selesai
 Layar `/loyalty` diperbarui: potongan rupiah dari poin terverifikasi nyata (`data.saveLoyaltyRules`, `DiscountDialog.tsx`), dan kartu informasi penukaran produk gratis ditambahkan dengan status menunggu skema server. Kebutuhan tabel `loyalty_product_rewards` & penegakan kasir dicatat di `docs/REQUESTS-FOR-CLAUDE.md`. 9 tes `loyalty.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 
+
+## Claude (13 Nov 2026) — bug zona waktu ditemukan lewat uji Chrome; perbaikan 0044 + tanggal lokal
+Pelepasan aset dan pembayaran tagihan bertanggal hari ini ditolak "di masa depan" antara 00.00 dan 07.00 WIB: klien memakai tanggal lokal, server memakai `current_date` UTC (0040 dan 0041). Perbaikan: migrasi `0044_local_date_functions.sql` (tanggal Asia/Jakarta di `fixed_asset_depreciate`, `fixed_asset_dispose`, `recurring_bill_pay`), helper `local-date.ts` (`localDateString`, `localMonthStart`) dipakai di data demo dan klien. 0044 BELUM diterapkan ke produksi dan tes SQL `19_local_date.sql` BELUM dijalankan (Louis meminta tidak mengecek dulu); jalankan tes SQL lalu terapkan. Antigravity: lihat tambahan di `docs/queue/FIX-LINT-A88-A99.md`.

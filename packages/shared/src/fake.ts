@@ -21,6 +21,7 @@ import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
 import { purchasePriceProblem, suggestPurchasePrice as pickSuggestion, type PurchasePriceMapping } from './purchase-price';
+import { localDateString, localMonthStart } from './local-date';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -1662,7 +1663,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (!b) throw new DataError('not_found', 'Tagihan tidak ditemukan');
       if (!b.isActive) throw new DataError('invalid', 'Tagihan ini nonaktif');
       if (!payAccountId) throw new DataError('invalid', 'Pilih akun kas/bank pembayar');
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > now().toISOString().slice(0, 10)) throw new DataError('invalid', 'Tanggal bayar tidak valid atau di masa depan');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > localDateString(now())) throw new DataError('invalid', 'Tanggal bayar tidak valid atau di masa depan');
       recurringRuns.push({ billId: b.id, dueDate: b.nextDue, paidOn: date, amount: b.amount });
       b.nextDue = nextDueAfter(b.nextDue, b.frequency);
       return clone(b);
@@ -1709,7 +1710,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async depreciateFixedAssets(period) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(period)) throw new DataError('invalid', 'Periode tidak valid');
       const month = period.slice(0, 7) + '-01';
-      const thisMonth = now().toISOString().slice(0, 7) + '-01';
+      const thisMonth = localMonthStart(now());
       if (month > thisMonth) throw new DataError('invalid', 'Periode ini belum tiba');
       let assets = 0; let total = 0;
       for (const a of fixedAssets) {
@@ -1728,7 +1729,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async disposeFixedAsset(input) {
       const a = fixedAssets.find((x) => x.id === input.assetId);
       if (!a) throw new DataError('not_found', 'Aset tidak ditemukan');
-      const problem = disposalProblem(a, input, now().toISOString().slice(0, 10));
+      const problem = disposalProblem(a, input, localDateString(now()));
       if (problem) throw new DataError('invalid', problem);
       void disposalGainLoss(a, input.proceeds);
       a.status = 'disposed';

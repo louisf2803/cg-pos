@@ -9,6 +9,7 @@ import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
 import { purchasePriceProblem, type PurchasePriceMapping, type PurchasePriceSuggestion } from './purchase-price';
 import { stockRequestProblem, type StockRequest, type StockRequestStatus } from './stock-requests';
 import { approvalProblem, recurringBillProblem, type ApprovalRequest, type ApprovalStatus, type RecurringBill, type RecurringBillRun } from './bills';
+import { localDateString } from './local-date';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2331,7 +2332,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async disposeFixedAsset(input) {
       const current = (await self.listFixedAssets()).find((x) => x.id === input.assetId);
       if (!current) throw new DataError('not_found', 'Aset tidak ditemukan');
-      const problem = disposalProblem(current, input, new Date().toISOString().slice(0, 10));
+      const problem = disposalProblem(current, input, localDateString(new Date()));
       if (problem) throw new DataError('invalid', problem);
       const { error } = await db().rpc('fixed_asset_dispose', { p_asset: input.assetId, p_date: input.date, p_proceeds: input.proceeds, p_cash_account: input.cashAccountId ?? null, p_gain_loss_account: input.gainLossAccountId ?? null });
       if (error) throw mapAssetError(error);
