@@ -1459,7 +1459,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async attendanceOpen() {
       return attendance.filter((a) => !a.clockOutAt).map((a) => ({ employeeId: a.employeeId, clockInAt: a.clockInAt }));
     },
-    async attendanceClockIn(employeeId, pin, photo) {
+    async attendanceClockIn(employeeId, pin, photo, _location) {
       const e = employees.find((x) => x.id === employeeId && x.isActive);
       if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
       if (e.pin === '' || e.pin !== pin) throw new DataError('bad_pin', 'PIN salah');

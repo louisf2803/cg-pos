@@ -187,8 +187,8 @@ export interface DataLayer {
   setEmployeePin(employeeId: string, pin: string): Promise<void>;
   /** Karyawan yang sedang clock in di outlet perangkat ini (POS memakainya untuk menampilkan siapa yang sudah masuk). */
   attendanceOpen(): Promise<AttendanceOpen[]>;
-  /** Clock in dengan PIN karyawan. Jam dari server. Selfie opsional (bucket privat). Galat: bad_pin, invalid (sudah clock in), not_found. */
-  attendanceClockIn(employeeId: string, pin: string, photo?: ProductPhotoInput): Promise<{ id: string; clockInAt: string }>;
+  /** Clock in dengan PIN karyawan. Jam dari server. Selfie opsional (bucket privat). location = GPS perangkat; bila outlet punya radius absensi mode blokir, tanpa location atau di luar radius ditolak (galat forbidden). Galat: bad_pin, invalid (sudah clock in), not_found, forbidden. */
+  attendanceClockIn(employeeId: string, pin: string, photo?: ProductPhotoInput, location?: { lat: number; lng: number }): Promise<{ id: string; clockInAt: string }>;
   /** Clock out dengan PIN karyawan. Galat: bad_pin, invalid (belum clock in). */
   attendanceClockOut(employeeId: string, pin: string, photo?: ProductPhotoInput): Promise<{ id: string; clockInAt: string; clockOutAt: string }>;
   /** Catatan absensi untuk pemilik/manajer (clockInAt dalam rentang), terbaru dulu; employeeId untuk satu karyawan. */

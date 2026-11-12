@@ -32,6 +32,18 @@ interface AttendanceProps {
  * Layar absensi karyawan POS, satu layar: kamera depan selalu tampil di kiri dan WAJIB (foto diambil otomatis saat Clock in/out),
  * di kanan pilih nama pegawai, isi PIN 6 digit, lalu tekan Clock in atau Clock out. Jam dicatat server.
  */
+/** GPS perangkat untuk radius absensi. Kosong bila tidak ada izin atau waktu habis; server yang memutuskan apakah lokasi wajib. */
+function readPosition(): Promise<{ lat: number; lng: number } | undefined> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(undefined);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: Math.round(p.coords.latitude * 1e6) / 1e6, lng: Math.round(p.coords.longitude * 1e6) / 1e6 }),
+      () => resolve(undefined),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+    );
+  });
+}
+
 export function Attendance({ ctx, onClose }: AttendanceProps) {
   const data = useData();
   const online = useOnline();
@@ -188,7 +200,7 @@ export function Attendance({ ctx, onClose }: AttendanceProps) {
         const res = await data.attendanceClockOut(employee.id, pin, photo);
         setNotice(attendanceActionSuccessText({ kind: 'out', employeeName: employee.name, clockInAt: res.clockInAt, clockOutAt: res.clockOutAt, timeZone: ctx.timezone }));
       } else {
-        const res = await data.attendanceClockIn(employee.id, pin, photo);
+        const res = await data.attendanceClockIn(employee.id, pin, photo, await readPosition());
         setNotice(attendanceActionSuccessText({ kind: 'in', employeeName: employee.name, clockInAt: res.clockInAt, timeZone: ctx.timezone }));
       }
       setEmployeeId('');

@@ -241,6 +241,9 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (/already clocked in/i.test(m)) return new DataError('invalid', 'Karyawan ini sudah clock in.');
     if (/not clocked in/i.test(m)) return new DataError('invalid', 'Karyawan ini belum clock in.');
     if (/employee not at this outlet/i.test(m)) return new DataError('forbidden', 'Karyawan ini tidak terdaftar di outlet ini.');
+    if (/outside radius/i.test(m)) return new DataError('forbidden', 'Kamu berada di luar radius absensi outlet ini.');
+    if (/location required/i.test(m)) return new DataError('forbidden', 'Lokasi perangkat dibutuhkan untuk absen. Izinkan akses lokasi di peramban lalu coba lagi.');
+    if (/invalid location/i.test(m)) return new DataError('invalid', 'Lokasi perangkat tidak valid.');
     if (/invalid photo path/i.test(m)) return new DataError('invalid', 'Foto selfie ditolak server.');
     if (/clock out before clock in|time in the future|clock in required/i.test(m)) return new DataError('invalid', 'Jam masuk dan pulang tidak valid. Pulang harus setelah masuk dan tidak di masa depan.');
     if (/employee not found|outlet not found|attendance not found/i.test(m)) return new DataError('not_found', 'Karyawan atau catatan absensi tidak ditemukan.');
@@ -1924,10 +1927,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (error) throw mapAttendanceError(error);
       return ((data ?? []) as Row[]).map((x) => ({ employeeId: x.employee_id as string, clockInAt: x.clock_in_at as string }));
     },
-    async attendanceClockIn(employeeId, pin, photo) {
+    async attendanceClockIn(employeeId, pin, photo, location) {
       const { r, deviceId } = await requireDevice();
       const path = await attendanceVerifyAndUpload(r.orgId, deviceId, employeeId, pin, 'in', photo);
-      const { data, error } = await db().rpc('attendance_clock_in', { p_device: deviceId, p_employee: employeeId, p_pin: pin, p_photo_path: path });
+      const { data, error } = await db().rpc('attendance_clock_in', { p_device: deviceId, p_employee: employeeId, p_pin: pin, p_photo_path: path, ...(location ? { p_lat: location.lat, p_lng: location.lng } : {}) });
       if (error) throw mapAttendanceError(error);
       const o = data as Row;
       return { id: o.id as string, clockInAt: o.clock_in_at as string };
