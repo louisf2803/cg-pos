@@ -1033,3 +1033,10 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A118 Struk: Logo, Kode QR/Barcode, Media Sosial, Bluetooth
+- `packages/shared` (`receipt-template.ts`, `escpos.ts`, `receipt-template.test.ts`): perluasan templat struk dengan properti `showLogo`, `logoUrl`, `showSocialMedia`, `socialMedia` (Instagram, Facebook, Website), `showQrCode`, `qrCodeType` ('order_no' | 'payment_link' | 'custom'), `qrCodeCustomUrl`, dan `showBarcode`. `receiptPieces` menghasilkan teks baris logo, media sosial, kode QR, dan barcode. 12 unit tests lulus.
+- `apps/dashboard` (`pengaturan/struk/page.tsx`): input unggah berkas logo lokal/URL dengan pratinjau, pengaturan tautan media sosial footer, pilihan mode kode QR dan barcode, pratinjau struk langsung dan cetak sampel iframe.
+- `apps/pos` (`Receipt.tsx`): render gambar logo di header, blok media sosial, kode QR visual, dan barcode di footer struk kasir dan tagihan.
+- Lolos: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test receipt-template`, `lint-tailwind.sh origin/main` bersih.
+
