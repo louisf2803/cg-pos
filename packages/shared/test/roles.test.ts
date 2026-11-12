@@ -108,3 +108,22 @@ describe('peran kustom di data demo', () => {
     expect(await code(d.deleteRole(saved.id))).toBe('not_found');
   });
 });
+
+describe('tautan karyawan ke peran kustom di data demo', () => {
+  it('menautkan, melepas, menolak yang tidak ada, dan melepas otomatis saat peran dihapus', async () => {
+    const d = createFakeData();
+    const role = await d.saveRolePermissions({ ...sampleRole(), id: '' });
+    expect((await d.listManagedEmployees()).every((e) => e.roleId === undefined)).toBe(true);
+    const linked = await d.setEmployeeRoleId('e-sari', role.id);
+    expect(linked).toMatchObject({ id: 'e-sari', roleId: role.id });
+    expect((await d.listManagedEmployees()).find((e) => e.id === 'e-sari')!.roleId).toBe(role.id);
+    expect((await d.listManagedEmployees()).find((e) => e.id === 'e-budi')!.roleId).toBeUndefined();
+    expect(await code(d.setEmployeeRoleId('e-sari', 'tidak-ada'))).toBe('not_found');
+    expect(await code(d.setEmployeeRoleId('tidak-ada', role.id))).toBe('not_found');
+    const unlinked = await d.setEmployeeRoleId('e-sari', null);
+    expect(unlinked.roleId).toBeUndefined();
+    await d.setEmployeeRoleId('e-budi', role.id);
+    await d.deleteRole(role.id);
+    expect((await d.listManagedEmployees()).every((e) => e.roleId === undefined)).toBe(true);
+  });
+});

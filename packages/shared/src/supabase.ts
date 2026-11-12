@@ -1872,10 +1872,18 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async listManagedEmployees() {
       const { ctx } = await resolve();
-      const rows = must(await db().from('employees').select('id,name,role,is_active,employee_outlets!inner(outlet_id)')
+      const rows = must(await db().from('employees').select('id,name,role,is_active,role_id,employee_outlets!inner(outlet_id)')
         .eq('employee_outlets.outlet_id', ctx.outletId).is('deleted_at', null)
         .in('role', ['owner', 'manager', 'cashier']).order('name')) as Row[] | null;
-      return (rows ?? []).map((e): ManagedEmployee => ({ id: e.id, name: e.name, role: e.role, isActive: !!e.is_active }));
+      return (rows ?? []).map((e): ManagedEmployee => ({ id: e.id, name: e.name, role: e.role, isActive: !!e.is_active, ...(e.role_id ? { roleId: e.role_id as string } : {}) }));
+    },
+    async setEmployeeRoleId(employeeId, roleId) {
+      const { error, data: row } = await db().from('employees').update({ role_id: roleId }).eq('id', employeeId).is('deleted_at', null).select('id').maybeSingle();
+      if (error) throw error.code === '23503' ? new DataError('not_found', 'Peran tidak ditemukan') : mapDbError(error);
+      if (!row) throw new DataError('not_found', 'Karyawan tidak ditemukan, atau akunmu tidak boleh mengubahnya');
+      const saved = (await self.listManagedEmployees()).find((x) => x.id === employeeId);
+      if (!saved) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      return saved;
     },
     async saveEmployee(input) {
       const name = input.name.trim();

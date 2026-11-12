@@ -1427,6 +1427,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     },
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
     async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
+    async setEmployeeRoleId(employeeId, roleId) {
+      const e = employees.find((x) => x.id === employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      if (roleId !== null && !customRoles.some((r) => r.id === roleId)) throw new DataError('not_found', 'Peran tidak ditemukan');
+      if (roleId === null) delete e.roleId; else e.roleId = roleId;
+      const { pin: _p, ...out } = e; return { ...out };
+    },
     async saveEmployee(input: EmployeeInput) {
       const name = input.name.trim();
       if (!name) throw new DataError('invalid', 'Nama karyawan wajib diisi');
@@ -1626,6 +1633,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = customRoles.findIndex((x) => x.id === roleId);
       if (i < 0) throw new DataError('not_found', 'Peran tidak ditemukan.');
       customRoles.splice(i, 1);
+      for (const e of employees) if (e.roleId === roleId) delete e.roleId;
     },
     async listPaymentMethods() { return clone(METHODS); },
 

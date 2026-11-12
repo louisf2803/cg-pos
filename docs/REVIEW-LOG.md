@@ -36,3 +36,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=04a156f | merge A83 hak akses ke server (typecheck, 543 tes, build, lint; localStorage hanya untuk sisa peran lama); Karyawan, peran, dan hak akses tetap partial: tautan karyawan ke peran kustom (employees.role_id) dan penegakan izin di RLS belum ada; goal 16/72
 2026-11-12 | main=08fea7b | merge A81 payroll bulanan (typecheck, 544 tes, build, lint; memakai buildWorksheet); diuji sendiri alur payroll lengkap di 1280 dan 390; Absensi dan payroll karyawan => yes (batasan: Radius Absensi, uji Supabase nyata); goal 17/72
 2026-11-12 | main=227dde6 | merge A84 laporan stok terbuang dan STATUS A81 (typecheck, 547 tes, build, lint); Stok terbuang sudah yes dan bukan Gelombang A (wave '-'): hitungan tujuan tidak berubah; goal 17/72
+2026-11-12 | main=81a18db | DataLayer setEmployeeRoleId (548 tes) + A86 ditulis; daftar fitur Majoo untuk dipilih Louis diterbitkan (artifact); goal 17/72

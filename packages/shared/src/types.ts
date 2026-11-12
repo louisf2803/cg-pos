@@ -38,7 +38,8 @@ export interface Bundle { id: string; name: string; categoryId: string | null; p
 export interface BundleInput { id?: string; name: string; categoryId: string | null; price: number; sku?: string; isActive?: boolean; items: { productId: string; qty: number }[] }
 export interface Employee { id: string; name: string; role: 'owner' | 'manager' | 'cashier' }
 /** Karyawan untuk layar pengelolaan (termasuk yang nonaktif). */
-export interface ManagedEmployee extends Employee { isActive: boolean }
+/** roleId = tautan ke peran KUSTOM (tabel 0033); kosong = memakai peran bawaan dari `role`. */
+export interface ManagedEmployee extends Employee { isActive: boolean; roleId?: string }
 export interface EmployeeInput { id?: string; name: string; role: 'manager' | 'cashier'; isActive?: boolean }
 /** Satu catatan absensi. Waktu selalu dari server. minutes = lama kerja, ada bila sudah clock out. */
 export interface AttendanceRecord {

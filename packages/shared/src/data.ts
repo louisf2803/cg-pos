@@ -235,6 +235,8 @@ export interface DataLayer {
   listManagedEmployees(): Promise<ManagedEmployee[]>;
   /** Tambah atau ubah karyawan (kasir atau manajer). Peran pemilik tidak diatur dari sini. */
   saveEmployee(input: EmployeeInput): Promise<ManagedEmployee>;
+  /** Tautkan karyawan ke peran kustom (roleId dari listRoles) atau lepas tautan dengan null. Hanya pemilik/manajer. Galat: not_found (karyawan atau peran). */
+  setEmployeeRoleId(employeeId: string, roleId: string | null): Promise<ManagedEmployee>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
 
   currentShift(): Promise<Shift | null>;
