@@ -1,11 +1,18 @@
 import {
   cashAdvanceBalances,
+  computePayroll,
   type CashAdvance,
   type CashAdvanceType,
+  type EmployeeCompensation,
   type EmployeeIncident,
   type EmploymentStatus,
   type IncidentKind,
+  type PayrollRecord,
+  type PayrollResult,
+  type PayrollRules,
   type WeeklySchedule,
+  type WorksheetFlags,
+  type WorksheetRow,
 } from './payroll';
 import { DataError } from './types';
 
@@ -228,5 +235,152 @@ export function payrollErrorMessage(err: unknown, fallback = 'Terjadi kesalahan 
     forbidden: false,
     message: err instanceof Error && err.message ? err.message : fallback,
   };
+}
+
+const TZ_OFFSET_MIN_ID: Record<string, number> = {
+  'Asia/Jakarta': 420,
+  'Asia/Makassar': 480,
+  'Asia/Jayapura': 540,
+};
+
+/**
+ * Mengubah bulan + tahun lokal outlet menjadi rentang UTC [from, to) untuk DataLayer.listAttendance.
+ * Awal = tanggal 1 pukul 00:00:00 waktu lokal; akhir = tanggal 1 bulan berikutnya pukul 00:00:00 (eksklusif).
+ */
+export function localMonthUtcRange(
+  year: number,
+  month: number,
+  tz = 'Asia/Jakarta',
+): { from: string; to: string } {
+  const offMs = (TZ_OFFSET_MIN_ID[tz] ?? 420) * 60_000;
+  const startUtcMs = Date.UTC(year, month - 1, 1, 0, 0, 0) - offMs;
+  const endUtcMs = Date.UTC(year, month, 1, 0, 0, 0) - offMs;
+  return {
+    from: new Date(startUtcMs).toISOString(),
+    to: new Date(endUtcMs).toISOString(),
+  };
+}
+
+/**
+ * Menerapkan suntingan potongan kasbon per karyawan di lembar kerja memakai `computePayroll`
+ * tanpa menduplikasi rumus gaji. Juga memeriksa agar potongan tidak melebihi saldo kasbon.
+ */
+export function applyWorksheetCashAdvanceOverrides(
+  rows: readonly WorksheetRow[],
+  employees: readonly EmployeeCompensation[],
+  cashAdvanceOverrides: Readonly<Record<string, number>>,
+  balances: Readonly<Record<string, number>>,
+  rules: PayrollRules,
+): { rows: WorksheetRow[]; problems: Record<string, string> } {
+  const empById = new Map<string, EmployeeCompensation>();
+  for (const e of employees) empById.set(e.employeeId, e);
+  const problems: Record<string, string> = {};
+
+  const nextRows = rows.map((row) => {
+    const rawOverride = cashAdvanceOverrides[row.employeeId];
+    const deduction =
+      rawOverride === undefined ? row.period.cashAdvanceDeduction : Math.max(0, Math.floor(rawOverride));
+    const maxAllowed = Math.max(0, Math.floor(balances[row.employeeId] ?? 0));
+    if (deduction > maxAllowed) {
+      problems[row.employeeId] = `Potongan melebihi saldo kasbon (${maxAllowed})`;
+    }
+    if (deduction === row.period.cashAdvanceDeduction) {
+      return row;
+    }
+    const emp = empById.get(row.employeeId);
+    const updatedPeriod = { ...row.period, cashAdvanceDeduction: deduction };
+    const empSpec = emp
+      ? {
+          status: emp.status,
+          basicSalary: emp.basicSalary,
+          mealAllowance: emp.mealAllowance,
+          bpjsAllowance: emp.bpjsAllowance,
+        }
+      : {
+          status: row.status,
+          basicSalary: row.result.basicSalary,
+          mealAllowance: row.result.mealAllowance,
+          bpjsAllowance: row.result.bpjsAllowance,
+        };
+    return {
+      ...row,
+      period: updatedPeriod,
+      result: computePayroll(empSpec, updatedPeriod, rules),
+    };
+  });
+
+  return { rows: nextRows, problems };
+}
+
+/** Mengambil nilai suntingan awal (stokan, deep cleaning, komisi, potongan kasbon) dari rekaman gaji tersimpan. */
+export function draftFlagsFromPayrollRecords(records: readonly PayrollRecord[]): {
+  flags: Record<string, WorksheetFlags>;
+  cashAdvanceOverrides: Record<string, number>;
+} {
+  const flags: Record<string, WorksheetFlags> = {};
+  const cashAdvanceOverrides: Record<string, number> = {};
+  for (const r of records) {
+    flags[r.employeeId] = {
+      hasStockan: r.stockanIncentive > 0,
+      hasDeepCleaning: r.deepCleaningIncentive > 0,
+      commission: r.commission,
+    };
+    cashAdvanceOverrides[r.employeeId] = r.cashAdvanceDeduction;
+  }
+  return { flags, cashAdvanceOverrides };
+}
+
+export function summarizePayrollTotals(
+  rows: readonly Pick<PayrollResult, 'netSalary' | 'cashAdvanceDeduction'>[],
+): { totalNetSalary: number; totalCashAdvanceDeduction: number; count: number } {
+  let totalNetSalary = 0;
+  let totalCashAdvanceDeduction = 0;
+  for (const r of rows) {
+    totalNetSalary += r.netSalary;
+    totalCashAdvanceDeduction += r.cashAdvanceDeduction;
+  }
+  return { totalNetSalary, totalCashAdvanceDeduction, count: rows.length };
+}
+
+export function computePayslipSubtotals(
+  r: Pick<
+    PayrollResult,
+    | 'basicSalary'
+    | 'mealAllowance'
+    | 'bpjsAllowance'
+    | 'latenessBonus'
+    | 'latenessPenalty'
+    | 'absencePenalty'
+    | 'operationalPenalty'
+    | 'stockOpnamePenalty'
+    | 'stockanIncentive'
+    | 'deepCleaningIncentive'
+    | 'commission'
+    | 'cashAdvanceDeduction'
+  >,
+): { grossEarnings: number; totalDeductions: number } {
+  const grossEarnings =
+    r.basicSalary +
+    r.mealAllowance +
+    r.latenessBonus +
+    r.stockanIncentive +
+    r.deepCleaningIncentive +
+    r.commission;
+  const totalDeductions =
+    r.bpjsAllowance +
+    r.latenessPenalty +
+    r.absencePenalty +
+    r.operationalPenalty +
+    r.stockOpnamePenalty +
+    r.cashAdvanceDeduction;
+  return { grossEarnings, totalDeductions };
+}
+
+/** Pesan ramah saat buka kunci periode ditolak atau gagal. */
+export function payrollUnlockErrorMessage(err: unknown): string {
+  if (isForbiddenError(err)) {
+    return 'Buka kunci periode ditolak: hanya Pemilik atau Admin yang diizinkan membuka kembali periode PAID.';
+  }
+  return err instanceof Error && err.message ? err.message : 'Gagal membuka kunci periode payroll.';
 }
 

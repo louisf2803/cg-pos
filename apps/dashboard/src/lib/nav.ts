@@ -248,8 +248,10 @@ export const MODUL: NavModule[] = [
         label: 'Penggajian',
         icon: Banknote,
         items: [
-          { href: '/karyawan/payroll', label: 'Payroll karyawan', screen: 'S43', tier: 3 },
+          { href: '/karyawan/payroll', label: 'Payroll karyawan', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/slip', label: 'Slip gaji', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/kasbon', label: 'Kasbon karyawan', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/aturan-payroll', label: 'Aturan payroll', screen: 'S43', tier: 3, built: true },
         ],
       },
       {

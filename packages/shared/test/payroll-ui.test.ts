@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { DataError } from '../src/types';
+import { COFFEE_GROUND_PAYROLL_RULES, buildWorksheet, type PayrollRecord } from '../src/payroll';
 import {
+  applyWorksheetCashAdvanceOverrides,
+  computePayslipSubtotals,
   copyScheduleToWorkdays,
+  draftFlagsFromPayrollRecords,
   isForbiddenError,
+  localMonthUtcRange,
   monthBounds,
   payrollErrorMessage,
+  payrollUnlockErrorMessage,
   scheduleArrayFromMap,
   scheduleMapFromArray,
   summarizeCashAdvanceTotals,
   summarizeIncidentsByEmployee,
+  summarizePayrollTotals,
 } from '../src/payroll-ui';
 
 describe('payroll-ui helpers', () => {
@@ -83,6 +90,91 @@ describe('payroll-ui helpers', () => {
     expect(isForbiddenError(new Error('Jaringan putus'))).toBe(false);
     expect(payrollErrorMessage(new DataError('forbidden', 'denied')).forbidden).toBe(true);
     expect(payrollErrorMessage(new Error('Simpan gagal')).message).toBe('Simpan gagal');
+    expect(payrollUnlockErrorMessage(new DataError('forbidden', 'Hanya owner'))).toMatch(/hanya Pemilik/i);
+  });
+
+  it('mengubah bulan lokal outlet menjadi rentang UTC dan menghitung override potongan kasbon', () => {
+    expect(localMonthUtcRange(2026, 11, 'Asia/Jakarta')).toEqual({
+      from: '2026-10-31T17:00:00.000Z',
+      to: '2026-11-30T17:00:00.000Z',
+    });
+
+    const employees = [
+      {
+        employeeId: 'e1',
+        employeeName: 'Budi',
+        status: 'permanent' as const,
+        basicSalary: 2500000,
+        mealAllowance: 300000,
+        bpjsAllowance: 100000,
+        cashAdvanceInstallment: 200000,
+      },
+    ];
+    const base = buildWorksheet({
+      month: 11,
+      year: 2026,
+      tz: 'Asia/Jakarta',
+      rules: COFFEE_GROUND_PAYROLL_RULES,
+      today: '2026-11-01',
+      employees,
+      schedules: { e1: [] },
+      attendance: [],
+      incidents: [],
+      pastAbsences: {},
+      cashAdvanceBalance: { e1: 350000 },
+    });
+    expect(base[0]?.result.cashAdvanceDeduction).toBe(200000);
+
+    const applied = applyWorksheetCashAdvanceOverrides(
+      base,
+      employees,
+      { e1: 300000 },
+      { e1: 350000 },
+      COFFEE_GROUND_PAYROLL_RULES,
+    );
+    expect(applied.problems).toEqual({});
+    expect(applied.rows[0]?.result.cashAdvanceDeduction).toBe(300000);
+    expect(applied.rows[0]?.result.netSalary).toBe((base[0]?.result.netSalary ?? 0) - 100000);
+
+    const overLimit = applyWorksheetCashAdvanceOverrides(
+      base,
+      employees,
+      { e1: 400000 },
+      { e1: 350000 },
+      COFFEE_GROUND_PAYROLL_RULES,
+    );
+    expect(overLimit.problems.e1).toMatch(/melebihi saldo/i);
+
+    const totals = summarizePayrollTotals(applied.rows.map((r) => r.result));
+    expect(totals).toEqual({
+      totalNetSalary: applied.rows[0]!.result.netSalary,
+      totalCashAdvanceDeduction: 300000,
+      count: 1,
+    });
+
+    const sub = computePayslipSubtotals(applied.rows[0]!.result);
+    expect(sub.grossEarnings - sub.totalDeductions).toBe(applied.rows[0]!.result.netSalary);
+
+    const savedRec: PayrollRecord = {
+      ...applied.rows[0]!.result,
+      id: 'pr1',
+      employeeId: 'e1',
+      employeeName: 'Budi',
+      employmentStatus: 'permanent',
+      month: 11,
+      year: 2026,
+      status: 'DRAFT',
+      stockanIncentive: 100000,
+      deepCleaningIncentive: 0,
+      commission: 50000,
+    };
+    const seeded = draftFlagsFromPayrollRecords([savedRec]);
+    expect(seeded.flags.e1).toEqual({
+      hasStockan: true,
+      hasDeepCleaning: false,
+      commission: 50000,
+    });
+    expect(seeded.cashAdvanceOverrides.e1).toBe(300000);
   });
 });
 
