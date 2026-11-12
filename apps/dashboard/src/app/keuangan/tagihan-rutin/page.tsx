@@ -127,7 +127,7 @@ function BillFormDialog({
             <h3 className="font-bold text-base text-text">
               {initial ? 'Ubah Tagihan Rutin' : 'Tambah Tagihan Rutin Terjadwal'}
             </h3>
-            <p className="text-xs text-text-muted mt-2">
+            <p className="text-xs text-text-muted mt-4">
               Atur biaya operasional yang berulang seperti sewa tempat, internet, listrik, atau langganan vendor.
             </p>
           </div>
@@ -372,7 +372,7 @@ function PayBillDialog({
             <CreditCard className="cg-icon cg-icon--md text-accent" aria-hidden />
             <div>
               <h3 className="font-bold text-base text-text">Bayar Tagihan Rutin</h3>
-              <p className="text-xs text-text-muted mt-2">{bill.name}</p>
+              <p className="text-xs text-text-muted mt-4">{bill.name}</p>
             </div>
           </div>
           <button
@@ -443,7 +443,7 @@ function PayBillDialog({
           </select>
         </div>
 
-        <div className="p-12 rounded-lg bg-info/10 border border-info/20 text-xs text-text space-y-2">
+        <div className="p-12 rounded-lg bg-info/10 border border-info/20 text-xs text-text space-y-4">
           <p className="font-semibold text-info">Konsekuensi Pembayaran:</p>
           <p className="text-text-muted">
             Sistem akan otomatis mencatat jurnal pengeluaran (Debit akun biaya, Kredit akun kas/bank terpilih) dan memajukan tanggal jatuh tempo tagihan ini secara otomatis ke jadwal berikutnya.
@@ -490,7 +490,7 @@ function BillHistoryDialog({
             <History className="cg-icon cg-icon--md text-accent" aria-hidden />
             <div>
               <h3 className="font-bold text-base text-text">Riwayat Pembayaran Tagihan</h3>
-              <p className="text-xs text-text-muted mt-2">{bill.name}</p>
+              <p className="text-xs text-text-muted mt-4">{bill.name}</p>
             </div>
           </div>
           <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose}>
@@ -500,8 +500,8 @@ function BillHistoryDialog({
 
         {historyAsync.status === 'loading' && (
           <div className="space-y-8">
-            <div className="cg-skeleton h-36 w-full" />
-            <div className="cg-skeleton h-36 w-full" />
+            <div className="cg-skeleton h-[36px] w-full" />
+            <div className="cg-skeleton h-[36px] w-full" />
           </div>
         )}
 
@@ -686,7 +686,7 @@ export default function RecurringBillsPage() {
           <Search className="cg-icon cg-icon--sm absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
           <input
             type="text"
-            className="cg-input pl-36 text-sm w-full"
+            className="cg-input pl-[36px] text-sm w-full"
             placeholder="Cari tagihan atau mitra..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -791,24 +791,24 @@ export default function RecurringBillsPage() {
                             </span>
                           </td>
                           <td className="py-12 px-16 whitespace-nowrap">
-                            <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-8">
                               <span className="text-xs font-semibold text-text cg-num">
                                 {fmtDate(bill.nextDue)}
                               </span>
                               {bill.isActive && (
                                 <>
                                   {isOverdue ? (
-                                    <span className="inline-flex items-center gap-2 px-6 py-[1px] rounded-full text-[10px] font-bold bg-danger/10 text-danger border border-danger/20">
+                                    <span className="inline-flex items-center gap-4 px-8 py-[1px] rounded-full text-[10px] font-bold bg-danger/10 text-danger border border-danger/20">
                                       <AlertTriangle className="cg-icon cg-icon--xs" aria-hidden />
                                       Terlambat {Math.abs(daysLeft)} hari
                                     </span>
                                   ) : daysLeft === 0 ? (
-                                    <span className="inline-flex items-center gap-2 px-6 py-[1px] rounded-full text-[10px] font-bold bg-warning/10 text-warning border border-warning/20">
+                                    <span className="inline-flex items-center gap-4 px-8 py-[1px] rounded-full text-[10px] font-bold bg-warning/10 text-warning border border-warning/20">
                                       <Clock className="cg-icon cg-icon--xs" aria-hidden />
                                       Hari ini
                                     </span>
                                   ) : daysLeft <= 7 ? (
-                                    <span className="px-6 py-[1px] rounded-full text-[10px] font-semibold bg-info/10 text-info border border-info/20">
+                                    <span className="px-8 py-[1px] rounded-full text-[10px] font-semibold bg-info/10 text-info border border-info/20">
                                       {daysLeft} hari lagi
                                     </span>
                                   ) : null}
@@ -828,7 +828,7 @@ export default function RecurringBillsPage() {
                             </span>
                           </td>
                           <td className="py-12 px-16 text-right">
-                            <div className="inline-flex items-center justify-end gap-6">
+                            <div className="inline-flex items-center justify-end gap-8">
                               {bill.isActive && (
                                 <button
                                   type="button"
@@ -893,11 +893,11 @@ export default function RecurringBillsPage() {
                         <span className="text-text-muted">Jatuh Tempo:</span>
                         <span className="font-semibold text-text cg-num">{fmtDate(bill.nextDue)}</span>
                         {bill.isActive && isOverdue && (
-                          <span className="px-6 py-[1px] rounded-full text-[10px] font-bold bg-danger/10 text-danger border border-danger/20">
+                          <span className="px-8 py-[1px] rounded-full text-[10px] font-bold bg-danger/10 text-danger border border-danger/20">
                             Terlambat {Math.abs(daysLeft)} hr
                           </span>
                         )}
-                        <span className="px-6 py-[1px] rounded-full text-[10px] bg-surface border border-border">
+                        <span className="px-8 py-[1px] rounded-full text-[10px] bg-surface border border-border">
                           {frequencyLabel(bill.frequency)}
                         </span>
                       </div>
@@ -911,7 +911,7 @@ export default function RecurringBillsPage() {
                           {bill.isActive ? 'Aktif' : 'Nonaktif'}
                         </span>
 
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-8">
                           {bill.isActive && (
                             <button
                               type="button"

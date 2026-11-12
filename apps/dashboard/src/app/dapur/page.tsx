@@ -641,7 +641,7 @@ function ItemRow({
         {stationName && <span className="text-xs text-text-muted ml-[6px]">({stationName})</span>}
         {i.extras.map((e) => <span key={e.name} className="block text-sm text-text-muted">+ {e.name}</span>)}
         {i.note && (
-          <span className="block text-xs font-semibold text-accent mt-2 bg-accent/10 px-6 py-2 rounded">
+          <span className="block text-xs font-semibold text-accent mt-4 bg-accent/10 px-8 py-4 rounded">
             Catatan: {i.note}
           </span>
         )}

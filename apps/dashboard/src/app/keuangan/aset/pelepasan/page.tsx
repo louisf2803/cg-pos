@@ -300,7 +300,7 @@ export default function AssetDisposalPage() {
           <div className="cg-card p-24 space-y-16 desktop:col-span-2">
             <div className="border-b border-border pb-12">
               <h3 className="font-bold text-base text-text">Formulir Pelepasan Aset</h3>
-              <p className="text-xs text-text-muted mt-2">
+              <p className="text-xs text-text-muted mt-4">
                 Pilih aset aktif dan masukkan nilai hasil penjualan (jika ada).
               </p>
             </div>

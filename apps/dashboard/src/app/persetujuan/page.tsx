@@ -133,7 +133,7 @@ function RequestApprovalDialog({
         <div className="flex items-start justify-between border-b border-border pb-12">
           <div>
             <h3 className="font-bold text-base text-text">Buat Pengajuan Persetujuan Baru</h3>
-            <p className="text-xs text-text-muted mt-2">
+            <p className="text-xs text-text-muted mt-4">
               Kirim permohonan persetujuan pembelian barang atau pengeluaran dana ke pemilik atau pengelola.
             </p>
           </div>
@@ -154,7 +154,7 @@ function RequestApprovalDialog({
           </div>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           <label className="text-xs font-semibold text-text-muted block">Jenis Persetujuan</label>
           <div className="grid grid-cols-2 gap-12">
             <label
@@ -329,7 +329,7 @@ function DecideDialog({
               <h3 className="font-bold text-base text-text">
                 {isApprove ? 'Setujui Pengajuan' : 'Tolak Pengajuan'}
               </h3>
-              <p className="text-xs text-text-muted mt-2">{request.title}</p>
+              <p className="text-xs text-text-muted mt-4">{request.title}</p>
             </div>
           </div>
           <button
@@ -360,7 +360,7 @@ function DecideDialog({
           </div>
           {request.note && (
             <div className="pt-8 border-t border-border">
-              <span className="text-text-muted block mb-2">Catatan Pemohon:</span>
+              <span className="text-text-muted block mb-4">Catatan Pemohon:</span>
               <p className="italic bg-surface-raised p-8 rounded border border-border">{request.note}</p>
             </div>
           )}
@@ -552,7 +552,7 @@ export default function ApprovalsPage() {
               <button
                 key={tab.id}
                 type="button"
-                className={`flex items-center gap-6 px-12 py-8 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-8 px-12 py-8 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-accent/15 text-accent'
                     : 'text-text-muted hover:text-text hover:bg-surface'
@@ -561,7 +561,7 @@ export default function ApprovalsPage() {
               >
                 <span>{tab.label}</span>
                 <span
-                  className={`px-6 py-[1px] rounded-full text-[11px] cg-num ${
+                  className={`px-8 py-[1px] rounded-full text-[11px] cg-num ${
                     active ? 'bg-accent text-white' : 'bg-surface border border-border text-text-muted'
                   }`}
                 >
@@ -632,7 +632,7 @@ export default function ApprovalsPage() {
               className="cg-card p-20 space-y-12 hover:border-accent/40 transition-colors"
             >
               <div className="flex flex-col tablet:flex-row tablet:items-start justify-between gap-12">
-                <div className="min-w-0 flex-1 space-y-6">
+                <div className="min-w-0 flex-1 space-y-8">
                   <div className="flex flex-wrap items-center gap-8">
                     {kindBadge(req.kind)}
                     {statusBadge(req.status)}
