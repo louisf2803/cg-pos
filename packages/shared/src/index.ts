@@ -25,6 +25,7 @@ export * from './shift-report';
 export * from './payment-rules';
 export * from './photo';
 export * from './attendance';
+export * from './payroll';
 export * from './attendance-report';
 export * from './customer';
 export * from './promo';
