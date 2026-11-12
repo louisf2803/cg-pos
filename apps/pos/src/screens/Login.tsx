@@ -24,7 +24,19 @@ export function Login({
   const data = useData();
   const auth = useAuth();
   const prefs = useDevicePrefs();
-  const emps = useAsync(() => data.listEmployees(), [data]);
+  const emps = useAsync(async () => {
+    try {
+      return await data.listEmployees();
+    } catch (err) {
+      try {
+        const cached = localStorage.getItem('cgpos.offline.cache.listEmployees:[]');
+        if (cached) return JSON.parse(cached) as Employee[];
+      } catch {
+        // abaikan error parsing
+      }
+      throw err;
+    }
+  }, [data]);
   const [who, setWho] = useState<Employee | null>(null);
   const [requestedMode, setRequestedMode] = useState<PosAppMode>(() => prefs.appMode);
   const verify = useCallback((pin: string) => data.verifyPin(who!.id, pin), [data, who]);

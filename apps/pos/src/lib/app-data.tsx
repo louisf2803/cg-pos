@@ -72,7 +72,14 @@ export function usePending() {
   const data = useData();
   const [entries, setEntries] = useState<PendingEntry[]>(() => data.pending.list());
   useEffect(() => { setEntries(data.pending.list()); return data.pending.subscribe(() => setEntries(data.pending.list())); }, [data]);
-  return { entries, flush: () => data.pending.flush(), retry: (id: string) => data.pending.retry(id), discard: (id: string) => data.pending.discard(id) };
+  return {
+    entries,
+    flush: () => data.pending.flush(),
+    retry: (id: string) => data.pending.retry(id),
+    discard: (id: string) => data.pending.discard(id),
+    syncPull: () => data.pending.syncPull(),
+    getSyncHistory: () => data.pending.getSyncHistory(),
+  };
 }
 
 export function useData(): OfflineData {
