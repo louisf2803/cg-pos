@@ -94,7 +94,7 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
   }, [ctx, session.employee.name, done, current, rounding, target, due, method]);
 
   async function confirm() {
-    if (!method) return;
+    if (!method || method.kind === 'gateway') return;
     if (!/\d/.test(amountRaw) && amountRaw !== '') { setErr('Isi jumlah dalam rupiah.'); return; }
     if (amount <= 0) { setErr('Jumlah bayar harus lebih dari 0.'); return; }
     if (amount > due) { setErr(`Jumlah melebihi sisa tagihan ${formatRp(due)}.`); return; }
@@ -254,15 +254,12 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
                   key={m.id}
                   role="radio"
                   aria-checked={methodId === m.id}
-                  aria-disabled={off}
-                  className={`cg-method flex items-center justify-between p-12 rounded-lg border text-left font-medium transition-colors ${
+                  className={`cg-method flex items-center justify-between p-12 rounded-lg border text-left font-medium transition-colors cursor-pointer ${
                     methodId === m.id ? 'border-accent bg-accent/10 text-accent font-bold' : 'border-border bg-surface-raised hover:bg-surface'
-                  } ${off ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  }`}
                   onClick={() => {
-                    if (off) return;
                     setMethodId(m.id);
                     setRaw('');
-                    setAmountRaw('');
                     setReference('');
                     setErr('');
                     attemptId.current = newId();
@@ -272,7 +269,7 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
                     <Icon className="cg-icon cg-icon--sm shrink-0" aria-hidden />
                     <span className="truncate">{m.name}</span>
                   </span>
-                  {off && <small className="text-[10px] text-text-muted">Segera hadir</small>}
+                  {off && <small className="text-[10px] text-text-muted">Belum tersambung</small>}
                 </button>
               );
             })}
@@ -296,7 +293,24 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
             </div>
           )}
 
-          {method && isSplit && (
+          {method && method.kind === 'gateway' && (
+            <div className="space-y-16" data-testid="gateway-not-connected">
+              <div className="cg-banner cg-banner--warning" role="alert">
+                <div className="space-y-4">
+                  <strong className="block font-bold">Payment belum tersambung</strong>
+                  <span>Pembayaran QRIS belum bisa diproses. Silakan gunakan metode pembayaran lain.</span>
+                </div>
+              </div>
+              <div className="border-2 border-dashed border-border rounded-xl p-24 text-center bg-surface flex flex-col items-center justify-center min-h-[220px] gap-12">
+                <QrCode className="cg-icon cg-icon--lg text-text-muted opacity-40" style={{ width: 48, height: 48 }} aria-hidden />
+                <p className="text-sm text-text-muted max-w-[260px]">
+                  QR akan tampil di sini setelah payment tersambung
+                </p>
+              </div>
+            </div>
+          )}
+
+          {method && isSplit && method.kind !== 'gateway' && (
             <div className="cg-field">
               <label className="cg-label font-semibold text-xs" htmlFor="jumlah">
                 Jumlah dibayar dengan {method.name} (Rp)
@@ -394,7 +408,7 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
             </div>
           )}
 
-          {method && !isCash && method.kind !== 'complimentary' && (
+          {method && !isCash && method.kind !== 'complimentary' && method.kind !== 'gateway' && (
             <div className="cg-banner cg-banner--info">
               <span>Selesaikan pembayaran di perangkat {method.name}, lalu catat di sini sebesar {formatRp(amount)}.</span>
             </div>
@@ -530,12 +544,14 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
             <button
               type="button"
               className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block h-[48px] font-bold text-sm"
-              disabled={!method || busy || due <= 0 || amount <= 0 || (isCash && tendered < amount)}
+              disabled={!method || method.kind === 'gateway' || busy || due <= 0 || amount <= 0 || (isCash && tendered < amount)}
               aria-busy={busy}
               onClick={() => void confirm()}
             >
               {busy
                 ? 'Memproses…'
+                : method?.kind === 'gateway'
+                ? 'Payment belum tersambung'
                 : method
                 ? `Terima ${formatRp(isCash ? Math.max(tendered, 0) : amount)}`
                 : 'Pilih cara bayar dulu'}
