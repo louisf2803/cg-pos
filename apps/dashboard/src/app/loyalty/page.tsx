@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Award, Cake, Check, Pencil, Plus, RotateCcw, Save, Settings2, Users } from 'lucide-react';
+import { Award, Cake, Check, Gift, Pencil, Plus, RotateCcw, Save, Settings2, Users } from 'lucide-react';
 import {
   birthdayRuleProblem,
   buildBirthdayCustomersList,
@@ -463,6 +463,19 @@ export default function LoyaltyPage() {
                   />
                 </div>
               </fieldset>
+
+              <div className="p-16 rounded-xl bg-surface-raised border border-border text-xs text-text-muted grid gap-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-8 font-semibold text-text text-sm">
+                    <Gift className="cg-icon cg-icon--sm text-accent" aria-hidden />
+                    <span>Penukaran Produk Gratis dari Poin</span>
+                  </div>
+                  <span className="cg-badge cg-badge--secondary text-[11px]">Menunggu Skema Server</span>
+                </div>
+                <p>
+                  Penukaran poin saat ini berlaku sebagai potongan langsung rupiah pada tagihan kasir. Penukaran poin menjadi produk gratis (katalog hadiah produk per poin) menunggu tabel server <code>loyalty_product_rewards</code> dan validasi penukaran di kasir.
+                </p>
+              </div>
 
               <p className="cg-banner cg-banner--info" data-testid="contoh-loyalti">
                 {problem

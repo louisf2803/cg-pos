@@ -216,3 +216,10 @@ Setelah `0033`–`0036` diterapkan dan audit ulang `packages/shared/src/data.ts`
 3. **Koneksi `DataLayer` ke migrasi `0033` (RBAC peran & izin granular)**: tabel `roles` dan RPC `save_role_permissions` / `delete_role` sudah ada di produksi (`PROGRESS.md` baris 860), tetapi `listRoles`, `saveRolePermissions`, `deleteRole`, dan `roleId` pada karyawan belum ditambahkan ke `DataLayer`/`supabase.ts` sehingga `/karyawan/hak-akses` masih memakai `localStorage`.
 4. **Mutasi stok terbuang lintas item (`/inventori/terbuang`, `S56`)**: `DataLayer.listStockMoves(productId)` hanya membaca per satu produk; dibutuhkan metode agregat/lintas produk per rentang tanggal (`listWasteMoves(range)` atau `listAllStockMoves({ from, to, kind })`) agar `/inventori/terbuang` tidak melakukan kueri `N+1` per produk.
 5. **Bahan baku per pilihan ekstra (`extra_option_ingredients`, `0006`)**: tabel sudah ada di DB (`MAJOO-VERIFICATION.md` baris 48), tetapi `ExtraOption`/`ExtraGroupInput` di `types.ts` & `DataLayer` belum mengeksposnya (serta menunggu jawaban Louis pada baris 51–54 tentang pemisahan/penyatuan Varian vs Ekstra).
+
+## Dari Antigravity (A111) — Penukaran Produk Gratis dari Poin Loyalty
+Penukaran poin saat ini sudah berjalan untuk potongan rupiah (`redeemValuePerPoint`). Untuk mendukung produk gratis:
+1. **Tabel `loyalty_product_rewards`**: (`id`, `org_id`, `product_id`, `points_cost`, `is_active`, `created_at`)
+2. **DataLayer**: `listLoyaltyRewards(): Promise<LoyaltyReward[]>` dan `saveLoyaltyReward(input: LoyaltyRewardInput): Promise<LoyaltyReward>`.
+3. **Validasi Kasir / Sinkronisasi (`sync_push`)**: Izinkan penukaran produk gratis di kasir dengan mencatat baris pesanan berharga Rp 0 dan memotong saldo poin pelanggan sebesar `points_cost`.
+
