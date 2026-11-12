@@ -20,4 +20,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=cf29d77 | migrasi 0033 diterapkan ke produksi atas persetujuan Louis; jawaban Majoo: opname butuh .xlsx dan ekspor disimpan di server (dicatat); goal 12/72
 2026-11-12 | main=aeef24a | Postgres lokal siap: run.sh lulus dengan 0001-0033; goal 12/72
 2026-11-12 | main=198c280 | 0034 diterapkan ke produksi atas persetujuan Louis; kode klien digabung; A73 ditulis; goal 12/72
-2026-11-12 | main=6887d44 | absensi: 0035 dan 0036 diterapkan ke produksi atas persetujuan Louis; DataLayer absensi digabung; A74 dan A75 ditulis; payroll belum; goal 12/72
+2026-11-12 | main=6887d44 | absensi: 0035 dan 0036 diterapkan ke produksi atas persetujuan Louis; DataLayer absensi digabung; A76 dan A77 ditulis (diganti nomor karena A74 dipakai Antigravity); payroll belum; goal 12/72
