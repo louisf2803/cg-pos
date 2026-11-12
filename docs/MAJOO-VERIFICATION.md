@@ -31,3 +31,7 @@ Status: `belum` | `sedang` (sesi ini mengerjakan, lanjutkan) | `selesai-verifika
 
 ## Perlu verifikasi Majoo — Daftar ekspor (A69, 12 Nov 2026)
 - Riwayat ekspor kita tersimpan di peramban per perangkat (maks 50 berkas, 128 KB per berkas). Apakah Majoo menyimpan berkas ekspor di server sehingga bisa diambil dari perangkat lain? Bila ya, dibutuhkan penyimpanan server (permintaan ke Claude).
+
+## Jawaban Louis (12 Nov 2026)
+- Impor stok opname di Majoo asli: **menerima .xlsx** (bukan hanya CSV). Fitur "Stok opname ... impor Excel" tetap partial sampai impor .xlsx dibuat (butuh pustaka pembaca xlsx di dashboard; tidak butuh skema baru).
+- Daftar ekspor di Majoo asli: **berkas disimpan di server** dan bisa diambil dari perangkat lain. Fitur "Daftar ekspor" perlu penyimpanan server (tabel metadata + Storage); status yes dari A69 (per perangkat) perlu ditinjau ulang.
