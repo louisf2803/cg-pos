@@ -4,6 +4,8 @@ CG POS = POS + dashboard web bergaya Majoo, **kata dan merek sendiri** (clean ro
 `apps/dashboard` (Next 15, ekspor statis), `apps/pos` (Vite + React), `packages/shared` (tipe, logika, DataLayer),
 `packages/ui` (token + CSS), `packages/db` (migrasi + tes SQL). Bahasa antarmuka: Bahasa Indonesia, tanpa singkatan aneh.
 
+> **PENGECUALIAN SEMENTARA — FASE 2 (keputusan Louis, 13 Nov 2026, disetujui langsung di chat):** untuk tugas A113 sampai A145, aturan 2 dan 3 dilonggarkan: Antigravity boleh menambah metode DataLayer (`data.ts`, `fake.ts`, `supabase.ts`) dan MENULIS berkas migrasi baru (tidak boleh menerapkannya ke produksi; Claude yang menguji dan menerapkan). Aturan lain tetap. Rincian: `docs/queue/PHASE2-FULLSTACK.md`.
+
 ## Aturan keras (jangan dilanggar)
 1. **Clean room.** Jangan salin HTML/CSS/JS/gambar/teks dari Majoo atau situs lain. Tulis semua label dan kalimat sendiri.
 2. **Jangan ubah database.** Folder `packages/db/migrations` dan tabel schema `public` dilarang disentuh. Migrasi hanya dibuat Claude.
