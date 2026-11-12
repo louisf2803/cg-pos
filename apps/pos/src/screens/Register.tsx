@@ -213,7 +213,13 @@ export function Register({
     const where = cart.state.tableName ?? cart.state.label?.trim();
     // 1) simpan bagian yang dibayar lebih dulu: bila langkah 2 gagal, tidak ada item yang hilang
     const part = await data.saveOrder({
-      id: newId(), type: cart.state.type, customerId: cart.state.customerId, label: [where, 'pisah bayar'].filter(Boolean).join(' · ').slice(0, 60), items: items(r.paid),
+      id: newId(),
+      type: cart.state.type,
+      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined,
+      customerId: cart.state.customerId,
+      customerName: cart.state.customerName,
+      label: [where, 'pisah bayar'].filter(Boolean).join(' · ').slice(0, 60),
+      items: items(r.paid),
     }, session.employee.id);
     // 2) perbarui pesanan asal dengan sisanya
     let rest: Order;
@@ -1003,7 +1009,16 @@ export function Register({
         <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
           onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
       )}
-      {splitOpen && <SplitBillDialog lines={cart.state.lines} ctx={ctx} orderType={cart.state.type} onClose={() => setSplitOpen(false)} onConfirm={splitPay} />}
+      {splitOpen && (
+        <SplitBillDialog
+          lines={cart.state.lines}
+          ctx={ctx}
+          orderType={cart.state.type}
+          hasOrderDiscount={(cart.state.discounts?.length ?? 0) > 0}
+          onClose={() => setSplitOpen(false)}
+          onConfirm={splitPay}
+        />
+      )}
       {customOpen && (
         <CustomItemDialog onClose={() => setCustomOpen(false)}
           onAdd={async (name, price, qty) => {
