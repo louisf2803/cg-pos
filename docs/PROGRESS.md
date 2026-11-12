@@ -944,3 +944,6 @@ Tabel `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC bayar 
 
 ## Claude (12 Nov 2026) — 0042 permintaan barang siap, BELUM di produksi
 `packages/db/migrations/0042_stock_requests.sql`: `stock_requests` + `stock_request_lines` + RPC `stock_request_create/decide/fulfill/cancel` (dipenuhi = membuat transfer stok lewat `stock_transfer_create`). Aditif. Tes `19_stock_transfer_requests.sql` lulus dan diuji negatif. ASUMSI (Majoo tidak bisa dilihat): disetujui pengelola di sumber; belum ada tautan ke PO/uang muka. Menunggu persetujuan Louis untuk produksi. Catatan: Antigravity sedang mengerjakan A86 (konfirmasi Louis).
+
+## Claude (12 Nov 2026) — 0042 DITERAPKAN ke produksi (persetujuan Louis)
+Tabel `stock_requests`, `stock_request_lines` + RPC permintaan barang aktif dengan RLS pengelola; `anon` tidak punya akses dan `authenticated` hanya bisa membaca (penulisan lewat fungsi). Berikutnya: DataLayer dan tugas UI.
