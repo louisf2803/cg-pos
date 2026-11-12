@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
+import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
 import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
@@ -241,6 +242,16 @@ export interface DataLayer {
   listNotifications(): Promise<EmployeeNotification[]>;
   sendNotification(input: EmployeeNotificationInput): Promise<EmployeeNotification>;
   deleteNotification(id: string): Promise<void>;
+  // ---- aset tetap (migrasi 0040); hanya pemilik/admin. Rancangan Claude atas arahan Louis (Majoo tidak bisa dilihat). ----
+  listFixedAssets(): Promise<FixedAsset[]>;
+  /** Riwayat penyusutan yang sudah dicatat, satu aset atau semua (terbaru dulu). */
+  listAssetDepreciations(assetId?: string): Promise<AssetDepreciationEntry[]>;
+  /** Catat aset baru (id dibuat klien bila kosong; mengulang id yang sama tidak menggandakan). Dengan payAccountId: jurnal Dr Peralatan, Cr akun bayar. Galat: invalid, forbidden. */
+  saveFixedAsset(input: FixedAssetInput): Promise<FixedAsset>;
+  /** Susutkan semua aset aktif untuk bulan period (tanggal mana pun di bulan itu; bukan bulan depan). Aman diulang. */
+  depreciateFixedAssets(period: string): Promise<DepreciationRunResult>;
+  /** Lepas aset (jual/buang): jurnal menghapus harga perolehan dan akumulasi; selisih ke akun laba/rugi. */
+  disposeFixedAsset(input: FixedAssetDisposalInput): Promise<FixedAsset>;
   /** Riwayat kasbon (terbaru dulu), semua karyawan atau satu karyawan. Saldo: cashAdvanceBalance dari payroll.ts. */
   listCashAdvances(employeeId?: string): Promise<CashAdvance[]>;
   saveCashAdvance(input: CashAdvanceInput): Promise<CashAdvance>;

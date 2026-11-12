@@ -27,6 +27,7 @@ export * from './photo';
 export * from './attendance';
 export * from './payroll';
 export * from './hr';
+export * from './fixed-assets';
 export * from './payroll-ui';
 export * from './price-change';
 export * from './price-change-report';

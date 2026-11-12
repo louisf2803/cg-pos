@@ -6,6 +6,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
 import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
+import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
@@ -235,6 +236,21 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return mapDbError(error);
   }
 
+  function mapAssetError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur aset tetap belum aktif di database (migrasi 0040 belum diterapkan).');
+    if (/not allowed/i.test(m) || error.code === '42501') return new DataError('forbidden', 'Hanya pemilik dan admin yang boleh mengelola aset tetap.');
+    if (/period in the future/i.test(m)) return new DataError('invalid', 'Periode ini belum tiba.');
+    if (/asset already disposed/i.test(m)) return new DataError('invalid', 'Aset ini sudah dilepas.');
+    if (/asset not found/i.test(m)) return new DataError('not_found', 'Aset tidak ditemukan.');
+    if (/cash account required/i.test(m)) return new DataError('invalid', 'Pilih akun kas/bank penerima hasil penjualan.');
+    if (/gain\/loss account required/i.test(m)) return new DataError('invalid', 'Pilih akun laba/rugi pelepasan aset.');
+    if (/asset accounts missing/i.test(m)) return new DataError('invalid', 'Akun Peralatan, Akumulasi Penyusutan, atau Beban Penyusutan belum ada di daftar akun.');
+    if (/invalid (cost|salvage|life|date|proceeds)|name required|date required/i.test(m)) return new DataError('invalid', 'Isian aset ditolak server. Periksa harga, nilai sisa, umur, dan tanggal.');
+    if (/account not found or not postable/i.test(m)) return new DataError('invalid', 'Akun yang dipilih tidak ditemukan, nonaktif, atau berupa akun induk.');
+    if (/books are locked|locked through/i.test(m)) return new DataError('order_locked', 'Tanggal berada di periode pembukuan yang sudah dikunci.');
+    return mapDbError(error);
+  }
   function mapHrError(error: { code?: string; message?: string }): DataError {
     const m = error.message ?? '';
     if (error.code === 'PGRST202' || error.code === '42P01' || /does not exist|schema cache/i.test(m)) return new DataError('invalid', 'Fitur struktur SDM belum aktif di database (migrasi 0038 belum diterapkan).');
@@ -2083,6 +2099,54 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteIncident(id) {
       const { error } = await db().from('employee_incidents').delete().eq('id', id);
       if (error) throw mapPayrollError(error);
+    },
+    async listFixedAssets() {
+      const rows = await pageAll((from, to) => db().from('fixed_assets').select('id,outlet_id,name,acquired_on,cost,salvage_value,useful_life_months,status').order('acquired_on', { ascending: false }).range(from, to));
+      const deps = await pageAll((from, to) => db().from('asset_depreciations').select('asset_id,amount').range(from, to));
+      const acc = new Map<string, { sum: number; n: number }>();
+      for (const d of deps) { const cur = acc.get(d.asset_id as string) ?? { sum: 0, n: 0 }; cur.sum += Number(d.amount); cur.n += 1; acc.set(d.asset_id as string, cur); }
+      return rows.map((x): FixedAsset => {
+        const a = acc.get(x.id as string) ?? { sum: 0, n: 0 };
+        const cost = Number(x.cost); const accumulated = Math.round(a.sum * 100) / 100;
+        return { id: x.id as string, name: x.name as string, acquiredOn: x.acquired_on as string, cost, salvageValue: Number(x.salvage_value), usefulLifeMonths: Number(x.useful_life_months ?? 0), status: x.status as FixedAsset['status'], accumulatedDepreciation: accumulated, bookValue: Math.round((cost - accumulated) * 100) / 100, monthsDepreciated: a.n, ...(x.outlet_id ? { outletId: x.outlet_id as string } : {}) };
+      });
+    },
+    async listAssetDepreciations(assetId) {
+      const rows = await pageAll((from, to) => {
+        let q = db().from('asset_depreciations').select('asset_id,period,amount');
+        if (assetId) q = q.eq('asset_id', assetId);
+        return q.order('period', { ascending: false }).range(from, to);
+      });
+      return rows.map((x): AssetDepreciationEntry => ({ assetId: x.asset_id as string, period: x.period as string, amount: Number(x.amount) }));
+    },
+    async saveFixedAsset(input) {
+      const problem = fixedAssetProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = input.id ?? newId();
+      const { error } = await db().rpc('fixed_asset_acquire', { p_id: id, p_org: r.orgId, p_name: input.name.trim(), p_acquired_on: input.acquiredOn, p_cost: input.cost, p_salvage: input.salvageValue, p_life_months: input.usefulLifeMonths, p_outlet: input.outletId ?? null, p_pay_account: input.payAccountId ?? null });
+      if (error) throw mapAssetError(error);
+      const saved = (await self.listFixedAssets()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Aset tidak ditemukan setelah disimpan');
+      return saved;
+    },
+    async depreciateFixedAssets(period) {
+      const r = await resolve();
+      const { data, error } = await db().rpc('fixed_asset_depreciate', { p_org: r.orgId, p_period: period });
+      if (error) throw mapAssetError(error);
+      const o = data as Row;
+      return { period: String(o.period), assets: Number(o.assets), total: Number(o.total) };
+    },
+    async disposeFixedAsset(input) {
+      const current = (await self.listFixedAssets()).find((x) => x.id === input.assetId);
+      if (!current) throw new DataError('not_found', 'Aset tidak ditemukan');
+      const problem = disposalProblem(current, input, new Date().toISOString().slice(0, 10));
+      if (problem) throw new DataError('invalid', problem);
+      const { error } = await db().rpc('fixed_asset_dispose', { p_asset: input.assetId, p_date: input.date, p_proceeds: input.proceeds, p_cash_account: input.cashAccountId ?? null, p_gain_loss_account: input.gainLossAccountId ?? null });
+      if (error) throw mapAssetError(error);
+      const saved = (await self.listFixedAssets()).find((x) => x.id === input.assetId);
+      if (!saved) throw new DataError('not_found', 'Aset tidak ditemukan');
+      return saved;
     },
     async listJobLevels() {
       const rows = await pageAll((from, to) => db().from('job_levels').select('id,name,rank').order('rank', { ascending: false }).order('name').range(from, to));

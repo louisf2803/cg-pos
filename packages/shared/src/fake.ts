@@ -20,6 +20,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
+import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
@@ -206,6 +207,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let schedules = new Map<string, WeeklySchedule>();
   let payrollRules: Record<string, unknown> = {};
   let incidents: EmployeeIncident[] = [];
+  const fixedAssets: FixedAsset[] = [];
+  const assetDepreciations: AssetDepreciationEntry[] = [];
   const jobLevels: JobLevel[] = [];
   const orgUnits: OrgUnit[] = [];
   const employeeTypes: EmployeeType[] = [];
@@ -1570,6 +1573,46 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = incidents.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
       incidents.splice(i, 1);
+    },
+    async listFixedAssets() { return clone([...fixedAssets].sort((a, b) => (a.acquiredOn < b.acquiredOn ? 1 : -1))); },
+    async listAssetDepreciations(assetId) { return clone(assetDepreciations.filter((x) => !assetId || x.assetId === assetId).sort((a, b) => (a.period < b.period ? 1 : -1))); },
+    async saveFixedAsset(input) {
+      const problem = fixedAssetProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const id = input.id ?? newId();
+      const existing = fixedAssets.find((x) => x.id === id);
+      if (existing) return clone(existing);
+      const row: FixedAsset = { id, name: input.name.trim(), acquiredOn: input.acquiredOn, cost: input.cost, salvageValue: input.salvageValue, usefulLifeMonths: input.usefulLifeMonths, status: 'active', accumulatedDepreciation: 0, bookValue: input.cost, monthsDepreciated: 0, ...(input.outletId ? { outletId: input.outletId } : {}) };
+      fixedAssets.push(row);
+      return clone(row);
+    },
+    async depreciateFixedAssets(period) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(period)) throw new DataError('invalid', 'Periode tidak valid');
+      const month = period.slice(0, 7) + '-01';
+      const thisMonth = now().toISOString().slice(0, 7) + '-01';
+      if (month > thisMonth) throw new DataError('invalid', 'Periode ini belum tiba');
+      let assets = 0; let total = 0;
+      for (const a of fixedAssets) {
+        if (a.status !== 'active' || firstDepreciationPeriod(a.acquiredOn) > month) continue;
+        if (assetDepreciations.some((x) => x.assetId === a.id && x.period === month)) continue;
+        const step = depreciationSchedule(a)[a.monthsDepreciated];
+        if (!step) continue;
+        assetDepreciations.push({ assetId: a.id, period: month, amount: step.amount });
+        a.monthsDepreciated += 1;
+        a.accumulatedDepreciation = Math.round((a.accumulatedDepreciation + step.amount) * 100) / 100;
+        a.bookValue = Math.round((a.cost - a.accumulatedDepreciation) * 100) / 100;
+        assets += 1; total = Math.round((total + step.amount) * 100) / 100;
+      }
+      return { period: month, assets, total };
+    },
+    async disposeFixedAsset(input) {
+      const a = fixedAssets.find((x) => x.id === input.assetId);
+      if (!a) throw new DataError('not_found', 'Aset tidak ditemukan');
+      const problem = disposalProblem(a, input, now().toISOString().slice(0, 10));
+      if (problem) throw new DataError('invalid', problem);
+      void disposalGainLoss(a, input.proceeds);
+      a.status = 'disposed';
+      return clone(a);
     },
     async listJobLevels() { return clone([...jobLevels].sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))); },
     async saveJobLevel(input) {

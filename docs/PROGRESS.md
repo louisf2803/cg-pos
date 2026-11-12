@@ -929,3 +929,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — 0040 aset tetap siap, BELUM di produksi
 `packages/db/migrations/0040_fixed_assets.sql`: `fixed_asset_acquire` (jurnal perolehan opsional), `fixed_asset_depreciate` (garis lurus bulanan, idempoten), `fixed_asset_dispose` (laba/rugi). Aditif (hanya fungsi). Tes `19_fixed_assets.sql` lulus dan diuji negatif. ASUMSI belum dicek ke Majoo: penyusutan mulai bulan setelah perolehan. Penerapan ke produksi sempat ditolak pemeriksa izin sesi; menunggu Louis menerapkan atau menambah aturan izin untuk apply_migration.
+
+## Claude (12 Nov 2026) — DataLayer aset tetap (0040, sudah di produksi) + tugas UI A88
+`packages/shared/src/fixed-assets.ts` + 5 metode DataLayer (`listFixedAssets`, `listAssetDepreciations`, `saveFixedAsset`, `depreciateFixedAssets`, `disposeFixedAsset`); 10 tes baru. Halaman aset Majoo tidak bisa dibuka Louis, jadi rancangan dibuat sendiri mengikuti menu Majoo (Daftar, Penyusutan, Pelepasan, Laporan). Asumsi: garis lurus mulai bulan setelah perolehan. Tugas layar: `docs/queue/A88.md`. Lapisan Supabase belum diuji ke database nyata.
