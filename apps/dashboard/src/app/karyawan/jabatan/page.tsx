@@ -118,7 +118,7 @@ export default function JabatanPage() {
           <Search className="cg-icon cg-icon--sm absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
           <input
             type="text"
-            className="cg-input pl-36 text-sm w-full"
+            className="cg-input pl-[36px] text-sm w-full"
             placeholder="Cari nama jabatan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -181,7 +181,7 @@ export default function JabatanPage() {
                       return (
                         <tr key={job.id} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
                           <td className="py-12 px-16">
-                            <span className="inline-flex items-center justify-center w-28 h-28 rounded-lg bg-surface font-bold text-xs text-text border border-border cg-num">
+                            <span className="inline-flex items-center justify-center w-[28px] h-[28px] rounded-lg bg-surface font-bold text-xs text-text border border-border cg-num">
                               {job.rank}
                             </span>
                           </td>
@@ -189,7 +189,7 @@ export default function JabatanPage() {
                             {job.name}
                           </td>
                           <td className="py-12 px-16">
-                            <span className="inline-flex items-center gap-6 text-xs text-text-muted">
+                            <span className="inline-flex items-center gap-8 text-xs text-text-muted">
                               <Users className="cg-icon cg-icon--xs" aria-hidden />
                               <span className="cg-num font-medium text-text">{empCount}</span> orang
                             </span>

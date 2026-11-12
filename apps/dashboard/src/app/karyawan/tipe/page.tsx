@@ -117,7 +117,7 @@ export default function TipeKaryawanPage() {
           <Search className="cg-icon cg-icon--sm absolute left-12 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
           <input
             type="text"
-            className="cg-input pl-36 text-sm w-full"
+            className="cg-input pl-[36px] text-sm w-full"
             placeholder="Cari nama tipe karyawan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -185,7 +185,7 @@ export default function TipeKaryawanPage() {
                             </span>
                           </td>
                           <td className="py-12 px-16">
-                            <span className="inline-flex items-center gap-6 text-xs text-text-muted">
+                            <span className="inline-flex items-center gap-8 text-xs text-text-muted">
                               <Users className="cg-icon cg-icon--xs" aria-hidden />
                               <span className="cg-num font-medium text-text">{empCount}</span> orang
                             </span>

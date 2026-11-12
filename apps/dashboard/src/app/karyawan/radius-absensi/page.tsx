@@ -219,7 +219,7 @@ export default function RadiusAbsensiPage() {
 
       {/* Outlet Selector */}
       <div className="cg-card p-16 flex flex-col tablet:flex-row tablet:items-center justify-between gap-12">
-        <div className="space-y-2">
+        <div className="space-y-4">
           <label htmlFor="select-outlet" className="text-xs font-semibold text-text-muted block">
             Pilih Outlet yang Dikonfigurasi
           </label>
@@ -329,7 +329,7 @@ export default function RadiusAbsensiPage() {
                     max={5000}
                     step={1}
                     required
-                    className="cg-input w-36 cg-num"
+                    className="cg-input w-[140px] cg-num"
                     value={radiusM}
                     onChange={(e) => setRadiusM(Number(e.target.value))}
                   />
@@ -391,7 +391,7 @@ export default function RadiusAbsensiPage() {
                     onChange={(e) => setRequirePhoto(e.target.checked)}
                     className="w-16 h-16 rounded text-accent"
                   />
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-8">
                     <Camera className="cg-icon cg-icon--sm text-text-muted" aria-hidden />
                     <span className="text-sm font-semibold text-text">Wajibkan foto selfie saat absensi</span>
                   </div>
@@ -454,9 +454,9 @@ export default function RadiusAbsensiPage() {
                   >
                     <div className="flex items-start gap-12">
                       {preview.isInside ? (
-                        <CheckCircle2 className="cg-icon cg-icon--md shrink-0 mt-2" aria-hidden />
+                        <CheckCircle2 className="cg-icon cg-icon--md shrink-0 mt-4" aria-hidden />
                       ) : (
-                        <XCircle className="cg-icon cg-icon--md shrink-0 mt-2" aria-hidden />
+                        <XCircle className="cg-icon cg-icon--md shrink-0 mt-4" aria-hidden />
                       )}
                       <div>
                         <p className="font-bold text-sm">{preview.message}</p>
