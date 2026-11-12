@@ -982,4 +982,6 @@ Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude ham
   - **`apps/dashboard` (`app/pengaturan/catatan/page.tsx`, `app/dapur/page.tsx`)**: layar kelola catatan siap pakai per kategori (/pengaturan/catatan) sudah lengkap dan tersambung DataLayer (`listNotePresets`/`saveNotePreset`/`removeNotePreset`); menambahkan penyorotan catatan item dan catatan pesanan di tiket KDS layar dapur (/dapur); verifikasi `typecheck`, vitest `notes.test.ts`, dan `lint-tailwind.sh origin/main` bersih.
 ## Antigravity (12 Nov 2026) — A97 Kelola Stasiun Cetak dan Templat Tiket Selesai
 Layar `/pengaturan/stasiun-cetak` terverifikasi penuh (daftar stasiun, pemetaan produk ke stasiun, mode cetak auto/ask/off, dan editor templat tiket 58/80mm). 18 tes `station.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+## Antigravity (12 Nov 2026) — A98 Notifikasi Stok Menipis, Habis, Minus Selesai
+Pusat notifikasi stok terverifikasi penuh: lonceng topbar interaktif dengan badge hitungan, popover pengelompokan minus/habis/menipis (`groupStockAlerts`), riwayat lihat harian di localStorage, serta layar `/pengaturan/stok` dan tautan filter ke `/inventori/stok`. 4 tes `stock-alerts.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 
