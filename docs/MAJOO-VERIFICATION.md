@@ -35,3 +35,20 @@ Status: `belum` | `sedang` (sesi ini mengerjakan, lanjutkan) | `selesai-verifika
 ## Jawaban Louis (12 Nov 2026)
 - Impor stok opname di Majoo asli: **menerima .xlsx** (bukan hanya CSV). Fitur "Stok opname ... impor Excel" tetap partial sampai impor .xlsx dibuat (butuh pustaka pembaca xlsx di dashboard; tidak butuh skema baru).
 - Daftar ekspor di Majoo asli: **berkas disimpan di server** dan bisa diambil dari perangkat lain. Fitur "Daftar ekspor" perlu penyimpanan server (tabel metadata + Storage); status yes dari A69 (per perangkat) perlu ditinjau ulang.
+
+## Alur Varian di form produk dan resep per varian (penjelasan langsung Louis, 12 Nov 2026)
+Louis (yang mengecek Majoo asli) menjelaskan alur yang benar:
+1. Varian dikelola lebih dulu di master **Atur varian** (contoh grup: Es Batu dengan pilihan Less, Normal, dll).
+2. Di **form tambah/ubah produk** (mis. minuman), pemilik memilih varian apa saja yang berlaku untuk produk itu.
+3. Saat **memesan** di kasir, menu itu menampilkan pilihan varian yang berlaku untuk dirinya.
+4. **Resep**: setiap varian bisa punya resep sendiri (bahan baku dan jumlahnya), sehingga stok bahan terpotong sesuai varian yang dipilih.
+
+Kondisi kode saat ini (diperiksa 12 Nov 2026):
+- Ada "Ekstra" (grup pilihan wajib/opsional, satu atau banyak, dengan harga tambahan) di halaman `/ekstra`, terpisah dari form produk; produk ditautkan dari halaman itu, bukan dari form produk.
+- Skema server sudah mendukung bahan baku per pilihan (`extra_option_ingredients`) dan pemotongan stok saat lunas sudah memakainya (0006). Yang belum ada: layar untuk mengisi bahan baku per pilihan, dan bagian Varian di form produk.
+- `features.csv` hanya punya baris "Produk ekstra (modifier)" (partial) dan "Master resep dan kategori catatan" (no); tidak ada baris untuk alur varian-di-form-produk ini, jadi ia tidak pernah dikerjakan.
+
+Pertanyaan yang masih perlu dijawab Louis sebelum dibangun (jangan menebak):
+- Apakah "Varian" dan "Ekstra" di Majoo dua hal berbeda (varian = pilihan tanpa/ dengan harga pada produk, ekstra = tambahan berbayar), atau satu master yang sama?
+- Apakah pilihan varian bisa mengubah harga produk (mis. Large +3.000), atau hanya nama dan resep?
+- Apakah varian wajib dipilih (harus pilih satu) atau boleh dikosongkan, dan apakah bisa lebih dari satu grup per produk?
