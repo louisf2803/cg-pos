@@ -984,4 +984,6 @@ Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude ham
 Layar `/pengaturan/stasiun-cetak` terverifikasi penuh (daftar stasiun, pemetaan produk ke stasiun, mode cetak auto/ask/off, dan editor templat tiket 58/80mm). 18 tes `station.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 ## Antigravity (12 Nov 2026) — A98 Notifikasi Stok Menipis, Habis, Minus Selesai
 Pusat notifikasi stok terverifikasi penuh: lonceng topbar interaktif dengan badge hitungan, popover pengelompokan minus/habis/menipis (`groupStockAlerts`), riwayat lihat harian di localStorage, serta layar `/pengaturan/stok` dan tautan filter ke `/inventori/stok`. 4 tes `stock-alerts.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+## Antigravity (12 Nov 2026) — A99 Status PIN dan Kunci Salah Beruntun di Daftar Karyawan Selesai
+Layar `/pengaturan/karyawan` diperbarui: banner keamanan akses & enkripsi server (bcrypt), indikator status PIN diatur/tersimpan di tabel desktop dan kartu mobile, tracking sesi update PIN. Kebutuhan skema `hasPin`, `isLocked`, dan `qrId` dicatat di `docs/REQUESTS-FOR-CLAUDE.md`. Typecheck lulus, `pin.test.ts` (3) dan `roles-ui.test.ts` (7) lulus, `lint-tailwind` bersih.
 
