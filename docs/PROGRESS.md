@@ -926,3 +926,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — DataLayer struktur SDM (0038) + tugas UI A87
 `packages/shared/src/hr.ts` + 16 metode DataLayer (jabatan, unit, tipe, profil SDM, radius absensi, notifikasi) di `data.ts`/`fake.ts`/`supabase.ts`; 8 tes baru. Tugas layar: `docs/queue/A87.md`. Belum diuji ke database nyata (lapisan Supabase), hanya data demo dan tipe.
+
+## Claude (12 Nov 2026) — 0040 aset tetap siap, BELUM di produksi
+`packages/db/migrations/0040_fixed_assets.sql`: `fixed_asset_acquire` (jurnal perolehan opsional), `fixed_asset_depreciate` (garis lurus bulanan, idempoten), `fixed_asset_dispose` (laba/rugi). Aditif (hanya fungsi). Tes `19_fixed_assets.sql` lulus dan diuji negatif. ASUMSI belum dicek ke Majoo: penyusutan mulai bulan setelah perolehan. Penerapan ke produksi sempat ditolak pemeriksa izin sesi; menunggu Louis menerapkan atau menambah aturan izin untuk apply_migration.
