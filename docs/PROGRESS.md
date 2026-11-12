@@ -963,3 +963,7 @@ Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_sugges
 
 ## Claude (12 Nov 2026) — 20 tugas fitur "sebagian" disiapkan untuk Antigravity: A93 sampai A112
 Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude hampir habis; Louis akan menyuruh Claude memeriksa hasilnya sekitar pukul 08.10). Urutan pengerjaan: A86 (selesai), A87 sampai A92 (sudah ada), lalu A93 sampai A112. Tiap tugas dimulai dengan audit; kekurangan yang butuh data/skema baru ditulis di `docs/REQUESTS-FOR-CLAUDE.md`, bukan dikerjakan dengan data palsu. Migrasi 0038 sampai 0043 sudah di produksi (DataLayer siap). Saat Claude kembali: tinjau cabang `ag/a87` dan seterusnya (typecheck, tes, build, lint, lihat screenshot 390 dan 1280), gabungkan, lalu nilai ulang status fitur dengan bukti.
+
+## Antigravity (12 Nov 2026) — A98 Notifikasi Stok Menipis, Habis, Minus Selesai
+Pusat notifikasi stok terverifikasi penuh: lonceng topbar interaktif dengan badge hitungan, popover pengelompokan minus/habis/menipis (`groupStockAlerts`), riwayat lihat harian di localStorage, serta layar `/pengaturan/stok` dan tautan filter ke `/inventori/stok`. 4 tes `stock-alerts.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+
