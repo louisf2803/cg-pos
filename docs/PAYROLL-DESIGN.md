@@ -29,7 +29,7 @@ Kebijakan RLS mereka `USING (true)` untuk semua pengguna (siapa pun bisa baca/tu
 
 ## Tahap pengerjaan (satu PR per tahap)
 - **Tahap 1 (selesai, tanpa database):** `packages/shared/src/payroll.ts` + `payroll.test.ts`: rumus gaji bersih, aturan, kasbon, jadwal, dan `deriveAttendance` (telat/absen otomatis). 505 tes lulus.
-- **Tahap 2 (skema, Claude, perlu persetujuan Louis):** migrasi 0037: `employee_compensation`, `employee_schedules`, `payroll_rules`, `employee_incidents` (kesalahan operasional + hari diizinkan), `cash_advances`, `payroll_records` (+ kunci periode). RLS hanya `pos.can_manage`; tidak terbaca akun perangkat/kasir. Tes SQL lokal.
+- **Tahap 2 (SELESAI dan di produksi, 12 Nov 2026, atas persetujuan Louis):** migrasi 0037: `employee_compensation`, `employee_schedules`, `payroll_rules`, `employee_incidents` (kesalahan operasional + hari diizinkan), `cash_advances`, `payroll_records` (+ kunci periode). RLS hanya `pos.can_manage`; tidak terbaca akun perangkat/kasir. Tes SQL lokal.
 - **Tahap 3 (DataLayer):** metode di `data.ts`, `supabase.ts`, `fake.ts` + tes.
 - **Tahap 4 (UI, Antigravity):** `/karyawan/jadwal` (jadwal kerja), `/karyawan/payroll` (gaji bulanan, kunci periode), catatan harian, kasbon, slip gaji cetak, pengaturan aturan payroll.
 
@@ -37,3 +37,10 @@ Kebijakan RLS mereka `USING (true)` untuk semua pengguna (siapa pun bisa baca/tu
 - Cuti: Coffee Ground punya halaman `leaves`. Apakah cuti/izin perlu fitur sendiri sekarang, atau cukup "hari diizinkan" di catatan harian?
 - Probasi dan admin: status berasal dari `employees.role` + tanggal berlaku (seperti `employee_status_logs`) atau satu kolom status per karyawan?
 - Komisi per orang: angka global dibagi sama rata (seperti Coffee Ground) atau memakai laporan Komisi per kasir yang sudah ada di CG POS (A54)?
+
+## Asumsi yang dipakai tahap 2 (bisa diubah)
+- Status probasi/admin disimpan sebagai kolom `employee_compensation.status` per karyawan (bukan riwayat bertanggal).
+- Cuti/izin/libur = catatan harian jenis `EXCUSED` pada tanggal kerja terjadwal (belum ada fitur cuti sendiri).
+- Komisi per orang = angka yang diisi per periode (seperti Coffee Ground), belum diambil otomatis dari laporan Komisi.
+- Gaji bulanan hanya ditulis lewat `pos.payroll_save_period` (atomik, gaji bersih dicek konsisten, periode PAID terkunci, potongan kasbon dicatat saat kunci); buka kunci hanya pemilik/admin lewat `pos.payroll_unlock`.
+- Tabel payroll tanpa `log_change` agar nominal gaji tidak bocor lewat log aktivitas.
