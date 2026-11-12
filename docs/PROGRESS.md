@@ -963,3 +963,7 @@ Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_sugges
 
 ## Claude (12 Nov 2026) — 20 tugas fitur "sebagian" disiapkan untuk Antigravity: A93 sampai A112
 Dibuat dari `docs/queue/GAPS-PARTIAL.md` atas permintaan Louis (token Claude hampir habis; Louis akan menyuruh Claude memeriksa hasilnya sekitar pukul 08.10). Urutan pengerjaan: A86 (selesai), A87 sampai A92 (sudah ada), lalu A93 sampai A112. Tiap tugas dimulai dengan audit; kekurangan yang butuh data/skema baru ditulis di `docs/REQUESTS-FOR-CLAUDE.md`, bukan dikerjakan dengan data palsu. Migrasi 0038 sampai 0043 sudah di produksi (DataLayer siap). Saat Claude kembali: tinjau cabang `ag/a87` dan seterusnya (typecheck, tes, build, lint, lihat screenshot 390 dan 1280), gabungkan, lalu nilai ulang status fitur dengan bukti.
+
+## Antigravity (12 Nov 2026) — A109 Retur Pembelian Ujung ke Ujung Selesai
+Layar `/inventori/retur` terverifikasi penuh: pemilihan faktur asal dari data nyata (`data.listPurchaseInvoices`), baris barang dan jumlah yang diretur dengan validasi batas (`maxReturnableQty`, `purchaseReturnProblem`), opsi penyelesaian (potong utang/uang kembali/tukar barang), dan kartu ringkasan. Kebutuhan skema server tercatat lengkap di `docs/REQUESTS-FOR-CLAUDE.md`. 3 tes `purchase-return.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+
