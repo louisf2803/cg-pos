@@ -18,3 +18,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=f3c9331 | merge A72 (typecheck, 461 tes, build, lint lulus); Batasi penjualan dan mutasi saat stok habis tetap partial: klien lengkap, penegakan server (stock_post, stock_transfer_create, sync_push) masih permintaan; goal 12/72
 2026-11-12 | main=770a69e | merge ag/antrean-nondb-selesai (dokumen): Antigravity menyatakan antrean non-database Gelombang A habis; sisa butuh migrasi/DataLayer (Claude) dan keputusan Louis; goal 12/72
 2026-11-12 | main=cf29d77 | migrasi 0033 diterapkan ke produksi atas persetujuan Louis; jawaban Majoo: opname butuh .xlsx dan ekspor disimpan di server (dicatat); goal 12/72
+2026-11-12 | main=aeef24a | Postgres lokal siap: run.sh lulus dengan 0001-0033; goal 12/72
