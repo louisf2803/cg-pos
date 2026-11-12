@@ -63,8 +63,10 @@ type Props = {
   isNew: boolean;
   allRoles: RoleDefinition[];
   dashboardModuleIds: string[];
-  onSave: (updated: RoleDefinition) => void;
+  onSave: (updated: RoleDefinition) => Promise<void> | void;
   onClose: () => void;
+  serverError?: string | null;
+  saving?: boolean;
 };
 
 function countActiveActions(
@@ -185,6 +187,8 @@ export function RoleWizardModal({
   dashboardModuleIds,
   onSave,
   onClose,
+  serverError,
+  saving = false,
 }: Props) {
   const wizardRef = useRef<HTMLDialogElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -720,9 +724,9 @@ export function RoleWizardModal({
         </nav>
 
         <form onSubmit={handleSubmit} className="grid gap-16 min-w-0">
-          {formErr && (
-            <div role="alert" className="cg-banner cg-banner--danger">
-              <span>{formErr}</span>
+          {(formErr || serverError) && (
+            <div role="alert" data-testid="wizard-error-banner" className="cg-banner cg-banner--danger">
+              <span>{formErr ?? serverError}</span>
             </div>
           )}
 
@@ -1163,9 +1167,10 @@ export function RoleWizardModal({
                 type="button"
                 className="cg-btn cg-btn--primary"
                 data-testid="wizard-btn-save"
+                disabled={saving}
                 onClick={commitSave}
               >
-                Simpan
+                {saving ? 'Menyimpan...' : 'Simpan'}
               </button>
             )}
           </div>
