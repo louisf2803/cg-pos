@@ -6,6 +6,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
 import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
+import { purchasePriceProblem, type PurchasePriceMapping, type PurchasePriceSuggestion } from './purchase-price';
 import { stockRequestProblem, type StockRequest, type StockRequestStatus } from './stock-requests';
 import { approvalProblem, recurringBillProblem, type ApprovalRequest, type ApprovalStatus, type RecurringBill, type RecurringBillRun } from './bills';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -238,6 +239,15 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return mapDbError(error);
   }
 
+  function mapPurchasePriceError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || error.code === '42P01' || /could not find the function|schema cache/i.test(m)) return new DataError('invalid', 'Fitur pemetaan harga beli belum aktif di database (migrasi 0043 belum diterapkan).');
+    if (/not allowed/i.test(m) || error.code === '42501') return new DataError('forbidden', 'Hanya pemilik, admin, atau manajer yang boleh mengatur harga beli.');
+    if (/product not found/i.test(m)) return new DataError('not_found', 'Barang tidak ditemukan atau bukan barang yang dilacak stoknya.');
+    if (/unit not found/i.test(m)) return new DataError('not_found', 'Satuan tidak ditemukan.');
+    if (/invalid price|invalid mode/i.test(m) || error.code === '23514') return new DataError('invalid', 'Harga atau mode ditolak server.');
+    return mapDbError(error);
+  }
   function mapStockRequestError(error: { code?: string; message?: string }): DataError {
     const m = error.message ?? '';
     if (error.code === 'PGRST202' || error.code === '42P01' || /could not find the function|schema cache/i.test(m)) return new DataError('invalid', 'Fitur permintaan barang belum aktif di database (migrasi 0042 belum diterapkan).');
@@ -2134,6 +2144,28 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteIncident(id) {
       const { error } = await db().from('employee_incidents').delete().eq('id', id);
       if (error) throw mapPayrollError(error);
+    },
+    async listPurchasePriceMappings() {
+      const rows = await pageAll((from, to) => db().from('purchase_price_map').select('product_id,mode,manual_price,manual_unit_id').range(from, to));
+      return rows.map((x): PurchasePriceMapping => ({ productId: x.product_id as string, mode: x.mode as PurchasePriceMapping['mode'], ...(x.manual_price !== null && x.manual_price !== undefined ? { manualPrice: Number(x.manual_price) } : {}), ...(x.manual_unit_id ? { manualUnitId: x.manual_unit_id as string } : {}) }));
+    },
+    async setPurchasePriceMapping(input) {
+      const problem = purchasePriceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const { error } = await db().rpc('purchase_price_set', { p_org: r.orgId, p_product: input.productId, p_mode: input.mode, p_price: input.mode === 'manual' ? input.price : null, p_unit: input.mode === 'manual' ? input.unitId ?? null : null });
+      if (error) throw mapPurchasePriceError(error);
+      return input.mode === 'manual'
+        ? { productId: input.productId, mode: 'manual', manualPrice: input.price as number, ...(input.unitId ? { manualUnitId: input.unitId } : {}) }
+        : { productId: input.productId, mode: 'last' };
+    },
+    async suggestPurchasePrice(productId) {
+      const r = await resolve();
+      const { data, error } = await db().rpc('purchase_price_suggest', { p_org: r.orgId, p_product: productId });
+      if (error) throw mapPurchasePriceError(error);
+      const o = data as Row;
+      const source = o.source as PurchasePriceSuggestion['source'];
+      return { source, ...(o.price !== null && o.price !== undefined ? { price: Number(o.price) } : {}), ...(o.unit_id ? { unitId: o.unit_id as string } : {}), ...(o.invoice_number ? { invoiceNumber: o.invoice_number as string } : {}), ...(o.invoice_date ? { invoiceDate: o.invoice_date as string } : {}) };
     },
     async listStockRequests(q) {
       const locs = new Map((await self.listStockLocations()).map((l) => [l.id, l.name] as const));

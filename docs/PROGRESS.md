@@ -957,3 +957,6 @@ Tabel `stock_requests`, `stock_request_lines` + RPC permintaan barang aktif deng
 
 ## Claude (12 Nov 2026) — 0043 pemetaan harga beli DITERAPKAN ke produksi (izin tetap Louis: selalu setujui)
 Tabel `purchase_price_map` + RPC `purchase_price_set` dan `purchase_price_suggest` aktif dengan RLS pengelola; `anon` tidak punya akses, `authenticated` hanya membaca. Tes `19_purchase_price_map.sql` lulus dan diuji negatif. ASUMSI (Majoo tidak bisa dilihat): satu pengaturan per barang; tanpa pengaturan = harga faktur terakhir yang tidak batal. Berikutnya: DataLayer dan tugas UI.
+
+## Claude (12 Nov 2026) — DataLayer pemetaan harga beli (0043, sudah di produksi) + tugas UI A91
+`packages/shared/src/purchase-price.ts` + 3 metode DataLayer (`listPurchasePriceMappings`, `setPurchasePriceMapping`, `suggestPurchasePrice`); 3 tes baru diuji negatif. Tugas layar: `docs/queue/A91.md`. Lapisan Supabase belum diuji ke database nyata. Prioritas berikutnya: tinjau 46 fitur `partial` ujung ke ujung (bukan menambah backend baru).

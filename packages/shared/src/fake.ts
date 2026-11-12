@@ -20,6 +20,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
+import { purchasePriceProblem, suggestPurchasePrice as pickSuggestion, type PurchasePriceMapping } from './purchase-price';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -209,6 +210,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let schedules = new Map<string, WeeklySchedule>();
   let payrollRules: Record<string, unknown> = {};
   let incidents: EmployeeIncident[] = [];
+  const purchasePriceMaps: PurchasePriceMapping[] = [];
   const stockRequests: StockRequest[] = [];
   const recurringBills: RecurringBill[] = [];
   const recurringRuns: RecurringBillRun[] = [];
@@ -1579,6 +1581,24 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = incidents.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
       incidents.splice(i, 1);
+    },
+    async listPurchasePriceMappings() { return clone(purchasePriceMaps); },
+    async setPurchasePriceMapping(input) {
+      const problem = purchasePriceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (!stockBal(input.productId)) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak');
+      const i = purchasePriceMaps.findIndex((m) => m.productId === input.productId);
+      const row: PurchasePriceMapping = input.mode === 'manual'
+        ? { productId: input.productId, mode: 'manual', manualPrice: input.price as number, ...(input.unitId ? { manualUnitId: input.unitId } : {}) }
+        : { productId: input.productId, mode: 'last' };
+      if (i >= 0) purchasePriceMaps[i] = row; else purchasePriceMaps.push(row);
+      return clone(row);
+    },
+    async suggestPurchasePrice(productId) {
+      const summaries = await self.listPurchaseInvoices();
+      const full: PurchaseInvoice[] = [];
+      for (const s of summaries) { const inv = await self.getPurchaseInvoice(s.id); if (inv) full.push(inv); }
+      return pickSuggestion(purchasePriceMaps.find((m) => m.productId === productId), full, productId);
     },
     async listStockRequests(q) { return clone(stockRequests.filter((r) => !q?.status || r.status === q.status).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))); },
     async createStockRequest(input) {

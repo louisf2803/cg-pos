@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
+import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
 import type { StockRequest, StockRequestInput, StockRequestStatus } from './stock-requests';
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
@@ -274,6 +275,13 @@ export interface DataLayer {
   /** Penuhi permintaan yang disetujui: membuat transfer stok sumber -> peminta (stok sumber berkurang saat itu juga). */
   fulfillStockRequest(id: string): Promise<StockRequest>;
   cancelStockRequest(id: string): Promise<StockRequest>;
+  // ---- pemetaan harga beli (migrasi 0043); pengelola. Rancangan Claude atas arahan Louis. ----
+  /** Hanya barang yang sudah punya pengaturan; barang lain otomatis memakai mode 'last'. */
+  listPurchasePriceMappings(): Promise<PurchasePriceMapping[]>;
+  /** mode 'last' menghapus harga manual. Galat: invalid, not_found (barang/satuan), forbidden. */
+  setPurchasePriceMapping(input: PurchasePriceInput): Promise<PurchasePriceMapping>;
+  /** Harga beli yang disarankan untuk satu barang (manual atau faktur terakhir yang tidak batal). */
+  suggestPurchasePrice(productId: string): Promise<PurchasePriceSuggestion>;
   /** Riwayat kasbon (terbaru dulu), semua karyawan atau satu karyawan. Saldo: cashAdvanceBalance dari payroll.ts. */
   listCashAdvances(employeeId?: string): Promise<CashAdvance[]>;
   saveCashAdvance(input: CashAdvanceInput): Promise<CashAdvance>;
