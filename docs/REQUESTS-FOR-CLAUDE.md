@@ -216,3 +216,9 @@ Setelah `0033`–`0036` diterapkan dan audit ulang `packages/shared/src/data.ts`
 3. **Koneksi `DataLayer` ke migrasi `0033` (RBAC peran & izin granular)**: tabel `roles` dan RPC `save_role_permissions` / `delete_role` sudah ada di produksi (`PROGRESS.md` baris 860), tetapi `listRoles`, `saveRolePermissions`, `deleteRole`, dan `roleId` pada karyawan belum ditambahkan ke `DataLayer`/`supabase.ts` sehingga `/karyawan/hak-akses` masih memakai `localStorage`.
 4. **Mutasi stok terbuang lintas item (`/inventori/terbuang`, `S56`)**: `DataLayer.listStockMoves(productId)` hanya membaca per satu produk; dibutuhkan metode agregat/lintas produk per rentang tanggal (`listWasteMoves(range)` atau `listAllStockMoves({ from, to, kind })`) agar `/inventori/terbuang` tidak melakukan kueri `N+1` per produk.
 5. **Bahan baku per pilihan ekstra (`extra_option_ingredients`, `0006`)**: tabel sudah ada di DB (`MAJOO-VERIFICATION.md` baris 48), tetapi `ExtraOption`/`ExtraGroupInput` di `types.ts` & `DataLayer` belum mengeksposnya (serta menunggu jawaban Louis pada baris 51–54 tentang pemisahan/penyatuan Varian vs Ekstra).
+
+## Dari Antigravity (A100) — Dukungan Pajak Per Produk & Per Jenis Order
+Untuk melengkapi fitur pajak gelombang A (`pajak dan biaya`):
+1. **Pajak Per Produk**: tambahkan `tax_exempt boolean DEFAULT false` (atau `tax_rate numeric(5,2)`) pada tabel `products` + propagasi pada `CatalogProduct`, `CatalogInput`, dan `saveCatalogProduct` agar produk tertentu bisa dikecualikan dari pajak atau memiliki tarif khusus.
+2. **Pajak Per Jenis Order**: tambahkan `order_types text[]` pada tabel `taxes` (atau relasi `tax_order_types`) dan perbarui `TaxSettings` agar outlet bisa membedakan tarif pajak per jenis pesanan (mis. Dine-in kena PB1, Takeaway bebas pajak).
+

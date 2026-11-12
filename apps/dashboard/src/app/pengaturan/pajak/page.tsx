@@ -87,6 +87,18 @@ function Form({ initial, onSaved }: { initial: TaxSettings; onSaved: () => void 
       </section>
 
       <p className="text-text-muted text-sm">Berlaku untuk pesanan baru. Kasir yang sedang terbuka memuat pengaturan terbaru saat dibuka ulang. Pesanan lama tidak berubah.</p>
+
+      {/* Informasi Lingkup Pajak Lanjutan */}
+      <div className="p-16 rounded-xl bg-surface-raised border border-border text-xs text-text-muted grid gap-8">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-text text-sm">Pajak Per Produk &amp; Per Jenis Order</span>
+          <span className="cg-badge cg-badge--secondary text-[11px]">Menunggu Skema Server</span>
+        </div>
+        <p>
+          Saat ini pajak berlaku secara global per transaksi di outlet ini. Fitur penetapan tarif khusus per produk (mis. item bebas pajak) dan tarif pajak berbeda berdasarkan jenis order (Dine-in, Takeaway, Delivery) sedang disiapkan pada migrasi skema server lanjutan.
+        </p>
+      </div>
+
       {err && <p role="alert" className="cg-banner cg-banner--danger">{err}</p>}
       {ok && <p role="status" className="cg-banner cg-banner--info">Tersimpan.</p>}
       <div><button className="cg-btn cg-btn--primary" disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan'}</button></div>
