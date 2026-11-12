@@ -917,3 +917,6 @@ Format: tanggal, apa yang selesai, apa yang menunggu keputusan Louis.
 
 ## Claude (12 Nov 2026) — 0038 DITERAPKAN ke produksi (persetujuan Louis)
 Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_settings` (bawaan mode `block`), `employee_notifications` ada di produksi dengan RLS pemilik/manajer. Keputusan: Quick PIN dibatalkan (pakai PIN karyawan yang ada); absen di luar radius (GPS) DIBLOKIR. Berikutnya: DataLayer, migrasi 0039 (penegakan radius di `attendance_clock_in`, parameter lat/lng), tugas UI.
+
+## Claude (12 Nov 2026) — 0039 radius absensi siap, BELUM di produksi
+`packages/db/migrations/0039_attendance_radius.sql`: `attendance_clock_in` menerima `p_lat`/`p_lng`; mode `block` menolak absen di luar radius (`outside radius`) dan tanpa lokasi (`location required`); mode `flag` menerima dan mencatat jarak; kolom `clock_in_lat/lng/distance_m`. Tes `19_attendance_radius.sql` lulus (diuji negatif). Menunggu persetujuan Louis; setelah itu `supabase.ts`/`data.ts` (lokasi opsional di `attendanceClockIn`) dan POS membaca GPS peramban. Catatan: lokasi dikirim klien, jadi pembatas kelalaian, bukan anti-pemalsuan.
