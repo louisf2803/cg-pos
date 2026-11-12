@@ -6,6 +6,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
 import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
+import { approvalProblem, recurringBillProblem, type ApprovalRequest, type ApprovalStatus, type RecurringBill, type RecurringBillRun } from './bills';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -236,6 +237,20 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return mapDbError(error);
   }
 
+  function mapBillError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || error.code === '42P01' || /could not find the function|schema cache/i.test(m)) return new DataError('invalid', 'Fitur tagihan rutin dan persetujuan belum aktif di database (migrasi 0041 belum diterapkan).');
+    if (/cannot decide own request/i.test(m)) return new DataError('forbidden', 'Kamu tidak boleh memutuskan permintaan yang kamu ajukan sendiri.');
+    if (/request already decided/i.test(m)) return new DataError('invalid', 'Permintaan ini sudah diputuskan.');
+    if (/request not found|bill not found/i.test(m)) return new DataError('not_found', 'Data tidak ditemukan.');
+    if (/not allowed/i.test(m) || error.code === '42501' || /row-level security/i.test(m)) return new DataError('forbidden', 'Hanya pemilik, admin, atau manajer yang boleh (membayar tagihan: pemilik dan admin).');
+    if (/bill inactive/i.test(m)) return new DataError('invalid', 'Tagihan ini nonaktif.');
+    if (/invalid date/i.test(m)) return new DataError('invalid', 'Tanggal bayar tidak valid atau di masa depan.');
+    if (/account not found or not postable/i.test(m)) return new DataError('invalid', 'Akun yang dipilih tidak ditemukan, nonaktif, atau berupa akun induk.');
+    if (/books are locked|locked through/i.test(m)) return new DataError('order_locked', 'Tanggal berada di periode pembukuan yang sudah dikunci.');
+    if (error.code === '23514') return new DataError('invalid', 'Isian ditolak server (di luar batas yang diizinkan).');
+    return mapDbError(error);
+  }
   function mapAssetError(error: { code?: string; message?: string }): DataError {
     const m = error.message ?? '';
     if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur aset tetap belum aktif di database (migrasi 0040 belum diterapkan).');
@@ -326,6 +341,13 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     if (error.code === '23505') return new DataError('invalid', 'Kode akun sudah dipakai akun lain.');
     if (/system account|system_key|category of an account/i.test(m)) return new DataError('invalid', 'Akun sistem atau akun yang sudah punya jurnal tidak bisa diubah seperti itu.');
     return mapDbError(error);
+  }
+
+  function billFromRow(x: Row): RecurringBill {
+    return { id: x.id as string, name: x.name as string, amount: Number(x.amount), frequency: x.frequency as RecurringBill['frequency'], nextDue: x.next_due as string, expenseAccountId: x.expense_account_id as string, isActive: !!x.is_active, ...(x.supplier_id ? { supplierId: x.supplier_id as string } : {}), ...(x.outlet_id ? { outletId: x.outlet_id as string } : {}), ...(x.notes ? { notes: x.notes as string } : {}) };
+  }
+  function approvalFromRow(x: Row): ApprovalRequest {
+    return { id: x.id as string, kind: x.kind as ApprovalRequest['kind'], title: x.title as string, amount: Number(x.amount), status: x.status as ApprovalStatus, createdAt: x.created_at as string, ...(x.ref_type ? { refType: x.ref_type as string } : {}), ...(x.ref_id ? { refId: x.ref_id as string } : {}), ...(x.note ? { note: x.note as string } : {}), ...(x.requested_by ? { requestedBy: x.requested_by as string } : {}), ...(x.decided_by ? { decidedBy: x.decided_by as string } : {}), ...(x.decided_at ? { decidedAt: x.decided_at as string } : {}), ...(x.decision_note ? { decisionNote: x.decision_note as string } : {}) };
   }
 
   /** Semua halaman hasil query (server membatasi 1000 baris per permintaan). */
@@ -2099,6 +2121,75 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteIncident(id) {
       const { error } = await db().from('employee_incidents').delete().eq('id', id);
       if (error) throw mapPayrollError(error);
+    },
+    async listRecurringBills(q) {
+      const rows = await pageAll((from, to) => {
+        let qb = db().from('recurring_bills').select('id,outlet_id,name,supplier_id,amount,frequency,next_due,expense_account_id,is_active,notes');
+        if (!q?.includeInactive) qb = qb.eq('is_active', true);
+        return qb.order('next_due').range(from, to);
+      });
+      return rows.map(billFromRow);
+    },
+    async saveRecurringBill(input) {
+      const problem = recurringBillProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const row = { id: input.id ?? newId(), org_id: r.orgId, name: input.name.trim(), amount: input.amount, frequency: input.frequency, next_due: input.nextDue, expense_account_id: input.expenseAccountId, supplier_id: input.supplierId ?? null, outlet_id: input.outletId ?? null, is_active: input.isActive ?? true, notes: input.notes?.trim() || null };
+      const { error } = await db().from('recurring_bills').upsert(row, { onConflict: 'id' });
+      if (error) throw mapBillError(error);
+      return billFromRow(row as Row);
+    },
+    async deleteRecurringBill(id) {
+      const { error } = await db().from('recurring_bills').delete().eq('id', id);
+      if (error) throw mapBillError(error);
+    },
+    async payRecurringBill(billId, payAccountId, date) {
+      const { error } = await db().rpc('recurring_bill_pay', { p_bill: billId, p_pay_account: payAccountId, p_date: date });
+      if (error) throw mapBillError(error);
+      const rows = await pageAll((from, to) => db().from('recurring_bills').select('id,outlet_id,name,supplier_id,amount,frequency,next_due,expense_account_id,is_active,notes').eq('id', billId).range(from, to));
+      if (!rows[0]) throw new DataError('not_found', 'Tagihan tidak ditemukan');
+      return billFromRow(rows[0]);
+    },
+    async listRecurringBillRuns(billId) {
+      const rows = await pageAll((from, to) => {
+        let qb = db().from('recurring_bill_runs').select('bill_id,due_date,paid_on,amount');
+        if (billId) qb = qb.eq('bill_id', billId);
+        return qb.order('due_date', { ascending: false }).range(from, to);
+      });
+      return rows.map((x): RecurringBillRun => ({ billId: x.bill_id as string, dueDate: x.due_date as string, paidOn: x.paid_on as string, amount: Number(x.amount) }));
+    },
+    async listApprovals(q) {
+      const rows = await pageAll((from, to) => {
+        let qb = db().from('approval_requests').select('id,kind,title,amount,ref_type,ref_id,note,status,requested_by,decided_by,decided_at,decision_note,created_at');
+        if (q?.status) qb = qb.eq('status', q.status as ApprovalStatus);
+        return qb.order('created_at', { ascending: false }).range(from, to);
+      });
+      return rows.map(approvalFromRow);
+    },
+    async requestApproval(input) {
+      const problem = approvalProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = input.id ?? newId();
+      const { error } = await db().rpc('approval_request', { p_id: id, p_org: r.orgId, p_kind: input.kind, p_title: input.title.trim(), p_amount: input.amount, p_ref_type: input.refType ?? null, p_ref_id: input.refId ?? null, p_note: input.note?.trim() || null });
+      if (error) throw mapBillError(error);
+      const saved = (await self.listApprovals()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan setelah disimpan');
+      return saved;
+    },
+    async decideApproval(id, approve, note) {
+      const { error } = await db().rpc('approval_decide', { p_id: id, p_approve: approve, p_note: note?.trim() || null });
+      if (error) throw mapBillError(error);
+      const saved = (await self.listApprovals()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      return saved;
+    },
+    async cancelApproval(id) {
+      const { error } = await db().rpc('approval_cancel', { p_id: id });
+      if (error) throw mapBillError(error);
+      const saved = (await self.listApprovals()).find((x) => x.id === id);
+      if (!saved) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      return saved;
     },
     async listFixedAssets() {
       const rows = await pageAll((from, to) => db().from('fixed_assets').select('id,outlet_id,name,acquired_on,cost,salvage_value,useful_life_months,status').order('acquired_on', { ascending: false }).range(from, to));

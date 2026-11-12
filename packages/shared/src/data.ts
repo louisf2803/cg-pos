@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
+import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
 import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
@@ -252,6 +253,18 @@ export interface DataLayer {
   depreciateFixedAssets(period: string): Promise<DepreciationRunResult>;
   /** Lepas aset (jual/buang): jurnal menghapus harga perolehan dan akumulasi; selisih ke akun laba/rugi. */
   disposeFixedAsset(input: FixedAssetDisposalInput): Promise<FixedAsset>;
+  // ---- tagihan rutin dan persetujuan (migrasi 0041); pengelola (pemilik/admin/manajer). Rancangan Claude atas arahan Louis. ----
+  listRecurringBills(q?: { includeInactive?: boolean }): Promise<RecurringBill[]>;
+  saveRecurringBill(input: RecurringBillInput): Promise<RecurringBill>;
+  deleteRecurringBill(id: string): Promise<void>;
+  /** Bayar tagihan pada jatuh tempo berikutnya: jurnal Dr akun biaya, Cr akun bayar; jatuh tempo maju satu periode. Hanya pemilik/admin. Galat: invalid, forbidden, not_found. */
+  payRecurringBill(billId: string, payAccountId: string, date: string): Promise<RecurringBill>;
+  listRecurringBillRuns(billId?: string): Promise<RecurringBillRun[]>;
+  listApprovals(q?: { status?: ApprovalStatus }): Promise<ApprovalRequest[]>;
+  requestApproval(input: ApprovalInput): Promise<ApprovalRequest>;
+  /** Setuju/tolak. Penyetuju bukan pengaju kecuali pemilik; keputusan final. Galat: forbidden, invalid (sudah diputuskan). */
+  decideApproval(id: string, approve: boolean, note?: string): Promise<ApprovalRequest>;
+  cancelApproval(id: string): Promise<ApprovalRequest>;
   /** Riwayat kasbon (terbaru dulu), semua karyawan atau satu karyawan. Saldo: cashAdvanceBalance dari payroll.ts. */
   listCashAdvances(employeeId?: string): Promise<CashAdvance[]>;
   saveCashAdvance(input: CashAdvanceInput): Promise<CashAdvance>;

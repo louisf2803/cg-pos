@@ -20,6 +20,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
+import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -207,6 +208,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let schedules = new Map<string, WeeklySchedule>();
   let payrollRules: Record<string, unknown> = {};
   let incidents: EmployeeIncident[] = [];
+  const recurringBills: RecurringBill[] = [];
+  const recurringRuns: RecurringBillRun[] = [];
+  const approvals: ApprovalRequest[] = [];
   const fixedAssets: FixedAsset[] = [];
   const assetDepreciations: AssetDepreciationEntry[] = [];
   const jobLevels: JobLevel[] = [];
@@ -1573,6 +1577,59 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = incidents.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
       incidents.splice(i, 1);
+    },
+    async listRecurringBills(q) { return clone(recurringBills.filter((b) => q?.includeInactive || b.isActive).sort((a, b) => (a.nextDue < b.nextDue ? -1 : 1))); },
+    async saveRecurringBill(input) {
+      const problem = recurringBillProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const row: RecurringBill = { id: input.id ?? newId(), name: input.name.trim(), amount: input.amount, frequency: input.frequency, nextDue: input.nextDue, expenseAccountId: input.expenseAccountId, isActive: input.isActive ?? true, ...(input.supplierId ? { supplierId: input.supplierId } : {}), ...(input.outletId ? { outletId: input.outletId } : {}), ...(input.notes?.trim() ? { notes: input.notes.trim() } : {}) };
+      const i = recurringBills.findIndex((x) => x.id === row.id);
+      if (input.id && i < 0) throw new DataError('not_found', 'Tagihan tidak ditemukan');
+      if (i >= 0) recurringBills[i] = row; else recurringBills.push(row);
+      return clone(row);
+    },
+    async deleteRecurringBill(id) {
+      const i = recurringBills.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Tagihan tidak ditemukan');
+      recurringBills.splice(i, 1);
+      for (let k = recurringRuns.length - 1; k >= 0; k--) if (recurringRuns[k]!.billId === id) recurringRuns.splice(k, 1);
+    },
+    async payRecurringBill(billId, payAccountId, date) {
+      const b = recurringBills.find((x) => x.id === billId);
+      if (!b) throw new DataError('not_found', 'Tagihan tidak ditemukan');
+      if (!b.isActive) throw new DataError('invalid', 'Tagihan ini nonaktif');
+      if (!payAccountId) throw new DataError('invalid', 'Pilih akun kas/bank pembayar');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > now().toISOString().slice(0, 10)) throw new DataError('invalid', 'Tanggal bayar tidak valid atau di masa depan');
+      recurringRuns.push({ billId: b.id, dueDate: b.nextDue, paidOn: date, amount: b.amount });
+      b.nextDue = nextDueAfter(b.nextDue, b.frequency);
+      return clone(b);
+    },
+    async listRecurringBillRuns(billId) { return clone(recurringRuns.filter((r) => !billId || r.billId === billId).sort((a, b) => (a.dueDate < b.dueDate ? 1 : -1))); },
+    async listApprovals(q) { return clone(approvals.filter((a) => !q?.status || a.status === q.status).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))); },
+    async requestApproval(input) {
+      const problem = approvalProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const id = input.id ?? newId();
+      const existing = approvals.find((x) => x.id === id);
+      if (existing) return clone(existing);
+      const row: ApprovalRequest = { id, kind: input.kind, title: input.title.trim(), amount: input.amount, status: 'pending', requestedBy: 'demo', createdAt: now().toISOString(), ...(input.refType ? { refType: input.refType } : {}), ...(input.refId ? { refId: input.refId } : {}), ...(input.note?.trim() ? { note: input.note.trim() } : {}) };
+      approvals.push(row);
+      return clone(row);
+    },
+    async decideApproval(id, approve, note) {
+      const a = approvals.find((x) => x.id === id);
+      if (!a) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      if (a.status !== 'pending') throw new DataError('invalid', 'Permintaan ini sudah diputuskan');
+      a.status = approve ? 'approved' : 'rejected'; a.decidedBy = 'demo'; a.decidedAt = now().toISOString();
+      if (note?.trim()) a.decisionNote = note.trim();
+      return clone(a);
+    },
+    async cancelApproval(id) {
+      const a = approvals.find((x) => x.id === id);
+      if (!a) throw new DataError('not_found', 'Permintaan tidak ditemukan');
+      if (a.status !== 'pending') throw new DataError('invalid', 'Permintaan ini sudah diputuskan');
+      a.status = 'cancelled'; a.decidedBy = 'demo'; a.decidedAt = now().toISOString();
+      return clone(a);
     },
     async listFixedAssets() { return clone([...fixedAssets].sort((a, b) => (a.acquiredOn < b.acquiredOn ? 1 : -1))); },
     async listAssetDepreciations(assetId) { return clone(assetDepreciations.filter((x) => !assetId || x.assetId === assetId).sort((a, b) => (a.period < b.period ? 1 : -1))); },

@@ -938,3 +938,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — 0041 DITERAPKAN ke produksi (persetujuan Louis)
 Tabel `recurring_bills`, `recurring_bill_runs`, `approval_requests` + RPC bayar tagihan dan persetujuan aktif dengan RLS pengelola; `anon` tidak punya akses. Berikutnya: DataLayer dan tugas UI.
+
+## Claude (12 Nov 2026) — DataLayer tagihan rutin dan persetujuan (0041, sudah di produksi) + tugas UI A89
+`packages/shared/src/bills.ts` + 9 metode DataLayer; 7 tes baru (diuji negatif). Asumsi (Majoo tidak bisa dilihat): mitra = pemasok yang ada; bayar tagihan membuat jurnal dan memajukan jatuh tempo; penyetuju bukan pengaju kecuali pemilik. Tugas layar: `docs/queue/A89.md`. Lapisan Supabase belum diuji ke database nyata.
