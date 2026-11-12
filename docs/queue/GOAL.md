@@ -1,5 +1,7 @@
 # Goal — paritas Majoo untuk CG POS (Coffee Ground)
 
+> **MODE CEPAT (keputusan Louis, 12 Nov 2026) — menimpa semua daftar pemeriksaan wajib di Prompt 0 dan berkas tugas:** fokus MEMBUAT. Sebelum menyatakan selesai cukup: `pnpm -r typecheck`, tes yang terkait berkas yang kamu ubah (mis. `pnpm -F @cgpos/shared exec vitest run test/<berkas>.test.ts`), dan `lint-tailwind.sh origin/main`. JANGAN menjalankan build penuh, uji peramban, atau mengambil screenshot, dan jangan membuat skrip audit. Lihat sekilas satu halaman di peramban hanya bila ragu. Claude yang menjalankan build, uji peramban, dan screenshot saat meninjau. Bila tugas terasa lebih dari satu halaman, kerjakan SATU halaman per cabang dan commit tiap halaman. Catat 2 sampai 3 baris di `docs/PROGRESS.md`, tandai `STATUS: SELESAI <commit>`, push.
+
 Diperbarui 11 Nov 2026 malam atas arahan Louis. Dokumen goal standing: begitu antrean `docs/queue/A*.md` kosong (tidak ada file tanpa
 baris `STATUS`), baca ini lalu PILIH SENDIRI item berikutnya tanpa menunggu Claude menulis file tugas satu-satu. Tulis task ringkasmu sendiri
 (format sama seperti A1-A63) sebelum mulai kerja, supaya tetap satu tugas = satu cabang = satu PR kecil (AGENTS.md #6).
