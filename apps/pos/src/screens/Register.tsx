@@ -28,6 +28,7 @@ const TYPES: { v: OrderType; label: string }[] = [
 const FAV = '__favorit';
 const BUNDLE = '__paket';
 const PROMO = '__promo';
+const DEPOSIT = '__deposit';
 const NO_PROMOS: Promotion[] = [];
 const LABEL_HINT: Record<OrderType, string> = {
   dine_in: 'Nama pesanan (opsional)', takeaway: 'Nama pemesan (opsional)', delivery: 'Nama dan tujuan antar (opsional)', service: 'Keterangan jasa (opsional)',
@@ -140,6 +141,13 @@ export function Register({
 
   const hasFav = prods.status === 'ready' && prods.data.some((p) => p.isFavorite);
   const hasBundle = prods.status === 'ready' && prods.data.some((p) => p.kind === 'bundle');
+  const depositCategoryIds = useMemo(() => {
+    if (cats.status !== 'ready') return new Set<string>();
+    return new Set(cats.data.filter((c) => c.name.toLowerCase().includes('deposit')).map((c) => c.id));
+  }, [cats]);
+  const hasDeposit = prods.status === 'ready' && prods.data.some((p) =>
+    (p.categoryId && depositCategoryIds.has(p.categoryId)) || p.name.toLowerCase().includes('deposit')
+  );
   /** produk yang sedang ikut promo item untuk jenis order di keranjang; filter Promo muncul hanya bila ada yang cocok */
   const promoIds = useMemo(
     () => (promos.status === 'ready' ? promoProductIds(promos.data, new Date(), cart.state.type) : new Set<string>()),
@@ -147,20 +155,33 @@ export function Register({
   );
   const hasPromo = prods.status === 'ready' && prods.data.some((p) => promoIds.has(p.id));
   useEffect(() => { if (cat === PROMO && prods.status === 'ready' && !hasPromo) setCat('all'); }, [cat, hasPromo, prods.status]);
+  useEffect(() => { if (cat === DEPOSIT && prods.status === 'ready' && !hasDeposit) setCat('all'); }, [cat, hasDeposit, prods.status]);
+
+  // Mode tampilan Meja & Jasa mengarahkan jenis order awal jika keranjang masih kosong
+  useEffect(() => {
+    if (viewMode === 'service' && cart.state.lines.length === 0 && cart.state.type !== 'service') {
+      cart.dispatch({ t: 'type', type: 'service' });
+    } else if (viewMode === 'table' && cart.state.lines.length === 0 && cart.state.type !== 'dine_in') {
+      cart.dispatch({ t: 'type', type: 'dine_in' });
+    }
+  }, [viewMode, cart.state.lines.length, cart]);
+
   const visible = useMemo(() => {
     if (prods.status !== 'ready') return [];
     const s = q.trim().toLowerCase();
     const hit = (p: Product) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s);
+    const isDep = (p: Product) => (p.categoryId && depositCategoryIds.has(p.categoryId)) || p.name.toLowerCase().includes('deposit');
     return groupVariants(prods.data).filter((t) => {
       const c = t.kind === 'single' ? t.product.categoryId : t.categoryId;
       if (cat === FAV) { if (!(t.kind === 'single' ? t.product.isFavorite : t.options.some((o) => o.product.isFavorite))) return false; }
       else if (cat === PROMO) { if (!(t.kind === 'single' ? promoIds.has(t.product.id) : t.options.some((o) => promoIds.has(o.product.id)))) return false; }
       else if (cat === BUNDLE) { if (!(t.kind === 'single' && t.product.kind === 'bundle')) return false; }
+      else if (cat === DEPOSIT) { if (!(t.kind === 'single' ? isDep(t.product) : t.options.some((o) => isDep(o.product)))) return false; }
       else if (cat !== 'all' && c !== cat) return false;
       if (!s) return true;
       return t.kind === 'single' ? hit(t.product) : t.name.toLowerCase().includes(s) || t.options.some((o) => hit(o.product));
     });
-  }, [prods, cat, q, promoIds]);
+  }, [prods, cat, q, promoIds, depositCategoryIds]);
 
   const [scanMsg, setScanMsg] = useState<{ ok: boolean; text: string } | null>(null);
   /** Enter di kolom cari: kode SKU persis langsung masuk pesanan (pemindai kode batang mengetik lalu menekan Enter); kalau hasil cari tinggal satu, itu yang dipakai. */
@@ -306,6 +327,16 @@ export function Register({
             {online ? <Wifi className="cg-icon cg-icon--xs" aria-hidden /> : <WifiOff className="cg-icon cg-icon--xs" aria-hidden />}
             <span className="hidden desktop:inline">{online ? 'Online' : 'Offline'}</span>
           </span>
+          {viewMode === 'table' && (
+            <span className="inline-flex items-center gap-4 text-xs font-medium px-8 py-2 rounded-full shrink-0 bg-white/20 text-white">
+              Mode Meja
+            </span>
+          )}
+          {viewMode === 'service' && (
+            <span className="inline-flex items-center gap-4 text-xs font-medium px-8 py-2 rounded-full shrink-0 bg-white/20 text-white">
+              Mode Jasa
+            </span>
+          )}
         </div>
 
         {/* Tengah: Nama aplikasi CG POS sebagai teks */}
@@ -410,6 +441,7 @@ export function Register({
         {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}>Favorit</button>}
         {hasPromo && <button className="cg-rail-item" aria-current={cat === PROMO} onClick={() => setCat(PROMO)}>Promo</button>}
         {hasBundle && <button className="cg-rail-item" aria-current={cat === BUNDLE} onClick={() => setCat(BUNDLE)}>Paket</button>}
+        {hasDeposit && <button className="cg-rail-item" aria-current={cat === DEPOSIT} onClick={() => setCat(DEPOSIT)}>Deposit</button>}
         {cats.status === 'ready' && cats.data.map((c) => (
           <button key={c.id} className="cg-rail-item" aria-current={cat === c.id} onClick={() => setCat(c.id)}>{c.name}</button>
         ))}
@@ -647,12 +679,14 @@ export function Register({
             <div className="grid gap-6">
               <button
                 type="button"
-                className="cg-btn cg-btn--secondary cg-btn--block flex justify-between h-[34px] text-xs"
+                className={`cg-btn ${viewMode === 'table' && !cart.state.tableId ? 'cg-btn--primary font-semibold' : 'cg-btn--secondary'} cg-btn--block flex justify-between h-[34px] text-xs`}
                 onClick={() => setTablePick(true)}
                 aria-label={cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}, ganti meja` : 'Pilih meja'}
               >
-                <span>{cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}` : 'Pilih meja'}</span>
-                <span className="text-text-muted">{cart.state.tableId ? 'Ganti' : 'Opsional'}</span>
+                <span>{cart.state.tableId ? `Meja ${cart.state.tableName ?? ''}` : viewMode === 'table' ? 'Pilih Meja (Mode Meja)' : 'Pilih meja'}</span>
+                <span className={viewMode === 'table' && !cart.state.tableId ? 'text-white/80' : 'text-text-muted'}>
+                  {cart.state.tableId ? 'Ganti' : viewMode === 'table' ? 'Diutamakan' : 'Opsional'}
+                </span>
               </button>
               <div className="grid grid-cols-[1fr_80px] gap-6">
                 <label className="cg-field">

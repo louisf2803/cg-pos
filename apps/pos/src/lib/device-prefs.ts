@@ -7,18 +7,22 @@ import {
 } from '@cgpos/shared';
 
 /** Pengaturan milik perangkat kasir ini (disimpan di perangkat, bukan di server). */
-/** Cara produk ditampilkan di kasir: kartu bergambar, daftar ringkas, atau mode SKU untuk ritel (cari/scan dulu). */
-export type ViewMode = 'grid' | 'list' | 'sku';
+/** Cara produk ditampilkan di kasir: kartu bergambar, daftar ringkas, mode meja, atau mode jasa. Mode SKU dibuang. */
+export type ViewMode = 'grid' | 'list' | 'table' | 'service' | 'sku';
 export const VIEW_MODES: { id: ViewMode; label: string; hint: string }[] = [
   { id: 'grid', label: 'Kartu bergambar', hint: 'Cocok untuk kafe dan restoran: foto, harga, dan stok di tiap kartu.' },
   { id: 'list', label: 'Daftar ringkas', hint: 'Satu produk satu baris; muat lebih banyak di layar kecil.' },
-  { id: 'sku', label: 'Mode SKU (ritel)', hint: 'Produk muncul setelah kode SKU atau nama diketik/dipindai; kolom cari selalu siap.' },
+  { id: 'table', label: 'Mode Meja', hint: 'Alur kasir berbasis meja makan di tempat.' },
+  { id: 'service', label: 'Mode Jasa', hint: 'Alur kasir berbasis layanan jasa: otomatis mengarahkan ke jenis pesanan Jasa.' },
 ];
 export const APP_MODES: { id: PosAppMode; label: string; hint: string }[] = [
   { id: 'register', label: 'Kasir (POS)', hint: 'Masuk ke kasir penjualan dan manajemen meja (perlu buka shift).' },
   { id: 'kitchen', label: 'Layar Dapur (KDS)', hint: 'Tablet khusus dapur/bar: langsung membuka papan tiket per stasiun tanpa buka laci kas.' },
 ];
-export const normalizeViewMode = (v: unknown): ViewMode => (v === 'list' || v === 'sku' ? v : 'grid');
+export const normalizeViewMode = (v: unknown): ViewMode => {
+  if (v === 'list' || v === 'table' || v === 'service') return v;
+  return 'grid';
+};
 export interface DevicePrefs {
   idleLockMinutes: number;
   viewMode: ViewMode;
