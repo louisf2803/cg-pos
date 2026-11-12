@@ -17,12 +17,14 @@ import {
 } from 'lucide-react';
 import {
   accessFor,
+  getCustomRoleForEmployee,
   pinProblem,
   PERMISSIONS,
   ROLE_LABEL,
   type Access,
   type Employee,
   type ManagedEmployee,
+  type RoleDefinition,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
@@ -38,11 +40,14 @@ const ACCESS_TEXT: Record<Access, string> = {
 export default function KaryawanDanAkses() {
   const data = useData();
 
-  // Load context outlet & karyawan
+  // Load context outlet, karyawan, & peran kustom
   const contextAsync = useAsync(async () => {
-    const ctx = await data.getContext();
-    const employees = await data.listManagedEmployees();
-    return { ctx, employees };
+    const [ctx, employees, roles] = await Promise.all([
+      data.getContext(),
+      data.listManagedEmployees(),
+      data.listRoles(),
+    ]);
+    return { ctx, employees, roles };
   }, [data]);
 
   const [targetPin, setTargetPin] = useState<Employee | null>(null);
@@ -79,9 +84,27 @@ export default function KaryawanDanAkses() {
     }
   }
 
+  async function handleRoleChange(emp: ManagedEmployee, roleId: string) {
+    if (emp.role === 'owner') return;
+    setBusyId(emp.id);
+    setErrorMessage('');
+    try {
+      await data.setEmployeeRoleId(emp.id, roleId ? roleId : null);
+      contextAsync.reload();
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Gagal memperbarui peran kustom karyawan.',
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // Hitung Kuota Karyawan & Admin
   const employeesList = contextAsync.status === 'ready' ? contextAsync.data.employees : [];
   const ctx = contextAsync.status === 'ready' ? contextAsync.data.ctx : null;
+  const customRoles: RoleDefinition[] =
+    contextAsync.status === 'ready' ? contextAsync.data.roles.filter((r) => !r.isBuiltIn) : [];
 
   const quota = useMemo(() => {
     const activeStaff = employeesList.filter((e) => e.role === 'cashier' && e.isActive);
@@ -311,6 +334,7 @@ export default function KaryawanDanAkses() {
                       <tr>
                         <th className="py-12 px-16 text-left">Nama & Kode</th>
                         <th className="py-12 px-16 text-left">Posisi / Peran</th>
+                        <th className="py-12 px-16 text-left">Peran Kustom</th>
                         <th className="py-12 px-16 text-left">Outlet</th>
                         <th className="py-12 px-16 text-left">Status</th>
                         <th className="py-12 px-16 text-right w-[280px]" style={{ textAlign: 'right' }}>Tindakan</th>
@@ -320,6 +344,7 @@ export default function KaryawanDanAkses() {
                       {filteredEmployees.map((e, idx) => {
                         const code = `KRY-${String(idx + 1).padStart(3, '0')}`;
                         const outletDisplay = e.role === 'owner' ? 'Semua Outlet' : (ctx?.outletName || 'Outlet Utama');
+                        const customRole = getCustomRoleForEmployee(e, customRoles);
 
                         return (
                           <tr key={e.id} className={`border-b border-border last:border-0 ${e.isActive ? '' : 'opacity-60 bg-surface/30'}`}>
@@ -329,19 +354,64 @@ export default function KaryawanDanAkses() {
                               <div className="text-[11px] font-mono text-text-muted">{code}</div>
                             </td>
 
-                            {/* Posisi / Peran */}
+                            {/* Posisi / Peran Bawaan + Lencana Kustom */}
                             <td className="py-12 px-16">
-                              <span
-                                className={`inline-flex items-center px-8 py-2 rounded-full text-xs font-semibold ${
-                                  e.role === 'owner'
-                                    ? 'bg-info/10 text-info'
-                                    : e.role === 'manager'
-                                    ? 'bg-warning/10 text-warning'
-                                    : 'bg-accent/10 text-accent'
-                                }`}
-                              >
-                                {ROLE[e.role]}
-                              </span>
+                              <div className="flex flex-col gap-4 items-start">
+                                <span
+                                  className={`inline-flex items-center px-8 py-[2px] rounded-full text-xs font-semibold ${
+                                    e.role === 'owner'
+                                      ? 'bg-info/10 text-info'
+                                      : e.role === 'manager'
+                                      ? 'bg-warning/10 text-warning'
+                                      : 'bg-accent/10 text-accent'
+                                  }`}
+                                >
+                                  {ROLE[e.role]}
+                                </span>
+                                {customRole && (
+                                  <span
+                                    className="cg-badge cg-badge--accent text-[11px]"
+                                    data-testid={`badge-custom-${e.id}`}
+                                  >
+                                    {customRole.name}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Pilihan Peran Kustom */}
+                            <td className="py-12 px-16 min-w-[210px]">
+                              {e.role === 'owner' ? (
+                                <div className="flex flex-col gap-4">
+                                  <select
+                                    disabled
+                                    className="cg-input text-xs w-full opacity-50 cursor-not-allowed"
+                                    aria-label={`Peran kustom untuk ${e.name} (dinonaktifkan)`}
+                                    value=""
+                                  >
+                                    <option value="">Bawaan (Pemilik)</option>
+                                  </select>
+                                  <span className="text-[11px] text-text-muted block">
+                                    Pemilik tidak boleh dipindah ke peran kustom
+                                  </span>
+                                </div>
+                              ) : (
+                                <select
+                                  className="cg-input text-xs w-full"
+                                  value={e.roleId || ''}
+                                  disabled={busyId === e.id || !e.isActive}
+                                  onChange={(ev) => void handleRoleChange(e, ev.target.value)}
+                                  aria-label={`Pilih peran kustom untuk ${e.name}`}
+                                  data-testid={`select-custom-role-${e.id}`}
+                                >
+                                  <option value="">Bawaan (mengikuti peran)</option>
+                                  {customRoles.map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                      {r.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                             </td>
 
                             {/* Outlet */}
@@ -454,6 +524,7 @@ export default function KaryawanDanAkses() {
                 {filteredEmployees.map((e, idx) => {
                   const code = `KRY-${String(idx + 1).padStart(3, '0')}`;
                   const outletDisplay = e.role === 'owner' ? 'Semua Outlet' : (ctx?.outletName || 'Outlet Utama');
+                  const customRole = getCustomRoleForEmployee(e, customRoles);
 
                   return (
                     <div
@@ -496,10 +567,57 @@ export default function KaryawanDanAkses() {
                         >
                           {ROLE[e.role]}
                         </span>
+                        {customRole && (
+                          <span
+                            className="cg-badge cg-badge--accent text-[11px]"
+                            data-testid={`mobile-badge-custom-${e.id}`}
+                          >
+                            {customRole.name}
+                          </span>
+                        )}
                         <span className="text-text-muted flex items-center gap-4">
                           <Building2 className="w-12 h-12" aria-hidden />
                           <span>{outletDisplay}</span>
                         </span>
+                      </div>
+
+                      {/* Pilihan Peran Kustom Mobile */}
+                      <div className="pt-8 border-t border-border/60 space-y-4">
+                        <label className="text-[11px] font-semibold text-text-muted block" htmlFor={`m-role-${e.id}`}>
+                          Peran kustom
+                        </label>
+                        {e.role === 'owner' ? (
+                          <div className="flex flex-col gap-4">
+                            <select
+                              id={`m-role-${e.id}`}
+                              disabled
+                              className="cg-input text-xs w-full opacity-50 cursor-not-allowed"
+                              aria-label={`Peran kustom untuk ${e.name} (dinonaktifkan)`}
+                              value=""
+                            >
+                              <option value="">Bawaan (Pemilik)</option>
+                            </select>
+                            <span className="text-[11px] text-text-muted block">
+                              Pemilik tidak boleh dipindah ke peran kustom
+                            </span>
+                          </div>
+                        ) : (
+                          <select
+                            id={`m-role-${e.id}`}
+                            className="cg-input text-xs w-full"
+                            value={e.roleId || ''}
+                            disabled={busyId === e.id || !e.isActive}
+                            onChange={(ev) => void handleRoleChange(e, ev.target.value)}
+                            aria-label={`Pilih peran kustom untuk ${e.name}`}
+                          >
+                            <option value="">Bawaan (mengikuti peran)</option>
+                            {customRoles.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
 
                       {/* Baris Bawah: Tombol Tindakan */}
@@ -602,6 +720,7 @@ export default function KaryawanDanAkses() {
       {editEmployee && (
         <EmployeeDialog
           employee={editEmployee === 'new' ? undefined : editEmployee}
+          customRoles={customRoles}
           onClose={() => setEditEmployee(null)}
           onSaved={() => {
             setEditEmployee(null);
@@ -816,10 +935,12 @@ function PinDialog({
 /** Dialog Form Tambah / Ubah Karyawan */
 function EmployeeDialog({
   employee,
+  customRoles,
   onClose,
   onSaved,
 }: {
   employee?: ManagedEmployee;
+  customRoles: readonly RoleDefinition[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -827,8 +948,9 @@ function EmployeeDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(employee?.name ?? '');
   const [role, setRole] = useState<'manager' | 'cashier'>(
-    employee?.role === 'manager' ? 'manager' : 'cashier'
+    employee?.role === 'manager' ? 'manager' : 'cashier',
   );
+  const [roleId, setRoleId] = useState<string>(employee?.roleId ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -843,7 +965,12 @@ function EmployeeDialog({
     setBusy(true);
     setError(null);
     try {
-      await data.saveEmployee({ id: employee?.id, name, role });
+      const saved = await data.saveEmployee({ id: employee?.id, name, role });
+      const targetId = employee?.id ?? saved.id;
+      const initialRoleId = employee?.roleId ?? '';
+      if (initialRoleId !== roleId) {
+        await data.setEmployeeRoleId(targetId, roleId ? roleId : null);
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan data karyawan.');
@@ -892,6 +1019,29 @@ function EmployeeDialog({
             <option value="cashier">Kasir — Transaksi penjualan dan cetak struk</option>
             <option value="manager">Manajer — Otorisasi void, diskon, dan manajemen data</option>
           </select>
+        </div>
+
+        <div className="cg-field">
+          <label className="cg-label text-xs font-semibold" htmlFor="peran-kustom-dialog">
+            Peran Kustom
+          </label>
+          <select
+            id="peran-kustom-dialog"
+            className="cg-input text-xs"
+            value={roleId}
+            onChange={(e) => setRoleId(e.target.value)}
+            data-testid="dialog-role-id"
+          >
+            <option value="">Bawaan (mengikuti peran)</option>
+            {customRoles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-text-muted mt-4">
+            Pilih peran kustom untuk menetapkan izin spesifik, atau gunakan Bawaan untuk hak akses standar.
+          </p>
         </div>
 
         {!employee && (
