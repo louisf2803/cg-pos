@@ -151,7 +151,7 @@ Serial number dan batch number per produk,inventori,could,yes,no,T3; di Majoo ha
 Departemen lalu kategori produk,produk,should,yes,yes,T1; lihat baris Kategori dan departemen
 "Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",produk,could,yes,no,"T3; hanya judul menu, isi belum dibuka"
 Master resep dan kategori catatan,produk,should,yes,no,"T2; hanya judul menu, isi belum dibuka"
-Impor dan ekspor produk (spreadsheet),produk,should,yes,partial,Antigravity A1: unduh CSV (BOM untuk Excel) dan impor CSV. Format .xlsx belum
+Impor dan ekspor produk (spreadsheet),produk,should,yes,yes,review A75: impor dan ekspor .xlsx dan CSV dengan pratinjau Baru/Perbarui/Salah dan catat riwayat ekspor
 Kartu stok (detail persediaan per produk) dan ringkasan nilai persediaan,inventori,should,yes,yes,"T2; dilihat di login putaran 2 | Kartu stok per item: waktu, jenis, jumlah, saldo, biaya per satuan, alasan; nilai persediaan di ringkasan Daftar stok"
 Laporan stok kedaluwarsa,inventori,could,yes,no,T3; hanya judul menu
 "Laporan kas kasir, penjualan per terminal, tutup kasir, tutup toko",laporan,should,yes,partial,"S80 (2026-11-10, giliran 17): Dashboard > Laporan > Kasir dan tutup kasir: per shift (kasir, buka, tutup, modal, tunai, non-tunai, seharusnya, dihitung, selisih) + rincian metode bayar dan produk. Belum: per terminal/perangkat, ekspor"

@@ -27,3 +27,4 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 2026-11-12 | main=3b79b40 | payroll tahap 1 (fungsi hitung murni, 505 tes; publikasi disetujui Louis); absensi: payroll ikut lingkup; goal 14/72
 2026-11-12 | main=9c09454 | payroll tahap 2: 0037 diterapkan ke produksi atas persetujuan Louis; tahap 3 DataLayer berikutnya; goal 14/72
 2026-11-12 | main=2b90ffc | payroll tahap 3 (DataLayer, 516 tes); A80 dan A81 ditulis (diganti nomor karena A75 dan A78 dipakai Antigravity); goal 14/72
+2026-11-12 | main=ad2d33a | merge A75 (produk xlsx), A78 (pengaturan stok), A77 STATUS, status non-DB (typecheck, 521 tes, build, lint); review: Impor dan ekspor produk => yes; Notifikasi stok dan Batasi penjualan tetap partial; tugas payroll dinomori ulang A80 dan A81; goal 15/72
