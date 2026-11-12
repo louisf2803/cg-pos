@@ -14,3 +14,5 @@ Berkas yang melanggar (jumlah baris): keuangan/tagihan-rutin/page.tsx (13), inve
 ## Tambahan dari uji Chrome (13 Nov 2026)
 1. **Pesan galat tak terlihat di Pelepasan Aset** (`apps/dashboard/src/app/keuangan/aset/pelepasan/page.tsx`): bila konfirmasi pelepasan gagal, banner galat muncul di BAGIAN ATAS halaman sehingga pengguna yang sudah scroll ke bawah mengira berhasil. Tampilkan galat di dalam dialog konfirmasi (dan jangan tutup dialog saat gagal), atau scroll ke banner. Periksa pola yang sama di halaman Penyusutan, Tagihan Rutin, Persetujuan, Permintaan Barang, Harga Beli.
 2. Setelah kamu memperbaiki, JANGAN memakai `toISOString().slice(0, 10)` untuk "hari ini": itu tanggal UTC (antara 00.00 dan 07.00 WIB masih kemarin). Pakai `localDateString(new Date())` dari `@cgpos/shared`.
+STATUS: SELESAI 6abe4d0
+
