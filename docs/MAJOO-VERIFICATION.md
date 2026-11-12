@@ -52,3 +52,12 @@ Pertanyaan yang masih perlu dijawab Louis sebelum dibangun (jangan menebak):
 - Apakah "Varian" dan "Ekstra" di Majoo dua hal berbeda (varian = pilihan tanpa/ dengan harga pada produk, ekstra = tambahan berbayar), atau satu master yang sama?
 - Apakah pilihan varian bisa mengubah harga produk (mis. Large +3.000), atau hanya nama dan resep?
 - Apakah varian wajib dipilih (harus pilih satu) atau boleh dikosongkan, dan apakah bisa lebih dari satu grup per produk?
+
+## Layar absensi POS Majoo (penjelasan Louis, 12 Nov 2026)
+Alur yang benar (satu layar): **kamera depan langsung tampil di kiri dan WAJIB**; di kanan **pilih nama pegawai, isi PIN, lalu tekan Clock in atau Clock out**. Foto diambil otomatis saat Clock in/out (asumsi; belum ada screenshot untuk memastikan apakah ada tombol "ambil foto" terpisah).
+Diperbaiki di `apps/pos/src/screens/Attendance.tsx` (12 Nov 2026): tata letak dua kolom, kamera wajib (tanpa kamera = Clock in/out terkunci), dua tombol Clock in dan Clock out yang bergantian aktif menurut status pegawai.
+Dokumentasi yang ADA di repo hanya teks: `docs/SCOPE.md` (satu baris), `docs/POS-REF.md` (menu "Absensi"), `docs/majoo-recon/dashboard-menu.md` ("Akses Absensi", "Radius Absensi"). TIDAK ada screenshot Majoo untuk absensi.
+Pertanyaan terbuka (jangan menebak; paling mudah dijawab dengan screenshot di `docs/majoo-recon/absensi/`):
+- "Radius Absensi" (pengaturan dashboard): apakah absen hanya boleh dalam radius tertentu dari lokasi outlet (geofence lewat GPS perangkat)? Belum dikerjakan.
+- "Akses Absensi": apakah itu hak akses per peran untuk layar absensi?
+- Apakah daftar nama pegawai berupa dropdown atau daftar yang bisa dicari, dan apakah ada pesan atau suara setelah berhasil?
