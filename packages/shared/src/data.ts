@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
+import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
 import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
 import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
 import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
@@ -220,6 +221,26 @@ export interface DataLayer {
   listIncidents(range: { from: string; to: string }, employeeId?: string): Promise<EmployeeIncident[]>;
   saveIncident(input: EmployeeIncidentInput): Promise<EmployeeIncident>;
   deleteIncident(id: string): Promise<void>;
+  // ---- struktur SDM (migrasi 0038); hanya pemilik/manajer. Nama ganda (tanpa beda huruf) = invalid. Menghapus jabatan/unit/tipe melepas tautan karyawan. ----
+  listJobLevels(): Promise<JobLevel[]>;
+  saveJobLevel(input: JobLevelInput): Promise<JobLevel>;
+  deleteJobLevel(id: string): Promise<void>;
+  listOrgUnits(): Promise<OrgUnit[]>;
+  saveOrgUnit(input: OrgUnitInput): Promise<OrgUnit>;
+  deleteOrgUnit(id: string): Promise<void>;
+  listEmployeeTypes(): Promise<EmployeeType[]>;
+  saveEmployeeType(input: EmployeeTypeInput): Promise<EmployeeType>;
+  deleteEmployeeType(id: string): Promise<void>;
+  /** Profil SDM semua karyawan yang sudah diatur. */
+  listEmployeeHr(): Promise<EmployeeHr[]>;
+  saveEmployeeHr(input: EmployeeHrInput): Promise<EmployeeHr>;
+  /** Pengaturan lokasi dan radius absensi per outlet (hanya outlet yang sudah diatur). */
+  listAttendanceSettings(): Promise<AttendanceSettings[]>;
+  saveAttendanceSettings(input: AttendanceSettingsInput): Promise<AttendanceSettings>;
+  /** Notifikasi dari pengelola ke karyawan, terbaru dulu. */
+  listNotifications(): Promise<EmployeeNotification[]>;
+  sendNotification(input: EmployeeNotificationInput): Promise<EmployeeNotification>;
+  deleteNotification(id: string): Promise<void>;
   /** Riwayat kasbon (terbaru dulu), semua karyawan atau satu karyawan. Saldo: cashAdvanceBalance dari payroll.ts. */
   listCashAdvances(employeeId?: string): Promise<CashAdvance[]>;
   saveCashAdvance(input: CashAdvanceInput): Promise<CashAdvance>;

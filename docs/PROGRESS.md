@@ -923,3 +923,6 @@ Tabel `job_levels`, `org_units`, `employee_types`, `employee_hr`, `attendance_se
 
 ## Claude (12 Nov 2026) — 0039 DITERAPKAN ke produksi (persetujuan Louis)
 `attendance_clock_in` kini menerima `p_lat`/`p_lng` (opsional, jadi klien lama yang mengirim 4 argumen tetap jalan). Berikutnya: `data.ts`/`supabase.ts` (lokasi opsional di `attendanceClockIn`), POS membaca GPS, DataLayer SDM (0038), tugas UI.
+
+## Claude (12 Nov 2026) — DataLayer struktur SDM (0038) + tugas UI A87
+`packages/shared/src/hr.ts` + 16 metode DataLayer (jabatan, unit, tipe, profil SDM, radius absensi, notifikasi) di `data.ts`/`fake.ts`/`supabase.ts`; 8 tes baru. Tugas layar: `docs/queue/A87.md`. Belum diuji ke database nyata (lapisan Supabase), hanya data demo dan tipe.

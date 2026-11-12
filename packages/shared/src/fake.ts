@@ -20,6 +20,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
+import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
@@ -205,6 +206,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let schedules = new Map<string, WeeklySchedule>();
   let payrollRules: Record<string, unknown> = {};
   let incidents: EmployeeIncident[] = [];
+  const jobLevels: JobLevel[] = [];
+  const orgUnits: OrgUnit[] = [];
+  const employeeTypes: EmployeeType[] = [];
+  const employeeHr: EmployeeHr[] = [];
+  const attendanceSettings: AttendanceSettings[] = [];
+  const notifications: EmployeeNotification[] = [];
   let cashAdvances: (CashAdvance)[] = [];
   let payrollRecords: PayrollRecord[] = [];
   let products: Product[] = [];
@@ -1563,6 +1570,93 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = incidents.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Catatan tidak ditemukan');
       incidents.splice(i, 1);
+    },
+    async listJobLevels() { return clone([...jobLevels].sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))); },
+    async saveJobLevel(input) {
+      const problem = jobLevelProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (hrNameTaken(input.name, jobLevels, input.id)) throw new DataError('invalid', 'Nama jabatan ini sudah dipakai.');
+      const row: JobLevel = { id: input.id ?? newId(), name: input.name.trim(), rank: input.rank ?? 0 };
+      const i = jobLevels.findIndex((x) => x.id === row.id);
+      if (input.id && i < 0) throw new DataError('not_found', 'Jabatan tidak ditemukan');
+      if (i >= 0) jobLevels[i] = row; else jobLevels.push(row);
+      return clone(row);
+    },
+    async deleteJobLevel(id) {
+      const i = jobLevels.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Jabatan tidak ditemukan');
+      jobLevels.splice(i, 1);
+      for (const h of employeeHr) if (h.jobLevelId === id) delete h.jobLevelId;
+    },
+    async listOrgUnits() { return clone([...orgUnits].sort((a, b) => a.name.localeCompare(b.name))); },
+    async saveOrgUnit(input) {
+      const problem = orgUnitProblem(input, orgUnits);
+      if (problem) throw new DataError('invalid', problem);
+      if (hrNameTaken(input.name, orgUnits, input.id)) throw new DataError('invalid', 'Nama unit ini sudah dipakai.');
+      const row: OrgUnit = { id: input.id ?? newId(), name: input.name.trim(), ...(input.parentId ? { parentId: input.parentId } : {}) };
+      const i = orgUnits.findIndex((x) => x.id === row.id);
+      if (input.id && i < 0) throw new DataError('not_found', 'Unit tidak ditemukan');
+      if (i >= 0) orgUnits[i] = row; else orgUnits.push(row);
+      return clone(row);
+    },
+    async deleteOrgUnit(id) {
+      const i = orgUnits.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Unit tidak ditemukan');
+      orgUnits.splice(i, 1);
+      for (const u of orgUnits) if (u.parentId === id) delete u.parentId;
+      for (const h of employeeHr) if (h.orgUnitId === id) delete h.orgUnitId;
+    },
+    async listEmployeeTypes() { return clone([...employeeTypes].sort((a, b) => a.name.localeCompare(b.name))); },
+    async saveEmployeeType(input) {
+      const problem = hrNameProblem(input.name);
+      if (problem) throw new DataError('invalid', problem);
+      if (hrNameTaken(input.name, employeeTypes, input.id)) throw new DataError('invalid', 'Nama tipe karyawan ini sudah dipakai.');
+      const row: EmployeeType = { id: input.id ?? newId(), name: input.name.trim() };
+      const i = employeeTypes.findIndex((x) => x.id === row.id);
+      if (input.id && i < 0) throw new DataError('not_found', 'Tipe karyawan tidak ditemukan');
+      if (i >= 0) employeeTypes[i] = row; else employeeTypes.push(row);
+      return clone(row);
+    },
+    async deleteEmployeeType(id) {
+      const i = employeeTypes.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Tipe karyawan tidak ditemukan');
+      employeeTypes.splice(i, 1);
+      for (const h of employeeHr) if (h.employeeTypeId === id) delete h.employeeTypeId;
+    },
+    async listEmployeeHr() { return clone(employeeHr); },
+    async saveEmployeeHr(input) {
+      if (!employees.some((x) => x.id === input.employeeId)) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      if (input.jobLevelId && !jobLevels.some((x) => x.id === input.jobLevelId)) throw new DataError('not_found', 'Jabatan tidak ditemukan');
+      if (input.orgUnitId && !orgUnits.some((x) => x.id === input.orgUnitId)) throw new DataError('not_found', 'Unit tidak ditemukan');
+      if (input.employeeTypeId && !employeeTypes.some((x) => x.id === input.employeeTypeId)) throw new DataError('not_found', 'Tipe karyawan tidak ditemukan');
+      const row: EmployeeHr = { employeeId: input.employeeId, ...(input.jobLevelId ? { jobLevelId: input.jobLevelId } : {}), ...(input.orgUnitId ? { orgUnitId: input.orgUnitId } : {}), ...(input.employeeTypeId ? { employeeTypeId: input.employeeTypeId } : {}) };
+      const i = employeeHr.findIndex((x) => x.employeeId === input.employeeId);
+      if (i >= 0) employeeHr[i] = row; else employeeHr.push(row);
+      return clone(row);
+    },
+    async listAttendanceSettings() { return clone(attendanceSettings); },
+    async saveAttendanceSettings(input) {
+      const problem = attendanceSettingsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const row: AttendanceSettings = { outletId: input.outletId, mode: input.mode, requirePhoto: input.requirePhoto, ...(input.latitude !== null && input.longitude !== null ? { latitude: input.latitude, longitude: input.longitude } : {}), ...(input.radiusM !== null ? { radiusM: input.radiusM } : {}) };
+      const i = attendanceSettings.findIndex((x) => x.outletId === input.outletId);
+      if (i >= 0) attendanceSettings[i] = row; else attendanceSettings.push(row);
+      return clone(row);
+    },
+    async listNotifications() { return clone([...notifications].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))); },
+    async sendNotification(input) {
+      const problem = notificationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const e = input.employeeId ? employees.find((x) => x.id === input.employeeId) : undefined;
+      if (input.employeeId && !e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      const row: EmployeeNotification = { id: newId(), title: input.title.trim(), body: input.body.trim(), createdAt: now().toISOString(), ...(e ? { employeeId: e.id, employeeName: e.name } : {}) };
+      notifications.push(row);
+      return clone(row);
+    },
+    async deleteNotification(id) {
+      const i = notifications.findIndex((x) => x.id === id);
+      if (i < 0) throw new DataError('not_found', 'Notifikasi tidak ditemukan');
+      notifications.splice(i, 1);
     },
     async listCashAdvances(employeeId) {
       return clone(cashAdvances.filter((x) => !employeeId || x.employeeId === employeeId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));

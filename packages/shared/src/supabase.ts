@@ -6,6 +6,7 @@ import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
 import { roleFromRows, roleSaveProblem, roleToRpcArgs } from './roles';
 import { isBuiltInRole, type RoleDefinition } from './permission-matrix';
+import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
 import { makeStockItem, opnameProblem, stockFilterMatches, stockPostProblem, stockSearchMatches, type StockItem, type StockMove, type StockMoveEntry, type StockMoveKind, type StockOpname, type StockOpnameInput, type StockOpnameLine, type StockOpnameSummary } from './stock';
@@ -234,6 +235,15 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     return mapDbError(error);
   }
 
+  function mapHrError(error: { code?: string; message?: string }): DataError {
+    const m = error.message ?? '';
+    if (error.code === 'PGRST202' || error.code === '42P01' || /does not exist|schema cache/i.test(m)) return new DataError('invalid', 'Fitur struktur SDM belum aktif di database (migrasi 0038 belum diterapkan).');
+    if (error.code === '23505') return new DataError('invalid', 'Nama ini sudah dipakai.');
+    if (error.code === '23503') return new DataError('not_found', 'Data yang dituju tidak ditemukan.');
+    if (error.code === '23514') return new DataError('invalid', 'Isian ditolak server (di luar batas yang diizinkan).');
+    if (error.code === '42501' || /row-level security|not allowed/i.test(m)) return new DataError('forbidden', 'Hanya pemilik dan manajer yang boleh mengatur struktur SDM.');
+    return mapDbError(error);
+  }
   function mapAttendanceError(error: { code?: string; message?: string }): DataError {
     const m = error.message ?? '';
     if (error.code === 'PGRST202' || /could not find the function/i.test(m)) return new DataError('invalid', 'Fitur absensi belum aktif di database (migrasi 0035 belum diterapkan).');
@@ -2073,6 +2083,100 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteIncident(id) {
       const { error } = await db().from('employee_incidents').delete().eq('id', id);
       if (error) throw mapPayrollError(error);
+    },
+    async listJobLevels() {
+      const rows = await pageAll((from, to) => db().from('job_levels').select('id,name,rank').order('rank', { ascending: false }).order('name').range(from, to));
+      return rows.map((x): JobLevel => ({ id: x.id as string, name: x.name as string, rank: Number(x.rank) }));
+    },
+    async saveJobLevel(input) {
+      const problem = jobLevelProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const row = { id: input.id ?? newId(), org_id: r.orgId, name: input.name.trim(), rank: input.rank ?? 0 };
+      const { error } = await db().from('job_levels').upsert(row, { onConflict: 'id' });
+      if (error) throw mapHrError(error);
+      return { id: row.id, name: row.name, rank: row.rank };
+    },
+    async deleteJobLevel(id) {
+      const { error } = await db().from('job_levels').delete().eq('id', id);
+      if (error) throw mapHrError(error);
+    },
+    async listOrgUnits() {
+      const rows = await pageAll((from, to) => db().from('org_units').select('id,name,parent_id').order('name').range(from, to));
+      return rows.map((x): OrgUnit => ({ id: x.id as string, name: x.name as string, ...(x.parent_id ? { parentId: x.parent_id as string } : {}) }));
+    },
+    async saveOrgUnit(input) {
+      const existing = await self.listOrgUnits();
+      const problem = orgUnitProblem(input, existing);
+      if (problem) throw new DataError('invalid', problem);
+      if (hrNameTaken(input.name, existing, input.id)) throw new DataError('invalid', 'Nama unit ini sudah dipakai.');
+      const r = await resolve();
+      const row = { id: input.id ?? newId(), org_id: r.orgId, name: input.name.trim(), parent_id: input.parentId ?? null };
+      const { error } = await db().from('org_units').upsert(row, { onConflict: 'id' });
+      if (error) throw mapHrError(error);
+      return { id: row.id, name: row.name, ...(row.parent_id ? { parentId: row.parent_id } : {}) };
+    },
+    async deleteOrgUnit(id) {
+      const { error } = await db().from('org_units').delete().eq('id', id);
+      if (error) throw mapHrError(error);
+    },
+    async listEmployeeTypes() {
+      const rows = await pageAll((from, to) => db().from('employee_types').select('id,name').order('name').range(from, to));
+      return rows.map((x): EmployeeType => ({ id: x.id as string, name: x.name as string }));
+    },
+    async saveEmployeeType(input) {
+      const problem = hrNameProblem(input.name);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const row = { id: input.id ?? newId(), org_id: r.orgId, name: input.name.trim() };
+      const { error } = await db().from('employee_types').upsert(row, { onConflict: 'id' });
+      if (error) throw mapHrError(error);
+      return { id: row.id, name: row.name };
+    },
+    async deleteEmployeeType(id) {
+      const { error } = await db().from('employee_types').delete().eq('id', id);
+      if (error) throw mapHrError(error);
+    },
+    async listEmployeeHr() {
+      const rows = await pageAll((from, to) => db().from('employee_hr').select('employee_id,job_level_id,org_unit_id,employee_type_id').range(from, to));
+      return rows.map((x): EmployeeHr => ({ employeeId: x.employee_id as string, ...(x.job_level_id ? { jobLevelId: x.job_level_id as string } : {}), ...(x.org_unit_id ? { orgUnitId: x.org_unit_id as string } : {}), ...(x.employee_type_id ? { employeeTypeId: x.employee_type_id as string } : {}) }));
+    },
+    async saveEmployeeHr(input) {
+      const r = await resolve();
+      const { error } = await db().from('employee_hr').upsert({ employee_id: input.employeeId, org_id: r.orgId, job_level_id: input.jobLevelId, org_unit_id: input.orgUnitId, employee_type_id: input.employeeTypeId }, { onConflict: 'employee_id' });
+      if (error) throw mapHrError(error);
+      return { employeeId: input.employeeId, ...(input.jobLevelId ? { jobLevelId: input.jobLevelId } : {}), ...(input.orgUnitId ? { orgUnitId: input.orgUnitId } : {}), ...(input.employeeTypeId ? { employeeTypeId: input.employeeTypeId } : {}) };
+    },
+    async listAttendanceSettings() {
+      const rows = await pageAll((from, to) => db().from('attendance_settings').select('outlet_id,latitude,longitude,radius_m,mode,require_photo').range(from, to));
+      return rows.map((x): AttendanceSettings => ({ outletId: x.outlet_id as string, mode: x.mode as AttendanceSettings['mode'], requirePhoto: !!x.require_photo, ...(x.latitude !== null && x.longitude !== null ? { latitude: Number(x.latitude), longitude: Number(x.longitude) } : {}), ...(x.radius_m !== null ? { radiusM: Number(x.radius_m) } : {}) }));
+    },
+    async saveAttendanceSettings(input) {
+      const problem = attendanceSettingsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const { error } = await db().from('attendance_settings').upsert({ outlet_id: input.outletId, org_id: r.orgId, latitude: input.latitude, longitude: input.longitude, radius_m: input.radiusM, mode: input.mode, require_photo: input.requirePhoto }, { onConflict: 'outlet_id' });
+      if (error) throw mapHrError(error);
+      return { outletId: input.outletId, mode: input.mode, requirePhoto: input.requirePhoto, ...(input.latitude !== null && input.longitude !== null ? { latitude: input.latitude, longitude: input.longitude } : {}), ...(input.radiusM !== null ? { radiusM: input.radiusM } : {}) };
+    },
+    async listNotifications() {
+      const names = await employeeNames();
+      const rows = await pageAll((from, to) => db().from('employee_notifications').select('id,employee_id,title,body,created_at').order('created_at', { ascending: false }).range(from, to));
+      return rows.map((x): EmployeeNotification => ({ id: x.id as string, title: x.title as string, body: x.body as string, createdAt: x.created_at as string, ...(x.employee_id ? { employeeId: x.employee_id as string, employeeName: names.get(x.employee_id as string) ?? '(karyawan dihapus)' } : {}) }));
+    },
+    async sendNotification(input) {
+      const problem = notificationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = newId();
+      const { data, error } = await db().from('employee_notifications').insert({ id, org_id: r.orgId, employee_id: input.employeeId ?? null, title: input.title.trim(), body: input.body.trim() }).select('created_at').single();
+      if (error) throw mapHrError(error);
+      const names = await employeeNames();
+      return { id, title: input.title.trim(), body: input.body.trim(), createdAt: (data as Row).created_at as string, ...(input.employeeId ? { employeeId: input.employeeId, employeeName: names.get(input.employeeId) ?? '' } : {}) };
+    },
+    async deleteNotification(id) {
+      const { error } = await db().from('employee_notifications').delete().eq('id', id);
+      if (error) throw mapHrError(error);
     },
     async listCashAdvances(employeeId) {
       const names = await employeeNames();
