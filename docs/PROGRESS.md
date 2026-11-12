@@ -990,4 +990,6 @@ Layar `/pengaturan/karyawan` diperbarui: banner keamanan akses & enkripsi server
 Layar `/analisa/perputaran-stok` (rasio perputaran stok, klasifikasi cepat/sedang/lambat/macet, 4 KPI, ekspor CSV) dan `/analisa/kepuasan` (indeks kepuasan, tab rating, filter saluran, tindak lanjut, banner pratinjau) terverifikasi penuh dan aktif di `nav.ts`. 5 tes `analysis.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 ## Antigravity (12 Nov 2026) — A102 Beranda Ringkasan Semua Outlet Selesai
 Layar beranda `/` (`page.tsx`) terverifikasi ujung ke ujung: agregasi multi-outlet (`selectedOutlet === 'semua'`), perbandingan periode sebelumnya (`percentChange`, `prevReport`), akumulasi MTD & proyeksi akhir bulan, status belum dibayar/terbayar, grafik 24-jam spline SVG interaktif, dan 8 widget ringkasan lengkap. 8 tes `dashboard-layout.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
+## Antigravity (12 Nov 2026) — A103 Laporan Komisi per Kasir dan Ekspor Selesai
+Laporan komisi per kasir (`/laporan/karyawan?tab=komisi`) dan pengaturan aturan grup komisi (`/komisi`) terverifikasi ujung ke ujung: tab komisi kasir dengan 4 KPI, tabel rincian, filter pencarian, tautan langsung di `nav.ts`, serta ekspor CSV terintegrasi riwayat unduh. 3 tes `commission.test.ts` lulus, typecheck lulus, `lint-tailwind` bersih.
 
