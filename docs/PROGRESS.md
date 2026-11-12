@@ -1033,3 +1033,10 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A117 Kirim Pesanan ke Dapur per Item (Checker)
+- `packages/shared` (`kitchen-selection.ts`, `kitchen-selection.test.ts`, `index.ts`): helper seleksi centang item per tiket (`toggleTicketItemSelection`, `toggleAllTicketItems`, `isAllTicketItemsSelected`, `getSelectedTicketItemIds`, `clearTicketSelection`), penentuan aksi bulk (`resolveBulkNextStatus`). 4 unit tests lulus.
+- `apps/pos` (`KitchenDisplay.tsx`): pilihan centang item per baris dan centang semua item tiket, aksi bulk (Mulai olah/Tandai siap/Kirim ulang), aksi per item mundurkan status/olah lagi/tahap berikutnya, penonjolan catatan item (`it.note`) dengan badge kuning kontras dan status per item.
+- `apps/dashboard` (`dapur/page.tsx`): pilihan centang item dan pilih semua item tiket, aksi bulk untuk item dicentang (Mulai Olah / Tandai Siap / Kirim Ulang), penonjolan catatan item dan status per item.
+- Lolos: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test kitchen`, `lint-tailwind.sh origin/main` bersih.
+
