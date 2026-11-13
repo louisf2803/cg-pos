@@ -1045,3 +1045,8 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
   - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test price-override.test.ts` (7 lulus), `pnpm -F @cgpos/pos test` (7 lulus), `lint-tailwind.sh origin/main` bersih.
 
 
+
+- **A125 (`ag/a125-stok-gudang`)**:
+  - **`packages/shared`**: menambahkan `locationId` & `locationName` pada `StockItem`, `StockPostInput`, dan filter `listStock({ locationId })`; mengisolasi stok gudang (`LOC_GUDANG`) dan outlet di `fake.ts` & `supabase.ts`; membuat helper spreadsheet parser & template XLSX/CSV `stock-import.ts` beserta unit test (4 lulus).
+  - **`apps/dashboard`**: menambahkan pemilih lokasi outlet/gudang (`listStockLocations`), label lokasi di tabel stok, dan dialog impor stok (.xlsx/.csv) lengkap dengan unduh template, validasi selisih stok, ringkasan galat, dan eksekusi penyesuaian stok massal.
+  - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test stock-import`, `pnpm -F @cgpos/shared test stock.test`, `lint-tailwind.sh origin/main` bersih.
