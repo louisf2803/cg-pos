@@ -1,6 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bluetooth, Printer } from 'lucide-react';
-import { canPrintAgain, discountDisplayLabel, formatRp, orderTypeLabel, receiptBytes, resolveReceiptTemplate, taxDisplay, testPageBytes, type Order, type OutletContext } from '@cgpos/shared';
+import {
+  buildCombinedReceiptSummary,
+  canPrintAgain,
+  discountDisplayLabel,
+  formatRp,
+  orderTypeLabel,
+  receiptBytes,
+  resolveReceiptTemplate,
+  taxDisplay,
+  testPageBytes,
+  type CombinedReceiptSummary,
+  type Order,
+  type OutletContext,
+} from '@cgpos/shared';
 import { bluetoothSupported, connectPrinter, disconnectPrinter, printBytes, reconnectPrinter, setOpenDrawer, usePrinter } from '../lib/printer';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
@@ -82,9 +95,112 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { 
   );
 }
 
+/** Tampilan cetak struk gabungan untuk seluruh transaksi di meja yang sama. */
+export function CombinedReceiptBody({
+  summary,
+  ctx,
+  cashierName,
+  paper,
+}: {
+  summary: CombinedReceiptSummary;
+  ctx: OutletContext;
+  cashierName: string;
+  paper: Paper;
+}) {
+  const tpl = resolveReceiptTemplate(ctx);
+  return (
+    <div
+      className={`receipt receipt--${paper} receipt--${tpl.theme}`}
+      data-testid="combined-receipt"
+    >
+      <header className="receipt__center">
+        {tpl.showOutletName && <strong>{ctx.outletName}</strong>}
+        {tpl.showAddress && ctx.address && <div>{ctx.address}</div>}
+        {tpl.showPhone && ctx.phone && <div>{ctx.phone}</div>}
+        {ctx.receiptHeader &&
+          ctx.receiptHeader
+            .split('\n')
+            .filter((l) => l.trim())
+            .map((l, i) => <div key={i}>{l.trim()}</div>)}
+      </header>
+      <hr />
+      <div className="receipt__row font-bold">
+        <span>STRUK GABUNGAN</span>
+        <span>{summary.tableLabel}</span>
+      </div>
+      <div>Kasir: {cashierName}</div>
+      <div>Dicetak: {fmt(new Date().toISOString(), ctx.timezone)}</div>
+      <hr />
+      <div className="text-xs font-semibold uppercase mb-4">Rincian Bagian Tagihan:</div>
+      {summary.parts.map((p, idx) => (
+        <div key={p.orderNumber} className="receipt__item">
+          <div className="receipt__row font-bold">
+            <span>
+              Bagian {idx + 1}: {p.orderNumber}
+            </span>
+            <span>{p.status}</span>
+          </div>
+          <div className="receipt__row text-text-muted">
+            <span>{p.itemCount} item</span>
+            <span>{formatRp(p.total)}</span>
+          </div>
+        </div>
+      ))}
+      <hr />
+      <div className="receipt__row">
+        <span>Total Subtotal</span>
+        <span>{formatRp(summary.totalSubtotal)}</span>
+      </div>
+      {summary.totalDiscount > 0 && (
+        <div className="receipt__row">
+          <span>Total Potongan</span>
+          <span>-{formatRp(summary.totalDiscount)}</span>
+        </div>
+      )}
+      {summary.totalServiceCharge > 0 && (
+        <div className="receipt__row">
+          <span>Total Layanan</span>
+          <span>{formatRp(summary.totalServiceCharge)}</span>
+        </div>
+      )}
+      {summary.totalTax > 0 && (
+        <div className="receipt__row">
+          <span>Total Pajak</span>
+          <span>{formatRp(summary.totalTax)}</span>
+        </div>
+      )}
+      <hr />
+      <div className="receipt__row font-bold text-base">
+        <span>TOTAL GABUNGAN</span>
+        <span>{formatRp(summary.totalCombined)}</span>
+      </div>
+      {(ctx.receiptFooter || tpl.showPrintTime) && <hr />}
+      {ctx.receiptFooter && <div className="receipt__center">{ctx.receiptFooter}</div>}
+    </div>
+  );
+}
+
 export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx: OutletContext; kind: 'receipt' | 'bill'; onClose: () => void }) {
   const data = useData();
   const emp = useAsync(() => data.listManagedEmployees(), [data]);
+  const [viewMode, setViewMode] = useState<'single' | 'combined'>('single');
+  const tableOrders = useAsync(async () => {
+    if (!order.tableId) return [];
+    return (await data.listOrders({ limit: 100 })).filter(
+      (o) => o.tableId === order.tableId && o.status !== 'void',
+    );
+  }, [data, order.tableId]);
+
+  const hasMultipleTableOrders =
+    tableOrders.status === 'ready' && tableOrders.data.length > 1;
+  const combinedSummary = useMemo(() => {
+    if (!hasMultipleTableOrders) return null;
+    return buildCombinedReceiptSummary(
+      order.label ?? `Meja`,
+      tableOrders.data,
+    );
+  }, [hasMultipleTableOrders, order.label, tableOrders]);
+
   // Poin hanya info tambahan: bila gagal dimuat (offline), struk tetap tampil tanpa baris poin.
   const [pts, setPts] = useState<{ earned: number; balance: number }>();
   useEffect(() => {
@@ -113,10 +229,45 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
   const choose = (p: Paper) => { setPaper(p); try { localStorage.setItem(KEY, p); } catch { /* penyimpanan boleh gagal */ } };
   return (
     <Modal title={kind === 'bill' ? 'Cetak tagihan' : 'Cetak struk'} onClose={onClose}>
+      {hasMultipleTableOrders && (
+        <div className="cg-tabs mb-8" role="tablist" aria-label="Pilihan struk">
+          <button
+            type="button"
+            role="tab"
+            className="cg-tab"
+            aria-selected={viewMode === 'single'}
+            onClick={() => setViewMode('single')}
+          >
+            Struk Ini ({order.number})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className="cg-tab"
+            aria-selected={viewMode === 'combined'}
+            onClick={() => setViewMode('combined')}
+          >
+            Struk Gabungan ({tableOrders.data.length} Bagian)
+          </button>
+        </div>
+      )}
       <div className="cg-tabs mb-12" role="tablist" aria-label="Lebar kertas">
         {(['58', '80'] as const).map((p) => <button key={p} role="tab" className="cg-tab" aria-selected={paper === p} onClick={() => choose(p)}>Kertas {p} mm</button>)}
       </div>
-      <div className="receipt-preview"><div className="receipt-print"><ReceiptBody order={order} ctx={ctx} cashierName={name} kind={kind} paper={paper} points={pts} /></div></div>
+      <div className="receipt-preview">
+        <div className="receipt-print">
+          {viewMode === 'combined' && combinedSummary ? (
+            <CombinedReceiptBody
+              summary={combinedSummary}
+              ctx={ctx}
+              cashierName={name}
+              paper={paper}
+            />
+          ) : (
+            <ReceiptBody order={order} ctx={ctx} cashierName={name} kind={kind} paper={paper} points={pts} />
+          )}
+        </div>
+      </div>
       <section aria-labelledby="h-bt" className="mt-12 grid gap-8">
         <h3 id="h-bt" className="text-base">Printer Bluetooth</h3>
         {!bluetoothSupported() ? (
