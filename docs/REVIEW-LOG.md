@@ -40,3 +40,12 @@ Baris terakhir dipakai sebagai titik awal pembanding siklus berikutnya.
 
 ## Review 12 Nov 2026 — merge ag/a86-peran-karyawan
 Tinjau diff, `pnpm -r typecheck`, 578 tes shared, build dashboard, `lint-tailwind` bersih; screenshot 390 dan 1280 diperiksa (pilih peran kustom per karyawan, pemilik dinonaktifkan dengan keterangan, hitungan karyawan per peran naik jadi 2, peringatan hapus menyebut jumlah). Digabung. Status `Karyawan, peran, dan hak akses` TETAP partial: peran kustom belum membatasi akses di layar lain atau RLS (penegakan granular belum ada), jadi belum memenuhi paritas fungsi. Catatan kecil: screenshot 1280 menampilkan judul halaman tertutup bilah navigasi (artefak tangkapan, bukan galat).
+
+## 13 Nov 2026 — tinjauan gelombang fase 2 (Claude)
+- DIGABUNG: A86 (peran karyawan), A113 (kategori/mode kasir), A116 (split bill lanjut), A139 (grosir, jadwal harga, grup pelanggan + migrasi 0097; saya tambah 0098 untuk mencabut hak PUBLIC pada fungsinya). Typecheck, 593 tes shared, lint, tes SQL penuh lulus.
+- DITOLAK / KEMBALI KE ANTIGRAVITY:
+  - A142 (izin granular, 0103): memberi `select/update (qr_code)` ke `authenticated` sehingga kode QR karyawan (rahasia) terbaca klien dan merusak tes 15_client_rpcs; trigger `guard_granular_catalog` memblokir `custom_item_product` (tes 19_custom_item gagal). Perbaiki dan jalankan seluruh `packages/db/tests/run.sh`.
+  - A114 (denah meja) dan A118 (struk lanjut): `lint-tailwind` GAGAL (nilai spasi/ukuran tak terdefinisi).
+  - A115, A117, A119, A140, A141: konflik dengan main (TablePicker, index.ts, device-prefs, data/fake/supabase, cart/SplitBillDialog). Rebase pada main terbaru setelah gelombang ini.
+- Migrasi 0044, 0097, 0098 sudah lolos tes SQL lokal tetapi BELUM diterapkan ke produksi (pemeriksa izin menolak; menunggu persetujuan Louis).
+- Perbaikan tes: 19_local_date.sql membersihkan datanya (sebelumnya merusak 19_recurring_approvals).
