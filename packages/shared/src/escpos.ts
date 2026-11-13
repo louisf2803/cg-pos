@@ -69,6 +69,7 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
   const row = (a: string, b: string, bold = false) => { for (const l of twoColumns(a, b, cols)) p.push({ text: l, bold }); };
   const text = (t: string) => { for (const l of wrapText(t, cols)) p.push({ text: l }); };
 
+  if (tpl.showLogo && tpl.logoUrl) center('[ LOGO ]', true);
   if (tpl.showOutletName) center(ctx.outletName, true);
   if (tpl.showAddress && ctx.address) center(ctx.address);
   if (tpl.showPhone && ctx.phone) center(ctx.phone);
@@ -111,7 +112,35 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
     row('Sisa', formatRp(order.total - order.paidTotal));
   }
   if (ctx.receiptFooter) { p.push({ text: dash }); center(ctx.receiptFooter); }
-  if (tpl.showPrintTime) { if (!ctx.receiptFooter) p.push({ text: dash }); center(`dicetak ${fmtTime(o.printedAt ?? new Date().toISOString(), ctx.timezone)}`); }
+  if (tpl.showSocialMedia && tpl.socialMedia) {
+    const sm = tpl.socialMedia;
+    const hasSm = sm.instagram || sm.facebook || sm.website;
+    if (hasSm && !ctx.receiptFooter) p.push({ text: dash });
+    if (sm.instagram) center(`IG: ${sm.instagram}`);
+    if (sm.facebook) center(`FB: ${sm.facebook}`);
+    if (sm.website) center(`Web: ${sm.website}`);
+  }
+  if (tpl.showQrCode) {
+    const qrTarget =
+      tpl.qrCodeType === 'custom' && tpl.qrCodeCustomUrl
+        ? tpl.qrCodeCustomUrl.trim()
+        : tpl.qrCodeType === 'payment_link'
+        ? `https://cgpos.id/pay/${order.number}`
+        : order.number;
+    p.push({ text: dash });
+    center('[ KODE QR ]', true);
+    center(qrTarget);
+  }
+  if (tpl.showBarcode) {
+    p.push({ text: dash });
+    center(`||| | ||| ${order.number} ||| | |||`);
+  }
+  if (tpl.showPrintTime) {
+    if (!ctx.receiptFooter && !tpl.showSocialMedia && !tpl.showQrCode && !tpl.showBarcode) {
+      p.push({ text: dash });
+    }
+    center(`dicetak ${fmtTime(o.printedAt ?? new Date().toISOString(), ctx.timezone)}`);
+  }
   return withTheme(p, tpl.theme);
 }
 
