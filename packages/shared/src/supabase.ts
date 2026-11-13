@@ -15,6 +15,7 @@ import { comparisonRow } from './outlet-compare';
 import type { GatewayTransaction } from './qris-report';
 import { paymentAccountError, type PaymentMethodAccount } from './payment-accounts';
 import { salesDocumentError, salesDocumentProblem, type SalesDocType, type SalesDocument } from './sales-documents';
+import { campaignError, campaignProblem, type Campaign, type CampaignInput, type CampaignRecipient } from './crm-campaign';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3004,6 +3005,60 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- kampanye CRM (A132; migrasi 0132) ----------
+    async listCampaigns() {
+      const [rows, recips] = await Promise.all([
+        db().from('crm_campaigns').select('*').order('created_at', { ascending: false }).limit(300),
+        db().from('crm_campaign_recipients').select('campaign_id,contacted_at').limit(50000),
+      ]);
+      const stats = new Map<string, { n: number; c: number }>();
+      for (const r of ((must(recips) as Row[] | null) ?? [])) {
+        const s = stats.get(r.campaign_id as string) ?? { n: 0, c: 0 };
+        s.n += 1; if (r.contacted_at) s.c += 1;
+        stats.set(r.campaign_id as string, s);
+      }
+      return ((must(rows) as Row[] | null) ?? []).map((r): Campaign => ({
+        id: r.id as string, name: r.name as string, criteria: (r.criteria ?? {}) as Campaign['criteria'], status: r.status as Campaign['status'],
+        recipients: stats.get(r.id as string)?.n ?? 0, contacted: stats.get(r.id as string)?.c ?? 0,
+        ...(r.message ? { message: r.message as string } : {}), ...(r.starts_on ? { startsOn: r.starts_on as string } : {}),
+        ...(r.ends_on ? { endsOn: r.ends_on as string } : {}), ...(r.launched_at ? { launchedAt: r.launched_at as string } : {}),
+      }));
+    },
+    async listCampaignRecipients(id: string) {
+      const [rows, customers] = await Promise.all([
+        db().from('crm_campaign_recipients').select('customer_id,contacted_at').eq('campaign_id', id).limit(20000),
+        self.listCustomers({ limit: 5000 }),
+      ]);
+      const by = new Map(customers.map((c) => [c.id, c]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): CampaignRecipient => {
+        const c = by.get(r.customer_id as string);
+        return { customerId: r.customer_id as string, customerName: c?.name ?? '(pelanggan dihapus)', contacted: Boolean(r.contacted_at), ...(c?.phone ? { phone: c.phone } : {}) };
+      });
+    },
+    async saveCampaign(input: CampaignInput) {
+      const problem = campaignProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('crm_campaign_save', { p_id: input.id, p_org: orgId, p_name: input.name.trim(), p_message: input.message?.trim() || null, p_start: input.startsOn ?? null, p_end: input.endsOn ?? null, p_criteria: input.criteria });
+      if (error) throw campaignError(error);
+    },
+    async launchCampaign(id: string, customerIds: string[]) {
+      const { error } = await db().rpc('crm_campaign_launch', { p_id: id, p_customers: customerIds });
+      if (error) throw campaignError(error);
+    },
+    async markCampaignContact(id: string, customerId: string, contacted: boolean) {
+      const { error } = await db().rpc('crm_campaign_contact', { p_id: id, p_customer: customerId, p_contacted: contacted });
+      if (error) throw campaignError(error);
+    },
+    async endCampaign(id: string) {
+      const { error } = await db().rpc('crm_campaign_end', { p_id: id });
+      if (error) throw campaignError(error);
+    },
+    async deleteCampaign(id: string) {
+      const { error } = await db().rpc('crm_campaign_delete', { p_id: id });
+      if (error) throw campaignError(error);
     },
 
     // ---------- dokumen penjualan berantai (A130; migrasi 0130) ----------

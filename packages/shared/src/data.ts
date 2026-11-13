@@ -5,6 +5,7 @@ import type { OutletComparisonRow } from './outlet-compare';
 import type { GatewayTransaction } from './qris-report';
 import type { PaymentMethodAccount } from './payment-accounts';
 import type { SalesDocType, SalesDocument, SalesDocumentInput } from './sales-documents';
+import type { Campaign, CampaignInput, CampaignRecipient } from './crm-campaign';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -463,5 +464,20 @@ export interface DataLayer {
   cancelSalesDocument(id: string): Promise<void>;
   /** Hubungkan pesanan atau penerimaan ke faktur penjualan yang sudah dibuat; dokumen menjadi "sudah dilanjutkan". */
   linkSalesDocumentInvoice(docId: string, invoiceId: string): Promise<void>;
+
+  // ---------- kampanye CRM tanpa kirim pesan (A132) ----------
+  /** Semua kampanye, terbaru dulu, dengan jumlah penerima dan yang sudah dihubungi. Pengelola saja. */
+  listCampaigns(): Promise<Campaign[]>;
+  /** Penerima yang dibekukan saat kampanye diluncurkan. */
+  listCampaignRecipients(id: string): Promise<CampaignRecipient[]>;
+  /** Simpan kampanye draf (idempoten menurut id; yang sudah berjalan tidak bisa diubah). */
+  saveCampaign(input: CampaignInput): Promise<void>;
+  /** Luncurkan: kampanye menjadi berjalan dan penerima dibekukan dari customerIds. Tidak mengirim pesan apa pun. */
+  launchCampaign(id: string, customerIds: string[]): Promise<void>;
+  /** Tandai pelanggan sudah atau belum dihubungi (kampanye berjalan). */
+  markCampaignContact(id: string, customerId: string, contacted: boolean): Promise<void>;
+  endCampaign(id: string): Promise<void>;
+  /** Hapus kampanye draf. */
+  deleteCampaign(id: string): Promise<void>;
 }
 

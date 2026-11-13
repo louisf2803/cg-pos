@@ -189,8 +189,8 @@ export const MODUL: NavModule[] = [
         label: 'Marketing',
         icon: Megaphone,
         items: [
-          { href: '/marketing/kirim', label: 'Kirim kampanye marketing', screen: 'S47', tier: 3 },
-          { href: '/marketing/beli', label: 'Beli kampanye marketing', screen: 'S47', tier: 3 },
+          { href: '/marketing/kirim', label: 'Kirim kampanye marketing', screen: 'S47', tier: 3, built: true },
+          { href: '/marketing/beli', label: 'Beli kampanye marketing', screen: 'S47', tier: 3, built: true },
         ],
       },
     ],

@@ -29,6 +29,7 @@ import { createFakeSalesInvoices } from './sales-invoice';
 import { fakeOutletComparison } from './outlet-compare';
 import { createFakePaymentAccounts } from './payment-accounts';
 import { createFakeSalesDocuments } from './sales-documents';
+import { createFakeCampaigns } from './crm-campaign';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -664,6 +665,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     today: () => localDateString(now()),
     newId,
   });
+  const campaigns = createFakeCampaigns({ customers: () => self.listCustomers({ limit: 5000 }), now: () => now().toISOString() });
   const paymentAccounts = createFakePaymentAccounts({ methods: () => self.listPaymentMethods(), accounts: () => self.listAccounts() });
 
   const self: DataLayer & { reset(): void } = {
@@ -671,6 +673,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     ...salesInvoices,
     ...paymentAccounts,
     ...salesDocuments,
+    ...campaigns,
     async listGatewayTransactions() { return []; },
     async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },
