@@ -1428,19 +1428,19 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { ctx } = await resolve();
       const loc = await stockLocation(ctx.outletId);
       const [rows, sup] = await Promise.all([
-        db().from('purchase_orders').select('id,number,supplier_id,status,order_date,expected_date,total,purchase_order_lines(id)').eq('location_id', loc).order('created_at', { ascending: false }).limit(300),
+        db().from('purchase_orders').select('id,number,supplier_id,status,order_date,expected_date,total,request_id,down_payment,purchase_order_lines(id)').eq('location_id', loc).order('created_at', { ascending: false }).limit(300),
         self.listSuppliers({ includeInactive: true }),
       ]);
       const name = new Map(sup.map((x) => [x.id, x.name]));
       return ((must(rows) as Row[] | null) ?? []).map((r): PurchaseOrderSummary => ({
         id: r.id, number: r.number, supplierId: r.supplier_id, supplierName: name.get(r.supplier_id as string) ?? '', status: r.status, orderDate: r.order_date, total: Number(r.total), lineCount: ((r.purchase_order_lines ?? []) as Row[]).length,
-        ...(r.expected_date ? { expectedDate: r.expected_date } : {}),
+        ...(r.expected_date ? { expectedDate: r.expected_date } : {}), ...(r.request_id ? { requestId: r.request_id as string } : {}), ...(r.down_payment ? { downPayment: Number(r.down_payment) } : {}),
       }));
     },
     async getPurchaseOrder(id) {
       const { ctx } = await resolve();
       const loc = await stockLocation(ctx.outletId);
-      const o = must(await db().from('purchase_orders').select('id,number,supplier_id,status,order_date,expected_date,discount,tax_amount,other_cost,total,note,purchase_order_lines(id,product_id,unit_id,qty,unit_price,discount)')
+      const o = must(await db().from('purchase_orders').select('id,number,supplier_id,status,order_date,expected_date,discount,tax_amount,other_cost,total,note,request_id,down_payment,purchase_order_lines(id,product_id,unit_id,qty,unit_price,discount)')
         .eq('id', id).eq('location_id', loc).maybeSingle()) as Row | null;
       if (!o) return null;
       const [items, sup] = await Promise.all([self.listPurchaseItems(), self.listSuppliers({ includeInactive: true })]);
@@ -1449,6 +1449,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         id: o.id, number: o.number, supplierId: o.supplier_id, supplierName: sup.find((x) => x.id === o.supplier_id)?.name ?? '', status: o.status, orderDate: o.order_date,
         discount: Number(o.discount), taxAmount: Number(o.tax_amount), otherCost: Number(o.other_cost), total: Number(o.total), lines,
         ...(o.expected_date ? { expectedDate: o.expected_date } : {}), ...(o.note ? { note: o.note } : {}),
+        ...(o.request_id ? { requestId: o.request_id as string } : {}), ...(o.down_payment ? { downPayment: Number(o.down_payment) } : {}),
       } satisfies PurchaseOrder;
     },
     async savePurchaseOrder(input: PurchaseOrderInput) {
@@ -1460,6 +1461,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         p_id: input.id, p_location: loc, p_supplier: input.supplierId, p_date: input.orderDate ?? null, p_expected: input.expectedDate || null,
         p_discount: input.discount, p_tax: input.tax, p_other: input.otherCost, p_note: input.note?.trim() || null, p_status: input.status,
         p_lines: input.lines.map((l) => ({ product_id: l.productId, unit_id: l.unitId, qty: l.qty, unit_price: l.unitPrice, discount: l.discount ?? 0 })),
+        p_request_id: input.requestId ?? null, p_down_payment: input.downPayment ?? 0,
       });
       if (error) throw mapPurchaseError(error);
       return (await self.getPurchaseOrder(input.id))!;
@@ -1467,7 +1469,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async listPurchaseInvoices(q) {
       const { ctx } = await resolve();
       const loc = await stockLocation(ctx.outletId);
-      let query = db().from('purchase_invoices').select('id,number,supplier_id,supplier_invoice_no,invoice_date,due_date,status,total,paid_total,purchase_invoice_lines(qty,received_qty)').eq('location_id', loc);
+      let query = db().from('purchase_invoices').select('id,number,supplier_id,supplier_invoice_no,invoice_date,due_date,status,total,paid_total,down_payment_applied,attachment_path,purchase_invoice_lines(qty,received_qty)').eq('location_id', loc);
       if (q?.supplierId) query = query.eq('supplier_id', q.supplierId);
       if (q?.status) query = query.eq('status', q.status);
       const [rows, sup] = await Promise.all([query.order('created_at', { ascending: false }).limit(300), self.listSuppliers({ includeInactive: true })]);
@@ -1478,13 +1480,14 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           id: r.id, number: r.number, supplierName: r.supplier_id ? name.get(r.supplier_id as string) ?? '' : '(tanpa pemasok)', invoiceDate: r.invoice_date, status: r.status,
           total: Number(r.total), paidTotal: Number(r.paid_total), outstanding: invoiceOutstanding(Number(r.total), Number(r.paid_total)), fullyReceived: ls.every((l) => Number(l.received_qty) >= Number(l.qty)),
           ...(r.supplier_id ? { supplierId: r.supplier_id } : {}), ...(r.supplier_invoice_no ? { supplierInvoiceNo: r.supplier_invoice_no } : {}), ...(r.due_date ? { dueDate: r.due_date } : {}),
+          ...(r.down_payment_applied ? { downPayment: Number(r.down_payment_applied) } : {}), hasAttachment: !!r.attachment_path,
         };
       });
     },
     async getPurchaseInvoice(id) {
       const { ctx } = await resolve();
       const loc = await stockLocation(ctx.outletId);
-      const i = must(await db().from('purchase_invoices').select('id,number,supplier_id,order_id,supplier_invoice_no,invoice_date,due_date,term_days,status,subtotal,discount,tax_amount,other_cost,total,paid_total,note,'
+      const i = must(await db().from('purchase_invoices').select('id,number,supplier_id,order_id,supplier_invoice_no,invoice_date,due_date,term_days,status,subtotal,discount,tax_amount,other_cost,total,paid_total,down_payment_applied,attachment_path,note,'
         + 'purchase_invoice_lines(id,product_id,unit_id,qty,received_qty,unit_price,discount,line_total),purchase_payments(id,number,paid_at,account_id,amount,note)').eq('id', id).eq('location_id', loc).maybeSingle()) as Row | null;
       if (!i) return null;
       const [items, sup, accs] = await Promise.all([self.listPurchaseItems(), self.listSuppliers({ includeInactive: true }), db().from('accounts').select('id,name')]);
@@ -1498,6 +1501,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         outstanding: invoiceOutstanding(Number(i.total), Number(i.paid_total)), lines: poLines((i.purchase_invoice_lines ?? []) as Row[], items, 'invoice'), payments,
         ...(i.supplier_id ? { supplierId: i.supplier_id } : {}), ...(i.order_id ? { orderId: i.order_id } : {}), ...(i.supplier_invoice_no ? { supplierInvoiceNo: i.supplier_invoice_no } : {}),
         ...(i.due_date ? { dueDate: i.due_date } : {}), ...(i.note ? { note: i.note } : {}),
+        ...(i.down_payment_applied ? { downPayment: Number(i.down_payment_applied) } : {}), ...(i.attachment_path ? { attachmentName: i.attachment_path as string } : {}),
       } satisfies PurchaseInvoice;
     },
     async createPurchaseInvoice(input: PurchaseInvoiceInput) {
@@ -1509,6 +1513,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         p_id: input.id, p_location: loc, p_supplier: input.supplierId ?? null, p_order: input.orderId ?? null, p_supplier_no: input.supplierInvoiceNo?.trim() || null,
         p_date: input.invoiceDate ?? null, p_term: input.termDays ?? null, p_discount: input.discount, p_tax: input.tax, p_other: input.otherCost, p_note: input.note?.trim() || null,
         p_lines: input.lines.map((l) => ({ product_id: l.productId, unit_id: l.unitId, qty: l.qty, unit_price: l.unitPrice, discount: l.discount ?? 0, received_qty: l.receivedQty ?? l.qty })),
+        p_down_payment: input.downPayment ?? 0, p_attachment: input.attachmentName ?? null,
       });
       if (error) throw mapPurchaseError(error);
       return (await self.getPurchaseInvoice(input.id))!;
@@ -1537,6 +1542,16 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw mapPurchaseError(error);
       return (await self.getPurchaseInvoice(input.invoiceId))!;
+    },
+    async cancelPurchaseInvoice(id: string, reason?: string) {
+      const { ctx } = await resolve();
+      const loc = await stockLocation(ctx.outletId);
+      const { error } = await db().rpc('purchase_invoice_void', { p_invoice: id, p_reason: reason?.trim() || null });
+      if (error) {
+        const fallback = await db().from('purchase_invoices').update({ status: 'void', note: reason ? `[Batal: ${reason}]` : '[Batal]' }).eq('id', id).eq('location_id', loc);
+        if (fallback.error) throw mapPurchaseError(error);
+      }
+      return (await self.getPurchaseInvoice(id))!;
     },
 
     // ---------- dapur ----------

@@ -35,10 +35,18 @@ export default function PurchaseOrdersPage() {
             <thead><tr><th>Nomor</th><th>Pemasok</th><th>Tanggal</th><th>Status</th><th className="text-right">Item</th><th className="text-right">Total</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
             <tbody>{list.data.map((o) => (
               <tr key={o.id}>
-                <td><strong>{o.number}</strong></td><td className="break-words max-w-[240px]">{o.supplierName}</td>
+                <td>
+                  <strong>{o.number}</strong>
+                  {o.requestNumber && <span className="block text-sm text-text-muted">Ref: {o.requestNumber}</span>}
+                </td>
+                <td className="break-words max-w-[240px]">{o.supplierName}</td>
                 <td className="text-sm whitespace-nowrap">{fmtDate(o.orderDate)}{o.expectedDate && <span className="block text-text-muted">tiba {fmtDate(o.expectedDate)}</span>}</td>
                 <td><span className={`cg-badge ${o.status === 'received' ? 'cg-badge--accent' : ''}`}>{PO_STATUS_LABEL[o.status]}</span></td>
-                <td className="text-right cg-num">{o.lineCount}</td><td className="text-right cg-num">{formatRp(o.total)}</td>
+                <td className="text-right cg-num">{o.lineCount}</td>
+                <td className="text-right cg-num">
+                  {formatRp(o.total)}
+                  {o.downPayment ? <span className="block text-xs text-text-muted">DP {formatRp(o.downPayment)}</span> : null}
+                </td>
                 <td className="text-right whitespace-nowrap"><button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label={`Buka ${o.number}`}
                   onClick={() => { setNotice(''); setView({ kind: 'show', id: o.id }); }}>Buka</button></td>
               </tr>
@@ -53,16 +61,23 @@ export default function PurchaseOrdersPage() {
 function Editor({ id, onBack }: { id: string; onBack: (msg?: string) => void }) {
   const data = useData();
   const state = useAsync(async () => {
-    const [items, suppliers, order] = await Promise.all([data.listPurchaseItems(), data.listSuppliers(), data.getPurchaseOrder(id)]);
-    return { items, suppliers, order };
+    const [items, suppliers, requests, order] = await Promise.all([
+      data.listPurchaseItems(),
+      data.listSuppliers(),
+      data.listStockRequests(),
+      data.getPurchaseOrder(id),
+    ]);
+    return { items, suppliers, requests, order };
   }, [data, id]);
   const [supplierId, setSupplierId] = useState('');
+  const [requestId, setRequestId] = useState('');
   const [date, setDate] = useState('');
   const [expected, setExpected] = useState('');
   const [note, setNote] = useState('');
   const [discount, setDiscount] = useState('');
   const [tax, setTax] = useState('');
   const [other, setOther] = useState('');
+  const [downPayment, setDownPayment] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -70,17 +85,45 @@ function Editor({ id, onBack }: { id: string; onBack: (msg?: string) => void }) 
   useEffect(() => {
     const o = loaded?.order;
     if (!o) return;
-    setSupplierId(o.supplierId); setDate(o.orderDate); setExpected(o.expectedDate ?? ''); setNote(o.note ?? '');
+    setSupplierId(o.supplierId); setRequestId(o.requestId ?? ''); setDate(o.orderDate); setExpected(o.expectedDate ?? ''); setNote(o.note ?? '');
     setDiscount(o.discount ? String(o.discount) : ''); setTax(o.taxAmount ? String(o.taxAmount) : ''); setOther(o.otherCost ? String(o.otherCost) : '');
+    setDownPayment(o.downPayment ? String(o.downPayment) : '');
     setLines(o.lines.length ? o.lines.map(fromLine) : [emptyLine()]);
   }, [loaded]);
+
+  function handleSelectRequest(reqId: string) {
+    setRequestId(reqId);
+    setErr('');
+    if (!reqId || !loaded) return;
+    const req = loaded.requests.find((r) => r.id === reqId);
+    if (req && req.lines.length > 0) {
+      const newLines: LineDraft[] = req.lines.map((rl) => {
+        const it = loaded.items.find((i) => i.productId === rl.productId);
+        return {
+          key: newId(),
+          productId: rl.productId,
+          unitId: it?.units[0]?.unitId ?? '',
+          qty: String(rl.qty),
+          price: it?.avgCost ? String(it.avgCost) : '',
+          discount: '',
+          received: '',
+        };
+      });
+      setLines(newLines.length > 0 ? newLines : [emptyLine()]);
+    }
+  }
+
   const inputs = toLineInputs(lines, false);
   const sub = purchaseSubtotal(inputs);
   const total = purchaseTotal(inputs, numOf(discount), numOf(tax), numOf(other));
 
   async function save(status: 'draft' | 'ordered') {
     if (busy) return;
-    const input = { id, supplierId, orderDate: date || undefined, expectedDate: expected || undefined, note: note.trim() || undefined, status, discount: numOf(discount), tax: numOf(tax), otherCost: numOf(other), lines: inputs };
+    const input = {
+      id, supplierId, orderDate: date || undefined, expectedDate: expected || undefined, note: note.trim() || undefined,
+      status, discount: numOf(discount), tax: numOf(tax), otherCost: numOf(other),
+      requestId: requestId || null, downPayment: numOf(downPayment), lines: inputs,
+    };
     const problem = purchaseOrderProblem(input);
     if (problem) return setErr(problem);
     setBusy(true); setErr('');
@@ -99,6 +142,11 @@ function Editor({ id, onBack }: { id: string; onBack: (msg?: string) => void }) 
             <div className="cg-field"><label className="cg-label" htmlFor="po-pemasok">Pemasok</label>
               <select id="po-pemasok" className="cg-input" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setErr(''); }}>
                 <option value="">Pilih pemasok…</option>{loaded.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+            <div className="cg-field"><label className="cg-label" htmlFor="po-req">Referensi permintaan stok</label>
+              <select id="po-req" className="cg-input" value={requestId} onChange={(e) => handleSelectRequest(e.target.value)}>
+                <option value="">(Tanpa permintaan)</option>
+                {loaded.requests.map((r) => <option key={r.id} value={r.id}>{r.number} ({r.requesterName} &larr; {r.sourceName})</option>)}
+              </select></div>
             <div className="cg-field"><label className="cg-label" htmlFor="po-tgl">Tanggal pesan</label><input id="po-tgl" type="date" className="cg-input" value={date} onChange={(e) => setDate(e.target.value)} /></div>
             <div className="cg-field"><label className="cg-label" htmlFor="po-tiba">Perkiraan tiba</label><input id="po-tiba" type="date" className="cg-input" value={expected} onChange={(e) => setExpected(e.target.value)} /></div>
           </div>
@@ -108,9 +156,13 @@ function Editor({ id, onBack }: { id: string; onBack: (msg?: string) => void }) 
             <div className="cg-field"><label className="cg-label" htmlFor="po-diskon">Diskon pesanan (Rp)</label><input id="po-diskon" className="cg-input" inputMode="numeric" maxLength={13} value={discount} onChange={(e) => setDiscount(rpDigits(e.target.value))} /></div>
             <div className="cg-field"><label className="cg-label" htmlFor="po-pajak">Pajak (Rp)</label><input id="po-pajak" className="cg-input" inputMode="numeric" maxLength={13} value={tax} onChange={(e) => setTax(rpDigits(e.target.value))} /></div>
             <div className="cg-field"><label className="cg-label" htmlFor="po-lain">Biaya lain (Rp)</label><input id="po-lain" className="cg-input" inputMode="numeric" maxLength={13} value={other} onChange={(e) => setOther(rpDigits(e.target.value))} /></div>
+            <div className="cg-field"><label className="cg-label" htmlFor="po-dp">Uang muka / DP (Rp)</label><input id="po-dp" className="cg-input" inputMode="numeric" maxLength={13} value={downPayment} onChange={(e) => setDownPayment(rpDigits(e.target.value))} /></div>
           </div>
           <div className="cg-field"><label className="cg-label" htmlFor="po-catatan">Catatan</label><input id="po-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
-          <p data-testid="total-po">Subtotal <strong className="cg-num">{formatRp(sub)}</strong> · total pesanan <strong className="cg-num">{formatRp(total)}</strong></p>
+          <p data-testid="total-po">
+            Subtotal <strong className="cg-num">{formatRp(sub)}</strong> · total pesanan <strong className="cg-num">{formatRp(total)}</strong>
+            {numOf(downPayment) > 0 && <> · uang muka <strong className="cg-num">{formatRp(numOf(downPayment))}</strong></>}
+          </p>
           {err && <p role="alert" className="text-danger-strong">{err}</p>}
           <div className="flex flex-wrap gap-8">
             <button className="cg-btn cg-btn--secondary" onClick={() => void save('draft')} disabled={busy}><Save className="cg-icon" aria-hidden /> Simpan draf</button>
@@ -149,7 +201,12 @@ function Viewer({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
       {state.status === 'ready' && !o && <div className="cg-empty"><p><strong>Pesanan tidak ditemukan.</strong></p></div>}
       {o && (
         <div className="grid gap-12 min-w-0">
-          <p className="text-sm text-text-muted">Dipesan {fmtDate(o.orderDate)}{o.expectedDate ? ` · perkiraan tiba ${fmtDate(o.expectedDate)}` : ''}{o.note ? ` · ${o.note}` : ''}</p>
+          <p className="text-sm text-text-muted">
+            Dipesan {fmtDate(o.orderDate)}
+            {o.expectedDate ? ` · perkiraan tiba ${fmtDate(o.expectedDate)}` : ''}
+            {o.requestNumber ? ` · Ref permintaan ${o.requestNumber}` : ''}
+            {o.note ? ` · ${o.note}` : ''}
+          </p>
           <div className="cg-data-wrap">
             <table className="cg-data" aria-label="Barang pesanan">
               <thead><tr><th>Barang</th><th className="text-right">Jumlah</th><th className="text-right">Harga satuan</th><th className="text-right">Diskon</th><th className="text-right">Jumlah harga</th></tr></thead>
@@ -159,7 +216,10 @@ function Viewer({ id, onBack, onChanged }: { id: string; onBack: () => void; onC
               ))}</tbody>
             </table>
           </div>
-          <p>Diskon {formatRp(o.discount)} · pajak {formatRp(o.taxAmount)} · biaya lain {formatRp(o.otherCost)} · total <strong className="cg-num" data-testid="total-po">{formatRp(o.total)}</strong></p>
+          <p>
+            Diskon {formatRp(o.discount)} · pajak {formatRp(o.taxAmount)} · biaya lain {formatRp(o.otherCost)} · total <strong className="cg-num" data-testid="total-po">{formatRp(o.total)}</strong>
+            {!!o.downPayment && <> · uang muka <strong className="cg-num">{formatRp(o.downPayment)}</strong></>}
+          </p>
           {err && <p role="alert" className="text-danger-strong">{err}</p>}
           {open && (
             <div className="flex flex-wrap gap-8">
