@@ -33,16 +33,12 @@ begin
   insert into locations(id, org_id, name, kind, is_active) values
     (loc_src, t_org, 'Gudang Pusat', 'warehouse', true);
   insert into suppliers(id, org_id, name, term_days) values (sup, t_org, 'Pemasok Mandiri', 7);
-  insert into units(id, org_id, name) values (u_base, t_org, 'pcs');
+  -- seed bawaan org: akun sistem (kas, utang usaha, persediaan, pajak masukan) dan satuan dasar
+  perform pos.seed_org_defaults(t_org);
+  select id into u_base from units where org_id = t_org and name = 'pcs';
   insert into products(id, org_id, kind, name, is_sellable, track_stock) values (prod, t_org, 'goods', 'Barang PO', true, true);
   insert into product_units(org_id, product_id, unit_id, conversion, is_base) values (t_org, prod, u_base, 1, true);
 
-  -- Akun
-  insert into accounts(id, org_id, code, name, category, kind, system_key) values
-    (cash, t_org, '1001', 'Kas Utama', 'cash_bank', 'detail', 'cash_main'),
-    (ap, t_org, '2001', 'Hutang Usaha', 'payable', 'detail', 'accounts_payable'),
-    (invacc, t_org, '1002', 'Persediaan', 'inventory', 'detail', 'inventory'),
-    (taxacc, t_org, '1003', 'Pajak Masukan', 'other_asset', 'detail', 'purchase_tax_input');
 
   -- Permintaan barang
   insert into stock_requests(id, org_id, number, requester_location_id, source_location_id, status)

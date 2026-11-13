@@ -4,6 +4,10 @@
 
 begin;
 
+-- Buang signature lama agar tidak ada dua fungsi bernama sama (pemanggilan dengan argumen lama jadi ambigu); versi baru punya argumen tambahan berawalan default.
+drop function if exists pos.purchase_order_save(uuid, uuid, uuid, date, date, numeric, numeric, numeric, text, text, jsonb);
+drop function if exists pos.purchase_invoice_create(uuid, uuid, uuid, uuid, text, date, int, numeric, numeric, numeric, text, jsonb);
+
 -- Tambah kolom request_id dan down_payment pada purchase_orders jika belum ada
 alter table pos.purchase_orders
   add column if not exists request_id uuid references pos.stock_requests(id);
