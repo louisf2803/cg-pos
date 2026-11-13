@@ -92,6 +92,7 @@ export * from './roles-ui';
 export * from './waste-report';
 export * from './hpp-report';
 export * from './deposit-report';
+export * from './customer-export';
 export * from './cashier-report';
 export * from './table-group';
 
