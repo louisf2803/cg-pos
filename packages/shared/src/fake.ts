@@ -23,6 +23,11 @@ import { priceDelta } from './price-change';
 import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
 import { purchasePriceProblem, suggestPurchasePrice as pickSuggestion, type PurchasePriceMapping } from './purchase-price';
+import {
+  canDeleteDepositPackage, depositPackageProblem,
+  type DepositPackage, type DepositRefundRecord, type DepositSaleRecord,
+} from './deposit';
+import type { CustomerDepositBalance } from './deposit-report';
 import { localDateString, localMonthStart } from './local-date';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
@@ -230,6 +235,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const employeeHr: EmployeeHr[] = [];
   const attendanceSettings: AttendanceSettings[] = [];
   const notifications: EmployeeNotification[] = [];
+  let depositPackages: DepositPackage[] = [];
+  let depositSales: DepositSaleRecord[] = [];
+  let depositRefunds: DepositRefundRecord[] = [];
+  const customerDepositBalances = new Map<string, { purchased: number; used: number; refunded: number; lastAt?: string }>();
   let cashAdvances: (CashAdvance)[] = [];
   let payrollRecords: PayrollRecord[] = [];
   let products: Product[] = [];
@@ -478,6 +487,54 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     coupons = opts.seed === false ? [] : clone(SEED_COUPONS);
     loyaltyRules = opts.seed === false ? { ...DEFAULT_LOYALTY } : { ...DEFAULT_LOYALTY, isActive: true };
     ledger = [];
+    depositPackages = opts.seed === false ? [] : [
+      {
+        id: 'dep-100',
+        name: 'Deposit 100rb',
+        creditAmount: 100000,
+        salePrice: 100000,
+        isActive: true,
+        soldCount: 1,
+        note: 'Saldo reguler tanpa masa hangus',
+      },
+      {
+        id: 'dep-500',
+        name: 'Deposit 500rb Bonus 50rb',
+        creditAmount: 550000,
+        salePrice: 500000,
+        isActive: true,
+        soldCount: 1,
+        note: 'Bonus saldo 10% untuk pelanggan setia',
+      },
+    ];
+    depositSales = opts.seed === false ? [] : [
+      {
+        id: 'ds-seed-1',
+        occurredAt: new Date(now().getTime() - 2 * 86400_000).toISOString(),
+        customerName: 'Ani Wulandari',
+        packageName: 'Deposit 500rb Bonus 50rb',
+        salePrice: 500000,
+        creditAmount: 550000,
+        methodName: 'QRIS',
+        orderNumber: 'DEP/2611/001',
+      },
+      {
+        id: 'ds-seed-2',
+        occurredAt: new Date(now().getTime() - 86400_000).toISOString(),
+        customerName: 'Budi Santoso',
+        packageName: 'Deposit 100rb',
+        salePrice: 100000,
+        creditAmount: 100000,
+        methodName: 'Tunai',
+        orderNumber: 'DEP/2611/002',
+      },
+    ];
+    depositRefunds = [];
+    customerDepositBalances.clear();
+    if (opts.seed !== false) {
+      customerDepositBalances.set('cu-ani', { purchased: 550000, used: 0, refunded: 0, lastAt: new Date(now().getTime() - 2 * 86400_000).toISOString() });
+      customerDepositBalances.set('cu-budi', { purchased: 100000, used: 0, refunded: 0, lastAt: new Date(now().getTime() - 86400_000).toISOString() });
+    }
     if (opts.seed !== false) pushPoints('cu-ani', 120, 'adjust', 'Saldo awal');
     seedStock();
     if (opts.seed !== false) seedHistory();
@@ -1835,6 +1892,139 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = notifications.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Notifikasi tidak ditemukan');
       notifications.splice(i, 1);
+    },
+    async listDepositPackages() {
+      return clone(depositPackages);
+    },
+    async saveDepositPackage(input) {
+      const problem = depositPackageProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const row: DepositPackage = {
+        id: input.id ?? newId(),
+        name: input.name.trim(),
+        creditAmount: input.creditAmount,
+        salePrice: input.salePrice,
+        isActive: input.isActive ?? true,
+        soldCount: 0,
+        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+      };
+      const idx = depositPackages.findIndex((p) => p.id === row.id);
+      if (idx >= 0) {
+        row.soldCount = depositPackages[idx]!.soldCount;
+        depositPackages[idx] = row;
+      } else {
+        depositPackages.push(row);
+      }
+      return clone(row);
+    },
+    async deleteDepositPackage(id) {
+      const idx = depositPackages.findIndex((p) => p.id === id);
+      if (idx < 0) throw new DataError('not_found', 'Paket deposit tidak ditemukan');
+      if (!canDeleteDepositPackage(depositPackages[idx]!)) {
+        throw new DataError('forbidden', 'Paket deposit yang pernah terjual tidak dapat dihapus');
+      }
+      depositPackages.splice(idx, 1);
+    },
+    async buyDepositPackage(input) {
+      const pkg = depositPackages.find((p) => p.id === input.packageId);
+      if (!pkg) throw new DataError('not_found', 'Paket deposit tidak ditemukan');
+      if (!pkg.isActive) throw new DataError('invalid', 'Paket deposit sedang tidak aktif');
+      const cust = customers.find((c) => c.id === input.customerId);
+      if (!cust) throw new DataError('not_found', 'Pelanggan tidak ditemukan');
+      pkg.soldCount += 1;
+      const occurredAt = now().toISOString();
+      const orderNumber = `DEP/${localDateKey(now(), CTX.timezone).slice(2, 4)}${localDateKey(now(), CTX.timezone).slice(5, 7)}/${String(depositSales.length + 1).padStart(4, '0')}`;
+      const sale: DepositSaleRecord = {
+        id: newId(),
+        occurredAt,
+        customerName: cust.name,
+        packageName: pkg.name,
+        salePrice: pkg.salePrice,
+        creditAmount: pkg.creditAmount,
+        methodName: input.paymentMethod ?? 'Tunai',
+        orderNumber,
+      };
+      depositSales.unshift(sale);
+      const cur = customerDepositBalances.get(cust.id) ?? { purchased: 0, used: 0, refunded: 0 };
+      cur.purchased += pkg.creditAmount;
+      cur.lastAt = occurredAt;
+      customerDepositBalances.set(cust.id, cur);
+
+      const cashAcc = accounts.find((a) => a.systemKey === 'cash_main') ?? accounts.find((a) => a.code === '1-1100');
+      const depAcc = accounts.find((a) => a.systemKey === 'customer_deposit') ?? accounts.find((a) => a.code === '2-1300');
+      if (cashAcc && depAcc) {
+        storeEntry(
+          localDateString(now()),
+          `Pembelian paket deposit ${pkg.name} oleh ${cust.name}`,
+          'deposit',
+          sale.id,
+          'DEP',
+          [
+            { accountId: cashAcc.id, debit: pkg.salePrice, credit: 0, memo: `Kas masuk ${cust.name}` },
+            { accountId: depAcc.id, debit: 0, credit: pkg.salePrice, memo: `Deposit ${cust.name}` },
+          ],
+        );
+      }
+      return clone(sale);
+    },
+    async listDepositSales(range) {
+      return clone(
+        depositSales.filter((s) => {
+          if (range?.from && s.occurredAt < range.from) return false;
+          if (range?.to && s.occurredAt >= range.to) return false;
+          return true;
+        }),
+      );
+    },
+    async listDepositRefunds(range) {
+      return clone(
+        depositRefunds.filter((r) => {
+          if (range?.from && r.occurredAt < range.from) return false;
+          if (range?.to && r.occurredAt >= range.to) return false;
+          return true;
+        }),
+      );
+    },
+    async listCustomerDepositBalances() {
+      const out: CustomerDepositBalance[] = [];
+      for (const cust of customers) {
+        const bal = customerDepositBalances.get(cust.id);
+        const purchased = bal?.purchased ?? 0;
+        const used = bal?.used ?? 0;
+        const refunded = bal?.refunded ?? 0;
+        const currentBalance = purchased - used - refunded;
+        if (purchased > 0 || used > 0 || refunded > 0) {
+          out.push({
+            customerId: cust.id,
+            customerName: cust.name,
+            ...(cust.phone ? { customerPhone: cust.phone } : {}),
+            totalDepositPurchased: purchased,
+            totalDepositUsed: used,
+            totalDepositRefunded: refunded,
+            currentBalance,
+            ...(bal?.lastAt ? { lastTransactionAt: bal.lastAt } : {}),
+          });
+        }
+      }
+      return clone(out);
+    },
+    async getCustomerDeposit(customerId: string) {
+      const cust = customers.find((c) => c.id === customerId);
+      if (!cust) return null;
+      const bal = customerDepositBalances.get(customerId);
+      const purchased = bal?.purchased ?? 0;
+      const used = bal?.used ?? 0;
+      const refunded = bal?.refunded ?? 0;
+      return {
+        customerId: cust.id,
+        customerName: cust.name,
+        ...(cust.phone ? { customerPhone: cust.phone } : {}),
+        totalDepositPurchased: purchased,
+        totalDepositUsed: used,
+        totalDepositRefunded: refunded,
+        currentBalance: purchased - used - refunded,
+        ...(bal?.lastAt ? { lastTransactionAt: bal.lastAt } : {}),
+      };
     },
     async listCashAdvances(employeeId) {
       return clone(cashAdvances.filter((x) => !employeeId || x.employeeId === employeeId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));

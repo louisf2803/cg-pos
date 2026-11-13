@@ -136,7 +136,7 @@ function EditDialog({ item, onClose, onSaved }: { item?: Customer; onClose: () =
   );
 }
 
-type DetailTab = 'summary' | 'orders' | 'points';
+type DetailTab = 'summary' | 'orders' | 'points' | 'deposit';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   paid: 'Lunas',
@@ -169,6 +169,15 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
       return await data.listLoyaltyLedger(item.id, 50);
     } catch {
       return [];
+    }
+  }, [data, item.id]);
+
+  // Ambil saldo deposit pelanggan
+  const dep = useAsync(async () => {
+    try {
+      return await data.getCustomerDeposit(item.id);
+    } catch {
+      return null;
     }
   }, [data, item.id]);
 
@@ -288,13 +297,26 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
           >
             Poin ({balance})
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'deposit'}
+            className="cg-chip"
+            aria-pressed={activeTab === 'deposit'}
+            onClick={() => {
+              setActiveTab('deposit');
+              setSelectedOrder(null);
+            }}
+          >
+            Deposit {dep.status === 'ready' && dep.data ? `(${formatRp(dep.data.currentBalance)})` : ''}
+          </button>
         </div>
 
         {/* TAB 1: RINGKASAN */}
         {activeTab === 'summary' && (
           <div className="grid gap-16 min-w-0">
-            {/* 3 Kartu Ringkasan Cepat */}
-            <div className="grid grid-cols-3 gap-8">
+            {/* 4 Kartu Ringkasan Cepat */}
+            <div className="grid grid-cols-2 tablet:grid-cols-4 gap-8">
               <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
                 <span className="text-xs text-text-muted block mb-4">Total Belanja</span>
                 <strong className="text-sm cg-num text-text">{formatRp(stats.totalSpend)}</strong>
@@ -306,6 +328,12 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
               <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
                 <span className="text-xs text-text-muted block mb-4">Saldo Poin</span>
                 <strong className="text-sm cg-num text-text" data-testid="saldo-poin">{balance}</strong>
+              </div>
+              <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
+                <span className="text-xs text-text-muted block mb-4">Saldo Deposit</span>
+                <strong className="text-sm cg-num text-text" data-testid="saldo-deposit">
+                  {formatRp(dep.status === 'ready' && dep.data ? dep.data.currentBalance : 0)}
+                </strong>
               </div>
             </div>
 
@@ -632,6 +660,44 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
                 </div>
               </form>
             </section>
+          </div>
+        )}
+
+        {/* TAB 4: DEPOSIT */}
+        {activeTab === 'deposit' && (
+          <div className="grid gap-16 min-w-0">
+            {dep.status === 'loading' && <div className="cg-skeleton" style={{ height: 80 }} aria-busy="true" aria-label="Memuat deposit" />}
+            {dep.status === 'error' && <ErrorBox message={dep.message} onRetry={dep.reload} />}
+            {dep.status === 'ready' && (
+              <>
+                <div className="p-16 border border-border rounded-xl bg-surface-muted/30 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-text-muted block">Saldo Deposit Aktif</span>
+                    <span className="text-2xl font-bold cg-num text-primary" data-testid="detail-saldo-deposit">
+                      {formatRp(dep.data?.currentBalance ?? 0)}
+                    </span>
+                    <span className="text-xs text-text-muted block mt-4">
+                      Pembelian saldo deposit dicatat melalui menu Deposit atau Kasir.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 tablet:grid-cols-3 gap-8">
+                  <div className="p-12 border border-border rounded-xl bg-surface">
+                    <span className="text-xs text-text-muted block mb-4">Total Pembelian</span>
+                    <strong className="text-sm cg-num text-success">{formatRp(dep.data?.totalDepositPurchased ?? 0)}</strong>
+                  </div>
+                  <div className="p-12 border border-border rounded-xl bg-surface">
+                    <span className="text-xs text-text-muted block mb-4">Total Pemakaian</span>
+                    <strong className="text-sm cg-num text-text">{formatRp(dep.data?.totalDepositUsed ?? 0)}</strong>
+                  </div>
+                  <div className="p-12 border border-border rounded-xl bg-surface">
+                    <span className="text-xs text-text-muted block mb-4">Total Pengembalian</span>
+                    <strong className="text-sm cg-num text-danger">{formatRp(dep.data?.totalDepositRefunded ?? 0)}</strong>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 

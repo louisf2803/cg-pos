@@ -22,133 +22,6 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker, type RangeValue } from '@/components/range-picker';
 import { downloadCsvWithHistory } from '@/lib/export';
 
-function shiftDateIso(dayKey: string, deltaDays: number, hhmm: string): string {
-  const ms = new Date(`${dayKey}T00:00:00+07:00`).getTime() + deltaDays * 86400_000;
-  const targetDay = localDateKey(new Date(ms), 'Asia/Jakarta');
-  return `${targetDay}T${hhmm}:00+07:00`;
-}
-
-function buildSampleDepositSales(todayKey: string): DepositSaleRecord[] {
-  return [
-    {
-      id: 'ds-1',
-      occurredAt: shiftDateIso(todayKey, 0, '10:15'),
-      customerName: 'Rina Kusuma',
-      packageName: 'Deposit 500rb Bonus 50rb',
-      salePrice: 500000,
-      creditAmount: 550000,
-      methodName: 'QRIS',
-      orderNumber: 'DEP/2611/004',
-    },
-    {
-      id: 'ds-2',
-      occurredAt: shiftDateIso(todayKey, 0, '13:40'),
-      customerName: 'Budi Santoso',
-      packageName: 'Deposit 100rb',
-      salePrice: 100000,
-      creditAmount: 100000,
-      methodName: 'Tunai',
-      orderNumber: 'DEP/2611/005',
-    },
-    {
-      id: 'ds-3',
-      occurredAt: shiftDateIso(todayKey, -2, '16:20'),
-      customerName: 'Dewi Permata',
-      packageName: 'Deposit 500rb Bonus 50rb',
-      salePrice: 500000,
-      creditAmount: 550000,
-      methodName: 'Transfer Bank BCA',
-      orderNumber: 'DEP/2611/002',
-    },
-    {
-      id: 'ds-4',
-      occurredAt: shiftDateIso(todayKey, -5, '11:05'),
-      customerName: 'Andi Wijaya',
-      packageName: 'Deposit 100rb',
-      salePrice: 100000,
-      creditAmount: 100000,
-      methodName: 'Kartu Debit EDC',
-      orderNumber: 'DEP/2611/001',
-    },
-  ];
-}
-
-function buildSampleDepositRefunds(todayKey: string): DepositRefundRecord[] {
-  return [
-    {
-      id: 'dr-1',
-      occurredAt: shiftDateIso(todayKey, -1, '15:10'),
-      customerName: 'Fajar Pratama',
-      amount: 150000,
-      reason: 'Pelanggan pindah domisili (sisa saldo dikembalikan tunai)',
-      processedBy: 'Sari (Manajer)',
-    },
-    {
-      id: 'dr-2',
-      occurredAt: shiftDateIso(todayKey, -4, '18:30'),
-      customerName: 'Nadia Putri',
-      amount: 50000,
-      reason: 'Salah input nominal pengisian saldo di kasir',
-      processedBy: 'Bima (Pemilik)',
-    },
-  ];
-}
-
-function buildSampleCustomerBalances(): CustomerDepositBalance[] {
-  return [
-    {
-      customerId: 'c-1',
-      customerName: 'Rina Kusuma',
-      customerPhone: '081234567890',
-      totalDepositPurchased: 550000,
-      totalDepositUsed: 125000,
-      totalDepositRefunded: 0,
-      currentBalance: 425000,
-      lastTransactionAt: '2026-11-12T10:15:00+07:00',
-    },
-    {
-      customerId: 'c-2',
-      customerName: 'Budi Santoso',
-      customerPhone: '081398765432',
-      totalDepositPurchased: 100000,
-      totalDepositUsed: 80000,
-      totalDepositRefunded: 0,
-      currentBalance: 20000,
-      lastTransactionAt: '2026-11-12T13:40:00+07:00',
-    },
-    {
-      customerId: 'c-3',
-      customerName: 'Dewi Permata',
-      customerPhone: '082155558888',
-      totalDepositPurchased: 550000,
-      totalDepositUsed: 0,
-      totalDepositRefunded: 0,
-      currentBalance: 550000,
-      lastTransactionAt: '2026-11-10T16:20:00+07:00',
-    },
-    {
-      customerId: 'c-4',
-      customerName: 'Andi Wijaya',
-      customerPhone: '085712349999',
-      totalDepositPurchased: 100000,
-      totalDepositUsed: 100000,
-      totalDepositRefunded: 0,
-      currentBalance: 0,
-      lastTransactionAt: '2026-11-07T11:05:00+07:00',
-    },
-    {
-      customerId: 'c-5',
-      customerName: 'Fajar Pratama',
-      customerPhone: '081800001111',
-      totalDepositPurchased: 300000,
-      totalDepositUsed: 150000,
-      totalDepositRefunded: 150000,
-      currentBalance: 0,
-      lastTransactionAt: '2026-11-11T15:10:00+07:00',
-    },
-  ];
-}
-
 function fmtDateTime(iso: string, tz: string): string {
   try {
     return new Intl.DateTimeFormat('id-ID', {
@@ -166,13 +39,21 @@ function fmtDateTime(iso: string, tz: string): string {
 
 export default function LaporanDepositPage() {
   const data = useData();
-  const ctxState = useAsync(() => data.getContext(), [data]);
+  const state = useAsync(async () => {
+    const [ctx, sales, refunds, balances] = await Promise.all([
+      data.getContext(),
+      data.listDepositSales(),
+      data.listDepositRefunds(),
+      data.listCustomerDepositBalances(),
+    ]);
+    return { ctx, sales, refunds, balances };
+  }, [data]);
 
   const [tab, setTab] = useState<'sales' | 'refunds' | 'balances'>('sales');
   const [range, setRange] = useState<RangeValue>({ preset: '7d', from: '', to: '' });
   const [search, setSearch] = useState('');
 
-  const tz = ctxState.status === 'ready' ? ctxState.data.timezone : 'Asia/Jakarta';
+  const tz = state.status === 'ready' ? state.data.ctx.timezone : 'Asia/Jakarta';
   const today = localDateKey(new Date(), tz);
 
   const resolvedRange = useMemo(() => {
@@ -182,15 +63,15 @@ export default function LaporanDepositPage() {
     return presetRange(tz, range.preset);
   }, [tz, range, today]);
 
-  const sampleSales = useMemo(() => buildSampleDepositSales(today), [today]);
-  const sampleRefunds = useMemo(() => buildSampleDepositRefunds(today), [today]);
-  const sampleBalances = useMemo(() => buildSampleCustomerBalances(), []);
+  const rawSales = state.status === 'ready' ? state.data.sales : [];
+  const rawRefunds = state.status === 'ready' ? state.data.refunds : [];
+  const rawBalances = state.status === 'ready' ? state.data.balances : [];
 
   const filteredSales = useMemo(() => {
     const q = search.trim().toLowerCase();
     const startMs = new Date(resolvedRange.from).getTime();
     const endMs = new Date(resolvedRange.to).getTime();
-    return sampleSales.filter((row) => {
+    return rawSales.filter((row) => {
       const t = new Date(row.occurredAt).getTime();
       if (t < startMs || t >= endMs) return false;
       if (!q) return true;
@@ -200,13 +81,13 @@ export default function LaporanDepositPage() {
         row.orderNumber.toLowerCase().includes(q)
       );
     });
-  }, [sampleSales, resolvedRange, search]);
+  }, [rawSales, resolvedRange, search]);
 
   const filteredRefunds = useMemo(() => {
     const q = search.trim().toLowerCase();
     const startMs = new Date(resolvedRange.from).getTime();
     const endMs = new Date(resolvedRange.to).getTime();
-    return sampleRefunds.filter((row) => {
+    return rawRefunds.filter((row) => {
       const t = new Date(row.occurredAt).getTime();
       if (t < startMs || t >= endMs) return false;
       if (!q) return true;
@@ -215,11 +96,11 @@ export default function LaporanDepositPage() {
         row.reason.toLowerCase().includes(q)
       );
     });
-  }, [sampleRefunds, resolvedRange, search]);
+  }, [rawRefunds, resolvedRange, search]);
 
   const filteredBalances = useMemo(() => {
-    return filterCustomerDepositBalances(sampleBalances, search);
-  }, [sampleBalances, search]);
+    return filterCustomerDepositBalances(rawBalances, search);
+  }, [rawBalances, search]);
 
   const salesSummary = useMemo(() => summarizeDepositSales(filteredSales), [filteredSales]);
   const refundSummary = useMemo(() => summarizeDepositRefunds(filteredRefunds), [filteredRefunds]);
@@ -312,18 +193,11 @@ export default function LaporanDepositPage() {
         }
       />
 
-      <div className="cg-banner cg-banner--info mb-16 flex flex-wrap items-center justify-between gap-8" role="status">
-        <span>
-          <strong>Pratinjau tampilan — menunggu dukungan server.</strong> Data di bawah merupakan representasi alur penjualan, pemakaian, refund, dan saldo deposit pelanggan.
-        </span>
-        <span className="cg-badge text-[11px] font-semibold">Pratinjau</span>
-      </div>
-
-      {ctxState.status === 'error' && (
-        <ErrorBox message={ctxState.message} onRetry={ctxState.reload} />
+      {state.status === 'error' && (
+        <ErrorBox message={state.message} onRetry={state.reload} />
       )}
 
-      {ctxState.status === 'loading' && (
+      {state.status === 'loading' && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat laporan deposit">
           <div className="cg-skeleton h-[44px]" />
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12">
@@ -335,7 +209,7 @@ export default function LaporanDepositPage() {
         </div>
       )}
 
-      {ctxState.status === 'ready' && (
+      {state.status === 'ready' && (
         <div className="grid gap-16 min-w-0">
           {tab !== 'balances' && (
             <RangePicker
