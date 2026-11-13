@@ -1033,3 +1033,6 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A143 Server: Reservasi dan Appointment Tersimpan Selesai
+Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppointment`, `deleteAppointment`), label pratinjau dihapus. Migrasi `0105_appointments.sql` mencakup tabel `pos.appointments` dengan trigger pencegahan bentrok jadwal server `check_appointment_conflict()`, RLS, touch/seq/log triggers. Tes SQL `23_appointments.sql` dan vitest `appointment.test.ts` memverifikasi pembuatan, perubahan status, pembatalan, dan penolakan bentrok waktu/sumber daya yang sama. Monorepo typecheck lulus, 590 tes shared lulus, 4 tes pos lulus, `lint-tailwind` bersih.
