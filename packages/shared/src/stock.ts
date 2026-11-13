@@ -11,6 +11,7 @@ export interface StockItem {
   minQty?: number; status: StockStatus;
   /** Kategori bahan baku (lihat ingredient-categories.ts), bukan kategori produk jual. Belum ada di semua barang. */
   categoryId?: string; categoryName?: string;
+  locationId?: string; locationName?: string;
 }
 
 export type StockMoveKind =
@@ -47,6 +48,7 @@ export interface StockPostInput {
   /** hanya untuk stok masuk; kosong = pakai biaya rata-rata saat ini */
   unitCost?: number;
   reason?: string;
+  locationId?: string;
 }
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
