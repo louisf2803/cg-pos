@@ -10,6 +10,7 @@ import { useSession } from '../lib/session';
 import { forwardNotice, forwardOrder } from '../lib/stations';
 import { TicketStrip } from './TicketHost';
 import { DiscountLines, Modal } from '../ui';
+import { InvoiceDialog } from './payment/InvoiceDialog';
 
 const ICON: Record<PaymentMethod['kind'], typeof Banknote> = { cash: Banknote, noncash: CreditCard, gateway: QrCode, complimentary: Landmark, deposit: Landmark };
 
@@ -37,6 +38,8 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
   const [printing, setPrinting] = useState(false);
   const [isSplit, setIsSplit] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [invoiced, setInvoiced] = useState<string | null>(null);
   // satu id per upaya bayar: ketuk dua kali tidak menggandakan pembayaran (kontrak idempoten dengan server)
   const attemptId = useRef(newId());
 
@@ -157,6 +160,19 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
     }
   }
 
+  if (invoiced) {
+    return (
+      <main className="min-h-full grid place-items-center p-16">
+        <div className="w-full max-w-[440px] grid gap-16 text-center" role="status">
+          <CheckCircle2 className="cg-icon cg-icon--lg justify-self-center text-success-strong" aria-hidden />
+          <h1 className="text-xl">Invoice dibuat</h1>
+          <p className="text-text-muted">{invoiced} untuk {current.customerName ?? 'pelanggan'} · {formatRp(current.total)}. Pesanan {current.number} ditutup tanpa pembayaran.</p>
+          <button className="cg-btn cg-btn--primary cg-btn--lg cg-btn--block" autoFocus onClick={onDone}>Pesanan baru</button>
+        </div>
+      </main>
+    );
+  }
+
   if (done) {
     const p = done.payments[done.payments.length - 1];
     return (
@@ -214,7 +230,17 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
           </div>
         </div>
 
-        <div className="flex items-center gap-8">
+        <div className="flex flex-wrap items-center gap-8">
+          <button
+            type="button"
+            className="cg-chip"
+            onClick={() => setInvoiceOpen(true)}
+            disabled={busy || current.status !== 'open' || current.paidTotal > 0}
+            title={current.paidTotal > 0 ? 'Pesanan sudah ada pembayaran sebagian' : 'Catat pesanan sebagai tagihan (invoice) untuk pelanggan'}
+            data-testid="payment-invoice-btn"
+          >
+            Jadikan invoice
+          </button>
           <button
             type="button"
             className={`cg-chip ${isSplit ? 'cg-chip--active' : ''}`}
@@ -559,6 +585,9 @@ export function Payment({ order, ctx, onBack, onDone, onUpdated, skipForward = f
           </div>
         </section>
       </div>
+      {invoiceOpen && (
+        <InvoiceDialog order={current} authorizedBy={session.employee.id} onClose={() => setInvoiceOpen(false)} onDone={(n) => { setInvoiceOpen(false); setInvoiced(n); }} />
+      )}
       {noteOpen && (
         <Modal title="Catatan pesanan" onClose={() => { if (!noteBusy) setNoteOpen(false); }}>
           <form onSubmit={(e) => void saveOrderNote(e)} className="grid gap-12" noValidate>
