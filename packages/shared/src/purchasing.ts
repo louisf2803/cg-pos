@@ -79,19 +79,29 @@ export const PO_STATUS_LABEL: Record<PurchaseOrderStatus, string> = {
 };
 export interface PurchaseOrderInput extends Money {
   id: string; supplierId: string; orderDate?: string; expectedDate?: string; note?: string; status: 'draft' | 'ordered' | 'cancelled'; lines: PurchaseLineInput[];
+  /** Referensi opsional ke permintaan barang (migrasi 0042) */
+  requestId?: string | null;
+  /** Uang muka / DP pesanan pembelian */
+  downPayment?: number;
 }
 export interface PurchaseOrder {
   id: string; number: string; supplierId: string; supplierName: string; status: PurchaseOrderStatus; orderDate: string; expectedDate?: string;
   discount: number; taxAmount: number; otherCost: number; total: number; note?: string; lines: PurchaseLine[];
+  requestId?: string | null; requestNumber?: string | null; downPayment?: number;
 }
 export interface PurchaseOrderSummary {
   id: string; number: string; supplierId: string; supplierName: string; status: PurchaseOrderStatus; orderDate: string; expectedDate?: string; total: number; lineCount: number;
+  requestId?: string | null; requestNumber?: string | null; downPayment?: number;
 }
 export function purchaseOrderProblem(i: PurchaseOrderInput): string | null {
   if (!i.supplierId) return 'Pilih pemasok.';
   if ((i.note ?? '').trim().length > 200) return 'Catatan terlalu panjang (maksimal 200 huruf).';
+  if (i.downPayment !== undefined && (!Number.isFinite(i.downPayment) || i.downPayment < 0)) return 'Uang muka tidak boleh negatif.';
   if (i.status === 'cancelled' && i.lines.length === 0) return null;
-  return linesProblem(i.lines, i);
+  const p = linesProblem(i.lines, i);
+  if (p) return p;
+  if (i.downPayment && i.downPayment > purchaseTotal(i.lines, i.discount, i.tax, i.otherCost)) return 'Uang muka tidak boleh melebihi total pesanan.';
+  return null;
 }
 
 export type PurchaseInvoiceStatus = 'open' | 'partially_paid' | 'paid' | 'void';
@@ -100,22 +110,34 @@ export interface PurchaseInvoiceInput extends Money {
   id: string; supplierId?: string | null; orderId?: string | null; supplierInvoiceNo?: string; invoiceDate?: string;
   /** kosong = ikut termin pemasok */
   termDays?: number; note?: string; lines: PurchaseLineInput[];
+  /** Uang muka yang dipotongkan pada faktur */
+  downPayment?: number;
+  /** Nama berkas lampiran faktur */
+  attachmentName?: string | null;
+  /** Data URL atau tautan lampiran faktur */
+  attachmentDataUrl?: string | null;
 }
 export interface PurchasePayment { id: string; number: string; paidAt: string; accountName: string; amount: number; note?: string }
 export interface PurchaseInvoice {
   id: string; number: string; supplierId?: string; supplierName: string; orderId?: string; supplierInvoiceNo?: string; invoiceDate: string; dueDate?: string; termDays: number;
   status: PurchaseInvoiceStatus; subtotal: number; discount: number; taxAmount: number; otherCost: number; total: number; paidTotal: number; outstanding: number;
   note?: string; lines: PurchaseLine[]; payments: PurchasePayment[];
+  downPayment?: number; attachmentName?: string | null; attachmentDataUrl?: string | null; voidReason?: string | null; voidAt?: string | null;
 }
 export interface PurchaseInvoiceSummary {
   id: string; number: string; supplierId?: string; supplierName: string; supplierInvoiceNo?: string; invoiceDate: string; dueDate?: string; status: PurchaseInvoiceStatus;
   total: number; paidTotal: number; outstanding: number; fullyReceived: boolean;
+  downPayment?: number; hasAttachment?: boolean;
 }
 export function purchaseInvoiceProblem(i: PurchaseInvoiceInput): string | null {
   if ((i.note ?? '').trim().length > 200) return 'Catatan terlalu panjang (maksimal 200 huruf).';
   if ((i.supplierInvoiceNo ?? '').trim().length > 60) return 'Nomor faktur pemasok terlalu panjang.';
   if (i.termDays !== undefined && (!Number.isInteger(i.termDays) || i.termDays < 0 || i.termDays > MAX_TERM_DAYS)) return 'Termin bayar harus bilangan bulat 0 sampai 3650 hari.';
-  return linesProblem(i.lines, i);
+  if (i.downPayment !== undefined && (!Number.isFinite(i.downPayment) || i.downPayment < 0)) return 'Uang muka tidak boleh negatif.';
+  const p = linesProblem(i.lines, i);
+  if (p) return p;
+  if (i.downPayment && i.downPayment > purchaseTotal(i.lines, i.discount, i.tax, i.otherCost)) return 'Uang muka tidak boleh melebihi total faktur.';
+  return null;
 }
 
 export interface PurchaseReceiveInput { id: string; invoiceId: string; note?: string; items: { lineId: string; qty: number }[] }
