@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Star, Tag, X } from 'lucide-react';
+import { Gift, Star, Tag, X } from 'lucide-react';
 import {
-  COUPON_REFERENCE_MAX, couponProblem, couponReferenceProblem, describePromotion, formatRp, manualProblem, maxRedeemPoints,
+  COUPON_REFERENCE_MAX, DEFAULT_LOYALTY, couponProblem, couponReferenceProblem, describePromotion, formatRp, manualProblem, maxRedeemPoints,
   newApplied, normalizeCode, normalizeCouponReference, promotionAmount, promotionBlock, redeemAmount, redeemProblem,
-  type AppliedDiscount, type LoyaltyRules, type PromoCart, type Promotion, type ResolvedDiscounts,
+  type AppliedDiscount, type LoyaltyProductReward, type LoyaltyRules, type Product, type PromoCart, type Promotion, type ResolvedDiscounts,
 } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { ApproverFields, useApprover } from '../lib/approver';
@@ -12,9 +12,9 @@ import { Modal } from '../ui';
 type Tab = 'promo' | 'coupon' | 'points' | 'manual';
 
 /** Pilih promo, masukkan kode kupon, atau beri diskon manual. Boleh banyak sekaligus; total tidak pernah melebihi belanja. */
-export function DiscountDialog({ applied, resolved, promos, cart, gross, customerId, productName, onAdd, onRemove, onClose }: {
+export function DiscountDialog({ applied, resolved, promos, cart, gross, customerId, productName, onAdd, onRemove, onAddProductReward, onClose }: {
   customerId?: string; applied: AppliedDiscount[]; resolved: ResolvedDiscounts; promos: Promotion[]; cart: PromoCart; gross: number; productName: (id: string) => string | undefined;
-  onAdd: (d: AppliedDiscount) => void; onRemove: (id: string) => void; onClose: () => void;
+  onAdd: (d: AppliedDiscount) => void; onRemove: (id: string) => void; onAddProductReward?: (product: Product, pointsCost: number) => void; onClose: () => void;
 }) {
   const [tab, setTab] = useState<Tab>('promo');
   const now = useMemo(() => new Date(), []);
@@ -64,7 +64,7 @@ export function DiscountDialog({ applied, resolved, promos, cart, gross, custome
           </ul>
         ))}
       {tab === 'coupon' && <CouponTab cart={cart} applied={applied} onAdd={onAdd} />}
-      {tab === 'points' && <PointsTab customerId={customerId} applied={applied} remaining={Math.max(0, gross - resolved.entries.filter((e) => e.source !== 'points').reduce((n, e) => n + e.amount, 0))} onAdd={onAdd} />}
+      {tab === 'points' && <PointsTab customerId={customerId} applied={applied} remaining={Math.max(0, gross - resolved.entries.filter((e) => e.source !== 'points').reduce((n, e) => n + e.amount, 0))} onAdd={onAdd} onAddProductReward={onAddProductReward} />}
       {tab === 'manual' && <ManualTab gross={gross} onAdd={onAdd} />}
       <div className="cg-modal__actions"><button className="cg-btn cg-btn--primary" onClick={onClose}>Selesai</button></div>
     </Modal>
@@ -143,49 +143,214 @@ function ManualTab({ gross, onAdd }: { gross: number; onAdd: (d: AppliedDiscount
   );
 }
 
-function PointsTab({ customerId, applied, remaining, onAdd }: { customerId?: string; applied: AppliedDiscount[]; remaining: number; onAdd: (d: AppliedDiscount) => void }) {
+function PointsTab({
+  customerId,
+  applied,
+  remaining,
+  onAdd,
+  onAddProductReward,
+}: {
+  customerId?: string;
+  applied: AppliedDiscount[];
+  remaining: number;
+  onAdd: (d: AppliedDiscount) => void;
+  onAddProductReward?: (product: Product, pointsCost: number) => void;
+}) {
   const data = useData();
-  const [state, setState] = useState<{ status: 'loading' } | { status: 'error' } | { status: 'ready'; balance: number; name: string; rules: LoyaltyRules }>({ status: 'loading' });
+  const [state, setState] = useState<{
+    status: 'loading' | 'error' | 'ready';
+    balance: number;
+    name: string;
+    rules: LoyaltyRules;
+    rewards: LoyaltyProductReward[];
+    products: Product[];
+  }>({
+    status: 'loading',
+    balance: 0,
+    name: '',
+    rules: DEFAULT_LOYALTY,
+    rewards: [],
+    products: [],
+  });
   const [val, setVal] = useState('');
   const [err, setErr] = useState('');
+  const [notice, setNotice] = useState('');
+
   useEffect(() => {
     if (!customerId) return;
     let live = true;
-    setState({ status: 'loading' });
-    Promise.all([data.getCustomer(customerId), data.getLoyaltyRules()])
-      .then(([c, rules]) => { if (live) setState(c ? { status: 'ready', balance: c.pointsBalance, name: c.name, rules } : { status: 'error' }); })
-      .catch(() => { if (live) setState({ status: 'error' }); });
-    return () => { live = false; };
+    setState((s) => ({ ...s, status: 'loading' }));
+    Promise.all([
+      data.getCustomer(customerId),
+      data.getLoyaltyRules(),
+      data.listLoyaltyProductRewards(true),
+      data.listProducts(),
+    ])
+      .then(([c, rules, rewards, products]) => {
+        if (live) {
+          setState({
+            status: c ? 'ready' : 'error',
+            balance: c ? c.pointsBalance : 0,
+            name: c ? c.name : '',
+            rules,
+            rewards,
+            products,
+          });
+        }
+      })
+      .catch(() => {
+        if (live) setState((s) => ({ ...s, status: 'error' }));
+      });
+    return () => {
+      live = false;
+    };
   }, [data, customerId]);
-  if (!customerId) return <div className="cg-empty"><p><strong>Pilih pelanggan dulu.</strong></p><p className="text-text-muted">Poin menempel pada pelanggan. Pilih pelanggan di layar kasir, lalu kembali ke sini.</p></div>;
+
+  if (!customerId) {
+    return (
+      <div className="cg-empty">
+        <p><strong>Pilih pelanggan dulu.</strong></p>
+        <p className="text-text-muted">Poin menempel pada pelanggan. Pilih pelanggan di layar kasir, lalu kembali ke sini.</p>
+      </div>
+    );
+  }
   if (state.status === 'loading') return <p role="status" className="text-text-muted">Memuat poin…</p>;
   if (state.status === 'error') return <p role="alert" className="text-danger-strong">Poin gagal dimuat. Cek koneksi internet.</p>;
-  const { balance, rules, name } = state;
-  if (!rules.isActive) return <div className="cg-empty"><p><strong>Loyalti belum aktif.</strong></p><p className="text-text-muted">Pemilik bisa mengaktifkannya di dashboard, menu Loyalti.</p></div>;
-  const have = applied.find((a) => a.source === 'points');
-  const max = maxRedeemPoints(balance, remaining, rules);
-  function apply() {
+
+  const { balance, rules, name, rewards, products } = state;
+  if (!rules.isActive) {
+    return (
+      <div className="cg-empty">
+        <p><strong>Loyalti belum aktif.</strong></p>
+        <p className="text-text-muted">Pemilik bisa mengaktifkannya di dashboard, menu Loyalti.</p>
+      </div>
+    );
+  }
+
+  const totalPointsUsed = applied.filter((a) => a.source === 'points').reduce((s, a) => s + (a.points ?? 0), 0);
+  const currentBalance = Math.max(0, balance - totalPointsUsed);
+  const haveCashDiscount = applied.find((a) => a.source === 'points' && !a.rewardProductId);
+  const max = maxRedeemPoints(currentBalance, remaining, rules);
+
+  function applyDiscount() {
     const n = Number(val.replace(/\D/g, ''));
-    const problem = redeemProblem(n, balance, remaining, rules);
+    const problem = redeemProblem(n, currentBalance, remaining, rules);
     if (problem) return setErr(problem);
     onAdd(newApplied({ source: 'points', label: 'Tukar poin', points: n, fixed: redeemAmount(n, rules) }));
     setVal('');
+    setNotice(`Berhasil menukar ${n} poin (-${formatRp(redeemAmount(n, rules))}).`);
   }
+
+  function handleClaimReward(reward: LoyaltyProductReward) {
+    const prod = products.find((p) => p.id === reward.productId);
+    if (!prod) return setErr('Produk hadiah tidak ditemukan di katalog.');
+    if (currentBalance < reward.pointsCost) {
+      return setErr(`Saldo poin tidak cukup untuk ${prod.name} (${reward.pointsCost} poin dibutuhkan, sisa ${currentBalance} poin).`);
+    }
+    if (onAddProductReward) {
+      onAddProductReward(prod, reward.pointsCost);
+      setNotice(`Hadiah "${prod.name}" ditambahkan ke pesanan (Rp0, -${reward.pointsCost} poin).`);
+      setErr('');
+    }
+  }
+
   return (
-    <form className="grid gap-12" onSubmit={(e) => { e.preventDefault(); apply(); }}>
-      <p><strong className="break-words">{name}</strong> punya <strong className="cg-num">{balance}</strong> poin. 1 poin = {formatRp(rules.redeemValuePerPoint)}.</p>
-      {have
-        ? <p role="status">Sudah menukar {have.points} poin di pesanan ini. Lepas dulu bila ingin mengubahnya.</p>
-        : (
-          <>
-            <div className="cg-field"><label className="cg-label" htmlFor="poin-jumlah">Poin yang ditukar</label>
-              <input id="poin-jumlah" className="cg-input" inputMode="numeric" maxLength={7} value={val} onChange={(e) => { setVal(e.target.value.replace(/\D/g, '')); setErr(''); }} /></div>
-            <p className="text-text-muted text-sm">{max > 0 ? `Maksimal ${max} poin (${formatRp(redeemAmount(max, rules))}) untuk tagihan ini.` : 'Belum ada poin yang bisa ditukar untuk tagihan ini.'}</p>
-            <div className="flex gap-8"><button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" disabled={max < 1} onClick={() => { setVal(String(max)); setErr(''); }}>Pakai maksimal</button></div>
-            {err && <p role="alert" className="text-danger-strong">{err}</p>}
-            <button type="submit" className="cg-btn cg-btn--secondary" disabled={max < 1}><Star className="cg-icon cg-icon--sm" aria-hidden /> Tukar poin</button>
-          </>
+    <div className="grid gap-16">
+      <div className="p-12 rounded-lg bg-surface border border-border flex items-center justify-between gap-12 flex-wrap">
+        <div>
+          <strong className="break-words">{name}</strong>
+          <span className="text-text-muted text-xs block">1 poin = {formatRp(rules.redeemValuePerPoint)}</span>
+        </div>
+        <div className="text-right">
+          <span className="text-xs text-text-muted block">Saldo poin</span>
+          <strong className="cg-num text-base text-accent-strong">{currentBalance}</strong>
+          {totalPointsUsed > 0 && <span className="text-xs text-text-muted block">(-{totalPointsUsed} terpakai)</span>}
+        </div>
+      </div>
+
+      {notice && <p role="status" className="cg-banner cg-banner--info">{notice}</p>}
+      {err && <p role="alert" className="text-danger-strong">{err}</p>}
+
+      <div className="space-y-8">
+        <h3 className="text-sm font-semibold flex items-center gap-6">
+          <Star className="cg-icon cg-icon--xs text-accent" aria-hidden /> Potongan Tagihan Belanja
+        </h3>
+        {haveCashDiscount ? (
+          <p role="status" className="text-sm text-text-muted">
+            Sudah menukar {haveCashDiscount.points} poin di pesanan ini ({formatRp(haveCashDiscount.fixed ?? 0)}). Lepas pada daftar diskon di atas bila ingin mengubahnya.
+          </p>
+        ) : (
+          <form className="grid gap-8" onSubmit={(e) => { e.preventDefault(); applyDiscount(); }}>
+            <div className="cg-field">
+              <label className="cg-label text-xs" htmlFor="poin-jumlah">Poin yang ditukar</label>
+              <input
+                id="poin-jumlah"
+                className="cg-input"
+                inputMode="numeric"
+                maxLength={7}
+                placeholder="Jumlah poin..."
+                value={val}
+                onChange={(e) => { setVal(e.target.value.replace(/\D/g, '')); setErr(''); }}
+              />
+            </div>
+            <p className="text-text-muted text-xs">
+              {max > 0 ? `Maksimal ${max} poin (${formatRp(redeemAmount(max, rules))}) untuk sisa tagihan ini.` : 'Belum ada sisa tagihan untuk ditukar poin.'}
+            </p>
+            <div className="flex gap-8">
+              <button
+                type="button"
+                className="cg-btn cg-btn--ghost cg-btn--sm"
+                disabled={max < 1}
+                onClick={() => { setVal(String(max)); setErr(''); }}
+              >
+                Pakai maksimal
+              </button>
+              <button
+                type="submit"
+                className="cg-btn cg-btn--secondary cg-btn--sm"
+                disabled={max < 1 || !val}
+              >
+                Terapkan potongan
+              </button>
+            </div>
+          </form>
         )}
-    </form>
+      </div>
+
+      {rewards.length > 0 && (
+        <div className="space-y-8 pt-12 border-t border-border">
+          <h3 className="text-sm font-semibold flex items-center gap-6">
+            <Gift className="cg-icon cg-icon--xs text-accent" aria-hidden /> Klaim Produk Hadiah Gratis
+          </h3>
+          <p className="text-xs text-text-muted">
+            Poin akan ditukar dengan item produk gratis (Rp0) yang langsung dimasukkan ke pesanan kasir.
+          </p>
+          <div className="grid gap-8 max-h-[220px] overflow-y-auto">
+            {rewards.map((r) => {
+              const prod = products.find((p) => p.id === r.productId);
+              const canClaim = currentBalance >= r.pointsCost;
+              return (
+                <div key={r.id} className="flex items-center justify-between gap-12 p-8 border border-border rounded-md">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-xs break-words">{prod?.name ?? r.productName ?? r.productId}</div>
+                    <div className="text-[11px] text-text-muted">
+                      {prod ? `Normal: ${formatRp(prod.price)}` : ''} · Butuh <strong className="text-accent-strong">{r.pointsCost} poin</strong>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--secondary cg-btn--sm shrink-0"
+                    disabled={!canClaim || !onAddProductReward}
+                    onClick={() => handleClaimReward(r)}
+                  >
+                    Klaim gratis
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

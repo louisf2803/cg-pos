@@ -120,4 +120,67 @@ describe('loyalti: data palsu', () => {
     const sum = (await d.listLoyaltyLedger('cu-ani', 999)).reduce((n, e) => n + e.points, 0);
     expect(sum).toBe((await d.getCustomer('cu-ani'))!.pointsBalance);
   });
+
+  it('hadiah produk loyalti: validasi, CRUD, dan tukar poin produk gratis di pesanan', async () => {
+    const d = mk();
+    // 1. Seeded rewards
+    const initialRewards = await d.listLoyaltyProductRewards();
+    expect(initialRewards.length).toBeGreaterThanOrEqual(3);
+    expect(initialRewards.find((r) => r.productId === 'p8')?.pointsCost).toBe(25);
+
+    // 2. CRUD
+    await expect(d.saveLoyaltyProductReward({ productId: '', pointsCost: 10, isActive: true })).rejects.toThrow(/Pilih produk/);
+    await expect(d.saveLoyaltyProductReward({ productId: 'p2', pointsCost: 0, isActive: true })).rejects.toThrow(/minimal 1/);
+
+    const saved = await d.saveLoyaltyProductReward({ productId: 'p2', pointsCost: 40, isActive: true });
+    expect(saved.id).toBeDefined();
+    expect(saved.pointsCost).toBe(40);
+
+    const rewardsAfter = await d.listLoyaltyProductRewards();
+    expect(rewardsAfter.some((r) => r.productId === 'p2')).toBe(true);
+
+    // Update
+    await d.saveLoyaltyProductReward({ id: saved.id, productId: 'p2', pointsCost: 45, isActive: false });
+    const onlyActive = await d.listLoyaltyProductRewards(true);
+    expect(onlyActive.some((r) => r.productId === 'p2')).toBe(false);
+
+    // 3. Tukar poin produk hadiah di penjualan (amount = 0, points_used = 25)
+    await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
+    const o = await d.saveOrder({
+      id: newId(),
+      type: 'dine_in',
+      customerId: 'cu-ani',
+      items: [
+        { id: newId(), productId: 'p1', name: 'Nasi Goreng', qty: 1, unitPrice: 20000, subtotal: 20000, note: '' },
+        { id: newId(), productId: 'p8', name: '[Hadiah] Es Teh Manis', qty: 1, unitPrice: 0, subtotal: 0, note: 'Tukar poin loyalti' },
+      ],
+      discounts: [
+        { id: newId(), source: 'points', label: 'Hadiah: Es Teh Manis', points: 25, amount: 0, rewardProductId: 'p8' },
+      ],
+      grossTotal: 20000,
+      discountTotal: 0,
+      taxTotal: 0,
+      total: 20000,
+      paymentTotal: 0,
+      changeTotal: 0,
+      status: 'open',
+    });
+
+    expect(o.discounts).toMatchObject([{ source: 'points', points: 25, amount: 0, rewardProductId: 'p8' }]);
+    expect((await d.getCustomer('cu-ani'))!.pointsBalance).toBe(120);
+
+    // Bayar lunas -> 25 poin terpotong
+    const full = (await d.getOrder(o.id))!;
+    await pay(d, { id: o.id, total: full.total });
+    const earned = Math.floor(full.total / 10000);
+    expect((await d.getCustomer('cu-ani'))!.pointsBalance).toBe(120 - 25 + earned);
+
+    const ledger = await d.listLoyaltyLedger('cu-ani');
+    expect(ledger).toContainEqual(expect.objectContaining({ kind: 'redeem', points: -25, orderId: o.id }));
+
+    // 4. Hapus hadiah
+    await d.deleteLoyaltyProductReward(saved.id);
+    const afterDelete = await d.listLoyaltyProductRewards();
+    expect(afterDelete.some((r) => r.id === saved.id)).toBe(false);
+  });
 });

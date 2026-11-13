@@ -164,6 +164,7 @@ export interface AppliedDiscount {
   /** nomor referensi kupon/promo yang diketik kasir (opsional, maks 60 huruf) */
   reference?: string;
   label: string;
+  rewardProductId?: string;
   /** diskon manual */
   manual?: { mode: 'percent' | 'amount'; value: number };
   /** pesanan lama yang promonya sudah tidak ada: angka tetap dari pesanan itu */
@@ -193,7 +194,10 @@ export function resolveDiscounts(applied: AppliedDiscount[], promos: Promotion[]
     if (a.source === 'points') {
       amount = a.fixed ?? 0;
       if (amount > left) { skipped.push({ id: a.id, label: a.label, reason: 'Potongan poin melebihi sisa tagihan.' }); continue; }
-      if (amount > 0) { left -= amount; entries.push({ id: a.id, source: 'points', points: a.points, label: a.label, amount, authorizedBy: a.authorizedBy, ...(ref ? { reference: ref } : {}) }); }
+      if (amount > 0 || (a.rewardProductId && (a.points ?? 0) > 0)) {
+        left -= amount;
+        entries.push({ id: a.id, source: 'points', points: a.points, label: a.label, amount, authorizedBy: a.authorizedBy, ...(ref ? { reference: ref } : {}), ...(a.rewardProductId ? { rewardProductId: a.rewardProductId } : {}) });
+      }
       continue;
     }
     if (a.manual) {
@@ -215,13 +219,19 @@ export function resolveDiscounts(applied: AppliedDiscount[], promos: Promotion[]
 
 /** Sesuaikan entri dengan potongan yang akhirnya dipakai penghitung order (selisih pembulatan masuk ke entri terakhir). */
 export function fitDiscounts(entries: DiscountEntry[], total: number): DiscountEntry[] {
-  if (total <= 0) return [];
+  const zeroRewards = entries.filter((e) => e.amount === 0 && ((e.points ?? 0) > 0 || e.rewardProductId));
+  if (total <= 0) return zeroRewards;
   const out: DiscountEntry[] = []; let left = total;
   for (const e of entries) {
+    if (e.amount === 0 && ((e.points ?? 0) > 0 || e.rewardProductId)) {
+      out.push(e);
+      continue;
+    }
     if (left <= 0) break;
     const amount = Math.min(e.amount, left); left -= amount; out.push({ ...e, amount });
   }
-  if (left > 0 && out.length) out[out.length - 1] = { ...out[out.length - 1]!, amount: out[out.length - 1]!.amount + left };
+  const lastNonZero = [...out].reverse().find((x) => x.amount > 0);
+  if (left > 0 && lastNonZero) lastNonZero.amount += left;
   return out;
 }
 
@@ -231,6 +241,7 @@ export function appliedFromEntries(entries: DiscountEntry[]): AppliedDiscount[] 
     const ref = normalizeCouponReference(e.reference);
     return {
       id: e.id, source: e.source, points: e.points, promotionId: e.promotionId, couponId: e.couponId, label: e.label, authorizedBy: e.authorizedBy,
+      ...(e.rewardProductId ? { rewardProductId: e.rewardProductId } : {}),
       ...(ref ? { reference: ref } : {}),
       ...(e.source === 'points' ? { fixed: e.amount } : e.source === 'manual' || !e.promotionId ? { manual: { mode: 'amount' as const, value: e.amount } } : { fixed: e.amount }),
     };

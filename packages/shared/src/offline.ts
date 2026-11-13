@@ -42,6 +42,7 @@ const CACHED_READS = [
   'getContext', 'listCategories', 'listDepartments', 'listProducts', 'listEmployees', 'listPaymentMethods', 'currentShift',
   'listExtraGroups', 'listFloors', 'listTables', 'listTableStatus', 'listPromotions', 'getLoyaltyRules', 'getCustomItemProductId', 'listPrintStations', 'listNotePresets',
   'listPriceSchedules', 'listTieredPrices', 'listCustomerGroups', 'listCustomerGroupMembers',
+  'listLoyaltyProductRewards',
 ] as const;
 
 interface Options { storage: KV; isOnline?: () => boolean; now?: () => Date }

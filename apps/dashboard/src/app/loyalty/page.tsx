@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Award, Cake, Check, Gift, Pencil, Plus, RotateCcw, Save, Settings2, Users } from 'lucide-react';
+import { Award, Cake, Check, Gift, Pencil, Plus, RotateCcw, Save, Settings2, Trash2, Users } from 'lucide-react';
 import {
   birthdayRuleProblem,
   buildBirthdayCustomersList,
@@ -10,6 +10,7 @@ import {
   DEFAULT_LOYALTY_TIERS,
   earnedPoints,
   formatRp,
+  loyaltyRewardProblem,
   loyaltyRulesProblem,
   loyaltyTierProblem,
   newId,
@@ -17,7 +18,9 @@ import {
   summarizeTierDistribution,
   tierForPoints,
   type BirthdayRuleConfig,
+  type CatalogProduct,
   type Customer,
+  type LoyaltyProductReward,
   type LoyaltyRules,
   type LoyaltyTierGroup,
 } from '@cgpos/shared';
@@ -34,7 +37,7 @@ import {
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 
-type TabKey = 'rules' | 'tiers' | 'birthday';
+type TabKey = 'rules' | 'tiers' | 'birthday' | 'rewards';
 const digits = (v: string) => v.replace(/\D/g, '');
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const fmtNum = (n: number) => new Intl.NumberFormat('id-ID').format(n);
@@ -178,6 +181,151 @@ function TierModal({
           </button>
           <button type="submit" className="cg-btn cg-btn--primary">
             Simpan grup
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+function RewardModal({
+  editing,
+  products,
+  existingProductIds,
+  onClose,
+  onSave,
+}: {
+  editing?: LoyaltyProductReward;
+  products: CatalogProduct[];
+  existingProductIds: Set<string>;
+  onClose: () => void;
+  onSave: (reward: { id?: string; productId: string; pointsCost: number; isActive: boolean }) => Promise<void>;
+}) {
+  const d = useDialog(onClose);
+  const availableProducts = useMemo(() => {
+    if (editing) return products;
+    return products.filter((p) => p.isActive && !existingProductIds.has(p.id));
+  }, [products, existingProductIds, editing]);
+
+  const [productId, setProductId] = useState(editing?.productId ?? availableProducts[0]?.id ?? '');
+  const [pointsCost, setPointsCost] = useState(editing ? String(editing.pointsCost) : '50');
+  const [isActive, setIsActive] = useState(editing?.isActive ?? true);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const selectedProduct = products.find((p) => p.id === productId);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const cost = Number(pointsCost.replace(/\D/g, ''));
+    const problem = loyaltyRewardProblem({ productId, pointsCost: cost });
+    if (problem) {
+      setErr(problem);
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      await onSave({
+        id: editing?.id,
+        productId,
+        pointsCost: cost,
+        isActive,
+      });
+      onClose();
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : 'Gagal menyimpan hadiah produk.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <dialog {...d.props} aria-labelledby="reward-modal-title">
+      <form onSubmit={submit} noValidate className="grid gap-16 p-20 max-w-[480px]">
+        <div className="flex items-start justify-between gap-12">
+          <div>
+            <h2 id="reward-modal-title" className="text-lg font-bold">
+              {editing ? 'Ubah hadiah produk' : 'Tambah hadiah produk'}
+            </h2>
+            <p className="text-xs text-text-muted mt-4">
+              Tentukan produk yang dapat ditukar secara gratis menggunakan poin loyalti pelanggan.
+            </p>
+          </div>
+          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose} disabled={busy}>
+            Tutup
+          </button>
+        </div>
+
+        {err && (
+          <p role="alert" className="cg-banner cg-banner--danger">
+            {err}
+          </p>
+        )}
+
+        <div className="cg-field">
+          <label htmlFor="reward-product" className="cg-label">
+            Pilih produk *
+          </label>
+          <select
+            id="reward-product"
+            className="cg-select"
+            value={productId}
+            disabled={Boolean(editing) || busy}
+            onChange={(e) => {
+              setProductId(e.target.value);
+              setErr('');
+            }}
+          >
+            {availableProducts.length === 0 && <option value="">Semua produk sudah terdaftar sebagai hadiah</option>}
+            {(editing ? products.filter((p) => p.id === editing.productId) : availableProducts).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({formatRp(p.price)})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="cg-field">
+          <label htmlFor="reward-points" className="cg-label">
+            Poin yang dibutuhkan *
+          </label>
+          <input
+            id="reward-points"
+            type="number"
+            min={1}
+            step={1}
+            className="cg-input"
+            value={pointsCost}
+            disabled={busy}
+            onChange={(e) => {
+              setPointsCost(e.target.value);
+              setErr('');
+            }}
+          />
+          {selectedProduct && (
+            <span className="text-xs text-text-muted mt-4">
+              Harga normal produk: {formatRp(selectedProduct.price)}.
+            </span>
+          )}
+        </div>
+
+        <label className="flex items-center gap-8 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isActive}
+            disabled={busy}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          <span className="text-sm font-medium">Aktifkan hadiah ini untuk penukaran di kasir</span>
+        </label>
+
+        <div className="flex justify-end gap-8 pt-8 border-t border-border">
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>
+            Batal
+          </button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || !productId}>
+            {busy ? 'Menyimpan...' : 'Simpan hadiah'}
           </button>
         </div>
       </form>
@@ -344,6 +492,45 @@ export default function LoyaltyPage() {
     }
   }
 
+  // --- State Tab 4: Hadiah Produk ---
+  const rewardsRes = useAsync(() => data.listLoyaltyProductRewards(), [data]);
+  const catalogRes = useAsync(() => data.listCatalog(), [data]);
+  const [rewardModal, setRewardModal] = useState<{ open: boolean; editing?: LoyaltyProductReward }>({ open: false });
+  const [rewardNotice, setRewardNotice] = useState('');
+
+  const rewards = useMemo(
+    () => (rewardsRes.status === 'ready' ? rewardsRes.data : []),
+    [rewardsRes],
+  );
+
+  const catalogProducts = useMemo(
+    () => (catalogRes.status === 'ready' ? catalogRes.data : []),
+    [catalogRes],
+  );
+
+  const productMap = useMemo(
+    () => new Map(catalogProducts.map((p) => [p.id, p])),
+    [catalogProducts],
+  );
+
+  const existingRewardProductIds = useMemo(
+    () => new Set(rewards.map((r) => r.productId)),
+    [rewards],
+  );
+
+  async function handleSaveReward(saved: { id?: string; productId: string; pointsCost: number; isActive: boolean }) {
+    await data.saveLoyaltyProductReward(saved);
+    await rewardsRes.reload();
+    const prodName = productMap.get(saved.productId)?.name ?? 'Produk';
+    setRewardNotice(`Hadiah "${prodName}" (${saved.pointsCost} poin) berhasil disimpan.`);
+  }
+
+  async function handleDeleteReward(id: string, name: string) {
+    await data.deleteLoyaltyProductReward(id);
+    await rewardsRes.reload();
+    setRewardNotice(`Hadiah "${name}" dihapus.`);
+  }
+
   const sample = 55000;
 
   return (
@@ -362,6 +549,15 @@ export default function LoyaltyPage() {
           onClick={() => setTab('rules')}
         >
           <Settings2 className="cg-icon cg-icon--sm" aria-hidden /> Aturan Poin
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'rewards'}
+          className="cg-tab inline-flex items-center gap-8 whitespace-nowrap"
+          onClick={() => setTab('rewards')}
+        >
+          <Gift className="cg-icon cg-icon--sm" aria-hidden /> Hadiah Produk
         </button>
         <button
           type="button"
@@ -470,10 +666,16 @@ export default function LoyaltyPage() {
                     <Gift className="cg-icon cg-icon--sm text-accent" aria-hidden />
                     <span>Penukaran Produk Gratis dari Poin</span>
                   </div>
-                  <span className="cg-badge cg-badge--secondary text-[11px]">Menunggu Skema Server</span>
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--secondary cg-btn--sm"
+                    onClick={() => setTab('rewards')}
+                  >
+                    Buka Hadiah Produk
+                  </button>
                 </div>
                 <p>
-                  Penukaran poin saat ini berlaku sebagai potongan langsung rupiah pada tagihan kasir. Penukaran poin menjadi produk gratis (katalog hadiah produk per poin) menunggu tabel server <code>loyalty_product_rewards</code> dan validasi penukaran di kasir.
+                  Pelanggan dapat menukarkan poin dengan produk gratis di kasir. Atur katalog produk hadiah dan jumlah poin yang dibutuhkan pada tab Hadiah Produk.
                 </p>
               </div>
 
@@ -836,6 +1038,120 @@ export default function LoyaltyPage() {
             )}
           </div>
         </section>
+      )}
+
+      {tab === 'rewards' && (
+        <section aria-label="Hadiah produk loyalti" className="space-y-16 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-8">
+            <div>
+              <h3 className="font-bold text-base">Katalog Hadiah Produk Poin</h3>
+              <p className="text-xs text-text-muted mt-2">
+                Daftar produk yang dapat diklaim pelanggan menggunakan akumulasi poin loyalti saat bertransaksi di kasir.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary"
+              onClick={() => setRewardModal({ open: true })}
+            >
+              <Plus className="cg-icon cg-icon--sm" aria-hidden /> Tambah hadiah produk
+            </button>
+          </div>
+
+          {rewardNotice && (
+            <p role="status" className="cg-banner cg-banner--info">
+              {rewardNotice}
+            </p>
+          )}
+
+          {rewardsRes.status === 'loading' || catalogRes.status === 'loading' ? (
+            <div className="grid gap-8" aria-busy="true" aria-label="Memuat hadiah produk">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="cg-skeleton h-[52px]" />
+              ))}
+            </div>
+          ) : rewards.length === 0 ? (
+            <div className="cg-empty cg-card">
+              <Gift className="cg-icon cg-icon--lg mx-auto text-text-muted mb-8" aria-hidden />
+              <p className="font-semibold">Belum ada produk hadiah</p>
+              <p className="text-sm text-text-muted mt-4">
+                Tambahkan produk seperti minuman atau cemilan gratis yang dapat ditukar dengan poin loyalti di kasir.
+              </p>
+              <button
+                type="button"
+                className="cg-btn cg-btn--primary mt-12"
+                onClick={() => setRewardModal({ open: true })}
+              >
+                <Plus className="cg-icon cg-icon--sm" aria-hidden /> Tambah hadiah pertama
+              </button>
+            </div>
+          ) : (
+            <div className="cg-card overflow-x-auto min-w-0">
+              <table className="cg-data">
+                <thead>
+                  <tr>
+                    <th>Produk</th>
+                    <th>Harga normal</th>
+                    <th>Poin dibutuhkan</th>
+                    <th>Status</th>
+                    <th className="text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rewards.map((r) => {
+                    const prod = productMap.get(r.productId);
+                    return (
+                      <tr key={r.id}>
+                        <td>
+                          <div className="font-semibold">{prod?.name ?? r.productName ?? r.productId}</div>
+                          {prod?.sku && <div className="text-xs text-text-muted">SKU: {prod.sku}</div>}
+                        </td>
+                        <td className="whitespace-nowrap font-medium">{prod ? formatRp(prod.price) : '—'}</td>
+                        <td className="whitespace-nowrap font-bold text-accent-strong">{fmtNum(r.pointsCost)} poin</td>
+                        <td className="whitespace-nowrap">
+                          {r.isActive ? (
+                            <span className="cg-badge cg-badge--success">Aktif</span>
+                          ) : (
+                            <span className="cg-badge">Nonaktif</span>
+                          )}
+                        </td>
+                        <td className="text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-8">
+                            <button
+                              type="button"
+                              className="cg-btn cg-btn--secondary cg-btn--sm"
+                              onClick={() => setRewardModal({ open: true, editing: r })}
+                            >
+                              <Pencil className="cg-icon cg-icon--sm" aria-hidden /> Ubah
+                            </button>
+                            <button
+                              type="button"
+                              className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
+                              aria-label={`Hapus hadiah ${prod?.name ?? r.productName ?? ''}`}
+                              onClick={() => handleDeleteReward(r.id, prod?.name ?? r.productName ?? 'produk')}
+                            >
+                              <Trash2 className="cg-icon cg-icon--sm" aria-hidden /> Hapus
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {rewardModal.open && (
+        <RewardModal
+          editing={rewardModal.editing}
+          products={catalogProducts}
+          existingProductIds={existingRewardProductIds}
+          onClose={() => setRewardModal({ open: false })}
+          onSave={handleSaveReward}
+        />
       )}
     </div>
   );

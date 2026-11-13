@@ -1101,3 +1101,9 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
   - Verifikasi: `pnpm -r typecheck`, vitest `deposit.test.ts` & `deposit-report.test.ts` (7 lulus), POS vitest (7 lulus), `lint-tailwind.sh origin/main` bersih.
 
 
+## Antigravity (13 Nov 2026) — A140 Server: Tukar Poin menjadi Produk Gratis Selesai
+- Migrasi `packages/db/migrations/0099_loyalty_product_rewards.sql` & tes SQL `packages/db/tests/20_loyalty_product_rewards.sql`: tabel `pos.loyalty_product_rewards`, RPC save/delete, trigger `loyalty_guard_discount()` diperbarui agar membolehkan reward produk gratis (`amount = 0`, `points_used > 0`) dengan validasi saldo poin.
+- DataLayer: `listLoyaltyProductRewards`, `saveLoyaltyProductReward`, `deleteLoyaltyProductReward` di `data.ts`, `fake.ts`, `supabase.ts`, dan offline cached reads.
+- Dashboard `/loyalty`: tab "Hadiah Produk" untuk kelola katalog produk hadiah dan biaya poinnya.
+- Kasir (`DiscountDialog.tsx`, `Register.tsx`): tab Poin menampilkan daftar klaim hadiah produk gratis, memasukkan baris Rp0 ke pesanan, dan mencatat potongan poin otomatis saat pesanan lunas.
+- Seluruh tes vitest passing (10 tests `loyalty.test.ts`), `pnpm -r typecheck` lulus, `lint-tailwind` bersih.
