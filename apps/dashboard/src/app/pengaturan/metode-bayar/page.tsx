@@ -6,22 +6,13 @@ import {
   CHANNEL_LABELS,
   computePaymentFee,
   formatRp,
-  mergePaymentMethodConfigs,
-  newId,
   parseRp,
   paymentMethodProblem,
   type PaymentChannelKind,
   type PaymentMethodConfig,
-  type PaymentMethodOverride,
 } from '@cgpos/shared';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
-import {
-  loadCustomPaymentMethods,
-  loadPaymentOverrides,
-  saveCustomPaymentMethods,
-  savePaymentOverrides,
-} from '@/lib/a59-preview';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 
@@ -278,15 +269,8 @@ function MethodModal({
 
 export default function MetodeBayarPage() {
   const data = useData();
-  const state = useAsync(() => data.listPaymentMethods(), [data]);
+  const state = useAsync(() => data.listPaymentMethodConfigs(), [data]);
 
-  const [overrides, setOverrides] = useState<Record<string, PaymentMethodOverride>>({});
-  const [customs, setCustoms] = useState<PaymentMethodConfig[]>([]);
-
-  useEffect(() => {
-    setOverrides(loadPaymentOverrides());
-    setCustoms(loadCustomPaymentMethods());
-  }, []);
   const [channelFilter, setChannelFilter] = useState<'all' | PaymentChannelKind>('all');
   const [search, setSearch] = useState('');
   const [simAmount, setSimAmount] = useState('100000');
@@ -297,8 +281,8 @@ export default function MetodeBayarPage() {
 
   const allMethods = useMemo(() => {
     if (state.status !== 'ready') return [];
-    return mergePaymentMethodConfigs(state.data, overrides, customs);
-  }, [state, overrides, customs]);
+    return state.data;
+  }, [state]);
 
   const filteredMethods = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -312,7 +296,7 @@ export default function MetodeBayarPage() {
     });
   }, [allMethods, channelFilter, search]);
 
-  function handleSaveModal(saved: {
+  async function handleSaveModal(saved: {
     id?: string;
     name: string;
     code: string;
@@ -324,91 +308,36 @@ export default function MetodeBayarPage() {
     accountNumber?: string;
     settlementNote?: string;
   }) {
-    if (saved.id && modal.editing?.isBuiltIn) {
-      const nextOv: Record<string, PaymentMethodOverride> = {
-        ...overrides,
-        [saved.id]: {
-          name: saved.name,
-          channel: saved.channel,
-          isActive: saved.isActive,
-          feePct: saved.feePct,
-          feeFixed: saved.feeFixed,
-          accountName: saved.accountName,
-          accountNumber: saved.accountNumber,
-          settlementNote: saved.settlementNote,
-        },
-      };
-      setOverrides(nextOv);
-      savePaymentOverrides(nextOv);
-    } else if (saved.id) {
-      const nextCustom = customs.map((c) =>
-        c.id === saved.id
-          ? {
-              ...c,
-              name: saved.name,
-              code: saved.code,
-              channel: saved.channel,
-              isActive: saved.isActive,
-              feePct: saved.feePct,
-              feeFixed: saved.feeFixed,
-              accountName: saved.accountName,
-              accountNumber: saved.accountNumber,
-              settlementNote: saved.settlementNote,
-            }
-          : c
-      );
-      setCustoms(nextCustom);
-      saveCustomPaymentMethods(nextCustom);
-    } else {
-      const created: PaymentMethodConfig = {
-        id: `pm-${newId()}`,
-        code: saved.code,
-        name: saved.name,
-        channel: saved.channel,
-        baseKind: 'noncash',
-        isActive: saved.isActive,
-        feePct: saved.feePct,
-        feeFixed: saved.feeFixed,
-        accountName: saved.accountName,
-        accountNumber: saved.accountNumber,
-        settlementNote: saved.settlementNote,
-        requiresOnline: false,
-        isBuiltIn: false,
-      };
-      const nextCustom = [...customs, created];
-      setCustoms(nextCustom);
-      saveCustomPaymentMethods(nextCustom);
+    try {
+      await data.savePaymentMethodConfig(saved);
+      setModal({ open: false });
+      setNotice(`Metode "${saved.name}" berhasil disimpan.`);
+      state.reload();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Gagal menyimpan metode pembayaran');
     }
-
-    setModal({ open: false });
-    setNotice(`Metode "${saved.name}" disimpan.`);
   }
 
-  function handleToggle(method: PaymentMethodConfig) {
+  async function handleToggle(method: PaymentMethodConfig) {
     if (method.baseKind === 'gateway' || method.baseKind === 'cash') return;
-    if (method.isBuiltIn) {
-      const nextOv: Record<string, PaymentMethodOverride> = {
-        ...overrides,
-        [method.id]: { ...overrides[method.id], isActive: !method.isActive },
-      };
-      setOverrides(nextOv);
-      savePaymentOverrides(nextOv);
-    } else {
-      const nextCustom = customs.map((c) =>
-        c.id === method.id ? { ...c, isActive: !c.isActive } : c
-      );
-      setCustoms(nextCustom);
-      saveCustomPaymentMethods(nextCustom);
+    try {
+      await data.togglePaymentMethodActive(method.id, !method.isActive);
+      setNotice(`${method.name} ${!method.isActive ? 'diaktifkan' : 'dinonaktifkan'}.`);
+      state.reload();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Gagal mengubah status metode');
     }
-    setNotice(`${method.name} ${!method.isActive ? 'diaktifkan' : 'dinonaktifkan'}.`);
   }
 
-  function handleDeleteCustom(method: PaymentMethodConfig) {
+  async function handleDeleteCustom(method: PaymentMethodConfig) {
     if (method.isBuiltIn) return;
-    const nextCustom = customs.filter((c) => c.id !== method.id);
-    setCustoms(nextCustom);
-    saveCustomPaymentMethods(nextCustom);
-    setNotice(`Metode tambahan "${method.name}" dihapus.`);
+    try {
+      await data.deletePaymentMethodConfig(method.id);
+      setNotice(`Metode tambahan "${method.name}" dihapus.`);
+      state.reload();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Gagal menghapus metode pembayaran');
+    }
   }
 
   const parsedSim = Number(simAmount || '0');
@@ -431,13 +360,6 @@ export default function MetodeBayarPage() {
           </button>
         }
       />
-
-      <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8">
-        <p className="text-sm">
-          <strong>Pratinjau:</strong> daftar metode dasar dimuat dari server, sedangkan penyesuaian nama, potongan MDR, status non-tunai, dan metode tambahan tersimpan di peramban. Pembayaran QRIS / gateway daring otomatis belum diaktifkan pada mode ini.
-        </p>
-        <span className="cg-badge cg-badge--info whitespace-nowrap">Menunggu simpan server</span>
-      </div>
 
       {notice && (
         <p role="status" className="cg-banner cg-banner--info">

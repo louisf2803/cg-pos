@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computePaymentFee,
+  createFakeData,
   DEFAULT_ONLINE_CHANNELS,
   inferPaymentChannel,
   mergeOnlineChannels,
@@ -122,6 +123,63 @@ describe('payment methods and CG Order channel helpers', () => {
         openHours: '08:00 - 22:00',
       })
     ).toMatch(/persiapan/);
+  });
+
+  it('manages payment method configs via DataLayer', async () => {
+    const data = createFakeData({ seed: true });
+    const initial = await data.listPaymentMethodConfigs();
+    expect(initial.length).toBeGreaterThan(0);
+    const edc = initial.find((m) => m.code === 'EDC');
+    expect(edc).toBeDefined();
+
+    // 1. Update EDC
+    const updated = await data.savePaymentMethodConfig({
+      id: edc!.id,
+      code: 'EDC',
+      name: 'Kartu Debit BCA',
+      channel: 'edc',
+      isActive: true,
+      feePct: 1.5,
+      feeFixed: 500,
+      accountName: 'BCA Utama',
+      accountNumber: '123456789',
+      settlementNote: 'H+1',
+    });
+    expect(updated.name).toBe('Kartu Debit BCA');
+    expect(updated.feePct).toBe(1.5);
+    expect(updated.feeFixed).toBe(500);
+
+    // Verify listPaymentMethods reflect name
+    const activeMethods = await data.listPaymentMethods();
+    expect(activeMethods.find((m) => m.code === 'EDC')?.name).toBe('Kartu Debit BCA');
+
+    // 2. Add custom method
+    const custom = await data.savePaymentMethodConfig({
+      code: 'BCA_VA',
+      name: 'BCA Virtual Account',
+      channel: 'va',
+      isActive: true,
+      feePct: 0.5,
+      feeFixed: 2000,
+    });
+    expect(custom.isBuiltIn).toBe(false);
+    expect(custom.code).toBe('BCA_VA');
+
+    const withCustom = await data.listPaymentMethodConfigs();
+    expect(withCustom.some((c) => c.code === 'BCA_VA')).toBe(true);
+
+    // 3. Toggle active
+    await data.togglePaymentMethodActive(custom.id, false);
+    const afterToggle = await data.listPaymentMethodConfigs();
+    expect(afterToggle.find((c) => c.id === custom.id)?.isActive).toBe(false);
+
+    // 4. Delete custom
+    await data.deletePaymentMethodConfig(custom.id);
+    const afterDelete = await data.listPaymentMethodConfigs();
+    expect(afterDelete.some((c) => c.id === custom.id)).toBe(false);
+
+    // 5. Deleting built-in throws
+    await expect(data.deletePaymentMethodConfig(edc!.id)).rejects.toThrow();
   });
 });
 

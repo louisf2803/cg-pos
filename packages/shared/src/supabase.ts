@@ -46,6 +46,7 @@ const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
 import { paymentRefProblem } from './payment-rules';
+import { mergePaymentMethodConfigs, type PaymentMethodConfig, type PaymentChannelKind } from './payment-methods';
 import { buildShiftReport, type ShiftInputs, type ShiftReportRow } from './shift-report';
 import type { DataLayer } from './data';
 import { DataError } from './types';
@@ -2476,6 +2477,84 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const rows = must(await db().from('payment_methods').select('id,code,name,kind,requires_online')
         .eq('is_active', true).is('deleted_at', null).order('sort').order('code')) as Row[] | null;
       return (rows ?? []).map((m): PaymentMethod => ({ id: m.id, code: m.code, name: m.name, kind: m.kind, requiresOnline: !!m.requires_online }));
+    },
+    async listPaymentMethodConfigs() {
+      const r = await resolve();
+      const { data: rows, error } = await db()
+        .from('payment_method_settings')
+        .select('*')
+        .eq('org_id', r.orgId)
+        .order('is_builtin', { ascending: false })
+        .order('code');
+      if (error || !rows || rows.length === 0) {
+        const base = await self.listPaymentMethods();
+        return mergePaymentMethodConfigs(base, {}, []);
+      }
+      return rows.map((x: Row): PaymentMethodConfig => ({
+        id: x.id,
+        code: x.code,
+        name: x.name,
+        channel: x.channel,
+        baseKind: x.base_kind,
+        isActive: !!x.is_active,
+        feePct: Number(x.fee_pct ?? 0),
+        feeFixed: Number(x.fee_fixed ?? 0),
+        accountName: x.account_name ?? undefined,
+        accountNumber: x.account_number ?? undefined,
+        settlementNote: x.settlement_note ?? undefined,
+        requiresOnline: !!x.requires_online,
+        isBuiltIn: !!x.is_builtin,
+      }));
+    },
+    async savePaymentMethodConfig(input) {
+      const r = await resolve();
+      const { data, error } = await db().rpc('save_payment_method_config', {
+        p_org: r.orgId,
+        p_outlet: r.ctx.outletId ?? null,
+        p_id: input.id && input.id.includes('-') && input.id.length === 36 ? input.id : null,
+        p_code: input.code.trim().toUpperCase(),
+        p_name: input.name.trim(),
+        p_channel: input.channel,
+        p_is_active: input.isActive,
+        p_fee_pct: input.feePct,
+        p_fee_fixed: input.feeFixed,
+        p_account_name: input.accountName?.trim() || null,
+        p_account_number: input.accountNumber?.trim() || null,
+        p_settlement_note: input.settlementNote?.trim() || null,
+      });
+      if (error) throw mapDbError(error);
+      return {
+        id: data.id,
+        code: data.code,
+        name: data.name,
+        channel: data.channel,
+        baseKind: data.baseKind,
+        isActive: !!data.isActive,
+        feePct: Number(data.feePct ?? 0),
+        feeFixed: Number(data.feeFixed ?? 0),
+        accountName: data.accountName ?? undefined,
+        accountNumber: data.accountNumber ?? undefined,
+        settlementNote: data.settlementNote ?? undefined,
+        requiresOnline: !!data.requiresOnline,
+        isBuiltIn: !!data.isBuiltIn,
+      };
+    },
+    async deletePaymentMethodConfig(id: string) {
+      const r = await resolve();
+      const { error } = await db().rpc('delete_payment_method_config', {
+        p_org: r.orgId,
+        p_id: id,
+      });
+      if (error) throw mapDbError(error);
+    },
+    async togglePaymentMethodActive(id: string, isActive: boolean) {
+      const cfgs = await self.listPaymentMethodConfigs();
+      const target = cfgs.find((c) => c.id === id);
+      if (!target) throw new DataError('not_found', 'Metode pembayaran tidak ditemukan');
+      await self.savePaymentMethodConfig({
+        ...target,
+        isActive,
+      });
     },
 
     // ---------- shift ----------
