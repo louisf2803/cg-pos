@@ -90,6 +90,16 @@ export async function connectPrinter(): Promise<void> {
   }
 }
 
+/** Pindai: tampilkan pemilih perangkat Bluetooth peramban dan kembalikan nama yang dipilih, tanpa mengubah printer kasir yang sedang tersambung. Harus dipicu ketukan. */
+export async function scanBluetoothName(): Promise<string> {
+  const api = bluetooth();
+  if (!api) throw new Error('Bluetooth tidak tersedia di peramban ini. Pakai Chrome atau Edge di alamat HTTPS.');
+  try {
+    const dev = await api.requestDevice({ acceptAllDevices: true, optionalServices: SERVICES });
+    return dev.name || 'Perangkat Bluetooth';
+  } catch (e) { throw new Error(friendly(e)); }
+}
+
 export function disconnectPrinter() {
   try { device?.gatt?.disconnect(); } catch { /* sudah putus */ }
   channel = null; set({ status: 'idle', error: '' });

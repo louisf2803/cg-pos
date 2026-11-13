@@ -106,4 +106,5 @@ export * from './channel-prices';
 export * from './reservation-report';
 export * from './production';
 export * from './order-invoice';
+export * from './device-registry';
 

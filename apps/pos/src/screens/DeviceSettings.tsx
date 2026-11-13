@@ -1,4 +1,5 @@
-import { Monitor } from 'lucide-react';
+import { useState } from 'react';
+import { Monitor, Printer } from 'lucide-react';
 import {
   accessFor,
   IDLE_LOCK_CHOICES,
@@ -13,6 +14,7 @@ import { APP_MODES, devicePrefs, useDevicePrefs, VIEW_MODES } from '../lib/devic
 import { useSession } from '../lib/session';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
+import { DeviceListDialog } from './device/DeviceListDialog';
 
 const ACCESS_TEXT: Record<Access, string> = { allow: 'Boleh', approve: 'Perlu PIN manajer', deny: 'Tidak boleh' };
 
@@ -24,6 +26,8 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
   const stations = useAsync(() => data.listPrintStations(), [data]);
   const role = session.employee.role;
   const canEdit = accessFor(role, 'device_settings') === 'allow';
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const ctxState = useAsync(() => data.getContext(), [data]);
   const activeStations = stations.status === 'ready' ? stations.data.filter((s) => s.isActive) : [];
 
   return (
@@ -119,6 +123,18 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
+        <section aria-labelledby="perangkat-cetak" className="p-12 border border-border rounded grid gap-8 bg-surface">
+          <div className="flex flex-wrap items-center justify-between gap-8">
+            <div className="min-w-0">
+              <h3 id="perangkat-cetak" className="text-base font-semibold">Printer dan perangkat</h3>
+              <p className="text-sm text-text-muted">Pasangkan printer kasir, dapur, label, dan pemindai lewat Bluetooth.</p>
+            </div>
+            <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setDevicesOpen(true)}>
+              <Printer className="cg-icon cg-icon--sm" aria-hidden /> Kelola perangkat
+            </button>
+          </div>
+        </section>
+
         <section aria-labelledby="hak-akses">
           <h3 id="hak-akses" className="text-base mb-8">Hak akses {session.employee.name} ({ROLE_LABEL[role]})</h3>
           <dl className="grid gap-4">
@@ -140,6 +156,7 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
           <button className="cg-btn cg-btn--primary" onClick={onClose}>Selesai</button>
         </div>
       </div>
+      {devicesOpen && <DeviceListDialog outletName={ctxState.status === 'ready' ? ctxState.data.outletName : 'Outlet'} onClose={() => setDevicesOpen(false)} />}
     </Modal>
   );
 }
