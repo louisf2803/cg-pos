@@ -9,6 +9,19 @@ export interface CustomerDepositBalance {
   lastTransactionAt?: string;
 }
 
+export interface CustomerDepositEntry {
+  id: string;
+  customerId: string;
+  kind: 'purchase' | 'usage' | 'refund';
+  creditAmount: number;
+  salePrice?: number;
+  packageName?: string;
+  orderNumber?: string;
+  paymentMethod?: string;
+  reason?: string;
+  occurredAt: string;
+}
+
 export function summarizeCustomerDepositBalances(balances: readonly CustomerDepositBalance[]): {
   customerCount: number;
   totalPurchased: number;

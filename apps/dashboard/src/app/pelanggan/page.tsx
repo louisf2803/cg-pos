@@ -1,7 +1,11 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Eye, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import {
+  buildCustomerDepositCsvRows,
+  buildCustomerListCsvRows,
+  buildCustomerOrdersCsvRows,
+  buildCustomerPointsCsvRows,
   computeCustomerOrderStats,
   customerProblem,
   filterCustomerOrders,
@@ -9,12 +13,14 @@ import {
   formatRp,
   LOYALTY_KIND_LABEL,
   paginateOrders,
+  toCsv,
   type Customer,
   type CustomerInput,
   type Order,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
+import { downloadCsvWithHistory } from '@/lib/export';
 import { ErrorBox, PageHeader } from '@/components/page';
 
 type Dlg = { kind: 'edit'; item?: Customer } | { kind: 'detail'; item: Customer } | { kind: 'delete'; item: Customer };
@@ -27,14 +33,69 @@ export default function PelangganPage() {
   const [term, setTerm] = useState('');
   useEffect(() => { const t = setTimeout(() => setTerm(q), 250); return () => clearTimeout(t); }, [q]);
   const list = useAsync(() => data.listCustomers({ search: term, limit: 200 }), [data, term]);
+  const deposits = useAsync(async () => {
+    try {
+      return await data.listCustomerDepositBalances();
+    } catch {
+      return [];
+    }
+  }, [data]);
+
+  const depBalances = deposits.status === 'ready' ? deposits.data : undefined;
+  const depositMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (depBalances) {
+      for (const d of depBalances) {
+        map.set(d.customerId, d.currentBalance);
+      }
+    }
+    return map;
+  }, [depBalances]);
+
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const [notice, setNotice] = useState('');
-  const done = (msg: string) => { setDlg(null); setNotice(msg); list.reload(); };
+  const done = (msg: string) => { setDlg(null); setNotice(msg); list.reload(); deposits.reload(); };
+
+  function handleExportCustomers() {
+    if (list.status !== 'ready' || list.data.length === 0) return;
+    const depRecord: Record<string, number> = {};
+    for (const [k, v] of depositMap.entries()) {
+      depRecord[k] = v;
+    }
+    const rows = buildCustomerListCsvRows(list.data, depRecord);
+    const csvContent = toCsv(rows);
+    downloadCsvWithHistory({
+      fileName: `daftar-pelanggan-${new Date().toISOString().slice(0, 10)}.csv`,
+      reportName: 'Daftar Pelanggan',
+      period: 'Semua Pelanggan',
+      rowCount: list.data.length,
+      sourceUrl: '/pelanggan',
+      csvContent,
+    });
+  }
 
   return (
     <>
-      <PageHeader title="Pelanggan" subtitle="Simpan data pelanggan dan lihat riwayat belanjanya"
-        actions={<button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}><Plus className="cg-icon" aria-hidden /> Tambah pelanggan</button>} />
+      <PageHeader
+        title="Pelanggan"
+        subtitle="Simpan data pelanggan, saldo poin, deposit, dan riwayat belanjanya"
+        actions={
+          <div className="flex items-center gap-8">
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary"
+              onClick={handleExportCustomers}
+              disabled={list.status !== 'ready' || list.data.length === 0}
+            >
+              <Download className="cg-icon cg-icon--sm" aria-hidden />
+              Ekspor CSV
+            </button>
+            <button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}>
+              <Plus className="cg-icon" aria-hidden /> Tambah pelanggan
+            </button>
+          </div>
+        }
+      />
       <div className="mb-16"><label className="cg-search">
         <Search className="cg-icon cg-icon--sm" aria-hidden />
         <input className="cg-input" type="search" placeholder="Cari nama, kode, atau nomor telepon" aria-label="Cari pelanggan" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -50,14 +111,27 @@ export default function PelangganPage() {
       ) : (
         <div className="cg-data-wrap">
           <table className="cg-data">
-            <thead><tr><th>Nama</th><th>Telepon</th><th>Kota</th><th className="text-right">Poin</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Telepon</th>
+                <th>Kota</th>
+                <th className="text-right">Poin</th>
+                <th className="text-right">Deposit</th>
+                <th><span className="cg-sr">Aksi</span></th>
+              </tr>
+            </thead>
             <tbody>
               {list.data.map((c) => (
                 <tr key={c.id}>
-                  <td className="break-words max-w-[280px]"><button className="text-left font-semibold underline underline-offset-2 min-h-[32px]" onClick={() => setDlg({ kind: 'detail', item: c })}>{c.name}</button>{c.code && <span className="block text-sm text-text-muted">{c.code}</span>}</td>
+                  <td className="break-words max-w-[280px]">
+                    <button className="text-left font-semibold underline underline-offset-2 min-h-[32px]" onClick={() => setDlg({ kind: 'detail', item: c })}>{c.name}</button>
+                    {c.code && <span className="block text-sm text-text-muted">{c.code}</span>}
+                  </td>
                   <td>{c.phone ?? '—'}</td>
                   <td>{c.city ?? '—'}</td>
                   <td className="text-right cg-num">{c.pointsBalance}</td>
+                  <td className="text-right cg-num font-medium">{formatRp(depositMap.get(c.id) ?? 0)}</td>
                   <td className="text-right whitespace-nowrap">
                     <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'edit', item: c })} aria-label={`Ubah ${c.name}`}><Pencil className="cg-icon cg-icon--sm" aria-hidden /></button>
                     <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'delete', item: c })} aria-label={`Hapus ${c.name}`}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
@@ -136,7 +210,7 @@ function EditDialog({ item, onClose, onSaved }: { item?: Customer; onClose: () =
   );
 }
 
-type DetailTab = 'summary' | 'orders' | 'points';
+type DetailTab = 'summary' | 'orders' | 'points' | 'deposit';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   paid: 'Lunas',
@@ -150,6 +224,12 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
   take_away: 'Bawa pulang',
   delivery: 'Antar',
   service: 'Jasa',
+};
+
+const DEPOSIT_KIND_LABELS: Record<string, string> = {
+  purchase: 'Pembelian Deposit',
+  usage: 'Pemakaian Deposit',
+  refund: 'Pengembalian Deposit',
 };
 
 function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () => void; onEdit: () => void }) {
@@ -167,6 +247,24 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
   const led = useAsync(async () => {
     try {
       return await data.listLoyaltyLedger(item.id, 50);
+    } catch {
+      return [];
+    }
+  }, [data, item.id]);
+
+  // Ambil saldo deposit pelanggan
+  const dep = useAsync(async () => {
+    try {
+      return await data.getCustomerDeposit(item.id);
+    } catch {
+      return null;
+    }
+  }, [data, item.id]);
+
+  // Ambil riwayat transaksi deposit pelanggan
+  const depEntries = useAsync(async () => {
+    try {
+      return await data.listCustomerDepositEntries(item.id);
     } catch {
       return [];
     }
@@ -197,6 +295,48 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
   useEffect(() => {
     setPage(1);
   }, [orderSearch, orderStatus]);
+
+  function handleExportOrders() {
+    if (filteredOrders.length === 0) return;
+    const rows = buildCustomerOrdersCsvRows(filteredOrders);
+    const csvContent = toCsv(rows);
+    downloadCsvWithHistory({
+      fileName: `riwayat-transaksi-${item.name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`,
+      reportName: `Riwayat Transaksi - ${item.name}`,
+      period: 'Semua Transaksi',
+      rowCount: filteredOrders.length,
+      sourceUrl: '/pelanggan',
+      csvContent,
+    });
+  }
+
+  function handleExportPoints() {
+    if (led.status !== 'ready' || led.data.length === 0) return;
+    const rows = buildCustomerPointsCsvRows(led.data);
+    const csvContent = toCsv(rows);
+    downloadCsvWithHistory({
+      fileName: `riwayat-poin-${item.name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`,
+      reportName: `Riwayat Poin - ${item.name}`,
+      period: 'Semua Poin',
+      rowCount: led.data.length,
+      sourceUrl: '/pelanggan',
+      csvContent,
+    });
+  }
+
+  function handleExportDeposits() {
+    if (depEntries.status !== 'ready' || depEntries.data.length === 0) return;
+    const rows = buildCustomerDepositCsvRows(depEntries.data);
+    const csvContent = toCsv(rows);
+    downloadCsvWithHistory({
+      fileName: `riwayat-deposit-${item.name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`,
+      reportName: `Riwayat Deposit - ${item.name}`,
+      period: 'Semua Deposit',
+      rowCount: depEntries.data.length,
+      sourceUrl: '/pelanggan',
+      csvContent,
+    });
+  }
 
   async function adjust(e: FormEvent) {
     e.preventDefault();
@@ -288,13 +428,26 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
           >
             Poin ({balance})
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'deposit'}
+            className="cg-chip"
+            aria-pressed={activeTab === 'deposit'}
+            onClick={() => {
+              setActiveTab('deposit');
+              setSelectedOrder(null);
+            }}
+          >
+            Deposit {dep.status === 'ready' && dep.data ? `(${formatRp(dep.data.currentBalance)})` : ''}
+          </button>
         </div>
 
         {/* TAB 1: RINGKASAN */}
         {activeTab === 'summary' && (
           <div className="grid gap-16 min-w-0">
-            {/* 3 Kartu Ringkasan Cepat */}
-            <div className="grid grid-cols-3 gap-8">
+            {/* 4 Kartu Ringkasan Cepat */}
+            <div className="grid grid-cols-2 tablet:grid-cols-4 gap-8">
               <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
                 <span className="text-xs text-text-muted block mb-4">Total Belanja</span>
                 <strong className="text-sm cg-num text-text">{formatRp(stats.totalSpend)}</strong>
@@ -306,6 +459,12 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
               <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
                 <span className="text-xs text-text-muted block mb-4">Saldo Poin</span>
                 <strong className="text-sm cg-num text-text" data-testid="saldo-poin">{balance}</strong>
+              </div>
+              <div className="p-8 border border-border rounded-xl bg-surface-muted/30">
+                <span className="text-xs text-text-muted block mb-4">Saldo Deposit</span>
+                <strong className="text-sm cg-num text-text" data-testid="saldo-deposit">
+                  {formatRp(dep.status === 'ready' && dep.data ? dep.data.currentBalance : 0)}
+                </strong>
               </div>
             </div>
 
@@ -450,6 +609,16 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
                       <option value="unpaid">Belum lunas</option>
                       <option value="void">Dibatalkan</option>
                     </select>
+                    {filteredOrders.length > 0 && (
+                      <button
+                        type="button"
+                        className="cg-btn cg-btn--secondary cg-btn--sm h-[36px]"
+                        onClick={handleExportOrders}
+                      >
+                        <Download className="w-12 h-12 mr-4" />
+                        Ekspor Transaksi
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -569,9 +738,22 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
 
             {/* Riwayat Mutasi Poin */}
             <section aria-labelledby="poin-judul">
-              <h3 id="poin-judul" className="font-semibold text-xs text-text-muted uppercase mb-8">
-                Riwayat Pergerakan Poin
-              </h3>
+              <div className="flex items-center justify-between mb-8">
+                <h3 id="poin-judul" className="font-semibold text-xs text-text-muted uppercase">
+                  Riwayat Pergerakan Poin
+                </h3>
+                {led.status === 'ready' && led.data.length > 0 && (
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--secondary cg-btn--sm"
+                    onClick={handleExportPoints}
+                  >
+                    <Download className="w-12 h-12 mr-4" />
+                    Ekspor Poin
+                  </button>
+                )}
+              </div>
+
               {led.status === 'loading' && <div className="cg-skeleton" style={{ height: 48 }} aria-busy="true" aria-label="Memuat poin" />}
               {led.status === 'error' && <ErrorBox message={led.message} onRetry={led.reload} />}
               {led.status === 'ready' && (led.data.length === 0 ? (
@@ -632,6 +814,109 @@ function DetailDialog({ item, onClose, onEdit }: { item: Customer; onClose: () =
                 </div>
               </form>
             </section>
+          </div>
+        )}
+
+        {/* TAB 4: DEPOSIT */}
+        {activeTab === 'deposit' && (
+          <div className="grid gap-16 min-w-0">
+            {dep.status === 'loading' && <div className="cg-skeleton" style={{ height: 80 }} aria-busy="true" aria-label="Memuat deposit" />}
+            {dep.status === 'error' && <ErrorBox message={dep.message} onRetry={dep.reload} />}
+            {dep.status === 'ready' && (
+              <>
+                <div className="p-16 border border-border rounded-xl bg-surface-muted/30 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-text-muted block">Saldo Deposit Aktif</span>
+                    <span className="text-2xl font-bold cg-num text-primary" data-testid="detail-saldo-deposit">
+                      {formatRp(dep.data?.currentBalance ?? 0)}
+                    </span>
+                    <span className="text-xs text-text-muted block mt-4">
+                      Pembelian dan pemakaian saldo deposit dicatat secara otomatis melalui kasir atau menu Deposit.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 tablet:grid-cols-3 gap-8">
+                  <div className="p-12 border border-border rounded-xl bg-surface">
+                    <span className="text-xs text-text-muted block mb-4">Total Pembelian</span>
+                    <strong className="text-sm cg-num text-success">{formatRp(dep.data?.totalDepositPurchased ?? 0)}</strong>
+                  </div>
+                  <div className="p-12 border border-border rounded-xl bg-surface">
+                    <span className="text-xs text-text-muted block mb-4">Total Pemakaian</span>
+                    <strong className="text-sm cg-num text-text">{formatRp(dep.data?.totalDepositUsed ?? 0)}</strong>
+                  </div>
+                  <div className="p-12 border border-border rounded-xl bg-surface">
+                    <span className="text-xs text-text-muted block mb-4">Total Pengembalian</span>
+                    <strong className="text-sm cg-num text-danger">{formatRp(dep.data?.totalDepositRefunded ?? 0)}</strong>
+                  </div>
+                </div>
+
+                {/* Riwayat Mutasi Deposit */}
+                <section aria-labelledby="deposit-riwayat-judul">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 id="deposit-riwayat-judul" className="font-semibold text-xs text-text-muted uppercase">
+                      Riwayat Mutasi Deposit
+                    </h3>
+                    {depEntries.status === 'ready' && depEntries.data.length > 0 && (
+                      <button
+                        type="button"
+                        className="cg-btn cg-btn--secondary cg-btn--sm"
+                        onClick={handleExportDeposits}
+                      >
+                        <Download className="w-12 h-12 mr-4" />
+                        Ekspor Deposit
+                      </button>
+                    )}
+                  </div>
+
+                  {depEntries.status === 'loading' && <div className="cg-skeleton" style={{ height: 60 }} aria-busy="true" aria-label="Memuat riwayat deposit" />}
+                  {depEntries.status === 'error' && <ErrorBox message={depEntries.message} onRetry={depEntries.reload} />}
+                  {depEntries.status === 'ready' && (depEntries.data.length === 0 ? (
+                    <div className="p-16 text-center text-xs text-text-muted border border-border rounded-xl">
+                      <p className="font-semibold text-text mb-4">Belum ada riwayat transaksi deposit.</p>
+                      <p>Transaksi deposit akan tercatat saat pelanggan membeli paket deposit atau melakukan transaksi menggunakan deposit.</p>
+                    </div>
+                  ) : (
+                    <div className="cg-data-wrap min-w-0">
+                      <table className="cg-data w-full text-xs" aria-label="Riwayat mutasi deposit">
+                        <thead>
+                          <tr>
+                            <th>Waktu</th>
+                            <th>Jenis</th>
+                            <th>Nomor Dokumen</th>
+                            <th>Keterangan</th>
+                            <th className="text-right">Nominal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {depEntries.data.map((e) => {
+                            const isCredit = e.kind === 'purchase';
+                            return (
+                              <tr key={e.id}>
+                                <td className="whitespace-nowrap text-text-muted">{fmtDate(e.occurredAt)}</td>
+                                <td>
+                                  <span className={`cg-badge ${isCredit ? 'cg-badge--success' : e.kind === 'refund' ? 'cg-badge--danger' : 'cg-badge--warning'}`}>
+                                    {DEPOSIT_KIND_LABELS[e.kind] || e.kind}
+                                  </span>
+                                </td>
+                                <td className="font-semibold text-text">{e.orderNumber || '—'}</td>
+                                <td className="break-words max-w-[180px] text-text-muted">
+                                  {e.packageName || e.reason || '—'}
+                                  {e.paymentMethod ? ` (${e.paymentMethod})` : ''}
+                                </td>
+                                <td className={`text-right cg-num font-bold ${isCredit ? 'text-success' : 'text-danger'}`}>
+                                  {isCredit ? `+${formatRp(e.creditAmount)}` : `-${formatRp(e.creditAmount)}`}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </section>
+              </>
+            )}
           </div>
         )}
 

@@ -29,6 +29,7 @@ import type { DiscountUse, DiscountSource } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput, type TransferStatus } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
+import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { PriceSchedule } from './price-schedule';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
@@ -2878,6 +2879,78 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       must(await db().rpc('price_schedule_delete', {
         p_org: orgId,
         p_id: id,
+      }));
+    },
+    async getCustomerDeposit(customerId: string) {
+      const { orgId } = await resolve();
+      const res = await db()
+        .from('customer_deposits')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('customer_id', customerId)
+        .maybeSingle();
+      if (res.error && res.error.code !== 'PGRST116') {
+        throw new DataError('network', `Gagal mengambil saldo deposit: ${res.error.message}`);
+      }
+      if (!res.data) return null;
+      const custRes = await db()
+        .from('customers')
+        .select('name, phone')
+        .eq('id', customerId)
+        .maybeSingle();
+      return {
+        customerId,
+        customerName: (custRes.data?.name as string) ?? '',
+        customerPhone: (custRes.data?.phone as string) ?? undefined,
+        totalDepositPurchased: Number(res.data.total_purchased ?? 0),
+        totalDepositUsed: Number(res.data.total_used ?? 0),
+        totalDepositRefunded: Number(res.data.total_refunded ?? 0),
+        currentBalance: Number(res.data.balance ?? 0),
+        lastTransactionAt: (res.data.last_transaction_at as string) ?? undefined,
+      };
+    },
+    async listCustomerDepositBalances() {
+      const { orgId } = await resolve();
+      const res = await db()
+        .from('customer_deposits')
+        .select('*, customers(name, phone)')
+        .eq('org_id', orgId);
+      if (res.error) {
+        throw new DataError('network', `Gagal memuat saldo deposit: ${res.error.message}`);
+      }
+      return ((res.data ?? []) as Row[]).map((r: any) => ({
+        customerId: r.customer_id as string,
+        customerName: (r.customers?.name as string) ?? '',
+        customerPhone: (r.customers?.phone as string) ?? undefined,
+        totalDepositPurchased: Number(r.total_purchased ?? 0),
+        totalDepositUsed: Number(r.total_used ?? 0),
+        totalDepositRefunded: Number(r.total_refunded ?? 0),
+        currentBalance: Number(r.balance ?? 0),
+        lastTransactionAt: (r.last_transaction_at as string) ?? undefined,
+      }));
+    },
+    async listCustomerDepositEntries(customerId: string) {
+      const { orgId } = await resolve();
+      const res = await db()
+        .from('customer_deposit_entries')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('customer_id', customerId)
+        .order('occurred_at', { ascending: false });
+      if (res.error) {
+        throw new DataError('network', `Gagal memuat riwayat deposit: ${res.error.message}`);
+      }
+      return ((res.data ?? []) as Row[]).map((r) => ({
+        id: r.id as string,
+        customerId: r.customer_id as string,
+        kind: r.kind as CustomerDepositEntry['kind'],
+        creditAmount: Number(r.credit_amount ?? 0),
+        salePrice: Number(r.sale_price ?? 0),
+        packageName: (r.package_name as string) ?? undefined,
+        orderNumber: (r.order_number as string) ?? undefined,
+        paymentMethod: (r.payment_method as string) ?? undefined,
+        reason: (r.reason as string) ?? undefined,
+        occurredAt: (r.occurred_at as string) ?? now().toISOString(),
       }));
     },
   };

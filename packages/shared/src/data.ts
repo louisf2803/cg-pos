@@ -1,4 +1,5 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
+import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -417,5 +418,13 @@ export interface DataLayer {
   listPriceSchedules(): Promise<PriceSchedule[]>;
   savePriceSchedule(schedule: { id?: string; productId: string; newPrice: number; startAt: string; endAt?: string | null; note?: string }): Promise<PriceSchedule>;
   deletePriceSchedule(id: string): Promise<void>;
+
+  // ---------- deposit pelanggan (saldo & riwayat mutasi; A124) ----------
+  /** Saldo deposit pelanggan aktif, total beli, pakai, dan refund. */
+  getCustomerDeposit(customerId: string): Promise<CustomerDepositBalance | null>;
+  /** Saldo deposit seluruh pelanggan yang memiliki riwayat deposit. */
+  listCustomerDepositBalances(): Promise<CustomerDepositBalance[]>;
+  /** Riwayat mutasi deposit pelanggan (pembelian paket, pemakaian di kasir, refund), terbaru dulu. */
+  listCustomerDepositEntries(customerId: string): Promise<CustomerDepositEntry[]>;
 }
 

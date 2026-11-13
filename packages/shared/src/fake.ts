@@ -13,6 +13,7 @@ import type { DiscountUse } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
+import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { PriceSchedule } from './price-schedule';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
@@ -183,6 +184,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let customerGroupMembers: CustomerGroupMember[] = [];
   let tieredPrices: GroupProductTieredPricing[] = [];
   let priceSchedules: PriceSchedule[] = [];
+  const customerDepositBalances = new Map<string, { purchased: number; used: number; refunded: number; lastAt?: string }>();
+  let customerDepositEntries: CustomerDepositEntry[] = [];
   type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
   // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
   const authCodes: AuthCodeFake[] = [
@@ -459,6 +462,46 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     customerGroupMembers = [];
     tieredPrices = [];
     priceSchedules = [];
+    customerDepositBalances.clear();
+    customerDepositEntries = [];
+    if (opts.seed !== false) {
+      customerDepositBalances.set('cu-ani', {
+        purchased: 550000,
+        used: 0,
+        refunded: 0,
+        lastAt: new Date(now().getTime() - 2 * 86400_000).toISOString(),
+      });
+      customerDepositBalances.set('cu-budi', {
+        purchased: 100000,
+        used: 0,
+        refunded: 0,
+        lastAt: new Date(now().getTime() - 86400_000).toISOString(),
+      });
+      customerDepositEntries = [
+        {
+          id: 'de-1',
+          customerId: 'cu-ani',
+          kind: 'purchase',
+          creditAmount: 550000,
+          salePrice: 500000,
+          packageName: 'Deposit Promo 550rb',
+          orderNumber: 'DEP/2611/001',
+          paymentMethod: 'Transfer bank',
+          occurredAt: new Date(now().getTime() - 2 * 86400_000).toISOString(),
+        },
+        {
+          id: 'de-2',
+          customerId: 'cu-budi',
+          kind: 'purchase',
+          creditAmount: 100000,
+          salePrice: 100000,
+          packageName: 'Deposit 100rb',
+          orderNumber: 'DEP/2611/002',
+          paymentMethod: 'Tunai',
+          occurredAt: new Date(now().getTime() - 86400_000).toISOString(),
+        },
+      ];
+    }
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
@@ -2220,6 +2263,54 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     },
     async deletePriceSchedule(id) {
       priceSchedules = priceSchedules.filter((s) => s.id !== id);
+    },
+    async getCustomerDeposit(customerId: string) {
+      const cust = customers.find((c) => c.id === customerId);
+      if (!cust) return null;
+      const bal = customerDepositBalances.get(customerId);
+      const purchased = bal?.purchased ?? 0;
+      const used = bal?.used ?? 0;
+      const refunded = bal?.refunded ?? 0;
+      return {
+        customerId: cust.id,
+        customerName: cust.name,
+        ...(cust.phone ? { customerPhone: cust.phone } : {}),
+        totalDepositPurchased: purchased,
+        totalDepositUsed: used,
+        totalDepositRefunded: refunded,
+        currentBalance: purchased - used - refunded,
+        ...(bal?.lastAt ? { lastTransactionAt: bal.lastAt } : {}),
+      };
+    },
+    async listCustomerDepositBalances() {
+      const out: CustomerDepositBalance[] = [];
+      for (const cust of customers) {
+        const bal = customerDepositBalances.get(cust.id);
+        const purchased = bal?.purchased ?? 0;
+        const used = bal?.used ?? 0;
+        const refunded = bal?.refunded ?? 0;
+        const currentBalance = purchased - used - refunded;
+        if (purchased > 0 || used > 0 || refunded > 0) {
+          out.push({
+            customerId: cust.id,
+            customerName: cust.name,
+            ...(cust.phone ? { customerPhone: cust.phone } : {}),
+            totalDepositPurchased: purchased,
+            totalDepositUsed: used,
+            totalDepositRefunded: refunded,
+            currentBalance,
+            ...(bal?.lastAt ? { lastTransactionAt: bal.lastAt } : {}),
+          });
+        }
+      }
+      return clone(out);
+    },
+    async listCustomerDepositEntries(customerId: string) {
+      return clone(
+        customerDepositEntries
+          .filter((e) => e.customerId === customerId)
+          .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
+      );
     },
   };
   const tableOps = createTableOps({
