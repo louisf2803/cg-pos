@@ -11,6 +11,7 @@ import type { Channel, ChannelPrice, TimePrice, TimePriceInput } from './channel
 import type { ProductionRun, ProductionRunInput, ProductionTemplate, ProductionTemplateInput } from './production';
 import type { LabelPaper, LabelPaperInput } from './label-paper';
 import type { Appointment, AppointmentInput } from './appointment';
+import type { DepositPackage, DepositRefundRecord, DepositSaleRecord } from './deposit';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -265,6 +266,15 @@ export interface DataLayer {
   listAppointments(range?: { from?: string; to?: string }): Promise<Appointment[]>;
   saveAppointment(input: AppointmentInput): Promise<Appointment>;
   deleteAppointment(id: string): Promise<void>;
+  // ---- paket deposit dan riwayat saldo pelanggan (migrasi 0107; A144) ----
+  listDepositPackages(): Promise<DepositPackage[]>;
+  saveDepositPackage(input: Pick<DepositPackage, 'name' | 'creditAmount' | 'salePrice'> & { id?: string; isActive?: boolean; note?: string }): Promise<DepositPackage>;
+  deleteDepositPackage(id: string): Promise<void>;
+  buyDepositPackage(input: { customerId: string; packageId: string; outletId?: string; paymentMethod?: string; processedBy?: string }): Promise<DepositSaleRecord>;
+  listDepositSales(range?: { from?: string; to?: string }): Promise<DepositSaleRecord[]>;
+  listDepositRefunds(range?: { from?: string; to?: string }): Promise<DepositRefundRecord[]>;
+  listCustomerDepositBalances(): Promise<CustomerDepositBalance[]>;
+  getCustomerDeposit(customerId: string): Promise<CustomerDepositBalance | null>;
   // ---- aset tetap (migrasi 0040); hanya pemilik/admin. Rancangan Claude atas arahan Louis (Majoo tidak bisa dilihat). ----
   listFixedAssets(): Promise<FixedAsset[]>;
   /** Riwayat penyusutan yang sudah dicatat, satu aset atau semua (terbaru dulu). */

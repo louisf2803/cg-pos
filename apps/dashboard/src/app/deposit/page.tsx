@@ -15,45 +15,6 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 
-const INITIAL_DEPOSIT_PACKAGES: DepositPackage[] = [
-  {
-    id: 'dep-100',
-    name: 'Deposit 100rb',
-    creditAmount: 100000,
-    salePrice: 100000,
-    isActive: true,
-    soldCount: 14,
-    note: 'Saldo reguler tanpa masa hangus',
-  },
-  {
-    id: 'dep-500',
-    name: 'Deposit 500rb Bonus 50rb',
-    creditAmount: 550000,
-    salePrice: 500000,
-    isActive: true,
-    soldCount: 7,
-    note: 'Bonus saldo 10% untuk pelanggan setia',
-  },
-  {
-    id: 'dep-1000',
-    name: 'Deposit Member Platinum 1 Juta',
-    creditAmount: 1150000,
-    salePrice: 1000000,
-    isActive: true,
-    soldCount: 0,
-    note: 'Paket baru belum pernah terjual (bisa dihapus)',
-  },
-  {
-    id: 'dep-promo',
-    name: 'Promo Deposit Pembukaan Outlet',
-    creditAmount: 250000,
-    salePrice: 200000,
-    isActive: false,
-    soldCount: 5,
-    note: 'Diarsipkan setelah periode promo selesai',
-  },
-];
-
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 type DialogState =
@@ -63,9 +24,22 @@ type DialogState =
 
 export default function PaketDepositPage() {
   const data = useData();
-  const ctxState = useAsync(() => data.getContext(), [data]);
+  const ctxState = useAsync(async () => {
+    const [ctx, pkgs] = await Promise.all([
+      data.getContext(),
+      data.listDepositPackages(),
+    ]);
+    return { ctx, packages: pkgs };
+  }, [data]);
 
-  const [packages, setPackages] = useState<DepositPackage[]>(INITIAL_DEPOSIT_PACKAGES);
+  const [packages, setPackages] = useState<DepositPackage[]>([]);
+  const stateData = ctxState.status === 'ready' ? ctxState.data : null;
+  useEffect(() => {
+    if (stateData) {
+      setPackages(stateData.packages);
+    }
+  }, [stateData]);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -93,36 +67,61 @@ export default function PaketDepositPage() {
     [packages],
   );
 
-  const handleToggleActive = (pkg: DepositPackage) => {
-    setPackages((prev) =>
-      prev.map((item) =>
-        item.id === pkg.id ? { ...item, isActive: !item.isActive } : item,
-      ),
-    );
-    setStatusNotice(
-      pkg.isActive
-        ? `Paket "${pkg.name}" dinonaktifkan dari kasir.`
-        : `Paket "${pkg.name}" diaktifkan kembali.`,
-    );
+  const handleToggleActive = async (pkg: DepositPackage) => {
+    try {
+      const updated = await data.saveDepositPackage({
+        id: pkg.id,
+        name: pkg.name,
+        creditAmount: pkg.creditAmount,
+        salePrice: pkg.salePrice,
+        isActive: !pkg.isActive,
+        note: pkg.note,
+      });
+      setPackages((prev) => prev.map((item) => (item.id === pkg.id ? updated : item)));
+      setStatusNotice(
+        updated.isActive
+          ? `Paket "${pkg.name}" diaktifkan kembali.`
+          : `Paket "${pkg.name}" dinonaktifkan dari kasir.`,
+      );
+    } catch (err) {
+      setStatusNotice(err instanceof Error ? err.message : 'Gagal mengubah status paket.');
+    }
   };
 
-  const handleSavePackage = (saved: DepositPackage) => {
-    setPackages((prev) => {
-      const exists = prev.some((p) => p.id === saved.id);
-      if (exists) {
-        return prev.map((p) => (p.id === saved.id ? saved : p));
-      }
-      return [saved, ...prev];
-    });
-    setDialog(null);
-    setStatusNotice(`Paket "${saved.name}" disimpan di pratinjau halaman.`);
+  const handleSavePackage = async (saved: DepositPackage) => {
+    try {
+      const res = await data.saveDepositPackage({
+        id: saved.id.startsWith('dep-') && saved.id.length < 20 ? undefined : saved.id,
+        name: saved.name,
+        creditAmount: saved.creditAmount,
+        salePrice: saved.salePrice,
+        isActive: saved.isActive,
+        note: saved.note,
+      });
+      setPackages((prev) => {
+        const exists = prev.some((p) => p.id === res.id);
+        if (exists) {
+          return prev.map((p) => (p.id === res.id ? res : p));
+        }
+        return [res, ...prev];
+      });
+      setDialog(null);
+      setStatusNotice(`Paket "${res.name}" berhasil disimpan.`);
+    } catch (err) {
+      setStatusNotice(err instanceof Error ? err.message : 'Gagal menyimpan paket deposit.');
+    }
   };
 
-  const handleDeletePackage = (pkg: DepositPackage) => {
+  const handleDeletePackage = async (pkg: DepositPackage) => {
     if (!canDeleteDepositPackage(pkg)) return;
-    setPackages((prev) => prev.filter((p) => p.id !== pkg.id));
-    setDialog(null);
-    setStatusNotice(`Paket "${pkg.name}" dihapus dari pratinjau katalog.`);
+    try {
+      await data.deleteDepositPackage(pkg.id);
+      setPackages((prev) => prev.filter((p) => p.id !== pkg.id));
+      setDialog(null);
+      setStatusNotice(`Paket "${pkg.name}" berhasil dihapus.`);
+    } catch (err) {
+      setStatusNotice(err instanceof Error ? err.message : 'Gagal menghapus paket deposit.');
+    }
   };
 
   return (
@@ -147,12 +146,11 @@ export default function PaketDepositPage() {
         }
       />
 
-      <div className="cg-banner cg-banner--info mb-16 flex flex-wrap items-center justify-between gap-8" role="status">
-        <span>
-          <strong>Pratinjau tampilan — menunggu dukungan server.</strong> Perubahan daftar paket hanya tersimpan sementara di memori halaman ini dan belum terhubung ke kasir.
-        </span>
-        <span className="cg-badge text-[11px] font-semibold">Pratinjau</span>
-      </div>
+      {statusNotice && (
+        <p role="status" className="cg-banner cg-banner--success mb-16">
+          {statusNotice}
+        </p>
+      )}
 
       {ctxState.status === 'error' && (
         <ErrorBox message={ctxState.message} onRetry={ctxState.reload} />

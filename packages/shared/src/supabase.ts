@@ -2,6 +2,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
 import { appointmentProblem, type Appointment, type AppointmentInput, type AppointmentKind, type AppointmentStatus } from './appointment';
+import {
+  canDeleteDepositPackage, depositPackageProblem,
+  type DepositPackage, type DepositRefundRecord, type DepositSaleRecord,
+} from './deposit';
 import { photoExt, photoPath, photoProblem, type ProductPhotoInput } from './photo';
 import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
@@ -2548,6 +2552,130 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteAppointment(id) {
       const { error } = await db().from('appointments').update({ deleted_at: new Date().toISOString() }).eq('id', id);
       if (error) throw mapDbError(error);
+    },
+    async listDepositPackages() {
+      const rows = await pageAll((from, to) =>
+        db()
+          .from('deposit_packages')
+          .select('*')
+          .is('deleted_at', null)
+          .order('sale_price', { ascending: true })
+          .range(from, to),
+      );
+      return rows.map((x): DepositPackage => ({
+        id: x.id as string,
+        name: x.name as string,
+        creditAmount: Number(x.credit_amount),
+        salePrice: Number(x.sale_price),
+        isActive: Boolean(x.is_active),
+        soldCount: Number(x.sold_count ?? 0),
+        ...(x.note ? { note: x.note as string } : {}),
+      }));
+    },
+    async saveDepositPackage(input) {
+      const problem = depositPackageProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = input.id ?? newId();
+      const payload = {
+        id,
+        org_id: r.orgId,
+        name: input.name.trim(),
+        credit_amount: input.creditAmount,
+        sale_price: input.salePrice,
+        is_active: input.isActive ?? true,
+        note: input.note?.trim() || null,
+      };
+      const { data, error } = await db()
+        .from('deposit_packages')
+        .upsert(payload, { onConflict: 'id' })
+        .select('*')
+        .single();
+      if (error) throw mapDbError(error);
+      const row = data as Row;
+      return {
+        id,
+        name: row.name as string,
+        creditAmount: Number(row.credit_amount),
+        salePrice: Number(row.sale_price),
+        isActive: Boolean(row.is_active),
+        soldCount: Number(row.sold_count ?? 0),
+        ...(row.note ? { note: row.note as string } : {}),
+      };
+    },
+    async deleteDepositPackage(id) {
+      const pkg = must(await db().from('deposit_packages').select('sold_count').eq('id', id).maybeSingle()) as Row | null;
+      if (!pkg) throw new DataError('not_found', 'Paket deposit tidak ditemukan');
+      if (Number(pkg.sold_count ?? 0) > 0) {
+        throw new DataError('forbidden', 'Paket deposit yang pernah terjual tidak dapat dihapus');
+      }
+      const { error } = await db().from('deposit_packages').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw mapDbError(error);
+    },
+    async buyDepositPackage(input) {
+      const r = await resolve();
+      const outletId = input.outletId ?? r.ctx.outletId;
+      const { data, error } = await client.rpc('buy_deposit_package', {
+        p_id: newId(),
+        p_org_id: r.orgId,
+        p_outlet_id: outletId,
+        p_customer_id: input.customerId,
+        p_package_id: input.packageId,
+        p_payment_method: input.paymentMethod ?? 'Tunai',
+        p_processed_by: input.processedBy ?? 'Kasir',
+      });
+      if (error) throw mapDbError(error);
+      const res = data as Record<string, unknown>;
+      return {
+        id: res.id as string,
+        occurredAt: res.occurred_at as string,
+        customerName: res.customer_name as string,
+        packageName: res.package_name as string,
+        salePrice: Number(res.sale_price),
+        creditAmount: Number(res.credit_amount),
+        methodName: input.paymentMethod ?? 'Tunai',
+        orderNumber: res.order_number as string,
+      };
+    },
+    async listDepositSales(range) {
+      const rows = await pageAll((from, to) => {
+        let q = db().from('customer_deposit_entries').select('*, customer:customers(name)').eq('kind', 'purchase');
+        if (range?.from) q = q.gte('occurred_at', range.from);
+        if (range?.to) q = q.lte('occurred_at', range.to);
+        return q.order('occurred_at', { ascending: false }).range(from, to);
+      });
+      return rows.map((x): DepositSaleRecord => {
+        const cust = x.customer as { name: string } | null;
+        return {
+          id: x.id as string,
+          occurredAt: x.occurred_at as string,
+          customerName: cust?.name ?? '',
+          packageName: x.package_name as string,
+          salePrice: Number(x.sale_price),
+          creditAmount: Number(x.credit_amount),
+          methodName: x.payment_method as string,
+          orderNumber: x.order_number as string,
+        };
+      });
+    },
+    async listDepositRefunds(range) {
+      const rows = await pageAll((from, to) => {
+        let q = db().from('customer_deposit_entries').select('*, customer:customers(name)').eq('kind', 'refund');
+        if (range?.from) q = q.gte('occurred_at', range.from);
+        if (range?.to) q = q.lte('occurred_at', range.to);
+        return q.order('occurred_at', { ascending: false }).range(from, to);
+      });
+      return rows.map((x): DepositRefundRecord => {
+        const cust = x.customer as { name: string } | null;
+        return {
+          id: x.id as string,
+          occurredAt: x.occurred_at as string,
+          customerName: cust?.name ?? '',
+          amount: Number(x.credit_amount),
+          reason: (x.reason as string) ?? '',
+          processedBy: (x.processed_by as string) ?? 'Staf',
+        };
+      });
     },
     async listCashAdvances(employeeId) {
       const names = await employeeNames();

@@ -78,5 +78,67 @@ describe('deposit helpers', () => {
     ]);
     expect(refunds).toEqual({ count: 1, totalRefundAmount: 75000 });
   });
+
+  it('handles deposit package CRUD and purchasing via DataLayer', async () => {
+    const { createFakeData } = await import('../src/fake');
+    const data = createFakeData({ seed: false });
+
+    // Initial empty
+    const pkgs = await data.listDepositPackages();
+    expect(pkgs).toEqual([]);
+
+    // Save package
+    const pkg = await data.saveDepositPackage({
+      name: 'Deposit 200rb Bonus 20rb',
+      creditAmount: 220000,
+      salePrice: 200000,
+      note: 'Bonus 10%',
+    });
+    expect(pkg.id).toBeDefined();
+    expect(pkg.name).toBe('Deposit 200rb Bonus 20rb');
+    expect(pkg.soldCount).toBe(0);
+
+    // Create a customer
+    const cust = await data.saveCustomer({
+      name: 'Rudi Pratama',
+      phone: '081234567890',
+    });
+
+    // Initial deposit balance 0
+    const initialDeposit = await data.getCustomerDeposit(cust.id);
+    expect(initialDeposit?.currentBalance).toBe(0);
+
+    // Buy package
+    const sale = await data.buyDepositPackage({
+      customerId: cust.id,
+      packageId: pkg.id,
+      paymentMethod: 'QRIS',
+    });
+    expect(sale.id).toBeDefined();
+    expect(sale.customerName).toBe('Rudi Pratama');
+    expect(sale.creditAmount).toBe(220000);
+
+    // Check customer balance increased
+    const afterBuy = await data.getCustomerDeposit(cust.id);
+    expect(afterBuy?.currentBalance).toBe(220000);
+    expect(afterBuy?.totalDepositPurchased).toBe(220000);
+
+    // Check package soldCount increased
+    const pkgsAfter = await data.listDepositPackages();
+    expect(pkgsAfter[0]?.soldCount).toBe(1);
+
+    // Cannot delete sold package
+    await expect(data.deleteDepositPackage(pkg.id)).rejects.toThrow(/tidak dapat dihapus/i);
+
+    // List customer deposit balances
+    const balances = await data.listCustomerDepositBalances();
+    expect(balances.length).toBe(1);
+    expect(balances[0]?.currentBalance).toBe(220000);
+
+    // List deposit sales
+    const sales = await data.listDepositSales();
+    expect(sales.length).toBe(1);
+    expect(sales[0]?.orderNumber).toContain('DEP/');
+  });
 });
 
