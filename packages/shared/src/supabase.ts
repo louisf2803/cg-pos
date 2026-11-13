@@ -28,6 +28,8 @@ import { priceOverridePctProblem } from './price-override';
 import type { DiscountUse, DiscountSource } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput, type TransferStatus } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
+import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
+import type { PriceSchedule } from './price-schedule';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
@@ -2716,6 +2718,160 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { ctx } = await resolve();
       const paid = await fetchOrders((qb) => qb.eq('outlet_id', ctx.outletId).eq('status', 'paid').gte('closed_at', range.from).lt('closed_at', range.to));
       return summarizeSales(paid, ctx.timezone);
+    },
+
+    // ---------- grup pelanggan, harga grosir & jadwal harga ----------
+    async listCustomerGroups() {
+      const { orgId } = await resolve();
+      try {
+        const rows = must(await db().from('customer_groups').select('*').eq('org_id', orgId).order('name')) as Row[] | null;
+        return (rows ?? []).map((r): CustomerGroup => ({
+          id: r.id as string,
+          name: r.name as string,
+          description: (r.description as string) ?? '',
+          createdAt: (r.created_at as string) ?? now().toISOString(),
+          updatedAt: (r.updated_at as string) ?? now().toISOString(),
+        }));
+      } catch (e) {
+        return [];
+      }
+    },
+    async saveCustomerGroup(group) {
+      const { orgId } = await resolve();
+      const res = must(await db().rpc('customer_group_save', {
+        p_org: orgId,
+        p_id: group.id || null,
+        p_name: group.name.trim(),
+        p_description: group.description?.trim() ?? '',
+      })) as Row;
+      return {
+        id: res.id as string,
+        name: res.name as string,
+        description: (res.description as string) ?? '',
+        createdAt: (res.created_at as string) ?? now().toISOString(),
+        updatedAt: (res.updated_at as string) ?? now().toISOString(),
+      };
+    },
+    async deleteCustomerGroup(id) {
+      const { orgId } = await resolve();
+      must(await db().rpc('customer_group_delete', {
+        p_org: orgId,
+        p_id: id,
+      }));
+    },
+    async listCustomerGroupMembers(groupId) {
+      const { orgId } = await resolve();
+      try {
+        let qb = db().from('customer_group_members').select('*').eq('org_id', orgId);
+        if (groupId) qb = qb.eq('group_id', groupId);
+        const rows = must(await qb) as Row[] | null;
+        return (rows ?? []).map((r): CustomerGroupMember => ({
+          customerId: r.customer_id as string,
+          groupId: r.group_id as string,
+          assignedAt: (r.assigned_at as string) ?? now().toISOString(),
+        }));
+      } catch (e) {
+        return [];
+      }
+    },
+    async setCustomerGroup(customerId, groupId) {
+      const { orgId } = await resolve();
+      must(await db().rpc('customer_group_assign', {
+        p_org: orgId,
+        p_customer_id: customerId,
+        p_group_id: groupId || null,
+      }));
+    },
+    async listTieredPrices(groupId) {
+      const { orgId } = await resolve();
+      try {
+        let qb = db().from('tiered_prices').select('*').eq('org_id', orgId);
+        if (groupId) qb = qb.eq('group_id', groupId);
+        const rows = must(await qb) as Row[] | null;
+        return (rows ?? []).map((r): GroupProductTieredPricing => ({
+          id: r.id as string,
+          groupId: r.group_id as string,
+          productId: r.product_id as string,
+          tiers: (r.tiers as TieredPriceRule[]) ?? [],
+          updatedAt: (r.updated_at as string) ?? now().toISOString(),
+        }));
+      } catch (e) {
+        return [];
+      }
+    },
+    async saveTieredPrices(input) {
+      const { orgId } = await resolve();
+      const res = must(await db().rpc('tiered_price_save', {
+        p_org: orgId,
+        p_id: input.id || null,
+        p_group_id: input.groupId,
+        p_product_id: input.productId,
+        p_tiers: input.tiers,
+      })) as Row;
+      return {
+        id: res.id as string,
+        groupId: res.group_id as string,
+        productId: res.product_id as string,
+        tiers: (res.tiers as TieredPriceRule[]) ?? [],
+        updatedAt: (res.updated_at as string) ?? now().toISOString(),
+      };
+    },
+    async deleteTieredPrices(target) {
+      const { orgId } = await resolve();
+      const p_id = typeof target === 'string' ? target : target.id ?? null;
+      const p_group_id = typeof target === 'object' ? target.groupId : null;
+      const p_product_id = typeof target === 'object' ? target.productId : null;
+      must(await db().rpc('tiered_price_delete', {
+        p_org: orgId,
+        p_id,
+        p_group_id,
+        p_product_id,
+      }));
+    },
+    async listPriceSchedules() {
+      const { orgId } = await resolve();
+      try {
+        const rows = must(await db().from('price_schedules').select('*').eq('org_id', orgId).is('deleted_at', null).order('starts_at')) as Row[] | null;
+        return (rows ?? []).map((r): PriceSchedule => ({
+          id: r.id as string,
+          productId: (r.product_id as string) ?? '',
+          newPrice: Number(r.price),
+          startAt: (r.starts_at as string) ?? now().toISOString(),
+          endAt: (r.ends_at as string) ?? now().toISOString(),
+          note: (r.note as string) ?? undefined,
+          createdAt: (r.created_at as string) ?? now().toISOString(),
+        }));
+      } catch (e) {
+        return [];
+      }
+    },
+    async savePriceSchedule(schedule) {
+      const { orgId } = await resolve();
+      const res = must(await db().rpc('price_schedule_save', {
+        p_org: orgId,
+        p_id: schedule.id || null,
+        p_product_id: schedule.productId,
+        p_price: schedule.newPrice,
+        p_start: schedule.startAt,
+        p_end: schedule.endAt,
+        p_note: schedule.note ?? '',
+      })) as Row;
+      return {
+        id: res.id as string,
+        productId: (res.product_id as string) ?? schedule.productId,
+        newPrice: Number(res.price),
+        startAt: (res.starts_at as string) ?? schedule.startAt,
+        endAt: (res.ends_at as string) ?? schedule.endAt,
+        note: (res.note as string) ?? undefined,
+        createdAt: (res.created_at as string) ?? now().toISOString(),
+      };
+    },
+    async deletePriceSchedule(id) {
+      const { orgId } = await resolve();
+      must(await db().rpc('price_schedule_delete', {
+        p_org: orgId,
+        p_id: id,
+      }));
     },
   };
   const tableOps = createTableOps({

@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  assignCustomerToGroup,
   countGroupMembers,
-  newId,
   type Customer,
   type CustomerGroup,
   type CustomerGroupMember,
@@ -15,22 +13,18 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
-import {
-  formatJakartaDateTime,
-  loadCustomerGroups,
-  loadGroupMembers,
-  saveCustomerGroups,
-  saveGroupMembers,
-} from '@/lib/pricing-preview';
+import { formatJakartaDateTime } from '@/lib/pricing-preview';
 
 function GroupEditorDialog({
   initial,
   existingNames,
+  isBusy,
   onSave,
   onClose,
 }: {
   initial: CustomerGroup | null;
   existingNames: string[];
+  isBusy?: boolean;
   onSave: (name: string, description: string) => void;
   onClose: () => void;
 }) {
@@ -55,7 +49,6 @@ function GroupEditorDialog({
       return;
     }
     onSave(trimmed, description.trim());
-    onClose();
   };
 
   return (
@@ -70,7 +63,7 @@ function GroupEditorDialog({
               Gunakan grup untuk membedakan segmen seperti Member, Reseller, atau Karyawan.
             </p>
           </div>
-          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose} disabled={isBusy}>
             Tutup
           </button>
         </div>
@@ -91,6 +84,7 @@ function GroupEditorDialog({
             maxLength={80}
             placeholder="Contoh: Reseller Grosir Utama"
             value={name}
+            disabled={isBusy}
             onChange={(e) => {
               setName(e.target.value);
               if (error) setError('');
@@ -109,16 +103,17 @@ function GroupEditorDialog({
             maxLength={200}
             placeholder="Catatan tujuan grup atau kriteria anggota"
             value={description}
+            disabled={isBusy}
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
 
         <div className="flex justify-end gap-8 pt-8 border-t border-border">
-          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={isBusy}>
             Batal
           </button>
-          <button type="submit" className="cg-btn cg-btn--primary">
-            Simpan grup
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={isBusy}>
+            {isBusy ? 'Menyimpan...' : 'Simpan grup'}
           </button>
         </div>
       </form>
@@ -288,11 +283,13 @@ function GroupMembersDialog({
 function DeleteGroupDialog({
   group,
   memberCount,
+  isBusy,
   onConfirm,
   onClose,
 }: {
   group: CustomerGroup;
   memberCount: number;
+  isBusy?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -311,18 +308,16 @@ function DeleteGroupDialog({
           . Lanjutkan?
         </p>
         <div className="flex justify-end gap-8">
-          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={isBusy}>
             Batal
           </button>
           <button
             type="button"
             className="cg-btn cg-btn--danger"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
+            disabled={isBusy}
+            onClick={onConfirm}
           >
-            Hapus grup
+            {isBusy ? 'Menghapus...' : 'Hapus grup'}
           </button>
         </div>
       </div>
@@ -333,32 +328,26 @@ function DeleteGroupDialog({
 export default function CustomerGroupsPage() {
   const data = useData();
   const customersRes = useAsync(() => data.listCustomers({ limit: 500 }), [data]);
-
-  const [groups, setGroups] = useState<CustomerGroup[]>([]);
-  const [members, setMembers] = useState<CustomerGroupMember[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const groupsRes = useAsync(() => data.listCustomerGroups(), [data]);
+  const membersRes = useAsync(() => data.listCustomerGroupMembers(), [data]);
 
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState('');
+  const [errorNotice, setErrorNotice] = useState('');
   const [editingGroup, setEditingGroup] = useState<CustomerGroup | null | 'new'>(null);
   const [managingMembersFor, setManagingMembersFor] = useState<CustomerGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<CustomerGroup | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
 
-  useEffect(() => {
-    setGroups(loadCustomerGroups());
-    setMembers(loadGroupMembers());
-    setHydrated(true);
-  }, []);
+  const groups = useMemo(
+    () => (groupsRes.status === 'ready' ? groupsRes.data : []),
+    [groupsRes],
+  );
 
-  const persistGroups = (next: CustomerGroup[]) => {
-    setGroups(next);
-    saveCustomerGroups(next);
-  };
-
-  const persistMembers = (next: CustomerGroupMember[]) => {
-    setMembers(next);
-    saveGroupMembers(next);
-  };
+  const members = useMemo(
+    () => (membersRes.status === 'ready' ? membersRes.data : []),
+    [membersRes],
+  );
 
   const customers = useMemo(
     () => (customersRes.status === 'ready' ? customersRes.data : []),
@@ -397,40 +386,53 @@ export default function CustomerGroupsPage() {
   const assignedCount = members.filter((m) => groups.some((g) => g.id === m.groupId)).length;
   const unassignedCount = Math.max(0, customers.length - assignedCount);
 
-  const handleSaveGroup = (name: string, description: string) => {
-    if (editingGroup && editingGroup !== 'new') {
-      const next = groups.map((g) =>
-        g.id === editingGroup.id ? { ...g, name, description: description || undefined } : g,
-      );
-      persistGroups(next);
-      setNotice(`Grup "${name}" berhasil diperbarui.`);
-    } else {
-      const created: CustomerGroup = {
-        id: newId(),
-        name,
-        description: description || undefined,
-        createdAt: new Date().toISOString(),
-      };
-      persistGroups([created, ...groups]);
-      setNotice(`Grup "${name}" berhasil ditambahkan.`);
+  const handleSaveGroup = async (name: string, description: string) => {
+    try {
+      setIsBusy(true);
+      setErrorNotice('');
+      if (editingGroup && editingGroup !== 'new') {
+        await data.saveCustomerGroup({ id: editingGroup.id, name, description: description || undefined });
+        setNotice(`Grup "${name}" berhasil diperbarui.`);
+      } else {
+        await data.saveCustomerGroup({ name, description: description || undefined });
+        setNotice(`Grup "${name}" berhasil ditambahkan.`);
+      }
+      await groupsRes.reload();
+      setEditingGroup(null);
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal menyimpan grup pelanggan.');
+    } finally {
+      setIsBusy(false);
     }
   };
 
-  const handleDeleteGroup = (group: CustomerGroup) => {
-    persistGroups(groups.filter((g) => g.id !== group.id));
-    persistMembers(members.filter((m) => m.groupId !== group.id));
-    setNotice(`Grup "${group.name}" dihapus.`);
+  const handleDeleteGroup = async (group: CustomerGroup) => {
+    try {
+      setIsBusy(true);
+      setErrorNotice('');
+      await data.deleteCustomerGroup(group.id);
+      setNotice(`Grup "${group.name}" dihapus.`);
+      await Promise.all([groupsRes.reload(), membersRes.reload()]);
+      setDeletingGroup(null);
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal menghapus grup.');
+    } finally {
+      setIsBusy(false);
+    }
   };
 
-  const handleToggleMember = (groupId: string, customerId: string, assign: boolean) => {
-    const next = assignCustomerToGroup(
-      members,
-      customerId,
-      assign ? groupId : null,
-      new Date().toISOString(),
-    );
-    persistMembers(next);
+  const handleToggleMember = async (groupId: string, customerId: string, assign: boolean) => {
+    try {
+      setErrorNotice('');
+      await data.setCustomerGroup(customerId, assign ? groupId : null);
+      await membersRes.reload();
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal mengubah keanggotaan pelanggan.');
+    }
   };
+
+  const isInitialLoading =
+    groupsRes.status === 'loading' || membersRes.status === 'loading' || customersRes.status === 'loading';
 
   return (
     <div className="grid gap-16 min-w-0">
@@ -455,14 +457,6 @@ export default function CustomerGroupsPage() {
         }
       />
 
-      <div className="cg-banner cg-banner--warning">
-        <p className="font-semibold">Pratinjau — belum tersambung server</p>
-        <p className="text-sm mt-4">
-          Data grup pelanggan dan keanggotaan disimpan sementara di penyimpanan lokal peramban sambil menunggu tabel
-          <code> customer_groups </code> dan <code> customer_group_members </code> serta sinkronisasi ke kasir oleh server.
-        </p>
-      </div>
-
       {notice && (
         <div role="status" className="cg-banner cg-banner--info flex items-center justify-between gap-12">
           <span>{notice}</span>
@@ -472,6 +466,32 @@ export default function CustomerGroupsPage() {
             onClick={() => setNotice('')}
           >
             Tutup
+          </button>
+        </div>
+      )}
+
+      {errorNotice && (
+        <div role="alert" className="cg-banner cg-banner--danger flex items-center justify-between gap-12">
+          <span>{errorNotice}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm"
+            onClick={() => setErrorNotice('')}
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
+      {groupsRes.status === 'error' && (
+        <div role="alert" className="cg-banner cg-banner--danger flex flex-wrap items-center justify-between gap-12">
+          <span>Gagal memuat daftar grup: {groupsRes.message}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm"
+            onClick={groupsRes.reload}
+          >
+            Muat ulang
           </button>
         </div>
       )}
@@ -492,18 +512,18 @@ export default function CustomerGroupsPage() {
       <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12">
         <div className="cg-card">
           <div className="text-xs font-semibold text-text-muted uppercase">Total Grup</div>
-          <div className="text-2xl font-bold mt-4">{hydrated ? groups.length : '—'}</div>
+          <div className="text-2xl font-bold mt-4">{groupsRes.status === 'ready' ? groups.length : '—'}</div>
         </div>
         <div className="cg-card">
           <div className="text-xs font-semibold text-text-muted uppercase">Pelanggan Tergabung</div>
           <div className="text-2xl font-bold mt-4 text-accent-strong">
-            {hydrated ? assignedCount : '—'}
+            {membersRes.status === 'ready' && groupsRes.status === 'ready' ? assignedCount : '—'}
           </div>
         </div>
         <div className="cg-card">
           <div className="text-xs font-semibold text-text-muted uppercase">Belum Masuk Grup</div>
           <div className="text-2xl font-bold mt-4">
-            {customersRes.status === 'ready' ? unassignedCount : '—'}
+            {customersRes.status === 'ready' && membersRes.status === 'ready' ? unassignedCount : '—'}
           </div>
         </div>
       </div>
@@ -528,7 +548,7 @@ export default function CustomerGroupsPage() {
           </div>
         </div>
 
-        {!hydrated || customersRes.status === 'loading' ? (
+        {isInitialLoading ? (
           <div className="grid gap-8" aria-busy="true" aria-label="Memuat daftar grup pelanggan">
             {[0, 1, 2].map((i) => (
               <div key={i} className="cg-skeleton h-[52px]" />
@@ -639,6 +659,7 @@ export default function CustomerGroupsPage() {
         <GroupEditorDialog
           initial={editingGroup === 'new' ? null : editingGroup}
           existingNames={groups.map((g) => g.name)}
+          isBusy={isBusy}
           onSave={handleSaveGroup}
           onClose={() => setEditingGroup(null)}
         />
@@ -661,6 +682,7 @@ export default function CustomerGroupsPage() {
         <DeleteGroupDialog
           group={deletingGroup}
           memberCount={memberCounts[deletingGroup.id] ?? 0}
+          isBusy={isBusy}
           onConfirm={() => handleDeleteGroup(deletingGroup)}
           onClose={() => setDeletingGroup(null)}
         />

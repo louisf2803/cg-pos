@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   formatRp,
   getPriceScheduleStatus,
-  newId,
   partitionPriceSchedules,
   resolveScheduledPrice,
   validatePriceScheduleInput,
@@ -18,9 +17,7 @@ import { PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
 import {
   formatJakartaDateTime,
-  loadPriceSchedules,
   parseJakartaLocalInput,
-  savePriceSchedules,
   toJakartaLocalInput,
 } from '@/lib/pricing-preview';
 
@@ -29,11 +26,13 @@ type ScheduleFilter = 'all' | 'upcoming_active' | 'expired';
 function ScheduleEditorDialog({
   products,
   initial,
+  isBusy,
   onSave,
   onClose,
 }: {
   products: CatalogProduct[];
   initial: PriceSchedule | null;
+  isBusy?: boolean;
   onSave: (payload: Omit<PriceSchedule, 'id' | 'createdAt'>) => void;
   onClose: () => void;
 }) {
@@ -87,7 +86,6 @@ function ScheduleEditorDialog({
       endAt,
       note: note.trim() || undefined,
     });
-    onClose();
   };
 
   return (
@@ -102,7 +100,7 @@ function ScheduleEditorDialog({
               Semua waktu menggunakan zona WIB (Asia/Jakarta). Jika ada jadwal tumpang tindih untuk produk sama, jadwal yang paling baru dibuat akan dipakai.
             </p>
           </div>
-          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose} disabled={isBusy}>
             Tutup
           </button>
         </div>
@@ -121,6 +119,7 @@ function ScheduleEditorDialog({
             id="sch-product"
             className="cg-select"
             value={productId}
+            disabled={isBusy}
             onChange={(e) => {
               const id = e.target.value;
               setProductId(id);
@@ -149,6 +148,7 @@ function ScheduleEditorDialog({
               type="number"
               min={0}
               step={100}
+              disabled={isBusy}
               className="cg-input"
               value={newPrice}
               onChange={(e) => {
@@ -171,6 +171,7 @@ function ScheduleEditorDialog({
               id="sch-note"
               className="cg-input"
               maxLength={100}
+              disabled={isBusy}
               placeholder="Contoh: Promo akhir pekan atau kenaikan bahan"
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -186,6 +187,7 @@ function ScheduleEditorDialog({
             <input
               id="sch-start"
               type="datetime-local"
+              disabled={isBusy}
               className="cg-input"
               value={startLocal}
               onChange={(e) => {
@@ -202,6 +204,7 @@ function ScheduleEditorDialog({
             <input
               id="sch-end"
               type="datetime-local"
+              disabled={isBusy}
               className="cg-input"
               value={endLocal}
               onChange={(e) => {
@@ -216,11 +219,11 @@ function ScheduleEditorDialog({
         </div>
 
         <div className="flex justify-end gap-8 pt-8 border-t border-border">
-          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={isBusy}>
             Batal
           </button>
-          <button type="submit" className="cg-btn cg-btn--primary">
-            Simpan jadwal
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={isBusy}>
+            {isBusy ? 'Menyimpan...' : 'Simpan jadwal'}
           </button>
         </div>
       </form>
@@ -231,23 +234,19 @@ function ScheduleEditorDialog({
 export default function PriceSchedulesPage() {
   const data = useData();
   const catalogRes = useAsync(() => data.listCatalog(), [data]);
+  const schedulesRes = useAsync(() => data.listPriceSchedules(), [data]);
 
-  const [schedules, setSchedules] = useState<PriceSchedule[]>([]);
-  const [hydrated, setHydrated] = useState(false);
   const [filter, setFilter] = useState<ScheduleFilter>('all');
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState('');
+  const [errorNotice, setErrorNotice] = useState('');
   const [editing, setEditing] = useState<PriceSchedule | null | 'new'>(null);
+  const [isBusy, setIsBusy] = useState(false);
 
-  useEffect(() => {
-    setSchedules(loadPriceSchedules());
-    setHydrated(true);
-  }, []);
-
-  const persist = (next: PriceSchedule[]) => {
-    setSchedules(next);
-    savePriceSchedules(next);
-  };
+  const schedules = useMemo(
+    () => (schedulesRes.status === 'ready' ? schedulesRes.data : []),
+    [schedulesRes],
+  );
 
   const products = useMemo(
     () => (catalogRes.status === 'ready' ? catalogRes.data : []),
@@ -286,28 +285,41 @@ export default function PriceSchedulesPage() {
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   }, [schedules, filter, search, productMap, nowIso]);
 
-  const handleSave = (payload: Omit<PriceSchedule, 'id' | 'createdAt'>) => {
-    if (editing && editing !== 'new') {
-      const next = schedules.map((s) =>
-        s.id === editing.id ? { ...s, ...payload } : s,
-      );
-      persist(next);
-      setNotice('Jadwal perubahan harga diperbarui.');
-    } else {
-      const created: PriceSchedule = {
-        id: newId(),
-        ...payload,
-        createdAt: new Date().toISOString(),
-      };
-      persist([created, ...schedules]);
-      setNotice('Jadwal perubahan harga baru ditambahkan.');
+  const handleSave = async (payload: Omit<PriceSchedule, 'id' | 'createdAt'>) => {
+    try {
+      setIsBusy(true);
+      setErrorNotice('');
+      if (editing && editing !== 'new') {
+        await data.savePriceSchedule({ id: editing.id, ...payload });
+        setNotice('Jadwal perubahan harga diperbarui.');
+      } else {
+        await data.savePriceSchedule(payload);
+        setNotice('Jadwal perubahan harga baru ditambahkan.');
+      }
+      await schedulesRes.reload();
+      setEditing(null);
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal menyimpan jadwal harga.');
+    } finally {
+      setIsBusy(false);
     }
   };
 
-  const handleDelete = (item: PriceSchedule) => {
-    persist(schedules.filter((s) => s.id !== item.id));
-    setNotice('Jadwal perubahan harga dihapus.');
+  const handleDelete = async (item: PriceSchedule) => {
+    try {
+      setIsBusy(true);
+      setErrorNotice('');
+      await data.deletePriceSchedule(item.id);
+      await schedulesRes.reload();
+      setNotice('Jadwal perubahan harga dihapus.');
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal menghapus jadwal harga.');
+    } finally {
+      setIsBusy(false);
+    }
   };
+
+  const isLoading = catalogRes.status === 'loading' || schedulesRes.status === 'loading';
 
   return (
     <div className="grid gap-16 min-w-0">
@@ -319,7 +331,7 @@ export default function PriceSchedulesPage() {
           <button
             type="button"
             className="cg-btn cg-btn--primary"
-            disabled={products.length === 0}
+            disabled={products.length === 0 || isBusy}
             onClick={() => setEditing('new')}
           >
             <Plus className="cg-icon cg-icon--sm" aria-hidden />
@@ -328,14 +340,6 @@ export default function PriceSchedulesPage() {
         }
       />
 
-      <div className="cg-banner cg-banner--warning">
-        <p className="font-semibold">Pratinjau — belum tersambung server</p>
-        <p className="text-sm mt-4">
-          Jadwal perubahan harga disimpan sementara di peramban sambil menunggu tabel
-          <code> price_schedules </code> dan penerapan otomatis di kasir oleh server.
-        </p>
-      </div>
-
       {notice && (
         <div role="status" className="cg-banner cg-banner--info flex items-center justify-between gap-12">
           <span>{notice}</span>
@@ -343,6 +347,19 @@ export default function PriceSchedulesPage() {
             type="button"
             className="cg-btn cg-btn--ghost cg-btn--sm"
             onClick={() => setNotice('')}
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
+      {errorNotice && (
+        <div role="alert" className="cg-banner cg-banner--danger flex items-center justify-between gap-12">
+          <span>{errorNotice}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm"
+            onClick={() => setErrorNotice('')}
           >
             Tutup
           </button>
@@ -362,21 +379,34 @@ export default function PriceSchedulesPage() {
         </div>
       )}
 
+      {schedulesRes.status === 'error' && (
+        <div role="alert" className="cg-banner cg-banner--danger flex flex-wrap items-center justify-between gap-12">
+          <span>Gagal memuat jadwal harga: {schedulesRes.message}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm"
+            onClick={schedulesRes.reload}
+          >
+            Muat ulang
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12">
         <div className="cg-card">
           <div className="text-xs font-semibold text-text-muted uppercase">Sedang Berlaku</div>
           <div className="text-2xl font-bold mt-4 text-accent-strong">
-            {hydrated ? buckets.active.length : '—'}
+            {schedulesRes.status === 'ready' ? buckets.active.length : '—'}
           </div>
         </div>
         <div className="cg-card">
           <div className="text-xs font-semibold text-text-muted uppercase">Akan Datang</div>
-          <div className="text-2xl font-bold mt-4">{hydrated ? buckets.upcoming.length : '—'}</div>
+          <div className="text-2xl font-bold mt-4">{schedulesRes.status === 'ready' ? buckets.upcoming.length : '—'}</div>
         </div>
         <div className="cg-card">
           <div className="text-xs font-semibold text-text-muted uppercase">Sudah Lewat</div>
           <div className="text-2xl font-bold mt-4 text-text-muted">
-            {hydrated ? buckets.expired.length : '—'}
+            {schedulesRes.status === 'ready' ? buckets.expired.length : '—'}
           </div>
         </div>
       </div>
@@ -419,7 +449,7 @@ export default function PriceSchedulesPage() {
           </div>
         </div>
 
-        {!hydrated || catalogRes.status === 'loading' ? (
+        {isLoading ? (
           <div className="grid gap-8" aria-busy="true" aria-label="Memuat jadwal harga">
             {[0, 1, 2].map((i) => (
               <div key={i} className="cg-skeleton h-[52px]" />
@@ -511,6 +541,7 @@ export default function PriceSchedulesPage() {
                           <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm"
+                            disabled={isBusy}
                             aria-label={`Ubah jadwal ${prod?.name ?? item.productId}`}
                             onClick={() => setEditing(item)}
                           >
@@ -520,6 +551,7 @@ export default function PriceSchedulesPage() {
                           <button
                             type="button"
                             className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
+                            disabled={isBusy}
                             aria-label={`Hapus jadwal ${prod?.name ?? item.productId}`}
                             onClick={() => handleDelete(item)}
                           >
@@ -541,6 +573,7 @@ export default function PriceSchedulesPage() {
         <ScheduleEditorDialog
           products={products}
           initial={editing === 'new' ? null : editing}
+          isBusy={isBusy}
           onSave={handleSave}
           onClose={() => setEditing(null)}
         />

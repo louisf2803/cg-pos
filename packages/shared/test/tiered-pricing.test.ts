@@ -95,5 +95,56 @@ describe('tiered-pricing', () => {
     members = assignCustomerToGroup(members, 'c2', null);
     expect(countGroupMembers(members)).toEqual({ 'g-vip': 1 });
   });
+
+  it('supports full customer group, tiered price, and price schedule DataLayer operations in fake data', async () => {
+    const { createFakeData } = await import('../src/fake');
+    const d = createFakeData();
+
+    // 1. Customer Groups
+    const groups = await d.listCustomerGroups();
+    expect(groups.length).toBeGreaterThanOrEqual(3);
+
+    const createdGroup = await d.saveCustomerGroup({ name: 'Grosir Platinum', description: 'Pembeli kontainer' });
+    expect(createdGroup.name).toBe('Grosir Platinum');
+    expect((await d.listCustomerGroups()).some((g) => g.id === createdGroup.id)).toBe(true);
+
+    // 2. Assign customer
+    await d.setCustomerGroup('cust-1', createdGroup.id);
+    const assigned = await d.listCustomerGroupMembers(createdGroup.id);
+    expect(assigned.some((m) => m.customerId === 'cust-1')).toBe(true);
+
+    // 3. Tiered prices
+    const savedTier = await d.saveTieredPrices({
+      groupId: createdGroup.id,
+      productId: 'p1',
+      tiers: [
+        { tier: 1, minQty: 10, unitPrice: 18000 },
+        { tier: 2, minQty: 50, unitPrice: 15000 },
+      ],
+    });
+    expect(savedTier.tiers).toHaveLength(2);
+    expect((await d.listTieredPrices(createdGroup.id)).length).toBe(1);
+
+    // 4. Price schedules
+    const sched = await d.savePriceSchedule({
+      productId: 'p1',
+      newPrice: 19000,
+      startAt: '2026-11-13T10:00:00Z',
+      endAt: '2026-11-13T18:00:00Z',
+      note: 'Happy Hour',
+    });
+    expect(sched.newPrice).toBe(19000);
+    expect((await d.listPriceSchedules()).some((s) => s.id === sched.id)).toBe(true);
+
+    // 5. Delete operations
+    await d.deletePriceSchedule(sched.id);
+    expect((await d.listPriceSchedules()).some((s) => s.id === sched.id)).toBe(false);
+
+    await d.deleteTieredPrices(`${createdGroup.id}:p1`);
+    expect(await d.listTieredPrices(createdGroup.id)).toHaveLength(0);
+
+    await d.deleteCustomerGroup(createdGroup.id);
+    expect((await d.listCustomerGroups()).some((g) => g.id === createdGroup.id)).toBe(false);
+  });
 });
 

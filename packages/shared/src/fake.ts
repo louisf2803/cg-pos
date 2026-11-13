@@ -12,6 +12,8 @@ import { priceOverridePctProblem } from './price-override';
 import type { DiscountUse } from './promo-report';
 import { transferProblem, type StockLocation, type StockTransfer, type StockTransferInput } from './stock-transfer';
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
+import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
+import type { PriceSchedule } from './price-schedule';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
@@ -177,6 +179,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const kitchen = new Map<string, { status: KitchenStatus; sentAt: string; statusAt: string; stationId?: string }>();
   let stations: PrintStation[] = [];
   let notePresets: NotePreset[] = [];
+  let customerGroups: CustomerGroup[] = [];
+  let customerGroupMembers: CustomerGroupMember[] = [];
+  let tieredPrices: GroupProductTieredPricing[] = [];
+  let priceSchedules: PriceSchedule[] = [];
   type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
   // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
   const authCodes: AuthCodeFake[] = [
@@ -445,6 +451,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     attendance = [];
     customRoles = [];
     compensation = new Map(); schedules = new Map(); payrollRules = {}; incidents = []; cashAdvances = []; payrollRecords = [];
+    customerGroups = opts.seed === false ? [] : [
+      { id: 'grp-member', name: 'Member', description: 'Pelanggan terdaftar yang mengumpulkan poin dan promo anggota.', createdAt: '2026-11-01T02:00:00Z', updatedAt: '2026-11-01T02:00:00Z' },
+      { id: 'grp-reseller', name: 'Reseller', description: 'Mitra pembelian grosir dengan harga bertingkat sesuai jumlah.', createdAt: '2026-11-01T02:05:00Z', updatedAt: '2026-11-01T02:05:00Z' },
+      { id: 'grp-karyawan', name: 'Karyawan', description: 'Tarif khusus staf internal outlet saat bertransaksi.', createdAt: '2026-11-01T02:10:00Z', updatedAt: '2026-11-01T02:10:00Z' },
+    ];
+    customerGroupMembers = [];
+    tieredPrices = [];
+    priceSchedules = [];
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
@@ -2095,6 +2109,111 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         byMethod: [...byMethod.values()].sort((a, b) => b.amount - a.amount), byHour,
         topProducts: [...top.values()].sort((a, b) => b.amount - a.amount).slice(0, 5),
       } satisfies SalesSummary;
+    },
+
+    // ---------- grup pelanggan, harga grosir & jadwal harga ----------
+    async listCustomerGroups() {
+      return clone(customerGroups);
+    },
+    async saveCustomerGroup(group) {
+      const name = group.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama grup wajib diisi');
+      const id = group.id || newId();
+      const existing = customerGroups.find((g) => g.id === id);
+      const at = now().toISOString();
+      if (existing) {
+        existing.name = name;
+        existing.description = group.description?.trim() ?? '';
+        existing.updatedAt = at;
+        return clone(existing);
+      }
+      const newGroup: CustomerGroup = {
+        id,
+        name,
+        description: group.description?.trim() ?? '',
+        createdAt: at,
+        updatedAt: at,
+      };
+      customerGroups.push(newGroup);
+      return clone(newGroup);
+    },
+    async deleteCustomerGroup(id) {
+      customerGroups = customerGroups.filter((g) => g.id !== id);
+      customerGroupMembers = customerGroupMembers.filter((m) => m.groupId !== id);
+      tieredPrices = tieredPrices.filter((t) => t.groupId !== id);
+    },
+    async listCustomerGroupMembers(groupId) {
+      if (groupId) return clone(customerGroupMembers.filter((m) => m.groupId === groupId));
+      return clone(customerGroupMembers);
+    },
+    async setCustomerGroup(customerId, groupId) {
+      customerGroupMembers = customerGroupMembers.filter((m) => m.customerId !== customerId);
+      if (groupId) {
+        customerGroupMembers.push({
+          customerId,
+          groupId,
+          assignedAt: now().toISOString(),
+        });
+      }
+    },
+    async listTieredPrices(groupId) {
+      if (groupId) return clone(tieredPrices.filter((t) => t.groupId === groupId));
+      return clone(tieredPrices);
+    },
+    async saveTieredPrices(input) {
+      const at = now().toISOString();
+      const existingIdx = tieredPrices.findIndex((t) => t.groupId === input.groupId && t.productId === input.productId);
+      const item: GroupProductTieredPricing = {
+        groupId: input.groupId,
+        productId: input.productId,
+        tiers: clone(input.tiers),
+        updatedAt: at,
+      };
+      if (existingIdx >= 0) {
+        tieredPrices[existingIdx] = item;
+      } else {
+        tieredPrices.push(item);
+      }
+      return clone(item);
+    },
+    async deleteTieredPrices(target) {
+      if (typeof target === 'string') {
+        tieredPrices = tieredPrices.filter((t) => t.id !== target && `${t.groupId}:${t.productId}` !== target);
+      } else {
+        tieredPrices = tieredPrices.filter(
+          (t) => !(target.id && t.id === target.id) && !(t.groupId === target.groupId && t.productId === target.productId)
+        );
+      }
+    },
+    async listPriceSchedules() {
+      return clone(priceSchedules);
+    },
+    async savePriceSchedule(schedule) {
+      const at = now().toISOString();
+      const id = schedule.id || newId();
+      const existing = priceSchedules.find((s) => s.id === id);
+      if (existing) {
+        existing.productId = schedule.productId;
+        existing.newPrice = schedule.newPrice;
+        existing.startAt = schedule.startAt;
+        existing.endAt = schedule.endAt;
+        existing.note = schedule.note;
+        return clone(existing);
+      }
+      const item: PriceSchedule = {
+        id,
+        productId: schedule.productId,
+        newPrice: schedule.newPrice,
+        startAt: schedule.startAt,
+        endAt: schedule.endAt,
+        note: schedule.note,
+        createdAt: at,
+      };
+      priceSchedules.push(item);
+      return clone(item);
+    },
+    async deletePriceSchedule(id) {
+      priceSchedules = priceSchedules.filter((s) => s.id !== id);
     },
   };
   const tableOps = createTableOps({
