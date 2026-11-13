@@ -1,14 +1,16 @@
-import type { Order, PaymentMethod } from './types';
+import type { Order, PaymentMethod, Shift } from './types';
 
 export type ReconcileStatus = 'unentered' | 'matched' | 'mismatch';
 
 export interface NonCashReconcileRow {
-  /** Identifier unik baris rekonsiliasi (mis. methodId atau `${date}_${methodId}`) */
+  /** Identifier unik baris rekonsiliasi (mis. methodId atau `${date}_${methodId}` atau `${shiftId}_${methodId}`) */
   id: string;
   /** Tanggal transaksi (YYYY-MM-DD), bila dikelompokkan per hari */
   date?: string;
   /** ID shift kasir, bila tersedia */
   shiftId?: string;
+  /** Nomor atau label shift, bila tersedia */
+  shiftNumber?: string;
   /** ID metode pembayaran */
   methodId: string;
   /** Nama metode pembayaran (mis. QRIS, Debit BCA, Transfer) */
@@ -17,14 +19,20 @@ export interface NonCashReconcileRow {
   methodKind: PaymentMethod['kind'];
   /** Jumlah transaksi non-tunai yang tercatat */
   transactionCount: number;
-  /** Total nominal penerimaan yang dicatat sistem POS */
+  /** Total nominal penerimaan yang dicatat sistem POS (bruto) */
   systemAmount: number;
-  /** Total nominal penerimaan yang tercatat di rekening bank atau payment gateway (input manual) */
+  /** Total nominal penerimaan yang tercatat di rekening bank atau payment gateway (input manual / netto) */
   actualAmount?: number;
-  /** Selisih = actualAmount - systemAmount (hanya dihitung bila actualAmount telah diisi) */
+  /** Biaya / komisi gateway transaksi (MDR) yang dipotong penyedia */
+  feeAmount?: number;
+  /** Selisih = (actualAmount + feeAmount) - systemAmount (hanya dihitung bila actualAmount telah diisi) */
   diff?: number;
   /** Status rekonsiliasi: 'unentered' (belum diisi), 'matched' (cocok), 'mismatch' (selisih) */
   status: ReconcileStatus;
+  /** Apakah rekonsiliasi baris ini sudah disimpan permanen ke server / jurnal */
+  isReconciled?: boolean;
+  /** Waktu rekonsiliasi disimpan */
+  reconciledAt?: string;
 }
 
 export interface ReconcileSummary {
@@ -32,10 +40,12 @@ export interface ReconcileSummary {
   totalTransactions: number;
   totalSystemAmount: number;
   totalActualAmount: number;
+  totalFeeAmount: number;
   totalDiff: number;
   matchedCount: number;
   mismatchCount: number;
   unenteredCount: number;
+  reconciledCount: number;
   allMatched: boolean;
 }
 
@@ -44,8 +54,45 @@ export interface BuildReconcileOptions {
   paymentMethods?: PaymentMethod[];
   /** Peta nilai aktual manual pengguna: key = row.id, value = nominal */
   actualAmounts?: Record<string, number>;
-  /** Pengelompokan: 'method' (per metode bayar) atau 'date_method' (per hari dan metode bayar) */
-  groupBy?: 'method' | 'date_method';
+  /** Peta biaya gateway / fee MDR: key = row.id, value = nominal */
+  feeAmounts?: Record<string, number>;
+  /** Pengelompokan: 'method' (per metode bayar), 'date_method' (per hari dan metode), atau 'shift_method' (per shift kasir dan metode) */
+  groupBy?: 'method' | 'date_method' | 'shift_method';
+  /** Daftar shift untuk memperkaya nomor shift */
+  shifts?: Shift[];
+  /** Peta status tersimpan di server */
+  savedReconciliations?: Record<string, { isReconciled: boolean; actualAmount?: number; feeAmount?: number; reconciledAt?: string }>;
+}
+
+export interface NonCashReconciliationRecord {
+  id: string;
+  outletId: string;
+  shiftId?: string;
+  shiftNumber?: string;
+  shiftDate?: string;
+  cashierName?: string;
+  methodId: string;
+  methodName: string;
+  methodKind: PaymentMethod['kind'];
+  expectedAmount: number;
+  actualAmount?: number;
+  feeAmount?: number;
+  difference?: number;
+  status: 'unreconciled' | 'reconciled';
+  bankAccountId?: string;
+  reconciledAt?: string;
+  reconciledBy?: string;
+  notes?: string;
+}
+
+export interface SaveReconciliationInput {
+  id?: string;
+  shiftId?: string;
+  methodId: string;
+  actualAmount: number;
+  feeAmount?: number;
+  bankAccountId?: string;
+  notes?: string;
 }
 
 /**
@@ -63,16 +110,19 @@ export function isNonCashPayment(payment: {
 }
 
 /**
- * Menghitung selisih dan status rekonsiliasi antara catatan sistem dan penerimaan bank.
+ * Menghitung selisih dan status rekonsiliasi antara catatan sistem, penerimaan bank, dan biaya gateway.
  */
 export function computeReconcileDiff(
   systemAmount: number,
-  actualAmount?: number
+  actualAmount?: number,
+  feeAmount = 0
 ): { diff?: number; status: ReconcileStatus } {
   if (actualAmount === undefined || isNaN(actualAmount)) {
     return { diff: undefined, status: 'unentered' };
   }
-  const diff = actualAmount - systemAmount;
+  const safeFee = Number.isFinite(feeAmount) && feeAmount > 0 ? Math.round(feeAmount) : 0;
+  // Selisih = (nominal diterima di bank + biaya gateway) - nominal sistem
+  const diff = (actualAmount + safeFee) - systemAmount;
   if (diff === 0) {
     return { diff: 0, status: 'matched' };
   }
@@ -83,7 +133,15 @@ export function computeReconcileDiff(
  * Mengolah pesanan lunas menjadi laporan ringkasan rekonsiliasi penerimaan non-tunai.
  */
 export function buildNonCashReconciliation(options: BuildReconcileOptions): ReconcileSummary {
-  const { orders, paymentMethods = [], actualAmounts = {}, groupBy = 'method' } = options;
+  const {
+    orders,
+    paymentMethods = [],
+    actualAmounts = {},
+    feeAmounts = {},
+    groupBy = 'method',
+    shifts = [],
+    savedReconciliations = {},
+  } = options;
 
   // Peta bantuan info metode pembayaran
   const methodMap = new Map<string, PaymentMethod>();
@@ -91,11 +149,18 @@ export function buildNonCashReconciliation(options: BuildReconcileOptions): Reco
     methodMap.set(m.id, m);
   }
 
+  // Peta bantuan shift
+  const shiftMap = new Map<string, Shift>();
+  for (const s of shifts) {
+    shiftMap.set(s.id, s);
+  }
+
   // Akumulator baris
   interface TempRow {
     id: string;
     date?: string;
     shiftId?: string;
+    shiftNumber?: string;
     methodId: string;
     methodName: string;
     methodKind: PaymentMethod['kind'];
@@ -121,7 +186,15 @@ export function buildNonCashReconciliation(options: BuildReconcileOptions): Reco
       const effectiveKind = p.kind || mInfo?.kind || 'noncash';
       const effectiveName = p.methodName || mInfo?.name || 'Non-Tunai';
 
-      const key = groupBy === 'date_method' ? `${dateStr}_${p.methodId}` : p.methodId;
+      let key = p.methodId;
+      if (groupBy === 'date_method') {
+        key = `${dateStr}_${p.methodId}`;
+      } else if (groupBy === 'shift_method') {
+        key = `${o.shiftId || 'no_shift'}_${p.methodId}`;
+      }
+
+      const sInfo = o.shiftId ? shiftMap.get(o.shiftId) : undefined;
+      const shiftNum = sInfo ? `Shift #${sInfo.id.slice(0, 6)}` : undefined;
 
       const existing = map.get(key);
       if (existing) {
@@ -132,6 +205,7 @@ export function buildNonCashReconciliation(options: BuildReconcileOptions): Reco
           id: key,
           date: groupBy === 'date_method' ? dateStr : undefined,
           shiftId: o.shiftId,
+          shiftNumber: shiftNum,
           methodId: p.methodId,
           methodName: effectiveName,
           methodKind: effectiveKind,
@@ -147,19 +221,30 @@ export function buildNonCashReconciliation(options: BuildReconcileOptions): Reco
   let totalTransactions = 0;
   let totalSystemAmount = 0;
   let totalActualAmount = 0;
+  let totalFeeAmount = 0;
   let matchedCount = 0;
   let mismatchCount = 0;
   let unenteredCount = 0;
+  let reconciledCount = 0;
 
   for (const item of map.values()) {
-    const rawActual = actualAmounts[item.id];
+    const saved = savedReconciliations[item.id] || (item.shiftId ? savedReconciliations[`${item.shiftId}_${item.methodId}`] : undefined);
+    const rawActual = actualAmounts[item.id] ?? saved?.actualAmount;
+    const rawFee = feeAmounts[item.id] ?? saved?.feeAmount ?? 0;
     const actual = typeof rawActual === 'number' && !isNaN(rawActual) ? rawActual : undefined;
-    const { diff, status } = computeReconcileDiff(item.amount, actual);
+    const fee = typeof rawFee === 'number' && !isNaN(rawFee) ? rawFee : 0;
+    const { diff, status } = computeReconcileDiff(item.amount, actual, fee);
 
     totalTransactions += item.count;
     totalSystemAmount += item.amount;
     if (actual !== undefined) {
       totalActualAmount += actual;
+      totalFeeAmount += fee;
+    }
+
+    const isReconciled = saved?.isReconciled ?? false;
+    if (isReconciled) {
+      reconciledCount++;
     }
 
     if (status === 'matched') matchedCount++;
@@ -170,25 +255,31 @@ export function buildNonCashReconciliation(options: BuildReconcileOptions): Reco
       id: item.id,
       date: item.date,
       shiftId: item.shiftId,
+      shiftNumber: item.shiftNumber,
       methodId: item.methodId,
       methodName: item.methodName,
       methodKind: item.methodKind,
       transactionCount: item.count,
       systemAmount: item.amount,
       actualAmount: actual,
+      feeAmount: fee > 0 ? fee : undefined,
       diff,
       status,
+      isReconciled,
+      reconciledAt: saved?.reconciledAt,
     });
   }
 
-  // Urutkan: bila per tanggal, urutkan tanggal desc lalu nominal desc; bila per metode, nominal desc
+  // Urutkan: bila per tanggal, urutkan tanggal desc lalu nominal desc; bila per shift, shift desc; bila per metode, nominal desc
   if (groupBy === 'date_method') {
     rows.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.systemAmount - a.systemAmount);
+  } else if (groupBy === 'shift_method') {
+    rows.sort((a, b) => (b.shiftId || '').localeCompare(a.shiftId || '') || b.systemAmount - a.systemAmount);
   } else {
     rows.sort((a, b) => b.systemAmount - a.systemAmount || a.methodName.localeCompare(b.methodName));
   }
 
-  const totalDiff = totalActualAmount - totalSystemAmount;
+  const totalDiff = totalActualAmount + totalFeeAmount - totalSystemAmount;
   const allMatched = rows.length > 0 && matchedCount === rows.length;
 
   return {
@@ -196,10 +287,12 @@ export function buildNonCashReconciliation(options: BuildReconcileOptions): Reco
     totalTransactions,
     totalSystemAmount,
     totalActualAmount,
+    totalFeeAmount,
     totalDiff,
     matchedCount,
     mismatchCount,
     unenteredCount,
+    reconciledCount,
     allMatched,
   };
 }

@@ -3,11 +3,10 @@
 import { useMemo, useState } from 'react';
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   Download,
   Info,
-  RefreshCw,
+  Settings2,
   SlidersHorizontal,
 } from 'lucide-react';
 import {
@@ -16,6 +15,7 @@ import {
   formatRp,
   toCsv,
   type NonCashReconcileRow,
+  type SaveReconciliationInput,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { downloadCsvWithHistory } from '@/lib/export';
@@ -24,22 +24,32 @@ import { ErrorBox, PageHeader } from '@/components/page';
 import { RangePicker } from '@/components/range-picker';
 import { useReport } from '@/lib/use-report';
 import { fmtDate } from '@/components/fin-common';
+import { ReconcileModal } from '@/components/reconcile-modal';
+import { OutletReconcileCard } from '@/components/outlet-reconcile-card';
 
 export default function NonCashReconciliationPage() {
   const data = useData();
   const { value, setValue, range, today } = useReport();
 
-  // Pengelompokan: 'method' (ringkasan per metode) atau 'date_method' (per hari & metode)
-  const [groupBy, setGroupBy] = useState<'method' | 'date_method'>('method');
-
-  // Input manual penerimaan bank/penyedia disimpan di state lokal halaman
-  const [actualMap, setActualMap] = useState<Record<string, number>>({});
+  // Pengelompokan: 'method', 'shift_method', atau 'date_method'
+  const [groupBy, setGroupBy] = useState<'method' | 'shift_method' | 'date_method'>('shift_method');
+  // Filter status: 'all', 'unreconciled', atau 'reconciled'
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unreconciled' | 'reconciled'>('all');
+  // Tampilkan pengaturan outlet
+  const [showSettings, setShowSettings] = useState(false);
+  // Baris yang sedang diedit di modal
+  const [editingRow, setEditingRow] = useState<NonCashReconcileRow | null>(null);
   const [notice, setNotice] = useState<string>('');
 
   // Ambil daftar metode pembayaran
   const methodsAsync = useAsync(async () => {
     return data.listPaymentMethods();
   }, [data]);
+
+  // Ambil shift dalam rentang tanggal
+  const shiftsAsync = useAsync(async () => {
+    return data.listShiftReports(range);
+  }, [data, range.from, range.to]);
 
   // Ambil pesanan dalam rentang tanggal
   const ordersAsync = useAsync(async () => {
@@ -51,64 +61,73 @@ export default function NonCashReconciliationPage() {
     });
   }, [data, range.from, range.to]);
 
-  const reconciliation = useMemo(() => {
+  // Ambil data rekonsiliasi yang tersimpan di server
+  const reconsAsync = useAsync(async () => {
+    return data.listNonCashReconciliations({
+      from: range.from,
+      to: range.to,
+    });
+  }, [data, range.from, range.to]);
+
+  // Ambil pengaturan outlet
+  const outletAsync = useAsync(async () => {
+    return data.getOutletSettings();
+  }, [data]);
+
+  // Peta data rekonsiliasi tersimpan
+  const savedMap = useMemo(() => {
+    const map: Record<string, { isReconciled: boolean; actualAmount?: number; feeAmount?: number; reconciledAt?: string }> = {};
+    if (reconsAsync.status === 'ready' && reconsAsync.data) {
+      for (const r of reconsAsync.data) {
+        const key = r.shiftId ? `${r.shiftId}_${r.methodId}` : r.methodId;
+        map[key] = {
+          isReconciled: r.status === 'reconciled',
+          actualAmount: r.actualAmount,
+          feeAmount: r.feeAmount,
+          reconciledAt: r.reconciledAt,
+        };
+      }
+    }
+    return map;
+  }, [reconsAsync]);
+
+  const rawReconciliation = useMemo(() => {
     if (ordersAsync.status !== 'ready' || !ordersAsync.data) {
       return null;
     }
 
+    const shifts = (shiftsAsync.status === 'ready' && shiftsAsync.data)
+      ? shiftsAsync.data.map((r) => r.shift)
+      : [];
+
     return buildNonCashReconciliation({
       orders: ordersAsync.data,
       paymentMethods: methodsAsync.status === 'ready' ? methodsAsync.data : [],
-      actualAmounts: actualMap,
+      shifts,
       groupBy,
+      savedReconciliations: savedMap,
     });
-  }, [ordersAsync, methodsAsync, actualMap, groupBy]);
+  }, [ordersAsync, methodsAsync, shiftsAsync, groupBy, savedMap]);
 
-  const filledRows = useMemo(() => {
-    if (!reconciliation) return [];
-    return reconciliation.rows.filter(
-      (r) => r.actualAmount !== undefined && r.actualAmount !== null
-    );
-  }, [reconciliation]);
-
-  const filledCount = filledRows.length;
-  const totalFilledActual = useMemo(
-    () => filledRows.reduce((sum, r) => sum + (r.actualAmount ?? 0), 0),
-    [filledRows]
-  );
-  const filledDiff = useMemo(
-    () => filledRows.reduce((sum, r) => sum + (r.diff ?? 0), 0),
-    [filledRows]
-  );
-  const allFilledMatched =
-    filledCount > 0 && filledRows.every((r) => r.status === 'matched');
-
-  const handleActualChange = (id: string, rawVal: string) => {
-    const clean = rawVal.replace(/[^\d]/g, '');
-    setActualMap((prev) => {
-      const next = { ...prev };
-      if (clean === '') {
-        delete next[id];
-      } else {
-        next[id] = Number(clean);
-      }
-      return next;
-    });
-  };
-
-  const handleMatchAllWithSystem = () => {
-    if (!reconciliation) return;
-    const next: Record<string, number> = { ...actualMap };
-    for (const row of reconciliation.rows) {
-      next[row.id] = row.systemAmount;
+  // Filter baris berdasarkan status rekonsiliasi
+  const reconciliation = useMemo(() => {
+    if (!rawReconciliation) return null;
+    let filteredRows = rawReconciliation.rows;
+    if (statusFilter === 'reconciled') {
+      filteredRows = filteredRows.filter((r) => r.isReconciled);
+    } else if (statusFilter === 'unreconciled') {
+      filteredRows = filteredRows.filter((r) => !r.isReconciled);
     }
-    setActualMap(next);
-    setNotice('Semua nominal diterima di bank disamakan dengan catatan sistem.');
-  };
+    return {
+      ...rawReconciliation,
+      rows: filteredRows,
+    };
+  }, [rawReconciliation, statusFilter]);
 
-  const handleClearActuals = () => {
-    setActualMap({});
-    setNotice('Semua input penerimaan bank dikosongkan.');
+  const handleSaveModal = async (input: SaveReconciliationInput) => {
+    await data.saveNonCashReconciliation(input);
+    setNotice(`Rekonsiliasi ${editingRow?.methodName ?? ''} berhasil disimpan ke buku besar.`);
+    reconsAsync.reload();
   };
 
   const handleDownloadCsv = () => {
@@ -126,63 +145,86 @@ export default function NonCashReconciliationPage() {
   };
 
   const isLoading =
-    ordersAsync.status === 'loading' || methodsAsync.status === 'loading';
+    ordersAsync.status === 'loading' ||
+    methodsAsync.status === 'loading' ||
+    shiftsAsync.status === 'loading';
   const hasError =
-    ordersAsync.status === 'error' || methodsAsync.status === 'error';
+    ordersAsync.status === 'error' ||
+    methodsAsync.status === 'error' ||
+    shiftsAsync.status === 'error';
   const errorMessage =
     ordersAsync.status === 'error'
       ? ordersAsync.message
       : methodsAsync.status === 'error'
       ? methodsAsync.message
+      : shiftsAsync.status === 'error'
+      ? shiftsAsync.message
       : '';
 
   const handleRetry = () => {
     ordersAsync.reload();
     methodsAsync.reload();
+    shiftsAsync.reload();
+    reconsAsync.reload();
+    outletAsync.reload();
   };
 
   return (
     <>
       <PageHeader
         title="Rekonsiliasi non-tunai"
-        subtitle="Cocokkan penerimaan non-tunai (QRIS, kartu debit/kredit, transfer) antara catatan sistem POS dan mutasi rekening bank atau penyedia pembayaran."
+        subtitle="Cocokkan penerimaan non-tunai (QRIS, kartu debit/kredit, transfer) per shift dan metode bayar dengan mutasi rekening bank atau payment gateway."
         actions={
           <div className="flex flex-wrap gap-8 items-center">
             <button
+              type="button"
+              className={`cg-btn ${showSettings ? 'cg-btn--primary' : 'cg-btn--secondary'}`}
+              onClick={() => setShowSettings(!showSettings)}
+            >
+              <Settings2 className="cg-icon" aria-hidden /> Pengaturan outlet
+            </button>
+            <button
+              type="button"
               className="cg-btn cg-btn--secondary"
               onClick={handleDownloadCsv}
               disabled={!reconciliation || reconciliation.rows.length === 0}
             >
               <Download className="cg-icon" aria-hidden /> Unduh CSV
             </button>
-            <button
-              className="cg-btn cg-btn--secondary"
-              onClick={handleMatchAllWithSystem}
-              disabled={!reconciliation || reconciliation.rows.length === 0}
-            >
-              <Check className="cg-icon" aria-hidden /> Samakan dgn sistem
-            </button>
           </div>
         }
       />
 
-      {/* Catatan Penyimpanan Sesi */}
+      {/* Banner Arahan Louis: Payment Gateway Belum Tersambung */}
       <div
         role="note"
-        className="cg-banner cg-banner--info mb-16 flex items-center gap-8 text-sm"
+        className="cg-banner cg-banner--info mb-16 flex items-start gap-12 text-xs"
       >
-        <Info className="w-16 h-16 flex-shrink-0" aria-hidden />
-        <span>
-          Nominal penerimaan bank tersimpan sementara di sesi peramban perangkat ini.
-        </span>
+        <Info className="w-16 h-16 flex-shrink-0 mt-[2px]" aria-hidden />
+        <div>
+          <strong>Integrasi Gateway DOKU Belum Tersambung:</strong>
+          <span className="block mt-[2px] text-text-muted">
+            Pencocokan settlement otomatis ditunda sesuai arahan integrasi. Rekonsiliasi penerimaan QRIS & non-tunai dilakukan manual melalui akun Piutang Gateway (1-1300) dan Biaya Gateway (6-2100).
+          </span>
+        </div>
       </div>
+
+      {/* Kartu Pengaturan Outlet (Bisa Ditampilkan / Disembunyikan) */}
+      {showSettings && outletAsync.status === 'ready' && outletAsync.data && (
+        <div className="mb-16">
+          <OutletReconcileCard
+            options={outletAsync.data.options}
+            onSaved={() => outletAsync.reload()}
+          />
+        </div>
+      )}
 
       {notice && (
         <div
           role="status"
           className="cg-banner cg-banner--success mb-16 flex justify-between items-center"
         >
-          <span>{notice}</span>
+          <span className="text-sm font-medium">{notice}</span>
           <button
             type="button"
             className="text-xs underline hover:opacity-75"
@@ -193,134 +235,167 @@ export default function NonCashReconciliationPage() {
         </div>
       )}
 
-      {/* KPI Summary Cards */}
+      {/* Ringkasan KPI Rekonsiliasi */}
       <div className="grid grid-cols-1 tablet:grid-cols-2 laptop:grid-cols-4 gap-12 mb-16 min-w-0">
-        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
-              Dicatat Sistem POS
+              Penerimaan Sistem POS
             </span>
             <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-accent-strong cg-num">
-              {formatRp(reconciliation?.totalSystemAmount ?? 0)}
+              {formatRp(rawReconciliation?.totalSystemAmount ?? 0)}
             </strong>
           </div>
           <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
-            {reconciliation?.totalTransactions ?? 0} transaksi non-tunai
+            {rawReconciliation?.totalTransactions ?? 0} transaksi non-tunai
           </span>
         </div>
 
-        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
-              Diterima di Bank / Penyedia
+              Diterima di Bank / EDC
             </span>
             <strong className="text-xl tablet:text-2xl font-bold block truncate text-left text-text cg-num">
-              {filledCount > 0 ? formatRp(totalFilledActual) : '—'}
+              {rawReconciliation && rawReconciliation.totalActualAmount > 0
+                ? formatRp(rawReconciliation.totalActualAmount)
+                : '—'}
             </strong>
           </div>
           <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
-            {filledCount > 0 ? `${filledCount} metode telah diisi` : 'Belum ada input aktual'}
+            Potongan MDR: {formatRp(rawReconciliation?.totalFeeAmount ?? 0)}
           </span>
         </div>
 
-        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
               Total Selisih
             </span>
             <strong
               className={`text-xl tablet:text-2xl font-bold block truncate text-left cg-num ${
-                filledCount === 0
+                !rawReconciliation || rawReconciliation.totalActualAmount === 0
                   ? 'text-text'
-                  : filledDiff === 0
+                  : rawReconciliation.totalDiff === 0
                   ? 'text-accent-strong'
-                  : filledDiff > 0
+                  : rawReconciliation.totalDiff > 0
                   ? 'text-accent-strong'
                   : 'text-danger'
               }`}
             >
-              {filledCount === 0
+              {!rawReconciliation || rawReconciliation.totalActualAmount === 0
                 ? '—'
-                : `${filledDiff > 0 ? '+' : ''}${formatRp(filledDiff)}`}
+                : `${rawReconciliation.totalDiff > 0 ? '+' : ''}${formatRp(rawReconciliation.totalDiff)}`}
             </strong>
           </div>
           <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
-            {filledCount === 0
-              ? 'Belum ada nominal bank diisi'
-              : filledDiff === 0
-              ? 'Saldo seimbang'
-              : filledDiff > 0
-              ? 'Penerimaan bank lebih besar'
+            {!rawReconciliation || rawReconciliation.totalActualAmount === 0
+              ? 'Belum ada input aktual'
+              : rawReconciliation.totalDiff === 0
+              ? 'Saldo mutasi seimbang'
+              : rawReconciliation.totalDiff > 0
+              ? 'Mutasi bank lebih besar'
               : 'Penerimaan bank kurang'}
           </span>
         </div>
 
-        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface-raised shadow-xs min-w-0 flex flex-col justify-between">
+        <div className="p-12 tablet:p-16 border border-border rounded-xl bg-surface shadow-xs min-w-0 flex flex-col justify-between">
           <div>
             <span className="text-xs text-text-muted font-medium block mb-4 truncate text-left uppercase tracking-wider">
-              Status Rekonsiliasi
+              Status Penyimpanan Server
             </span>
             <div className="flex items-center gap-[6px] my-[2px]">
-              {filledCount === 0 ? (
-                <span className="cg-badge text-text-muted text-xs font-semibold">
-                  Belum diisi
-                </span>
-              ) : allFilledMatched ? (
-                <span className="cg-badge cg-badge--success flex items-center gap-4 text-xs font-semibold">
-                  <CheckCircle2 className="w-[14px] h-[14px]" aria-hidden /> Sudah cocok semua
-                </span>
-              ) : (
-                <span className="cg-badge cg-badge--danger flex items-center gap-4 text-xs font-semibold">
-                  <AlertCircle className="w-[14px] h-[14px]" aria-hidden /> Ada selisih
-                </span>
-              )}
+              <span className="cg-badge cg-badge--success flex items-center gap-4 text-xs font-semibold">
+                <CheckCircle2 className="w-[14px] h-[14px]" aria-hidden />
+                {rawReconciliation?.reconciledCount ?? 0} Terekonsiliasi
+              </span>
             </div>
           </div>
           <span className="text-xs text-text-muted block mt-[6px] truncate text-left">
-            {reconciliation?.matchedCount ?? 0} cocok · {reconciliation?.mismatchCount ?? 0} selisih
+            {((rawReconciliation?.rows.length ?? 0) - (rawReconciliation?.reconciledCount ?? 0))} baris belum direkonsiliasi
           </span>
         </div>
       </div>
 
-      {/* Filter and Control Bar */}
-      <div className="flex flex-col tablet:flex-row gap-12 mb-16 justify-between items-stretch tablet:items-center">
-        {/* Toggle Grouping */}
-        <div className="flex items-center gap-[6px] bg-[var(--color-surface-raised)] p-4 rounded-[var(--radius-md)] border border-[var(--color-border)]">
-          <button
-            type="button"
-            className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
-              groupBy === 'method'
-                ? 'bg-[var(--color-surface)] text-[var(--color-accent)] font-bold shadow-sm'
-                : 'text-text-muted hover:text-text'
-            }`}
-            onClick={() => setGroupBy('method')}
-          >
-            Per Metode Bayar
-          </button>
-          <button
-            type="button"
-            className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
-              groupBy === 'date_method'
-                ? 'bg-[var(--color-surface)] text-[var(--color-accent)] font-bold shadow-sm'
-                : 'text-text-muted hover:text-text'
-            }`}
-            onClick={() => setGroupBy('date_method')}
-          >
-            Per Hari & Metode
-          </button>
-        </div>
-
-        {/* Date Filter & Clear */}
-        <div className="flex flex-wrap gap-8 items-center justify-end">
-          {Object.keys(actualMap).length > 0 && (
+      {/* Filter Pengelompokan, Status, dan Rentang Tanggal */}
+      <div className="flex flex-col laptop:flex-row gap-12 mb-16 justify-between items-stretch laptop:items-center">
+        <div className="flex flex-wrap items-center gap-8">
+          {/* Switcher Grouping */}
+          <div className="flex items-center gap-[4px] bg-surface-raised p-4 rounded-lg border border-border">
             <button
               type="button"
-              className="cg-btn cg-btn--ghost text-xs text-danger"
-              onClick={handleClearActuals}
+              className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
+                groupBy === 'shift_method'
+                  ? 'bg-surface text-accent font-bold shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setGroupBy('shift_method')}
             >
-              Reset isian
+              Per Shift Kasir
             </button>
-          )}
+            <button
+              type="button"
+              className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
+                groupBy === 'method'
+                  ? 'bg-surface text-accent font-bold shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setGroupBy('method')}
+            >
+              Per Metode Bayar
+            </button>
+            <button
+              type="button"
+              className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
+                groupBy === 'date_method'
+                  ? 'bg-surface text-accent font-bold shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setGroupBy('date_method')}
+            >
+              Per Hari & Metode
+            </button>
+          </div>
+
+          {/* Filter Status Rekonsiliasi */}
+          <div className="flex items-center gap-[4px] bg-surface-raised p-4 rounded-lg border border-border">
+            <button
+              type="button"
+              className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-surface text-text font-bold shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setStatusFilter('all')}
+            >
+              Semua Status
+            </button>
+            <button
+              type="button"
+              className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
+                statusFilter === 'unreconciled'
+                  ? 'bg-surface text-danger font-bold shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setStatusFilter('unreconciled')}
+            >
+              Belum Direkonsiliasi
+            </button>
+            <button
+              type="button"
+              className={`px-12 py-[6px] text-xs font-medium rounded transition-colors ${
+                statusFilter === 'reconciled'
+                  ? 'bg-surface text-accent-strong font-bold shadow-xs'
+                  : 'text-text-muted hover:text-text'
+              }`}
+              onClick={() => setStatusFilter('reconciled')}
+            >
+              Terekonsiliasi
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-8 items-center justify-end">
           <RangePicker value={value} onChange={setValue} today={today} />
         </div>
       </div>
@@ -328,7 +403,7 @@ export default function NonCashReconciliationPage() {
       {/* Main Content Area */}
       {hasError ? (
         <ErrorBox
-          message={errorMessage || 'Gagal memuat data rekonsiliasi.'}
+          message={errorMessage || 'Gagal memuat data rekonsiliasi non-tunai.'}
           onRetry={handleRetry}
         />
       ) : isLoading ? (
@@ -341,10 +416,10 @@ export default function NonCashReconciliationPage() {
         <div className="cg-empty">
           <SlidersHorizontal className="w-12 h-12 text-text-muted mb-8" aria-hidden />
           <p>
-            <strong>Tidak ada transaksi non-tunai pada rentang tanggal ini.</strong>
+            <strong>Tidak ada transaksi non-tunai pada kriteria ini.</strong>
           </p>
           <p className="text-text-muted text-sm mt-4">
-            Transaksi yang dibayar menggunakan QRIS, kartu debit/kredit, atau transfer akan otomatis muncul di sini.
+            Ubah rentang tanggal atau filter status rekonsiliasi untuk melihat data lainnya.
           </p>
         </div>
       ) : (
@@ -357,25 +432,33 @@ export default function NonCashReconciliationPage() {
             >
               <thead>
                 <tr>
+                  {groupBy === 'shift_method' && <th>Shift Kasir</th>}
                   {groupBy === 'date_method' && <th>Tanggal</th>}
                   <th>Metode Pembayaran</th>
                   <th>Kategori</th>
                   <th className="text-right">Transaksi</th>
-                  <th className="text-right">Dicatat Sistem</th>
-                  <th className="text-right min-w-[180px]">Diterima di Bank / EDC</th>
+                  <th className="text-right">Dicatat POS</th>
+                  <th className="text-right">Diterima Bank</th>
+                  <th className="text-right">Biaya Gateway</th>
                   <th className="text-right">Selisih</th>
                   <th className="text-center">Status</th>
+                  <th className="text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {reconciliation.rows.map((row) => (
                   <tr key={row.id}>
+                    {groupBy === 'shift_method' && (
+                      <td className="whitespace-nowrap text-sm font-semibold">
+                        {row.shiftNumber || (row.shiftId ? `Shift #${row.shiftId.slice(0, 6)}` : 'Shift Berjalan')}
+                      </td>
+                    )}
                     {groupBy === 'date_method' && (
                       <td className="whitespace-nowrap text-sm font-medium">
                         {row.date ? fmtDate(row.date) : '—'}
                       </td>
                     )}
-                    <td className="font-semibold text-sm">
+                    <td className="font-bold text-sm">
                       {row.methodName}
                     </td>
                     <td className="text-xs text-text-muted">
@@ -390,35 +473,21 @@ export default function NonCashReconciliationPage() {
                     <td className="text-right cg-num text-sm">
                       {row.transactionCount}
                     </td>
-                    <td className="text-right cg-num font-bold text-sm">
+                    <td className="text-right cg-num font-bold text-sm text-text">
                       {formatRp(row.systemAmount)}
                     </td>
-                    <td className="text-right py-8 px-12">
-                      <div className="flex items-center h-[44px] w-[180px] ml-auto border border-border rounded-lg bg-surface-raised focus-within:border-accent focus-within:ring-1 focus-within:ring-accent overflow-hidden transition-colors">
-                        <span className="pl-[10px] pr-4 text-xs font-semibold text-text-muted select-none shrink-0">
-                          Rp
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          className="w-full h-full bg-transparent pr-[10px] text-right cg-num text-sm text-text font-semibold focus:outline-hidden"
-                          placeholder="0"
-                          value={
-                            row.actualAmount !== undefined
-                              ? new Intl.NumberFormat('id-ID').format(row.actualAmount)
-                              : ''
-                          }
-                          onChange={(e) => handleActualChange(row.id, e.target.value)}
-                          aria-label={`Input penerimaan aktual bank untuk ${row.methodName}`}
-                        />
-                      </div>
+                    <td className="text-right cg-num font-semibold text-sm">
+                      {row.actualAmount !== undefined ? formatRp(row.actualAmount) : '—'}
+                    </td>
+                    <td className="text-right cg-num text-sm text-text-muted">
+                      {row.feeAmount ? formatRp(row.feeAmount) : '—'}
                     </td>
                     <td
                       className={`text-right cg-num font-semibold text-sm ${
                         row.diff === undefined
                           ? 'text-text-muted'
                           : row.diff === 0
-                          ? 'text-[var(--color-accent)]'
+                          ? 'text-accent-strong'
                           : row.diff > 0
                           ? 'text-accent'
                           : 'text-danger'
@@ -429,19 +498,32 @@ export default function NonCashReconciliationPage() {
                         : '—'}
                     </td>
                     <td className="text-center whitespace-nowrap">
-                      {row.status === 'matched' ? (
+                      {row.isReconciled ? (
                         <span className="cg-badge cg-badge--success inline-flex items-center gap-4">
-                          <CheckCircle2 className="w-3 h-3" aria-hidden /> Sudah cocok
+                          <CheckCircle2 className="w-12 h-12" aria-hidden /> Terekonsiliasi
+                        </span>
+                      ) : row.status === 'matched' ? (
+                        <span className="cg-badge cg-badge--success inline-flex items-center gap-4">
+                          <CheckCircle2 className="w-12 h-12" aria-hidden /> Cocok (Draf)
                         </span>
                       ) : row.status === 'mismatch' ? (
                         <span className="cg-badge cg-badge--danger inline-flex items-center gap-4">
-                          <AlertCircle className="w-3 h-3" aria-hidden /> Selisih
+                          <AlertCircle className="w-12 h-12" aria-hidden /> Ada Selisih
                         </span>
                       ) : (
                         <span className="cg-badge text-text-muted">
-                          Belum diisi
+                          Belum Diisi
                         </span>
                       )}
+                    </td>
+                    <td className="text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        className={`cg-btn text-xs ${row.isReconciled ? 'cg-btn--ghost' : 'cg-btn--secondary'}`}
+                        onClick={() => setEditingRow(row)}
+                      >
+                        {row.isReconciled ? 'Sesuaikan' : 'Rekonsiliasi'}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -452,15 +534,20 @@ export default function NonCashReconciliationPage() {
           {/* Mobile Card List View */}
           <div className="grid gap-12 tablet:hidden min-w-0" aria-label="Daftar rekonsiliasi mobile">
             {reconciliation.rows.map((row) => (
-              <div key={row.id} className="cg-card p-12 min-w-0">
-                <div className="flex justify-between items-start gap-8 mb-8">
+              <div key={row.id} className="cg-card p-12 min-w-0 flex flex-col gap-8">
+                <div className="flex justify-between items-start gap-8">
                   <div>
-                    {groupBy === 'date_method' && row.date && (
+                    {row.shiftNumber && (
+                      <span className="text-xs font-bold text-accent block mb-[2px]">
+                        {row.shiftNumber}
+                      </span>
+                    )}
+                    {row.date && (
                       <span className="text-xs text-text-muted block mb-[2px]">
                         {fmtDate(row.date)}
                       </span>
                     )}
-                    <strong className="text-sm font-bold block">
+                    <strong className="text-sm font-bold block text-text">
                       {row.methodName}
                     </strong>
                     <span className="text-xs text-text-muted">
@@ -469,9 +556,13 @@ export default function NonCashReconciliationPage() {
                   </div>
 
                   <div>
-                    {row.status === 'matched' ? (
+                    {row.isReconciled ? (
                       <span className="cg-badge cg-badge--success text-xs">
-                        Sudah cocok
+                        Terekonsiliasi
+                      </span>
+                    ) : row.status === 'matched' ? (
+                      <span className="cg-badge cg-badge--success text-xs">
+                        Cocok
                       </span>
                     ) : row.status === 'mismatch' ? (
                       <span className="cg-badge cg-badge--danger text-xs">
@@ -479,30 +570,37 @@ export default function NonCashReconciliationPage() {
                       </span>
                     ) : (
                       <span className="cg-badge text-xs text-text-muted">
-                        Belum diisi
+                        Belum Diisi
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 text-xs mb-8 pt-8 border-t border-[var(--color-border)]">
+                <div className="grid grid-cols-2 gap-8 text-xs pt-8 border-t border-border">
                   <div>
-                    <span className="text-text-muted block">Dicatat Sistem:</span>
-                    <strong className="cg-num text-sm text-[var(--color-accent)] font-bold">
+                    <span className="text-text-muted block">Dicatat POS:</span>
+                    <strong className="cg-num text-sm text-text font-bold">
                       {formatRp(row.systemAmount)}
                     </strong>
                   </div>
 
                   <div>
-                    <span className="text-text-muted block">Selisih:</span>
+                    <span className="text-text-muted block">Diterima Bank:</span>
+                    <strong className="cg-num text-sm text-accent-strong font-bold">
+                      {row.actualAmount !== undefined ? formatRp(row.actualAmount) : '—'}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-8 border-t border-border">
+                  <div className="text-xs">
+                    <span className="text-text-muted">Selisih: </span>
                     <strong
-                      className={`cg-num text-sm font-bold ${
+                      className={`cg-num font-bold ${
                         row.diff === undefined
                           ? 'text-text-muted'
                           : row.diff === 0
-                          ? 'text-[var(--color-accent)]'
-                          : row.diff > 0
-                          ? 'text-accent'
+                          ? 'text-accent-strong'
                           : 'text-danger'
                       }`}
                     >
@@ -511,38 +609,28 @@ export default function NonCashReconciliationPage() {
                         : '—'}
                     </strong>
                   </div>
-                </div>
 
-                <div className="pt-8 border-t border-border">
-                  <label
-                    htmlFor={`mob-input-${row.id}`}
-                    className="text-xs text-text-muted block mb-4"
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--secondary text-xs"
+                    onClick={() => setEditingRow(row)}
                   >
-                    Diterima di Bank / EDC:
-                  </label>
-                  <div className="flex items-center h-[44px] w-full border border-border rounded-lg bg-surface-raised focus-within:border-accent focus-within:ring-1 focus-within:ring-accent overflow-hidden transition-colors">
-                    <span className="pl-12 pr-4 text-xs font-semibold text-text-muted select-none shrink-0">
-                      Rp
-                    </span>
-                    <input
-                      id={`mob-input-${row.id}`}
-                      type="text"
-                      inputMode="numeric"
-                      className="w-full h-full bg-transparent pr-12 text-right cg-num text-sm text-text font-semibold focus:outline-hidden"
-                      placeholder="0"
-                      value={
-                        row.actualAmount !== undefined
-                          ? new Intl.NumberFormat('id-ID').format(row.actualAmount)
-                          : ''
-                      }
-                      onChange={(e) => handleActualChange(row.id, e.target.value)}
-                    />
-                  </div>
+                    {row.isReconciled ? 'Ubah' : 'Rekonsiliasi'}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         </>
+      )}
+
+      {/* Modal Dialog Input Rekonsiliasi & Biaya Gateway */}
+      {editingRow && (
+        <ReconcileModal
+          row={editingRow}
+          onClose={() => setEditingRow(null)}
+          onSave={handleSaveModal}
+        />
       )}
     </>
   );

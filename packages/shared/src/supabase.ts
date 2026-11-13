@@ -39,6 +39,7 @@ import { transferProblem, type StockLocation, type StockTransfer, type StockTran
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
+import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { PriceSchedule } from './price-schedule';
 import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
@@ -631,6 +632,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           defaultOpeningCash: s.default_opening_cash == null ? null : Number(s.default_opening_cash),
           receiptHeader: s.receipt_header ?? '', receiptShowCashier: s.receipt_show_cashier !== false, receiptShowCustomer: s.receipt_show_customer !== false,
           receiptTemplate: sanitizeReceiptTemplate(s.receipt_template),
+          autoReconcileNoncash: !!s.auto_reconcile_noncash,
         },
       };
     },
@@ -713,6 +715,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         const probe = await db().from('outlet_settings').select('receipt_template').limit(1);
         if (probe.error && Object.keys(clean).length > 0) throw new DataError('invalid', 'Templat struk belum bisa dipakai: database belum menerima migrasi 0031 (minta Claude menerapkannya setelah disetujui).');
         if (!probe.error) fields.receipt_template = clean;
+      }
+      // rekonsiliasi non-tunai otomatis (migrasi 0128): kolom ditulis hanya bila pemanggil menyertakannya
+      if (input.autoReconcileNoncash !== undefined) {
+        const probe = await db().from('outlet_settings').select('auto_reconcile_noncash').limit(1);
+        if (!probe.error) fields.auto_reconcile_noncash = input.autoReconcileNoncash;
       }
       const row = must(await db().from('outlet_settings').update(fields).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pengaturan outlet');
@@ -3324,6 +3331,119 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         outletId: r.outlet_id as string, name: r.name as string, sales: Number(r.sales), orders: Number(r.orders), cogs: Number(r.cogs),
         topProducts: ((r.top ?? []) as Row[]).map((p) => ({ name: p.name as string, qty: Number(p.qty), amount: Number(p.amount) })),
       }));
+    },
+    async listNonCashReconciliations(filter) {
+      const { ctx } = await resolve();
+      let query = db()
+        .from('reconciliations')
+        .select(`
+          id, outlet_id, shift_id, method_id, number, expected_amount, actual_amount,
+          fee_amount, difference, status, bank_account_id, reconciled_at, reconciled_by,
+          created_at,
+          payment_methods(name, kind),
+          shifts(opened_at, cashier_id)
+        `)
+        .eq('outlet_id', ctx.outletId)
+        .order('created_at', { ascending: false });
+
+      if (filter?.shiftId) {
+        query = query.eq('shift_id', filter.shiftId);
+      }
+      if (filter?.status && filter.status !== 'all') {
+        query = query.eq('status', filter.status);
+      }
+
+      const res = await query;
+      if (res.error) {
+        return [];
+      }
+
+      return ((res.data ?? []) as Row[]).map((r) => {
+        const pm = r.payment_methods as Row | null;
+        const sh = r.shifts as Row | null;
+        return {
+          id: r.id as string,
+          outletId: r.outlet_id as string,
+          shiftId: (r.shift_id as string) ?? undefined,
+          shiftNumber: r.shift_id ? `Shift #${(r.shift_id as string).slice(0, 6)}` : undefined,
+          shiftDate: (sh?.opened_at as string)?.slice(0, 10),
+          methodId: r.method_id as string,
+          methodName: (pm?.name as string) ?? 'Non-Tunai',
+          methodKind: (pm?.kind as PaymentMethod['kind']) ?? 'noncash',
+          expectedAmount: Number(r.expected_amount ?? 0),
+          actualAmount: r.actual_amount != null ? Number(r.actual_amount) : undefined,
+          feeAmount: r.fee_amount != null ? Number(r.fee_amount) : undefined,
+          difference: r.difference != null ? Number(r.difference) : undefined,
+          status: (r.status as 'unreconciled' | 'reconciled') ?? 'unreconciled',
+          bankAccountId: (r.bank_account_id as string) ?? undefined,
+          reconciledAt: (r.reconciled_at as string) ?? undefined,
+          reconciledBy: (r.reconciled_by as string) ?? undefined,
+        };
+      });
+    },
+    async saveNonCashReconciliation(input) {
+      const { ctx } = await resolve();
+      const actual = Math.max(0, Math.round(input.actualAmount));
+      const fee = input.feeAmount ? Math.max(0, Math.round(input.feeAmount)) : 0;
+
+      const rpcRes = await db().rpc('save_noncash_reconciliation', {
+        p_recon: input.id || null,
+        p_outlet: ctx.outletId,
+        p_shift: input.shiftId || null,
+        p_method_id: input.methodId,
+        p_actual: actual,
+        p_fee: fee,
+        p_bank: input.bankAccountId || null,
+        p_notes: input.notes || null,
+      });
+
+      if (!rpcRes.error && rpcRes.data) {
+        const row = rpcRes.data as Row;
+        return {
+          id: (row.id as string) ?? input.id ?? newId(),
+          outletId: ctx.outletId,
+          shiftId: input.shiftId,
+          methodId: input.methodId,
+          methodName: 'Non-Tunai',
+          methodKind: 'noncash',
+          expectedAmount: Number(row.expected_amount ?? actual),
+          actualAmount: actual,
+          feeAmount: fee,
+          difference: Number(row.difference ?? 0),
+          status: 'reconciled',
+          reconciledAt: (row.reconciled_at as string) ?? now().toISOString(),
+        };
+      }
+
+      // Fallback pembaruan tabel langsung
+      const probe = await db().from('reconciliations').select('id, expected_amount').eq('id', input.id || '').maybeSingle();
+      const expected = probe.data ? Number((probe.data as Row).expected_amount) : actual;
+      const diff = (actual + fee) - expected;
+
+      if (probe.data) {
+        await db().from('reconciliations').update({
+          actual_amount: actual,
+          fee_amount: fee,
+          difference: diff,
+          status: 'reconciled',
+          reconciled_at: now().toISOString(),
+        }).eq('id', input.id!);
+      }
+
+      return {
+        id: input.id || newId(),
+        outletId: ctx.outletId,
+        shiftId: input.shiftId,
+        methodId: input.methodId,
+        methodName: 'Non-Tunai',
+        methodKind: 'noncash',
+        expectedAmount: expected,
+        actualAmount: actual,
+        feeAmount: fee,
+        difference: diff,
+        status: 'reconciled',
+        reconciledAt: now().toISOString(),
+      };
     },
   };
   const tableOps = createTableOps({

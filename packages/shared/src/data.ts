@@ -1,4 +1,5 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
+import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { SalesInvoice, SalesInvoiceInput, SalesInvoicePayInput } from './sales-invoice';
 import type { OutletComparisonRow } from './outlet-compare';
@@ -511,5 +512,15 @@ export interface DataLayer {
   listProductionRuns(): Promise<ProductionRun[]>;
   /** Jalankan produksi sebanyak batches kali acuan (idempoten menurut id): bahan berkurang, barang jadi bertambah dengan harga perolehan dari biaya bahan. */
   runProduction(input: ProductionRunInput): Promise<ProductionRun>;
+  // ---------- rekonsiliasi penerimaan non-tunai & gateway (A128) ----------
+  /** Daftar riwayat rekonsiliasi non-tunai per shift dan metode bayar. */
+  listNonCashReconciliations(filter?: {
+    shiftId?: string;
+    from?: string;
+    to?: string;
+    status?: 'all' | 'unreconciled' | 'reconciled';
+  }): Promise<NonCashReconciliationRecord[]>;
+  /** Simpan rekonsiliasi non-tunai, catat nominal bank, potongan fee gateway, dan selisih ke jurnal. */
+  saveNonCashReconciliation(input: SaveReconciliationInput): Promise<NonCashReconciliationRecord>;
 }
 
