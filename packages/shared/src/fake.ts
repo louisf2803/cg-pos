@@ -14,6 +14,7 @@ import { transferProblem, type StockLocation, type StockTransfer, type StockTran
 import { productUnitProblem, type ProductUnitInput, type ProductUnitRow } from './product-unit';
 import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
+import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { PriceSchedule } from './price-schedule';
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
@@ -61,7 +62,7 @@ const CTX: OutletContext = {
   orgName: 'Kopi Contoh', outletId: 'outlet-1', outletCode: 'OUT1', outletName: 'Outlet Contoh', timezone: 'Asia/Jakarta', deviceCode: 'A',
   settings: {
     taxCalc: 'after_discount', taxMode: 'per_order', serviceChargePct: 0, serviceChargeTaxable: false,
-    serviceChargeOrderTypes: ['dine_in'], roundingCashStep: 100, roundingNoncashStep: 0, requireOpenShift: true, allowNegativeStock: true,
+    serviceChargeOrderTypes: ['dine_in'], roundingCashStep: 100, roundingNoncashStep: 0, requireOpenShift: true, allowNegativeStock: true, autoReconcileNoncash: false,
   },
   taxes: [{ id: 'tax-pb1', name: 'PB1', rate: 10 }],
 };
@@ -186,6 +187,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let priceSchedules: PriceSchedule[] = [];
   const customerDepositBalances = new Map<string, { purchased: number; used: number; refunded: number; lastAt?: string }>();
   let customerDepositEntries: CustomerDepositEntry[] = [];
+  let reconciliations: NonCashReconciliationRecord[] = [];
   type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
   // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
   const authCodes: AuthCodeFake[] = [
@@ -600,6 +602,44 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     const sh = shifts.find((x) => x.id === shiftId)!;
     const rep = buildShiftReport(shiftInputs(sh));
     Object.assign(sh, { expectedCash: rep.expectedCash, counted: rep.expectedCash - 5000, variance: -5000 });
+    reconciliations = [
+      {
+        id: 'rec-seed-qris',
+        outletId: CTX.outletId,
+        shiftId,
+        shiftNumber: 'Shift #seed-s',
+        shiftDate: p.y ? `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}` : new Date().toISOString().slice(0, 10),
+        cashierName: 'Sari Rahayu',
+        methodId: 'm-qris',
+        methodName: 'QRIS',
+        methodKind: 'gateway',
+        expectedAmount: 95000,
+        actualAmount: 94335,
+        feeAmount: 665,
+        difference: 0,
+        status: 'reconciled',
+        bankAccountId: 'acc-bank',
+        reconciledAt: new Date(base.getTime() - 2 * 3600_000).toISOString(),
+        reconciledBy: 'emp-owner',
+        notes: 'Rekonsiliasi gateway QRIS',
+      },
+      {
+        id: 'rec-seed-edc',
+        outletId: CTX.outletId,
+        shiftId,
+        shiftNumber: 'Shift #seed-s',
+        shiftDate: p.y ? `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}` : new Date().toISOString().slice(0, 10),
+        cashierName: 'Sari Rahayu',
+        methodId: 'm-edc',
+        methodName: 'Kartu',
+        methodKind: 'noncash',
+        expectedAmount: 110000,
+        actualAmount: undefined,
+        feeAmount: 0,
+        difference: undefined,
+        status: 'unreconciled',
+      },
+    ];
   }
   reset();
 
@@ -658,7 +698,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
           roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter,
           cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null,
-          receiptHeader: CTX.receiptHeader ?? '', receiptShowCashier: CTX.receiptShowCashier !== false, receiptShowCustomer: CTX.receiptShowCustomer !== false, receiptTemplate: clone(CTX.receiptTemplate ?? {}) },
+          receiptHeader: CTX.receiptHeader ?? '', receiptShowCashier: CTX.receiptShowCashier !== false, receiptShowCustomer: CTX.receiptShowCustomer !== false, receiptTemplate: clone(CTX.receiptTemplate ?? {}),
+          autoReconcileNoncash: !!st.autoReconcileNoncash },
       });
     },
     async saveOutletInfo(input) {
@@ -1979,13 +2020,41 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const s: Shift = { id, cashierId, openedAt: now().toISOString(), openingCash: Math.round(openingCash), status: 'open' };
       shifts.push(s); return clone(s);
     },
-    async closeShift({ shiftId, counted }) {
+    async closeShift({ shiftId, counted, closedBy }: { shiftId: string; counted: number; closedBy?: string }) {
       const s = shifts.find((x) => x.id === shiftId);
       if (!s) throw new DataError('not_found', 'Shift tidak ditemukan');
       if (s.status === 'closed') throw new DataError('invalid', 'Shift sudah ditutup');
       const before = shiftInputs(s);
       const r = buildShiftReport(before, Math.round(counted));
       Object.assign(s, { status: 'closed', closedAt: now().toISOString(), counted: r.counted, expectedCash: r.expectedCash, variance: r.variance });
+      const isAuto = !!CTX.settings.autoReconcileNoncash;
+      for (const m of r.byMethod) {
+        if (m.kind === 'cash' || m.kind === 'complimentary' || m.amount <= 0) continue;
+        const pMethod = METHODS.find((pm) => pm.name === m.methodName);
+        const mId = pMethod?.id || `m-${m.kind}`;
+        const existing = reconciliations.find((rec) => rec.shiftId === s.id && rec.methodId === mId);
+        if (!existing) {
+          reconciliations.push({
+            id: `rec-${s.id}-${mId}`,
+            outletId: CTX.outletId,
+            shiftId: s.id,
+            shiftNumber: `Shift #${s.id.slice(0, 6)}`,
+            shiftDate: s.openedAt.slice(0, 10),
+            cashierName: employees.find((e) => e.id === s.cashierId)?.name ?? 'Kasir',
+            methodId: mId,
+            methodName: m.methodName,
+            methodKind: m.kind,
+            expectedAmount: m.amount,
+            actualAmount: isAuto ? m.amount : undefined,
+            feeAmount: 0,
+            difference: isAuto ? 0 : undefined,
+            status: isAuto ? 'reconciled' : 'unreconciled',
+            bankAccountId: isAuto ? 'acc-bank' : undefined,
+            reconciledAt: isAuto ? now().toISOString() : undefined,
+            reconciledBy: isAuto ? closedBy || 'emp-owner' : undefined,
+          });
+        }
+      }
       return { ...r, shift: clone(s) } satisfies ShiftReport;
     },
     async listShiftReports(range) {
@@ -2331,6 +2400,98 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
           .filter((e) => e.customerId === customerId)
           .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)),
       );
+    },
+    async listNonCashReconciliations(filter) {
+      let list = [...reconciliations];
+      if (filter?.shiftId) {
+        list = list.filter((r) => r.shiftId === filter.shiftId);
+      }
+      if (filter?.status && filter.status !== 'all') {
+        list = list.filter((r) => r.status === filter.status);
+      }
+      if (filter?.from && filter?.to) {
+        list = list.filter((r) => {
+          const d = r.shiftDate || r.reconciledAt?.slice(0, 10);
+          return !d || (d >= filter.from! && d <= filter.to!);
+        });
+      }
+      return clone(list);
+    },
+    async saveNonCashReconciliation(input) {
+      let existing = reconciliations.find((r) =>
+        (input.id && r.id === input.id) ||
+        (input.shiftId && r.shiftId === input.shiftId && r.methodId === input.methodId)
+      );
+      const actual = Math.max(0, Math.round(input.actualAmount));
+      const fee = input.feeAmount ? Math.max(0, Math.round(input.feeAmount)) : 0;
+      const expected = existing ? existing.expectedAmount : actual;
+      const diff = (actual + fee) - expected;
+      const nowIso = now().toISOString();
+
+      if (!existing) {
+        const m = METHODS.find((p) => p.id === input.methodId);
+        const s = input.shiftId ? shifts.find((x) => x.id === input.shiftId) : undefined;
+        const cashier = s ? employees.find((e) => e.id === s.cashierId) : undefined;
+        existing = {
+          id: input.id || newId(),
+          outletId: CTX.outletId,
+          shiftId: input.shiftId,
+          shiftNumber: s ? `Shift #${s.id.slice(0, 6)}` : undefined,
+          shiftDate: s?.openedAt?.slice(0, 10) || nowIso.slice(0, 10),
+          cashierName: cashier?.name || 'Kasir Demo',
+          methodId: input.methodId,
+          methodName: m?.name || 'Non-Tunai',
+          methodKind: m?.kind || 'noncash',
+          expectedAmount: expected,
+          actualAmount: actual,
+          feeAmount: fee,
+          difference: diff,
+          status: 'reconciled',
+          bankAccountId: input.bankAccountId || 'acc-bank',
+          reconciledAt: nowIso,
+          reconciledBy: 'emp-owner',
+          notes: input.notes,
+        };
+        reconciliations.push(existing);
+      } else {
+        existing.actualAmount = actual;
+        existing.feeAmount = fee;
+        existing.difference = diff;
+        existing.status = 'reconciled';
+        existing.bankAccountId = input.bankAccountId || existing.bankAccountId || 'acc-bank';
+        existing.reconciledAt = nowIso;
+        existing.reconciledBy = 'emp-owner';
+        if (input.notes) existing.notes = input.notes;
+      }
+
+      // Jurnal rekonsiliasi non-tunai (piutang kliring -> kas/bank & biaya gateway)
+      const isGateway = existing.methodKind === 'gateway';
+      const clearAcc = isGateway ? 'acc-1-1300' : 'acc-1-1310';
+      const lines: { accountId: string; debit: number; credit: number; memo?: string }[] = [
+        { accountId: 'acc-bank', debit: actual, credit: 0, memo: `Penerimaan bank ${existing.methodName}` },
+        { accountId: clearAcc, debit: 0, credit: expected, memo: `Kliring ${existing.methodName}` },
+      ];
+      if (fee > 0) {
+        lines.push({ accountId: 'acc-6-2100', debit: fee, credit: 0, memo: `Biaya gateway/MDR ${existing.methodName}` });
+      }
+      if (diff < 0) {
+        lines.push({ accountId: 'acc-6-2400', debit: -diff, credit: 0, memo: `Selisih rekonsiliasi ${existing.methodName}` });
+      } else if (diff > 0) {
+        lines.push({ accountId: 'acc-6-2400', debit: 0, credit: diff, memo: `Selisih rekonsiliasi ${existing.methodName}` });
+      }
+      try {
+        await self.postJournal({
+          id: newId(),
+          date: nowIso.slice(0, 10),
+          description: `Rekonsiliasi non-tunai ${existing.methodName} (${existing.shiftNumber || 'Harian'})`,
+          kind: 'manual',
+          lines,
+        });
+      } catch {
+        // bila posting jurnal dilewati di mock, abaikan
+      }
+
+      return clone(existing);
     },
   };
   const tableOps = createTableOps({

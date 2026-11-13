@@ -19,6 +19,8 @@ export interface OutletOptions {
   receiptShowCustomer?: boolean;
   /** templat struk lengkap (tema, tampil/sembunyi, batas cetak). Butuh migrasi 0031. */
   receiptTemplate?: Partial<import('./receipt-template').ReceiptTemplate>;
+  /** pencatatan non-tunai otomatis saat tutup kasir (true) atau rekonsiliasi manual (false). Butuh migrasi 0128. */
+  autoReconcileNoncash?: boolean;
 }
 export const ROUNDING_STEPS = [0, 50, 100, 500, 1000] as const;
 export const ORDER_TYPES: { id: OrderType; label: string }[] = [

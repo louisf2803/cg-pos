@@ -151,7 +151,7 @@ export interface OutletContext {
   receiptHeader?: string; receiptShowCashier?: boolean; receiptShowCustomer?: boolean;
   /** templat struk (migrasi 0031): tema, bagian tampil/sembunyi, batas cetak; tidak diisi = bawaan */
   receiptTemplate?: Partial<import('./receipt-template').ReceiptTemplate>;
-  deviceCode: string; settings: CalcSettings & { roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean; cashOutDailyLimit?: number | null; defaultOpeningCash?: number | null };
+  deviceCode: string; settings: CalcSettings & { roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean; cashOutDailyLimit?: number | null; defaultOpeningCash?: number | null; autoReconcileNoncash?: boolean };
   taxes: { id: string; name: string; rate: number }[];
 }
 

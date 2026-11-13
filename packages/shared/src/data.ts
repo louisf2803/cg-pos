@@ -1,4 +1,5 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
+import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
@@ -426,5 +427,16 @@ export interface DataLayer {
   listCustomerDepositBalances(): Promise<CustomerDepositBalance[]>;
   /** Riwayat mutasi deposit pelanggan (pembelian paket, pemakaian di kasir, refund), terbaru dulu. */
   listCustomerDepositEntries(customerId: string): Promise<CustomerDepositEntry[]>;
+
+  // ---------- rekonsiliasi penerimaan non-tunai & gateway (A128) ----------
+  /** Daftar riwayat rekonsiliasi non-tunai per shift dan metode bayar. */
+  listNonCashReconciliations(filter?: {
+    shiftId?: string;
+    from?: string;
+    to?: string;
+    status?: 'all' | 'unreconciled' | 'reconciled';
+  }): Promise<NonCashReconciliationRecord[]>;
+  /** Simpan rekonsiliasi non-tunai, catat nominal bank, potongan fee gateway, dan selisih ke jurnal. */
+  saveNonCashReconciliation(input: SaveReconciliationInput): Promise<NonCashReconciliationRecord>;
 }
 

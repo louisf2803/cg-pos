@@ -75,6 +75,15 @@ function Form({ info, options, onSaved }: { info: OutletInfo; options: OutletOpt
           Buka editor struk →
         </Link>
       </div>
+      <div className="border border-border rounded-md p-16 flex flex-col tablet:flex-row items-start tablet:items-center justify-between gap-12 bg-surface">
+        <div>
+          <h3 className="font-semibold text-sm">Pencatatan & Rekonsiliasi Non-Tunai</h3>
+          <p className="text-text-muted text-sm mt-[2px]">Pilih antara pencatatan otomatis saat tutup kasir atau pencocokan rekonsiliasi manual per shift.</p>
+        </div>
+        <Link href="/keuangan/rekonsiliasi" className="cg-btn cg-btn--secondary whitespace-nowrap text-xs">
+          Buka rekonsiliasi →
+        </Link>
+      </div>
       <dl className="grid gap-4 text-sm text-text-muted">
         <div className="flex gap-8"><dt>Kode outlet:</dt><dd className="cg-num">{info.code}</dd></div>
         <div className="flex gap-8"><dt>Zona waktu:</dt><dd>{info.timezone}</dd></div>
