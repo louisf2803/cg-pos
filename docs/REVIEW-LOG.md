@@ -69,3 +69,8 @@ Tinjau diff, `pnpm -r typecheck`, 578 tes shared, build dashboard, `lint-tailwin
 - DIGABUNG: A124 (migrasi deposit sudah dilepas ke A144; ekspor ada) dan A125 (stok per lokasi + impor xlsx/csv). Typecheck, 609 tes shared, lint, build dashboard lulus. Tidak ada migrasi baru.
 - Catatan kecil: `pelanggan/page.tsx` kini 960 baris (target ±400); nama berkas templat stok memakai `toISOString().slice(0,10)` (UTC). Perbaiki saat menyentuhnya lagi.
 - Merge A124+A125 konflik di `index.ts` (kedua sisi menambah ekspor); baris dipertahankan semuanya.
+
+## 13 Nov 2026 malam — A126, A128-A137 (dikerjakan Claude) dan A143
+- Digabung ke main: A126 (diperbaiki), A128 (diperbaiki: memakai pos.reconcile, tanpa fallback yang menutupi galat), A129-A137 (dikerjakan Claude), A143 (diperbaiki). Dikembalikan: A127 (sync_push rusak; lihat REWORK butir 14).
+- Migrasi di produksi: 0126, 0129-0135, 0105, 0137. 0128 menunggu persetujuan.
+- Skor `goal-check --semi`: 48 -> 60 dari 93. Ketat tetap 17/93 (butuh bukti layar dan kecocokan alur Majoo).
