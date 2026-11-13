@@ -18,6 +18,7 @@ import { paymentAccountError, type PaymentMethodAccount } from './payment-accoun
 import { salesDocumentError, salesDocumentProblem, type SalesDocType, type SalesDocument } from './sales-documents';
 import { campaignError, campaignProblem, type Campaign, type CampaignInput, type CampaignRecipient } from './crm-campaign';
 import { channelPriceProblem, priceRuleError, timePriceProblem, type Channel, type ChannelPrice, type TimePrice, type TimePriceInput } from './channel-prices';
+import { productionError, productionRunProblem, productionTemplateProblem, type ProductionRun, type ProductionTemplate, type ProductionTemplateInput } from './production';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3102,6 +3103,58 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- produksi stok (A137; migrasi 0137) ----------
+    async listProductionTemplates() {
+      const [tpls, lines, stock] = await Promise.all([
+        db().from('production_templates').select('id,name,output_product_id,output_qty,note,is_active').order('name').limit(2000),
+        db().from('production_template_lines').select('template_id,product_id,qty').limit(20000),
+        self.listStock(),
+      ]);
+      const name = new Map(stock.map((s) => [s.productId, s.name]));
+      const by = new Map<string, Row[]>();
+      for (const l of ((must(lines) as Row[] | null) ?? [])) by.set(l.template_id as string, [...(by.get(l.template_id as string) ?? []), l]);
+      return ((must(tpls) as Row[] | null) ?? []).map((t): ProductionTemplate => ({
+        id: t.id as string, name: t.name as string, outputProductId: t.output_product_id as string, outputQty: Number(t.output_qty), isActive: Boolean(t.is_active),
+        outputName: name.get(t.output_product_id as string) ?? '(barang dihapus)', ...(t.note ? { note: t.note as string } : {}),
+        lines: (by.get(t.id as string) ?? []).map((l) => ({ productId: l.product_id as string, qty: Number(l.qty), name: name.get(l.product_id as string) ?? '(barang dihapus)' })),
+      }));
+    },
+    async saveProductionTemplate(input: ProductionTemplateInput) {
+      const problem = productionTemplateProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('production_template_save', {
+        p_id: input.id, p_org: orgId, p_name: input.name.trim(), p_output_product: input.outputProductId, p_output_qty: input.outputQty, p_note: input.note?.trim() || null,
+        p_active: input.isActive, p_lines: input.lines.map((l) => ({ product_id: l.productId, qty: l.qty })),
+      });
+      if (error) throw productionError(error);
+    },
+    async deleteProductionTemplate(id: string) {
+      const { error } = await db().rpc('production_template_delete', { p_id: id });
+      if (error) throw productionError(error);
+    },
+    async listProductionRuns() {
+      const [rows, tpls] = await Promise.all([
+        db().from('production_runs').select('id,number,template_id,location_id,run_date,batches,produced_qty,total_cost,note').order('run_date', { ascending: false }).order('number', { ascending: false }).limit(300),
+        db().from('production_templates').select('id,name').limit(2000),
+      ]);
+      const name = new Map(((must(tpls) as Row[] | null) ?? []).map((t) => [t.id as string, t.name as string]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): ProductionRun => ({
+        id: r.id as string, number: r.number as string, templateId: r.template_id as string, templateName: name.get(r.template_id as string) ?? '(acuan dihapus)',
+        locationId: r.location_id as string, date: r.run_date as string, batches: Number(r.batches), producedQty: Number(r.produced_qty), totalCost: Number(r.total_cost),
+        ...(r.note ? { note: r.note as string } : {}),
+      }));
+    },
+    async runProduction(input) {
+      const problem = productionRunProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId, ctx } = await resolve();
+      const location = input.locationId ?? await stockLocation(ctx.outletId);
+      const { error } = await db().rpc('production_run', { p_id: input.id, p_org: orgId, p_location: location, p_template: input.templateId, p_batches: input.batches, p_date: input.date ?? null, p_note: input.note?.trim() || null });
+      if (error) throw productionError(error);
+      return (await self.listProductionRuns()).find((r) => r.id === input.id)!;
     },
 
     // ---------- harga kanal dan harga waktu (A135; migrasi 0135) ----------

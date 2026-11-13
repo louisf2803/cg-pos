@@ -31,6 +31,7 @@ import { createFakePaymentAccounts } from './payment-accounts';
 import { createFakeSalesDocuments } from './sales-documents';
 import { createFakeCampaigns } from './crm-campaign';
 import { createFakePriceRules } from './channel-prices';
+import { createFakeProduction } from './production';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -690,6 +691,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     newId,
   });
   const campaigns = createFakeCampaigns({ customers: () => self.listCustomers({ limit: 5000 }), now: () => now().toISOString() });
+  const production = createFakeProduction({
+    stock: (id) => { const b = stockBal(id); return b ? { name: b.name, qty: b.qty } : null; },
+    avgCost: (id) => costs.get(id) ?? 0,
+    move: (id, delta, kind, unitCost, reason) => recordStock(id, delta, kind, { ...(kind === 'production_in' ? { unitCost } : {}), reason, refType: 'production' }),
+    allowNegative: () => CTX.settings.allowNegativeStock,
+    today: () => localDateString(now()),
+    newId,
+  });
   const priceRules = createFakePriceRules({ productExists: async (id) => (await self.listProducts({ includeInactive: true })).some((p) => p.id === id) });
   const paymentAccounts = createFakePaymentAccounts({ methods: () => self.listPaymentMethods(), accounts: () => self.listAccounts() });
 
@@ -700,6 +709,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     ...salesDocuments,
     ...campaigns,
     ...priceRules,
+    ...production,
     async listGatewayTransactions() { return []; },
     async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },

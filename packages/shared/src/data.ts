@@ -7,6 +7,7 @@ import type { PaymentMethodAccount } from './payment-accounts';
 import type { SalesDocType, SalesDocument, SalesDocumentInput } from './sales-documents';
 import type { Campaign, CampaignInput, CampaignRecipient } from './crm-campaign';
 import type { Channel, ChannelPrice, TimePrice, TimePriceInput } from './channel-prices';
+import type { ProductionRun, ProductionRunInput, ProductionTemplate, ProductionTemplateInput } from './production';
 import type { Appointment, AppointmentInput } from './appointment';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
@@ -498,5 +499,17 @@ export interface DataLayer {
   /** Simpan aturan (id sama = ubah). Aturan aktif untuk produk dan hari yang sama tidak boleh beririsan jamnya. */
   saveTimePrice(input: TimePriceInput): Promise<void>;
   deleteTimePrice(id: string): Promise<void>;
+
+  // ---------- produksi stok (A137) ----------
+  /** Acuan produksi (bahan -> barang jadi), urut nama. Pengelola saja. */
+  listProductionTemplates(): Promise<ProductionTemplate[]>;
+  /** Simpan acuan (id sama = ubah). Barang jadi dan bahan harus barang yang stoknya dilacak. */
+  saveProductionTemplate(input: ProductionTemplateInput): Promise<void>;
+  /** Hapus acuan yang belum pernah dipakai; yang sudah dipakai cukup dinonaktifkan. */
+  deleteProductionTemplate(id: string): Promise<void>;
+  /** Riwayat perintah produksi, terbaru dulu. */
+  listProductionRuns(): Promise<ProductionRun[]>;
+  /** Jalankan produksi sebanyak batches kali acuan (idempoten menurut id): bahan berkurang, barang jadi bertambah dengan harga perolehan dari biaya bahan. */
+  runProduction(input: ProductionRunInput): Promise<ProductionRun>;
 }
 
