@@ -26,6 +26,7 @@ import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permissi
 import { purchasePriceProblem, suggestPurchasePrice as pickSuggestion, type PurchasePriceMapping } from './purchase-price';
 import { localDateString, localMonthStart } from './local-date';
 import { createFakeSalesInvoices } from './sales-invoice';
+import { fakeOutletComparison } from './outlet-compare';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -658,6 +659,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const self: DataLayer & { reset(): void } = {
     reset,
     ...salesInvoices,
+    async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },
     async getOutletSettings() {
       const st = CTX.settings;

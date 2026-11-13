@@ -1,6 +1,7 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { SalesInvoice, SalesInvoiceInput, SalesInvoicePayInput } from './sales-invoice';
+import type { OutletComparisonRow } from './outlet-compare';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -435,5 +436,9 @@ export interface DataLayer {
   createSalesInvoice(input: SalesInvoiceInput): Promise<SalesInvoice>;
   /** Terima pembayaran faktur (sebagian atau lunas). Idempoten menurut id pembayaran. */
   paySalesInvoice(input: SalesInvoicePayInput): Promise<SalesInvoice>;
+
+  // ---------- perbandingan antar outlet (A131) ----------
+  /** Penjualan, transaksi, produk terlaris, dan margin tiap outlet aktif pada rentang yang sama (from/to ISO UTC, to tidak termasuk). Pengelola saja. */
+  outletComparison(range: SalesRange): Promise<OutletComparisonRow[]>;
 }
 

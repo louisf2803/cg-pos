@@ -11,6 +11,7 @@ import { stockRequestProblem, type StockRequest, type StockRequestStatus } from 
 import { approvalProblem, recurringBillProblem, type ApprovalRequest, type ApprovalStatus, type RecurringBill, type RecurringBillRun } from './bills';
 import { localDateString } from './local-date';
 import { salesInvoiceError, salesInvoiceProblem, type SalesInvoice } from './sales-invoice';
+import { comparisonRow } from './outlet-compare';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3000,6 +3001,17 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- perbandingan antar outlet (A131; migrasi 0131) ----------
+    async outletComparison(range) {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('outlet_sales_compare', { p_org: orgId, p_from: range.from, p_to: range.to });
+      if (error) throw new DataError(error.message === 'not allowed' ? 'forbidden' : 'invalid', error.message === 'not allowed' ? 'Hanya pemilik, admin, atau manajer yang boleh membandingkan outlet.' : error.message);
+      return ((data as Row[] | null) ?? []).map((r) => comparisonRow({
+        outletId: r.outlet_id as string, name: r.name as string, sales: Number(r.sales), orders: Number(r.orders), cogs: Number(r.cogs),
+        topProducts: ((r.top ?? []) as Row[]).map((p) => ({ name: p.name as string, qty: Number(p.qty), amount: Number(p.amount) })),
+      }));
     },
   };
   const tableOps = createTableOps({
