@@ -66,7 +66,7 @@ export default function InvoicesPage() {
                 <td>
                   <strong>{i.number}</strong>
                   {i.supplierInvoiceNo && <span className="block text-sm text-text-muted">{i.supplierInvoiceNo}</span>}
-                  {i.hasAttachment && <span className="inline-flex items-center gap-4 text-xs text-text-muted mt-2"><Paperclip className="cg-icon cg-icon--xs" aria-hidden /> Ada lampiran</span>}
+                  {i.hasAttachment && <span className="inline-flex items-center gap-4 text-xs text-text-muted mt-4"><Paperclip className="cg-icon cg-icon--xs" aria-hidden /> Ada lampiran</span>}
                 </td>
                 <td className="break-words max-w-[220px]">{i.supplierName}</td><td className="text-sm whitespace-nowrap">{fmtDate(i.invoiceDate)}</td>
                 <td className={`text-sm whitespace-nowrap ${invoiceOverdue(i, today) ? 'text-danger-strong' : ''}`}>{i.dueDate ? fmtDate(i.dueDate) : '—'}{invoiceOverdue(i, today) && <span className="block">Lewat tempo</span>}</td>
@@ -185,7 +185,7 @@ function Editor({ id, poId, onBack, onDone }: { id: string; poId?: string; onBac
                   </button>
                 )}
               </div>
-              {attachmentName && <span className="text-xs text-text-muted mt-2 block">Terpilih: {attachmentName}</span>}
+              {attachmentName && <span className="text-xs text-text-muted mt-4 block">Terpilih: {attachmentName}</span>}
             </div>
           </div>
           <p data-testid="total-faktur">
