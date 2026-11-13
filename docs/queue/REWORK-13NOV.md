@@ -21,3 +21,5 @@ Nomor migrasi terpakai di main: sampai 0044, lalu 0097, 0098 (diterapkan di prod
 Sudah masuk main (jangan dikerjakan lagi): A86, A113, A116, A139, A115, A122.
 
 Setelah semua di atas selesai, lanjut A125 dan seterusnya (A124 yang sedang berjalan selesaikan dulu).
+
+11. **A124 `ag/a124-pelanggan-detail`** dan **A144 `ag/a144-deposit-paket-laporan`** (tambahan): keduanya memuat migrasi `0107_deposit_packages_and_ledger.sql` dan tes `24_deposit.sql` yang sama. Pegang migrasi deposit HANYA di A144; A124 buang berkas itu dan rebase setelah A144 masuk main. Tes `24_deposit.sql` gagal di `run.sh` (`org_members_org_id_fkey`: org `ctx('o1')` sudah terhapus oleh tes sebelumnya); ganti nama ke `19_deposit.sql` (agar berjalan bersama tes sejenis) atau buat org sendiri di dalam tes. Pastikan `index.ts` memuat KEDUA ekspor (`deposit-report` dan `customer-export`).

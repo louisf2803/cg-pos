@@ -58,3 +58,9 @@ Tinjau diff, `pnpm -r typecheck`, 578 tes shared, build dashboard, `lint-tailwin
   - A123 (info outlet): tes SQL `28_outlet_business_bank_group.sql` memakai pgTAP (`plan()`), yang tidak dipakai proyek ini; tulis ulang dengan pola `pg_temp.ok` seperti tes lain. Nama berkas juga harus `19_...` atau berurut dengan tes lain.
   - A143 dan A144: konflik di `packages/shared/src/data.ts` (sama-sama menambah metode); rebase pada main.
   - Masih konflik dengan main: A117, A119, A140, A141. Belum diperbaiki: A114, A118, A142, A87.
+
+## 13 Nov 2026 (sore) — A124 (Claude)
+- A124 (detail pelanggan, ekspor) TIDAK digabung. Kode dashboard lolos typecheck/lint/605 tes shared, tetapi:
+  - Memuat migrasi `0107_deposit_packages_and_ledger.sql` dan tes `24_deposit.sql` yang SAMA PERSIS (jalur dan nama) dengan cabang A144 → bentrok add/add saat digabung. Satu fitur satu cabang: A124 jangan membawa deposit; ambil dari main setelah A144 diperbaiki.
+  - `24_deposit.sql` gagal di `run.sh` (`org_members_org_id_fkey`: org `ctx('o1')` sudah terhapus oleh tes yang berjalan lebih dulu, `20_security`/`30_isolation`). Ganti nama ke `19_deposit.sql` atau buat org sendiri di tes.
+  - `index.ts`: baris `export * from './customer-export'` saling menimpa saat merge; rebase dengan menggabungkan kedua sisi.
