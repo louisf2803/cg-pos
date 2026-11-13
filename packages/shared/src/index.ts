@@ -103,4 +103,5 @@ export * from './payment-accounts';
 export * from './sales-documents';
 export * from './crm-campaign';
 export * from './channel-prices';
+export * from './reservation-report';
 

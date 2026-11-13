@@ -33,7 +33,7 @@ create index appointments_org_date on pos.appointments (org_id, date) where dele
 create index appointments_target on pos.appointments (org_id, kind, target_id, date) where deleted_at is null;
 
 -- Trigger pencegahan bentrok jadwal di sisi server (A143)
-create or replace function pos.check_appointment_conflict() returns trigger language plpgsql as $$
+create or replace function pos.check_appointment_conflict() returns trigger language plpgsql set search_path = pos, extensions, pg_temp as $$
 declare
   conflict_id uuid;
 begin
