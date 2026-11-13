@@ -18,12 +18,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
-import {
-  formatJakartaDateTime,
-  loadCustomerGroups,
-  loadTieredPricings,
-  saveTieredPricings,
-} from '@/lib/pricing-preview';
+import { formatJakartaDateTime } from '@/lib/pricing-preview';
 
 interface DraftTierRow {
   minQty: string;
@@ -35,6 +30,7 @@ function TierEditorDialog({
   products,
   existingProductIds,
   initial,
+  isBusy,
   onSave,
   onClose,
 }: {
@@ -42,6 +38,7 @@ function TierEditorDialog({
   products: CatalogProduct[];
   existingProductIds: Set<string>;
   initial: GroupProductTieredPricing | null;
+  isBusy?: boolean;
   onSave: (productId: string, tiers: TieredPriceRule[]) => void;
   onClose: () => void;
 }) {
@@ -132,7 +129,6 @@ function TierEditorDialog({
       return;
     }
     onSave(productId, normalizeTieredPrices(parsedTiers));
-    onClose();
   };
 
   return (
@@ -151,7 +147,7 @@ function TierEditorDialog({
               Grup pelanggan: <strong>{group.name}</strong> · Maksimal {MAX_TIERED_PRICE_TIERS} tingkat. Qty minimum harus naik dan harga per unit harus turun.
             </p>
           </div>
-          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm shrink-0" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm shrink-0" onClick={onClose} disabled={isBusy}>
             Tutup
           </button>
         </div>
@@ -164,7 +160,7 @@ function TierEditorDialog({
             id="tier-product"
             className="cg-select"
             value={productId}
-            disabled={Boolean(initial)}
+            disabled={Boolean(initial) || isBusy}
             onChange={(e) => {
               const nextId = e.target.value;
               setProductId(nextId);
@@ -200,7 +196,7 @@ function TierEditorDialog({
             <button
               type="button"
               className="cg-btn cg-btn--secondary cg-btn--sm"
-              disabled={rows.length >= MAX_TIERED_PRICE_TIERS}
+              disabled={rows.length >= MAX_TIERED_PRICE_TIERS || isBusy}
               onClick={addRow}
             >
               <Plus className="cg-icon cg-icon--sm" aria-hidden />
@@ -230,26 +226,28 @@ function TierEditorDialog({
                     <tr key={idx}>
                       <td className="font-semibold whitespace-nowrap">Tingkat {idx + 1}</td>
                       <td>
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            aria-label={`Qty minimum tingkat ${idx + 1}`}
-                            className="cg-input min-w-[76px]"
-                            value={row.minQty}
-                            onChange={(e) => updateRow(idx, 'minQty', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min={0}
-                            step={100}
-                            aria-label={`Harga per unit tingkat ${idx + 1}`}
-                            className="cg-input min-w-[112px]"
-                            value={row.unitPrice}
-                            onChange={(e) => updateRow(idx, 'unitPrice', e.target.value)}
-                          />
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          disabled={isBusy}
+                          aria-label={`Qty minimum tingkat ${idx + 1}`}
+                          className="cg-input min-w-[76px]"
+                          value={row.minQty}
+                          onChange={(e) => updateRow(idx, 'minQty', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          step={100}
+                          disabled={isBusy}
+                          aria-label={`Harga per unit tingkat ${idx + 1}`}
+                          className="cg-input min-w-[112px]"
+                          value={row.unitPrice}
+                          onChange={(e) => updateRow(idx, 'unitPrice', e.target.value)}
+                        />
                       </td>
                       <td className="whitespace-nowrap text-sm">
                         {diffPct > 0 ? (
@@ -262,7 +260,7 @@ function TierEditorDialog({
                         <button
                           type="button"
                           className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
-                          disabled={rows.length <= 1}
+                          disabled={rows.length <= 1 || isBusy}
                           aria-label={`Hapus tingkat ${idx + 1}`}
                           onClick={() => removeRow(idx)}
                         >
@@ -293,6 +291,7 @@ function TierEditorDialog({
               type="number"
               min={1}
               step={1}
+              disabled={isBusy}
               className="cg-input w-[112px]"
               value={simQty}
               onChange={(e) => setSimQty(e.target.value)}
@@ -319,11 +318,15 @@ function TierEditorDialog({
         </div>
 
         <div className="flex justify-end gap-8 pt-8 border-t border-border">
-          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>
+          <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={isBusy}>
             Batal
           </button>
-          <button type="submit" className="cg-btn cg-btn--primary" disabled={Boolean(liveError) || !productId}>
-            Simpan harga bertingkat
+          <button
+            type="submit"
+            className="cg-btn cg-btn--primary"
+            disabled={Boolean(liveError) || !productId || isBusy}
+          >
+            {isBusy ? 'Menyimpan...' : 'Simpan harga bertingkat'}
           </button>
         </div>
       </form>
@@ -334,29 +337,31 @@ function TierEditorDialog({
 export default function SpecialPriceGroupsPage() {
   const data = useData();
   const catalogRes = useAsync(() => data.listCatalog(), [data]);
+  const groupsRes = useAsync(() => data.listCustomerGroups(), [data]);
+  const pricingsRes = useAsync(() => data.listTieredPrices(), [data]);
 
-  const [groups, setGroups] = useState<CustomerGroup[]>([]);
-  const [pricings, setPricings] = useState<GroupProductTieredPricing[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [hydrated, setHydrated] = useState(false);
-
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState('');
+  const [errorNotice, setErrorNotice] = useState('');
   const [editing, setEditing] = useState<GroupProductTieredPricing | null | 'new'>(null);
+  const [isBusy, setIsBusy] = useState(false);
+
+  const groups = useMemo(
+    () => (groupsRes.status === 'ready' ? groupsRes.data : []),
+    [groupsRes],
+  );
+
+  const pricings = useMemo(
+    () => (pricingsRes.status === 'ready' ? pricingsRes.data : []),
+    [pricingsRes],
+  );
 
   useEffect(() => {
-    const loadedGroups = loadCustomerGroups();
-    const loadedPricings = loadTieredPricings();
-    setGroups(loadedGroups);
-    setPricings(loadedPricings);
-    setSelectedGroupId((prev) => prev || loadedGroups[0]?.id || '');
-    setHydrated(true);
-  }, []);
-
-  const persistPricings = (next: GroupProductTieredPricing[]) => {
-    setPricings(next);
-    saveTieredPricings(next);
-  };
+    if (groups.length > 0 && (!selectedGroupId || !groups.some((g) => g.id === selectedGroupId))) {
+      setSelectedGroupId(groups[0]!.id);
+    }
+  }, [groups, selectedGroupId]);
 
   const products = useMemo(
     () => (catalogRes.status === 'ready' ? catalogRes.data : []),
@@ -396,32 +401,44 @@ export default function SpecialPriceGroupsPage() {
     [products, existingProductIds],
   );
 
-  const handleSaveTiered = (productId: string, tiers: TieredPriceRule[]) => {
+  const handleSaveTiered = async (productId: string, tiers: TieredPriceRule[]) => {
     if (!selectedGroup) return;
-    const now = new Date().toISOString();
-    const exists = pricings.some(
-      (p) => p.groupId === selectedGroup.id && p.productId === productId,
-    );
-    const next = exists
-      ? pricings.map((p) =>
-          p.groupId === selectedGroup.id && p.productId === productId
-            ? { ...p, tiers, updatedAt: now }
-            : p,
-        )
-      : [{ groupId: selectedGroup.id, productId, tiers, updatedAt: now }, ...pricings];
-    persistPricings(next);
-    const prodName = productMap.get(productId)?.name ?? 'produk';
-    setNotice(`Harga grosir bertingkat untuk ${prodName} (${selectedGroup.name}) berhasil disimpan.`);
+    try {
+      setIsBusy(true);
+      setErrorNotice('');
+      await data.saveTieredPrices({
+        groupId: selectedGroup.id,
+        productId,
+        tiers,
+      });
+      await pricingsRes.reload();
+      const prodName = productMap.get(productId)?.name ?? 'produk';
+      setNotice(`Harga grosir bertingkat untuk ${prodName} (${selectedGroup.name}) berhasil disimpan.`);
+      setEditing(null);
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal menyimpan harga grosir.');
+    } finally {
+      setIsBusy(false);
+    }
   };
 
-  const handleDelete = (item: GroupProductTieredPricing) => {
-    const next = pricings.filter(
-      (p) => !(p.groupId === item.groupId && p.productId === item.productId),
-    );
-    persistPricings(next);
-    const prodName = productMap.get(item.productId)?.name ?? 'produk';
-    setNotice(`Aturan harga grosir ${prodName} dihapus.`);
+  const handleDelete = async (item: GroupProductTieredPricing) => {
+    try {
+      setIsBusy(true);
+      setErrorNotice('');
+      await data.deleteTieredPrices({ id: item.id, groupId: item.groupId, productId: item.productId });
+      await pricingsRes.reload();
+      const prodName = productMap.get(item.productId)?.name ?? 'produk';
+      setNotice(`Aturan harga grosir ${prodName} dihapus.`);
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal menghapus aturan harga.');
+    } finally {
+      setIsBusy(false);
+    }
   };
+
+  const isLoading =
+    catalogRes.status === 'loading' || groupsRes.status === 'loading' || pricingsRes.status === 'loading';
 
   return (
     <div className="grid gap-16 min-w-0">
@@ -437,7 +454,7 @@ export default function SpecialPriceGroupsPage() {
             <button
               type="button"
               className="cg-btn cg-btn--primary"
-              disabled={!selectedGroup || !canAddMoreProducts}
+              disabled={!selectedGroup || !canAddMoreProducts || isBusy}
               onClick={() => setEditing('new')}
             >
               <Plus className="cg-icon cg-icon--sm" aria-hidden />
@@ -447,14 +464,6 @@ export default function SpecialPriceGroupsPage() {
         }
       />
 
-      <div className="cg-banner cg-banner--warning">
-        <p className="font-semibold">Pratinjau — belum tersambung server</p>
-        <p className="text-sm mt-4">
-          Aturan harga grosir bertingkat disimpan sementara di peramban sambil menunggu tabel
-          <code> tiered_prices </code> di server dan penyambungan otomatis ke kasir.
-        </p>
-      </div>
-
       {notice && (
         <div role="status" className="cg-banner cg-banner--info flex items-center justify-between gap-12">
           <span>{notice}</span>
@@ -462,6 +471,19 @@ export default function SpecialPriceGroupsPage() {
             type="button"
             className="cg-btn cg-btn--ghost cg-btn--sm"
             onClick={() => setNotice('')}
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
+      {errorNotice && (
+        <div role="alert" className="cg-banner cg-banner--danger flex items-center justify-between gap-12">
+          <span>{errorNotice}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--ghost cg-btn--sm"
+            onClick={() => setErrorNotice('')}
           >
             Tutup
           </button>
@@ -481,7 +503,20 @@ export default function SpecialPriceGroupsPage() {
         </div>
       )}
 
-      {!hydrated || catalogRes.status === 'loading' ? (
+      {groupsRes.status === 'error' && (
+        <div role="alert" className="cg-banner cg-banner--danger flex flex-wrap items-center justify-between gap-12">
+          <span>Gagal memuat grup pelanggan: {groupsRes.message}</span>
+          <button
+            type="button"
+            className="cg-btn cg-btn--secondary cg-btn--sm"
+            onClick={groupsRes.reload}
+          >
+            Muat ulang
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
         <div className="cg-card grid gap-8" aria-busy="true" aria-label="Memuat harga spesial">
           {[0, 1, 2].map((i) => (
             <div key={i} className="cg-skeleton h-[52px]" />
@@ -606,6 +641,7 @@ export default function SpecialPriceGroupsPage() {
                             <button
                               type="button"
                               className="cg-btn cg-btn--secondary cg-btn--sm"
+                              disabled={isBusy}
                               onClick={() => setEditing(item)}
                             >
                               <Pencil className="cg-icon cg-icon--sm" aria-hidden />
@@ -614,6 +650,7 @@ export default function SpecialPriceGroupsPage() {
                             <button
                               type="button"
                               className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
+                              disabled={isBusy}
                               aria-label={`Hapus aturan harga ${prod?.name ?? item.productId}`}
                               onClick={() => handleDelete(item)}
                             >
@@ -638,6 +675,7 @@ export default function SpecialPriceGroupsPage() {
           products={products}
           existingProductIds={existingProductIds}
           initial={editing === 'new' ? null : editing}
+          isBusy={isBusy}
           onSave={handleSaveTiered}
           onClose={() => setEditing(null)}
         />
@@ -645,4 +683,3 @@ export default function SpecialPriceGroupsPage() {
     </div>
   );
 }
-

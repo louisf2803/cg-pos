@@ -20,6 +20,8 @@ import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
 import type { DiscountUse } from './promo-report';
 import type { StockLocation, StockTransfer, StockTransferInput } from './stock-transfer';
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
+import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
+import type { PriceSchedule } from './price-schedule';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceOpen, AttendanceRecord, PriceChange,
@@ -400,5 +402,20 @@ export interface DataLayer {
   // ---------- laporan promo ----------
   /** Potongan yang tercatat pada pesanan lunas yang ditutup dalam rentang [from, to). Hanya baca. */
   listDiscountUses(range: { from: string; to: string }): Promise<DiscountUse[]>;
+
+  // ---------- grup pelanggan, harga grosir & jadwal harga ----------
+  listCustomerGroups(): Promise<CustomerGroup[]>;
+  saveCustomerGroup(group: { id?: string; name: string; description?: string }): Promise<CustomerGroup>;
+  deleteCustomerGroup(id: string): Promise<void>;
+  listCustomerGroupMembers(groupId?: string): Promise<CustomerGroupMember[]>;
+  setCustomerGroup(customerId: string, groupId: string | null): Promise<void>;
+
+  listTieredPrices(groupId?: string): Promise<GroupProductTieredPricing[]>;
+  saveTieredPrices(input: { id?: string; groupId: string; productId: string; tiers: TieredPriceRule[] }): Promise<GroupProductTieredPricing>;
+  deleteTieredPrices(target: string | { id?: string; groupId: string; productId: string }): Promise<void>;
+
+  listPriceSchedules(): Promise<PriceSchedule[]>;
+  savePriceSchedule(schedule: { id?: string; productId: string; newPrice: number; startAt: string; endAt?: string | null; note?: string }): Promise<PriceSchedule>;
+  deletePriceSchedule(id: string): Promise<void>;
 }
 

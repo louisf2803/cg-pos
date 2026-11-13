@@ -5,6 +5,7 @@ export interface CustomerGroup {
   name: string;
   description?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CustomerGroupMember {
@@ -20,6 +21,7 @@ export interface TieredPriceRule {
 }
 
 export interface GroupProductTieredPricing {
+  id?: string;
   groupId: string;
   productId: string;
   tiers: TieredPriceRule[];

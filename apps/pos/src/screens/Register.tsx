@@ -4,7 +4,7 @@ import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orde
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
-import { useCart } from '../lib/cart';
+import { useCart, type CartPricingRules } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { forwardNotice, forwardOrder, useTickets } from '../lib/stations';
@@ -94,9 +94,34 @@ export function Register({
   const notePresets = useAsync<NotePreset[]>(() => data.listNotePresets().catch(() => []), [data]);
   const noteGroups = groupNotePresets(notePresets.status === 'ready' ? notePresets.data : []);
   const promos = useAsync<Promotion[]>(() => data.listPromotions({ activeOnly: true }).catch(() => []), [data]);
+  const schedulesRes = useAsync(() => data.listPriceSchedules().catch(() => []), [data]);
+  const tieredPricesRes = useAsync(() => data.listTieredPrices().catch(() => []), [data]);
+  const groupMembersRes = useAsync(() => data.listCustomerGroupMembers().catch(() => []), [data]);
+
+  const groupMemberMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (groupMembersRes.status === 'ready') {
+      for (const m of groupMembersRes.data) {
+        map.set(m.customerId, m.groupId);
+      }
+    }
+    return map;
+  }, [groupMembersRes]);
+
+  const pricingRules = useMemo<CartPricingRules>(() => ({
+    schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
+    tieredPrices: tieredPricesRes.status === 'ready' ? tieredPricesRes.data : undefined,
+  }), [schedulesRes, tieredPricesRes]);
+
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [priceFor, setPriceFor] = useState<{ id: string; text: string; err: string } | null>(null);
-  const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS);
+  const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS, pricingRules);
+
+  const activePricing = useMemo<CartPricingRules>(() => ({
+    schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
+    tieredPrices: tieredPricesRes.status === 'ready' ? tieredPricesRes.data : undefined,
+    customerGroupId: cart.state.customerId ? groupMemberMap.get(cart.state.customerId) : undefined,
+  }), [schedulesRes, tieredPricesRes, cart.state.customerId, groupMemberMap]);
   const [discOpen, setDiscOpen] = useState(false);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
@@ -188,7 +213,7 @@ export function Register({
   const choose = (p: Product) => {
     if (!stockOk(p)) return;
     const gs = extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, p) : [];
-    if (gs.length) setExtraFor(p); else cart.dispatch({ t: 'add', product: p });
+    if (gs.length) setExtraFor(p); else cart.dispatch({ t: 'add', product: p, pricing: activePricing });
   };
   const qtyOfTile = (t: CatalogTile) => (t.kind === 'single' ? qtyOf(t.product) : t.options.reduce((n, o) => n + qtyOf(o.product), 0));
 
@@ -622,7 +647,7 @@ export function Register({
                   type="button"
                   className="cg-btn cg-btn--ghost p-6 h-[38px]"
                   aria-label="Lepas pelanggan"
-                  onClick={() => cart.dispatch({ t: 'customer' })}
+                  onClick={() => cart.dispatch({ t: 'customer', pricing: pricingRules })}
                 >
                   <X className="cg-icon cg-icon--xs" aria-hidden />
                 </button>
@@ -750,7 +775,7 @@ export function Register({
                           <button
                             type="button"
                             className="w-32 h-32 rounded-md bg-surface border border-border flex items-center justify-center hover:bg-surface-raised"
-                            onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1 })}
+                            onClick={() => cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty - 1, pricing: activePricing })}
                             aria-label={l.qty === 1 ? `Hapus ${l.name}` : `Kurangi ${l.name}`}
                           >
                             {l.qty === 1 ? <Trash2 className="w-12 h-12" /> : <Minus className="w-12 h-12" />}
@@ -762,7 +787,7 @@ export function Register({
                             onClick={() => {
                               const pr = prods.status === 'ready' ? prods.data.find((x) => x.id === l.productId) : undefined;
                               if (pr && !stockOk(pr)) return;
-                              cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty + 1 });
+                              cart.dispatch({ t: 'qty', lineId: l.id, qty: l.qty + 1, pricing: activePricing });
                             }}
                             aria-label={`Tambah ${l.name}`}
                           >
@@ -988,7 +1013,27 @@ export function Register({
           gross={cart.calc.grossTotal} customerId={cart.state.customerId} productName={(id) => (prods.status === 'ready' ? prods.data.find((p) => p.id === id)?.name : undefined)}
           onAdd={(d) => cart.dispatch({ t: 'discount-add', discount: d })} onRemove={(id) => cart.dispatch({ t: 'discount-remove', id })} onClose={() => setDiscOpen(false)} />
       )}
-      {custPick && <CustomerPicker currentId={cart.state.customerId} onClose={() => setCustPick(false)} onPick={(c) => { cart.dispatch({ t: 'customer', customerId: c?.id, customerName: c?.name }); setCustPick(false); }} />}
+      {custPick && (
+        <CustomerPicker
+          currentId={cart.state.customerId}
+          onClose={() => setCustPick(false)}
+          onPick={(c) => {
+            const gId = c?.id ? groupMemberMap.get(c.id) : undefined;
+            cart.dispatch({
+              t: 'customer',
+              customerId: c?.id,
+              customerName: c?.name,
+              customerGroupId: gId,
+              pricing: {
+                schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
+                tieredPrices: tieredPricesRes.status === 'ready' ? tieredPricesRes.data : undefined,
+                customerGroupId: gId,
+              },
+            });
+            setCustPick(false);
+          }}
+        />
+      )}
       {tablePick && (
         <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}
           onClose={() => setTablePick(false)}
@@ -1001,7 +1046,7 @@ export function Register({
       )}
       {extraFor && extraGroups.status === 'ready' && (
         <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
-          onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras }); setExtraFor(null); }} />
+          onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras, pricing: activePricing }); setExtraFor(null); }} />
       )}
       {splitOpen && <SplitBillDialog lines={cart.state.lines} ctx={ctx} orderType={cart.state.type} onClose={() => setSplitOpen(false)} onConfirm={splitPay} />}
       {customOpen && (
