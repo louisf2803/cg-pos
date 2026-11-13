@@ -29,3 +29,6 @@ begin
   perform pg_temp.ok44(r->>'journal_id' is not null, 'bayar tagihan bertanggal hari ini lokal diterima');
   reset role;
 end $$;
+
+-- bersihkan data tagihan supaya tes berikutnya (hitungan baris) tidak terganggu
+delete from pos.recurring_bills where name = 'Sewa LD';
