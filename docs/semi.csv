@@ -34,7 +34,7 @@ Denah meja kustom dengan drag posisi,sebagian,pratinjau localStorage
 "Pengaturan tampilan struk (logo, teks)",sebagian,templat ada; logo/QR/media sosial belum
 Produk layanan (jasa),sebagian,jenis jasa ada; durasi/staf dan mode jasa belum
 "Outlet: informasi bisnis, rekening, grup outlet",sebagian,"rekening, grup outlet, logo belum"
-"Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter",sebagian,gudang di daftar stok dan impor Excel belum
+"Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter",ada,A125: pemilih lokasi/gudang + impor xlsx/csv lewat postStock (nama berkas templat masih pakai tanggal UTC; minor)
 "Pemesanan stok (PO) dengan referensi permintaan atau tanpa referensi, diskon, pajak, biaya lain, uang muka",sebagian,referensi permintaan dan uang muka belum
 "Faktur pembelian: termin, penerimaan sebagian, lampiran",sebagian,lampiran dan pembatalan belum
 Batasi penjualan dan mutasi saat stok habis,sebagian,penegakan server (sync_push) belum

@@ -64,3 +64,8 @@ Tinjau diff, `pnpm -r typecheck`, 578 tes shared, build dashboard, `lint-tailwin
   - Memuat migrasi `0107_deposit_packages_and_ledger.sql` dan tes `24_deposit.sql` yang SAMA PERSIS (jalur dan nama) dengan cabang A144 → bentrok add/add saat digabung. Satu fitur satu cabang: A124 jangan membawa deposit; ambil dari main setelah A144 diperbaiki.
   - `24_deposit.sql` gagal di `run.sh` (`org_members_org_id_fkey`: org `ctx('o1')` sudah terhapus oleh tes yang berjalan lebih dulu, `20_security`/`30_isolation`). Ganti nama ke `19_deposit.sql` atau buat org sendiri di tes.
   - `index.ts`: baris `export * from './customer-export'` saling menimpa saat merge; rebase dengan menggabungkan kedua sisi.
+
+## 13 Nov 2026 (malam) — A124 (diperbaiki) dan A125 (Claude)
+- DIGABUNG: A124 (migrasi deposit sudah dilepas ke A144; ekspor ada) dan A125 (stok per lokasi + impor xlsx/csv). Typecheck, 609 tes shared, lint, build dashboard lulus. Tidak ada migrasi baru.
+- Catatan kecil: `pelanggan/page.tsx` kini 960 baris (target ±400); nama berkas templat stok memakai `toISOString().slice(0,10)` (UTC). Perbaiki saat menyentuhnya lagi.
+- Merge A124+A125 konflik di `index.ts` (kedua sisi menambah ekspor); baris dipertahankan semuanya.
