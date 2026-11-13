@@ -39,8 +39,23 @@ export interface BundleInput { id?: string; name: string; categoryId: string | n
 export interface Employee { id: string; name: string; role: 'owner' | 'manager' | 'cashier' }
 /** Karyawan untuk layar pengelolaan (termasuk yang nonaktif). */
 /** roleId = tautan ke peran KUSTOM (tabel 0033); kosong = memakai peran bawaan dari `role`. */
-export interface ManagedEmployee extends Employee { isActive: boolean; roleId?: string }
-export interface EmployeeInput { id?: string; name: string; role: 'manager' | 'cashier'; isActive?: boolean }
+export interface ManagedEmployee extends Employee {
+  isActive: boolean;
+  roleId?: string;
+  roleName?: string;
+  hasPin?: boolean;
+  isLocked?: boolean;
+  lockedUntil?: string | null;
+  qrId?: string | null;
+}
+export interface EmployeeInput {
+  id?: string;
+  name: string;
+  role: 'manager' | 'cashier';
+  isActive?: boolean;
+  roleId?: string | null;
+  qrId?: string | null;
+}
 /** Satu catatan absensi. Waktu selalu dari server. minutes = lama kerja, ada bila sudah clock out. */
 export interface AttendanceRecord {
   id: string; employeeId: string; employeeName: string; outletId: string; clockInAt: string; clockOutAt?: string;
