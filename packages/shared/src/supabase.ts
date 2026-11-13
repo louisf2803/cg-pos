@@ -19,6 +19,7 @@ import { salesDocumentError, salesDocumentProblem, type SalesDocType, type Sales
 import { campaignError, campaignProblem, type Campaign, type CampaignInput, type CampaignRecipient } from './crm-campaign';
 import { channelPriceProblem, priceRuleError, timePriceProblem, type Channel, type ChannelPrice, type TimePrice, type TimePriceInput } from './channel-prices';
 import { productionError, productionRunProblem, productionTemplateProblem, type ProductionRun, type ProductionTemplate, type ProductionTemplateInput } from './production';
+import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3110,6 +3111,29 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- kertas dan isi label barcode (A149; migrasi 0138) ----------
+    async listLabelPapers() {
+      const rows = must(await db().from('label_papers').select('*').order('name').limit(200)) as Row[] | null;
+      return (rows ?? []).map((r): LabelPaper => ({
+        id: r.id as string, name: r.name as string, paperW: Number(r.paper_w), paperH: Number(r.paper_h), columns: Number(r.columns), labelW: Number(r.label_w), labelH: Number(r.label_h),
+        rowGap: Number(r.row_gap), colGap: Number(r.col_gap), marginLeft: Number(r.margin_left), marginTop: Number(r.margin_top), content: mergeLabelContent(r.content),
+      }));
+    },
+    async saveLabelPaper(input: LabelPaperInput) {
+      const problem = labelPaperProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('label_paper_save', {
+        p_id: input.id, p_org: orgId,
+        p_data: { name: input.name.trim(), paper_w: input.paperW, paper_h: input.paperH, columns: input.columns, label_w: input.labelW, label_h: input.labelH, row_gap: input.rowGap, col_gap: input.colGap, margin_left: input.marginLeft, margin_top: input.marginTop, content: input.content },
+      });
+      if (error) throw labelPaperError(error);
+    },
+    async deleteLabelPaper(id: string) {
+      const { error } = await db().rpc('label_paper_delete', { p_id: id });
+      if (error) throw labelPaperError(error);
     },
 
     // ---------- produksi stok (A137; migrasi 0137) ----------

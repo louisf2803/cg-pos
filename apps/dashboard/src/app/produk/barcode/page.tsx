@@ -7,55 +7,28 @@ import {
   Check,
   CheckSquare,
   Minus,
+  Pencil,
   Plus,
   Printer,
   Search,
   Square,
 } from 'lucide-react';
 import {
+  BUILTIN_LABEL_PAPER,
+  clipLabelText,
   encodeCode128B,
   formatRp,
+  labelGridStyle,
+  labelPageCount,
+  labelPrintCss,
+  labelsPerPage,
+  type LabelPaper,
   type Product,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
-
-type LabelPreset = '30x20' | '40x30' | '58mm';
-
-interface PresetConfig {
-  id: LabelPreset;
-  name: string;
-  widthMm: number;
-  heightMm: number;
-  description: string;
-}
-
-const PRESETS: PresetConfig[] = [
-  {
-    id: '30x20',
-    name: '30 × 20 mm',
-    widthMm: 30,
-    heightMm: 20,
-    description: 'Ukuran mini (label rak, perhiasan, aksesoris)',
-  },
-  {
-    id: '40x30',
-    name: '40 × 30 mm',
-    widthMm: 40,
-    heightMm: 30,
-    description: 'Ukuran standar retail & kemasan produk',
-  },
-  {
-    id: '58mm',
-    name: 'Gulungan 58 mm',
-    widthMm: 54,
-    heightMm: 32,
-    description: 'Printer thermal struk / barcode roll 58 mm',
-  },
-];
-
-const DEFAULT_PRESET: PresetConfig = PRESETS[1] as PresetConfig;
+import { PaperDialog } from '@/components/label/paper-dialog';
 
 function BarcodeSvg({
   sku,
@@ -126,10 +99,14 @@ export default function BarcodePrintPage() {
   const data = useData();
 
   const [search, setSearch] = useState('');
-  const [preset, setPreset] = useState<LabelPreset>('40x30');
-  const [showName, setShowName] = useState(true);
-  const [showPrice, setShowPrice] = useState(true);
-  const [showSku, setShowSku] = useState(true);
+  const [paperId, setPaperId] = useState(BUILTIN_LABEL_PAPER.id);
+  const [paperDialog, setPaperDialog] = useState<{ paper: LabelPaper | null } | null>(null);
+  const papersAsync = useAsync(() => data.listLabelPapers(), [data]);
+  const ctxAsync = useAsync(() => data.getContext(), [data]);
+  const papers = useMemo(() => [BUILTIN_LABEL_PAPER, ...(papersAsync.status === 'ready' ? papersAsync.data : [])], [papersAsync]);
+  const paper = papers.find((p) => p.id === paperId) ?? BUILTIN_LABEL_PAPER;
+  const content = paper.content;
+  const merchant = ctxAsync.status === 'ready' ? ctxAsync.data.outletName : '';
 
   // Map of productId -> quantity of labels
   const [selectedCounts, setSelectedCounts] = useState<Record<string, number>>({});
@@ -202,8 +179,7 @@ export default function BarcodePrintPage() {
   const totalLabels = labelQueue.length;
   const selectedProductCount = Object.keys(selectedCounts).length;
 
-  const currentPresetConfig: PresetConfig =
-    PRESETS.find((p) => p.id === preset) ?? DEFAULT_PRESET;
+  const pageCount = labelPageCount(paper, totalLabels);
 
   const handlePrint = () => {
     if (typeof window !== 'undefined') {
@@ -216,10 +192,7 @@ export default function BarcodePrintPage() {
       {/* Print-only CSS styling */}
       <style jsx global>{`
         @media print {
-          @page {
-            margin: ${preset === '58mm' ? '0' : '5mm'};
-            size: ${preset === '58mm' ? '58mm auto' : 'auto'};
-          }
+          ${labelPrintCss(paper)}
           body {
             background: white !important;
             color: black !important;
@@ -235,15 +208,14 @@ export default function BarcodePrintPage() {
             display: none !important;
           }
           #barcode-print-canvas {
-            display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 2mm !important;
-            padding: 0 !important;
             margin: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            border: 0 !important;
             background: white !important;
           }
           .label-print-unit {
-            border: 1px dotted #ccc !important;
+            border: 0 !important;
             box-shadow: none !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
@@ -309,34 +281,22 @@ export default function BarcodePrintPage() {
           {/* Top Configuration Card (no-print) */}
           <div className="no-print p-16 rounded-xl border border-border bg-surface-raised space-y-16 min-w-0">
             <div>
-              <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-8">
-                1. Ukuran Kertas & Format Label
-              </span>
-              <div className="grid grid-cols-1 tablet:grid-cols-3 gap-[10px]">
-                {PRESETS.map((p) => {
-                  const isSelected = preset === p.id;
+              <div className="flex flex-wrap items-center justify-between gap-8 mb-8">
+                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block">1. Kertas dan isi label</span>
+                <div className="flex gap-8">
+                  <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setPaperDialog({ paper: null })}><Plus className="w-[14px] h-[14px]" aria-hidden /> Tambah kertas</button>
+                  <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => setPaperDialog({ paper })}><Pencil className="w-[14px] h-[14px]" aria-hidden /> Atur kertas</button>
+                </div>
+              </div>
+              {papersAsync.status === 'error' && <p role="alert" className="text-danger-strong text-sm mb-8">Daftar kertas gagal dimuat: {papersAsync.message}</p>}
+              <div role="radiogroup" aria-label="Kertas label" className="grid grid-cols-1 tablet:grid-cols-3 gap-[10px]">
+                {papers.map((p) => {
+                  const isSelected = paper.id === p.id;
                   return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setPreset(p.id)}
-                      className={`p-12 rounded-lg border text-left flex flex-col justify-between transition-all ${
-                        isSelected
-                          ? 'border-accent bg-accent/5 ring-1 ring-accent'
-                          : 'border-border bg-surface hover:bg-surface-muted'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <strong className="text-sm font-bold text-text">
-                          {p.name}
-                        </strong>
-                        {isSelected && (
-                          <span className="w-8 h-8 rounded-full bg-accent" />
-                        )}
-                      </div>
-                      <span className="text-xs text-text-muted leading-tight">
-                        {p.description}
-                      </span>
+                    <button key={p.id} type="button" role="radio" aria-checked={isSelected} onClick={() => setPaperId(p.id)}
+                      className={`p-12 rounded-lg border text-left flex flex-col justify-between transition-all ${isSelected ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border bg-surface hover:bg-surface-muted'}`}>
+                      <strong className="text-sm font-bold text-text mb-4">{p.name}{p.builtin ? ' (baca-saja)' : ''}</strong>
+                      <span className="text-xs text-text-muted leading-tight">{p.paperW} × {p.paperH} mm · {p.columns} kolom · label {p.labelW} × {p.labelH} mm · {labelsPerPage(p)} label per lembar</span>
                     </button>
                   );
                 })}
@@ -344,43 +304,7 @@ export default function BarcodePrintPage() {
             </div>
 
             <div className="pt-12 border-t border-border flex flex-wrap items-center justify-between gap-12">
-              <div>
-                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider block mb-8">
-                  2. Isi Label
-                </span>
-                <div className="flex flex-wrap items-center gap-16 text-sm">
-                  <label className="flex items-center gap-8 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={showName}
-                      onChange={(e) => setShowName(e.target.checked)}
-                      className="rounded-sm border-border text-accent focus:ring-accent w-16 h-16"
-                    />
-                    <span>Nama Produk</span>
-                  </label>
-
-                  <label className="flex items-center gap-8 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={showPrice}
-                      onChange={(e) => setShowPrice(e.target.checked)}
-                      className="rounded-sm border-border text-accent focus:ring-accent w-16 h-16"
-                    />
-                    <span>Harga Jual</span>
-                  </label>
-
-                  <label className="flex items-center gap-8 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={showSku}
-                      onChange={(e) => setShowSku(e.target.checked)}
-                      className="rounded-sm border-border text-accent focus:ring-accent w-16 h-16"
-                    />
-                    <span>Kode SKU (di bawah bar)</span>
-                  </label>
-                </div>
-              </div>
-
+              <p className="text-xs text-text-muted">Isi label mengikuti kertas yang dipilih dan diatur dari Atur kertas.</p>
               <div className="flex items-center gap-8">
                 <span className="text-xs text-text-muted">
                   Total antrean: <strong>{totalLabels} label</strong> ({selectedProductCount} produk)
@@ -555,7 +479,7 @@ export default function BarcodePrintPage() {
                     Pratinjau Hasil Cetak
                   </span>
                   <span className="text-xs text-text-muted">
-                    Format: <strong>{currentPresetConfig.name}</strong> ({totalLabels} label)
+                    Kertas: <strong>{paper.name}</strong> ({totalLabels} label{pageCount > 0 ? `, ${pageCount} lembar` : ''})
                   </span>
                 </div>
                 <button
@@ -571,7 +495,8 @@ export default function BarcodePrintPage() {
               {/* Canvas Area (rendered on screen in preview box, and full width on print) */}
               <div
                 id="barcode-print-canvas"
-                className="p-16 rounded-xl border border-border bg-surface-muted/40 min-h-[300px] max-h-[560px] overflow-y-auto flex flex-wrap gap-8 items-start content-start"
+                className="rounded-xl border border-border bg-surface-muted/40 min-h-[300px] max-h-[560px] overflow-auto"
+                style={labelQueue.length === 0 ? undefined : labelGridStyle(paper)}
               >
                 {labelQueue.length === 0 ? (
                   <div className="w-full text-center py-48 text-text-muted text-sm no-print">
@@ -585,38 +510,18 @@ export default function BarcodePrintPage() {
                   labelQueue.map(({ product, index }) => (
                     <div
                       key={`${product.id}-${index}`}
-                      className="label-print-unit bg-white text-black border border-dashed border-border rounded-sm p-4 flex flex-col justify-between items-center text-center overflow-hidden shadow-xs select-none"
-                      style={{
-                        width: `${currentPresetConfig.widthMm}mm`,
-                        height: `${currentPresetConfig.heightMm}mm`,
-                        boxSizing: 'border-box',
-                      }}
+                      className="label-print-unit bg-white text-black border border-dashed border-border flex flex-col justify-between items-center text-center overflow-hidden select-none"
+                      style={{ width: `${paper.labelW}mm`, height: `${paper.labelH}mm`, boxSizing: 'border-box', padding: '0.5mm', fontSize: `${content.fontMm}mm`, lineHeight: 1.15 }}
                     >
-                      {/* Product Name (truncated to max 2 lines) */}
-                      {showName && (
-                        <div
-                          className="text-[9px] font-bold leading-tight line-clamp-2 w-full break-words text-black mb-[1px]"
-                          title={product.name}
-                        >
-                          {product.name}
+                      {content.showMerchant && merchant && <div className="w-full font-semibold truncate">{merchant}</div>}
+                      {content.showName && <div className="w-full font-bold break-words" title={product.name}>{clipLabelText(product.name, content.maxChars)}</div>}
+                      {content.showBarcode && (
+                        <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
+                          <BarcodeSvg sku={product.sku!} height={Math.max(8, Math.round(content.barcodeHeightMm * 3.78))} showText={content.showCode} />
                         </div>
                       )}
-
-                      {/* Barcode SVG */}
-                      <div className="w-full flex-1 flex items-center justify-center my-0.5 overflow-hidden">
-                        <BarcodeSvg
-                          sku={product.sku!}
-                          height={preset === '30x20' ? 22 : 28}
-                          showText={showSku}
-                        />
-                      </div>
-
-                      {/* Price */}
-                      {showPrice && (
-                        <div className="text-[9px] font-bold cg-num leading-tight text-black mt-0.5">
-                          {formatRp(product.price)}
-                        </div>
-                      )}
+                      {!content.showBarcode && content.showCode && <div className="w-full cg-num">{product.sku}</div>}
+                      {content.showPrice && <div className="font-bold cg-num" style={{ fontSize: `${content.priceMm}mm` }}>{formatRp(product.price)}</div>}
                     </div>
                   ))
                 )}
@@ -624,6 +529,9 @@ export default function BarcodePrintPage() {
             </div>
           </div>
         </div>
+      )}
+      {paperDialog && (
+        <PaperDialog paper={paperDialog.paper} onClose={() => setPaperDialog(null)} onSaved={(p) => { setPaperDialog(null); setPaperId(p.id); papersAsync.reload(); }} />
       )}
     </>
   );

@@ -9,6 +9,7 @@ import type { SalesDocType, SalesDocument, SalesDocumentInput } from './sales-do
 import type { Campaign, CampaignInput, CampaignRecipient } from './crm-campaign';
 import type { Channel, ChannelPrice, TimePrice, TimePriceInput } from './channel-prices';
 import type { ProductionRun, ProductionRunInput, ProductionTemplate, ProductionTemplateInput } from './production';
+import type { LabelPaper, LabelPaperInput } from './label-paper';
 import type { Appointment, AppointmentInput } from './appointment';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
@@ -522,5 +523,12 @@ export interface DataLayer {
   }): Promise<NonCashReconciliationRecord[]>;
   /** Simpan rekonsiliasi non-tunai, catat nominal bank, potongan fee gateway, dan selisih ke jurnal. */
   saveNonCashReconciliation(input: SaveReconciliationInput): Promise<NonCashReconciliationRecord>;
+
+  // ---------- kertas dan isi label barcode (A149) ----------
+  /** Kertas label yang tersimpan (tanpa kertas bawaan, yang ada di aplikasi). Semua anggota boleh membaca; pengaturan hanya dari backoffice. */
+  listLabelPapers(): Promise<LabelPaper[]>;
+  /** Simpan kertas beserta isi label (id sama = ubah). Pengelola saja. */
+  saveLabelPaper(input: LabelPaperInput): Promise<void>;
+  deleteLabelPaper(id: string): Promise<void>;
 }
 

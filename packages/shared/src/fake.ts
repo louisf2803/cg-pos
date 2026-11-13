@@ -33,6 +33,7 @@ import { createFakeSalesDocuments } from './sales-documents';
 import { createFakeCampaigns } from './crm-campaign';
 import { createFakePriceRules } from './channel-prices';
 import { createFakeProduction } from './production';
+import { createFakeLabelPapers } from './label-paper';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -750,6 +751,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     ...campaigns,
     ...priceRules,
     ...production,
+    ...createFakeLabelPapers(),
     async listGatewayTransactions() { return []; },
     async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },
