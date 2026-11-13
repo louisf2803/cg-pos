@@ -6,6 +6,7 @@ import type { GatewayTransaction } from './qris-report';
 import type { PaymentMethodAccount } from './payment-accounts';
 import type { SalesDocType, SalesDocument, SalesDocumentInput } from './sales-documents';
 import type { Campaign, CampaignInput, CampaignRecipient } from './crm-campaign';
+import type { Channel, ChannelPrice, TimePrice, TimePriceInput } from './channel-prices';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -479,5 +480,16 @@ export interface DataLayer {
   endCampaign(id: string): Promise<void>;
   /** Hapus kampanye draf. */
   deleteCampaign(id: string): Promise<void>;
+
+  // ---------- harga kanal ojek online dan harga berdasarkan waktu (A135) ----------
+  /** Semua harga per kanal ojek online. Kasir belum memakainya. */
+  listChannelPrices(): Promise<ChannelPrice[]>;
+  saveChannelPrice(productId: string, channel: Channel, price: number): Promise<void>;
+  deleteChannelPrice(productId: string, channel: Channel): Promise<void>;
+  /** Aturan harga menurut hari dan jam. Kasir belum memakainya. */
+  listTimePrices(): Promise<TimePrice[]>;
+  /** Simpan aturan (id sama = ubah). Aturan aktif untuk produk dan hari yang sama tidak boleh beririsan jamnya. */
+  saveTimePrice(input: TimePriceInput): Promise<void>;
+  deleteTimePrice(id: string): Promise<void>;
 }
 

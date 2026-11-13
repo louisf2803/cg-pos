@@ -123,9 +123,9 @@ export const MODUL: NavModule[] = [
           { section: 'Katalog', href: '/paket', label: 'Produk paket', screen: 'S36', tier: 1, built: true },
           { section: 'Katalog', href: '/deposit', label: 'Paket deposit', screen: 'S37', tier: 3, built: true },
           { section: 'Resep & Harga', href: '/inventori/resep', label: 'Perubahan resep', screen: 'S33', tier: 2, built: true },
-          { section: 'Resep & Harga', href: '/harga-ojol', label: 'Daftar harga ojek online', screen: 'S38', tier: 2 },
+          { section: 'Resep & Harga', href: '/harga-ojol', label: 'Daftar harga ojek online', screen: 'S38', tier: 2, built: true },
           { section: 'Resep & Harga', href: '/harga-jadwal', label: 'Penjadwalan harga', screen: 'S38', tier: 2, built: true },
-          { section: 'Resep & Harga', href: '/harga-waktu', label: 'Harga berdasarkan waktu', screen: 'S38', tier: 3 },
+          { section: 'Resep & Harga', href: '/harga-waktu', label: 'Harga berdasarkan waktu', screen: 'S38', tier: 3, built: true },
         ],
       },
       {

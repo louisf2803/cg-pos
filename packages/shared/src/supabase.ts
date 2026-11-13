@@ -16,6 +16,7 @@ import type { GatewayTransaction } from './qris-report';
 import { paymentAccountError, type PaymentMethodAccount } from './payment-accounts';
 import { salesDocumentError, salesDocumentProblem, type SalesDocType, type SalesDocument } from './sales-documents';
 import { campaignError, campaignProblem, type Campaign, type CampaignInput, type CampaignRecipient } from './crm-campaign';
+import { channelPriceProblem, priceRuleError, timePriceProblem, type Channel, type ChannelPrice, type TimePrice, type TimePriceInput } from './channel-prices';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3005,6 +3006,42 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- harga kanal dan harga waktu (A135; migrasi 0135) ----------
+    async listChannelPrices() {
+      const rows = must(await db().from('channel_prices').select('product_id,channel,price').limit(20000)) as Row[] | null;
+      return (rows ?? []).map((r): ChannelPrice => ({ productId: r.product_id as string, channel: r.channel as Channel, price: Number(r.price) }));
+    },
+    async saveChannelPrice(productId: string, channel: Channel, price: number) {
+      const problem = channelPriceProblem(price);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('channel_price_save', { p_org: orgId, p_product: productId, p_channel: channel, p_price: price });
+      if (error) throw priceRuleError(error);
+    },
+    async deleteChannelPrice(productId: string, channel: Channel) {
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('channel_price_delete', { p_org: orgId, p_product: productId, p_channel: channel });
+      if (error) throw priceRuleError(error);
+    },
+    async listTimePrices() {
+      const rows = must(await db().from('time_prices').select('*').order('created_at').limit(5000)) as Row[] | null;
+      return (rows ?? []).map((r): TimePrice => ({
+        id: r.id as string, productId: r.product_id as string, days: ((r.days ?? []) as number[]).map(Number).sort(), startTime: String(r.start_time).slice(0, 5),
+        endTime: String(r.end_time).slice(0, 5), price: Number(r.price), isActive: Boolean(r.is_active),
+      }));
+    },
+    async saveTimePrice(input: TimePriceInput) {
+      const problem = timePriceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('time_price_save', { p_id: input.id, p_org: orgId, p_product: input.productId, p_days: input.days, p_start: input.startTime, p_end: input.endTime, p_price: input.price, p_active: input.isActive });
+      if (error) throw priceRuleError(error);
+    },
+    async deleteTimePrice(id: string) {
+      const { error } = await db().rpc('time_price_delete', { p_id: id });
+      if (error) throw priceRuleError(error);
     },
 
     // ---------- kampanye CRM (A132; migrasi 0132) ----------

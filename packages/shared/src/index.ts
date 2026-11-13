@@ -102,4 +102,5 @@ export * from './qris-report';
 export * from './payment-accounts';
 export * from './sales-documents';
 export * from './crm-campaign';
+export * from './channel-prices';
 
