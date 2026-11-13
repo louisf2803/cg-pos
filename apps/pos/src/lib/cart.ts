@@ -1,7 +1,7 @@
 import { useMemo, useReducer } from 'react';
 import { appliedFromEntries, computeOrder, extrasKey, extrasLineTotal, newId, overridePricingForProduct, resolveDiscounts, type AppliedDiscount, type CalcResult, type ItemExtra, type Order, type OrderType, type OutletContext, type Product, type Promotion, type ResolvedDiscounts } from '@cgpos/shared';
 
-export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string; /** harga daftar saat ditambahkan dan batas persen ubah harga; dipertahankan dari katalog saat muat ulang */ basePrice?: number; overridePct?: number }
+export interface CartLine { id: string; productId: string; name: string; qty: number; unitPrice: number; extras?: ItemExtra[]; note?: string; taxRate?: number | null; /** harga daftar saat ditambahkan dan batas persen ubah harga; dipertahankan dari katalog saat muat ulang */ basePrice?: number; overridePct?: number }
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState { type: OrderType; lines: CartLine[]; orderId?: string; tableId?: string; tableName?: string; label?: string; guestCount?: number; customerId?: string; customerName?: string; discounts: AppliedDiscount[] }
 type Action =
@@ -28,7 +28,7 @@ function reduce(s: CartState, a: Action): CartState {
       // baris yang sama = produk sama dan pilihan Ekstra sama persis
       const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && l.unitPrice === (l.basePrice ?? l.unitPrice));
       if (ex) return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: l.qty + 1 } : l)) };
-      return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, basePrice: a.product.price, ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}), ...(a.extras?.length ? { extras: a.extras } : {}) }] };
+      return { ...s, lines: [...s.lines, { id: newId(), productId: a.product.id, name: a.product.name, qty: 1, unitPrice: a.product.price, basePrice: a.product.price, taxRate: a.product.taxRate, ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}), ...(a.extras?.length ? { extras: a.extras } : {}) }] };
     }
     // Item bebas: selalu baris baru (nama dan harga diketik kasir), tidak digabung dengan baris lain
     case 'custom': return { ...s, lines: [...s.lines, { id: newId(), productId: a.productId, name: a.name, qty: a.qty, unitPrice: a.unitPrice, ...(a.note ? { note: a.note } : {}) }] };
@@ -64,6 +64,7 @@ function reduce(s: CartState, a: Action): CartState {
           ...overridePricingForProduct(byId.get(i.productId)),
           ...(i.extras?.length ? { extras: i.extras } : {}),
           ...(i.note ? { note: i.note } : {}),
+          taxRate: byId.get(i.productId)?.taxRate,
         })),
       };
     }
@@ -83,7 +84,7 @@ export function useCart(ctx: OutletContext, roundingStep = 0, promos: Promotion[
   const calc: CalcResult = useMemo(
     () => computeOrder({
       orderType: state.type, orderTaxes: ctx.taxes, settings: ctx.settings, roundingStep, orderDiscount: discounts.total,
-      items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })),
+      items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras), taxRate: l.taxRate ?? undefined })),
     }),
     [state, ctx, roundingStep, discounts],
   );

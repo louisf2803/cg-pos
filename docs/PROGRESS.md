@@ -1033,3 +1033,9 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A141 Server: Pajak per Produk dan per Jenis Order Selesai
+- Migrasi `packages/db/migrations/0101_tax_per_product_and_order_types.sql` & tes SQL `packages/db/tests/21_tax_per_product_and_order_types.sql`: kolom `pos.products.tax_rate`, `pos.taxes.order_type_rates`, dan RPC `pos.tax_settings_save`.
+- Logika & DataLayer: `effectiveProductTaxRate`, `computeOrder` & `computeInclusive` mendukung cakupan `per_order` vs `per_product`, jenis order aktif (`orderTypes`), serta tarif pajak produk bebas (0%) / tarif khusus.
+- UI: `/pengaturan/pajak` mendukung pilihan cakupan dan multi-select jenis order kena pajak (banner pratinjau dihapus); `product-form.tsx` mendukung pilihan aturan pajak produk (ikut outlet / bebas 0% / tarif khusus).
+- Verifikasi: `pnpm -r typecheck` lulus, 7 tes `tax.test.ts` & 19 tes `calc.test.ts` lulus, `lint-tailwind` bersih.

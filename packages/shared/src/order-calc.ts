@@ -15,10 +15,16 @@ export interface CalcItem {
   isFree?: boolean;
   voided?: boolean;
   /** persen pajak untuk mode per_product */
-  taxRate?: number;
+  taxRate?: number | null;
 }
 
-export interface CalcTaxRate { taxId?: string; name: string; rate: number }
+export interface CalcTaxRate {
+  taxId?: string;
+  name: string;
+  rate: number;
+  orderTypes?: OrderType[];
+  orderTypeRates?: Partial<Record<OrderType, number>>;
+}
 
 export interface CalcSettings {
   taxCalc: TaxCalc;
@@ -112,14 +118,22 @@ export function computeOrder(input: CalcInput): CalcResult {
   if (settings.taxMode === 'per_order') {
     const base = (settings.taxCalc === 'before_discount' ? subtotal : afterDiscount) + serviceBase;
     for (const t of input.orderTaxes ?? []) {
-      taxLines.push({ taxId: t.taxId, name: t.name, rate: t.rate, base, amount: Math.round((base * t.rate) / 100) });
+      const active = !t.orderTypes || t.orderTypes.length === 0 || t.orderTypes.includes(orderType);
+      const rate = active ? (t.orderTypeRates?.[orderType] ?? t.rate) : 0;
+      if (rate > 0) {
+        taxLines.push({ taxId: t.taxId, name: t.name, rate, base, amount: Math.round((base * rate) / 100) });
+      }
     }
   } else {
     // per produk: potongan order dibagi ke baris menurut nilai baris bila pajak dihitung setelah diskon
     const share = settings.taxCalc === 'after_discount' ? allocate(discountTotal, lineTotals) : lineTotals.map(() => 0);
     const byRate = new Map<number, { base: number; amount: number }>();
+    const defTax = input.orderTaxes?.[0];
+    const orderTypeActive = !defTax?.orderTypes || defTax.orderTypes.length === 0 || defTax.orderTypes.includes(orderType);
+    const fallbackRate = orderTypeActive ? (defTax?.orderTypeRates?.[orderType] ?? defTax?.rate ?? 0) : 0;
+
     live.forEach((it, idx) => {
-      const rate = it.taxRate ?? 0;
+      const rate = orderTypeActive ? (it.taxRate !== undefined && it.taxRate !== null ? it.taxRate : fallbackRate) : 0;
       const base = lineTotals[idx]! - share[idx]!;
       const amount = Math.round((base * rate) / 100);
       lineTax[idx] = amount;
@@ -165,10 +179,23 @@ function computeInclusive(input: CalcInput): CalcResult {
   const sumGross = gross.reduce((a, b) => a + b, 0);
   const orderDiscount = Math.min(Math.max(Math.round(input.orderDiscount ?? 0), 0), sumGross);
   const share = allocate(orderDiscount, gross);
-  const taxes = input.orderTaxes ?? [];
   const perOrder = settings.taxMode === 'per_order';
+  const defTax = input.orderTaxes?.[0];
+  const orderTypeActive = !defTax?.orderTypes || defTax.orderTypes.length === 0 || defTax.orderTypes.includes(orderType);
+  const fallbackRate = orderTypeActive ? (defTax?.orderTypeRates?.[orderType] ?? defTax?.rate ?? 0) : 0;
+
+  const taxes = (input.orderTaxes ?? []).map((t) => {
+    const act = !t.orderTypes || t.orderTypes.length === 0 || t.orderTypes.includes(orderType);
+    const rate = act ? (t.orderTypeRates?.[orderType] ?? t.rate) : 0;
+    return { ...t, rate };
+  }).filter((t) => t.rate > 0);
+
   const rateSum = taxes.reduce((a, t) => a + t.rate, 0);
-  const rateOf = (it: CalcItem) => (perOrder ? rateSum : it.taxRate ?? 0);
+  const rateOf = (it: CalcItem) => {
+    if (!orderTypeActive) return 0;
+    if (perOrder) return rateSum;
+    return it.taxRate !== undefined && it.taxRate !== null ? it.taxRate : fallbackRate;
+  };
   const inc = (amount: number, rate: number) => (rate > 0 ? Math.round((amount * rate) / (100 + rate)) : 0);
   const tax0 = live.map((it, i) => inc(gross[i]!, rateOf(it)));
   const tax1 = live.map((it, i) => inc(gross[i]! - share[i]!, rateOf(it)));
@@ -207,4 +234,20 @@ export function cashChange(total: number, alreadyPaid: number, tendered: number)
   const balance = Math.max(total - alreadyPaid, 0);
   const applied = Math.min(tendered, balance);
   return { applied, change: Math.max(tendered - balance, 0), shortfall: Math.max(balance - tendered, 0) };
+}
+
+/** Tentukan tarif pajak efektif satu produk berdasarkan jenis order dan mode pajak. */
+export function effectiveProductTaxRate(
+  productRate: number | null | undefined,
+  outletTax: CalcTaxRate | undefined,
+  orderType: OrderType,
+  taxMode: TaxMode = 'per_order'
+): number {
+  const active = !outletTax?.orderTypes || outletTax.orderTypes.length === 0 || outletTax.orderTypes.includes(orderType);
+  if (!active) return 0;
+  const outletRate = outletTax ? (outletTax.orderTypeRates?.[orderType] ?? outletTax.rate) : 0;
+  if (taxMode === 'per_product') {
+    return productRate !== undefined && productRate !== null ? productRate : outletRate;
+  }
+  return productRate !== undefined && productRate !== null ? productRate : outletRate;
 }

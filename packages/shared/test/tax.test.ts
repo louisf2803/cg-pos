@@ -29,7 +29,7 @@ describe('pengaturan pajak', () => {
     expect(isInclusiveOrder(ex)).toBe(false);
 
     await d.saveTaxSettings({ enabled: true, name: 'PB1', rate: 10, inclusive: true });
-    expect(await d.getTaxSettings()).toEqual({ enabled: true, name: 'PB1', rate: 10, inclusive: true });
+    expect(await d.getTaxSettings()).toMatchObject({ enabled: true, name: 'PB1', rate: 10, inclusive: true });
     const inc = await d.saveOrder({ id: newId(), type: 'takeaway', items: [{ ...items[0]!, id: newId() }] }, 'e-sari');
     expect(inc).toMatchObject({ subtotal: 36364, taxTotal: 3636, total: 40000 });
     expect(isInclusiveOrder(inc)).toBe(true);
@@ -63,5 +63,73 @@ describe('jenis order', () => {
       const o = await d.saveOrder({ id: newId(), type, label: 'Pak Dedi', items: [{ ...items[0]!, id: newId() }] }, 'e-sari');
       expect(o).toMatchObject({ type, label: 'Pak Dedi' });
     }
+  });
+
+  it('pajak per jenis order: hanya jenis order yang dipilih yang dikenakan pajak', async () => {
+    const d = mk();
+    await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
+    // Pajak 10% hanya untuk dine_in
+    await d.saveTaxSettings({
+      enabled: true,
+      name: 'PB1 Resto',
+      rate: 10,
+      inclusive: false,
+      taxMode: 'per_order',
+      orderTypes: ['dine_in'],
+    });
+
+    // Dine in kena pajak
+    const dine = await d.saveOrder({ id: newId(), type: 'dine_in', items: [{ ...items[0]!, id: newId() }] }, 'e-sari');
+    expect(dine.taxTotal).toBe(4000);
+    expect(dine.total).toBe(44000);
+
+    // Takeaway bebas pajak
+    const take = await d.saveOrder({ id: newId(), type: 'takeaway', items: [{ ...items[0]!, id: newId() }] }, 'e-sari');
+    expect(take.taxTotal).toBe(0);
+    expect(take.total).toBe(40000);
+
+    // Delivery bebas pajak
+    const deliv = await d.saveOrder({ id: newId(), type: 'delivery', items: [{ ...items[0]!, id: newId() }] }, 'e-sari');
+    expect(deliv.taxTotal).toBe(0);
+    expect(deliv.total).toBe(40000);
+  });
+
+  it('pajak per produk: produk bebas pajak (0%) dan tarif khusus (5%) vs default outlet (10%)', async () => {
+    const d = mk();
+    await d.openShift({ id: newId(), cashierId: 'e-sari', openingCash: 0 });
+    await d.saveTaxSettings({
+      enabled: true,
+      name: 'PB1',
+      rate: 10,
+      inclusive: false,
+      taxMode: 'per_product',
+      orderTypes: ['dine_in', 'takeaway', 'delivery', 'service'],
+    });
+
+    // Buat 3 produk:
+    // 1. p-normal: ikut outlet (undefined / null -> 10%)
+    // 2. p-free: bebas pajak (0%)
+    // 3. p-special: tarif khusus (5%)
+    const pNormal = await d.saveProduct({ name: 'Kopi Reguler', price: 20000, categoryId: null });
+    const pFree = await d.saveProduct({ name: 'Air Mineral Bebas Pajak', price: 10000, categoryId: null, taxRate: 0 });
+    const pSpecial = await d.saveProduct({ name: 'Snack Pajak Ringan', price: 20000, categoryId: null, taxRate: 5 });
+
+    expect(pFree.taxRate).toBe(0);
+    expect(pSpecial.taxRate).toBe(5);
+
+    const o = await d.saveOrder({
+      id: newId(),
+      type: 'dine_in',
+      items: [
+        { id: newId(), productId: pNormal.id, name: pNormal.name, qty: 1, unitPrice: 20000 },  // tax 10% = 2000
+        { id: newId(), productId: pFree.id, name: pFree.name, qty: 1, unitPrice: 10000 },      // tax 0% = 0
+        { id: newId(), productId: pSpecial.id, name: pSpecial.name, qty: 1, unitPrice: 20000 },// tax 5% = 1000
+      ],
+    }, 'e-sari');
+
+    // Subtotal = 50.000, Tax = 2000 + 0 + 1000 = 3000, Total = 53.000
+    expect(o.subtotal).toBe(50000);
+    expect(o.taxTotal).toBe(3000);
+    expect(o.total).toBe(53000);
   });
 });

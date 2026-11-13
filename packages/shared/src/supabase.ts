@@ -52,7 +52,7 @@ import type {
   Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord, PriceChange,
 } from './types';
-import type { OrderType } from './order-calc';
+import type { OrderType, TaxMode } from './order-calc';
 import { computeOrder } from './order-calc';
 import { formatOrderNumber, localDateKey } from './order-number';
 import { roundToStep } from './money';
@@ -76,7 +76,7 @@ export interface SupabaseDataOptions {
 }
 
 const PRODUCT_SELECT =
-  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,photo_path,allow_price_override,max_price_override_pct,product_units(id,price,sku,is_base,deleted_at)';
+  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,tax_rate,photo_path,allow_price_override,max_price_override_pct,product_units(id,price,sku,is_base,deleted_at)';
 const ORDER_SELECT =
   'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at,order_item_extras(option_id,name,price,qty)),' +
@@ -483,7 +483,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         cashOutDailyLimit: s.cash_out_daily_limit == null ? null : Number(s.cash_out_daily_limit),
         defaultOpeningCash: s.default_opening_cash == null ? null : Number(s.default_opening_cash),
       },
-      taxes: ((must(taxes) as Row[] | null) ?? []).map((t) => ({ id: t.id, name: t.name, rate: Number(t.rate) })),
+      taxes: ((must(taxes) as Row[] | null) ?? []).map((t) => ({
+        id: t.id, name: t.name, rate: Number(t.rate),
+        orderTypes: (t.order_types as OrderType[]) ?? ['dine_in', 'takeaway', 'delivery', 'service'],
+        orderTypeRates: (t.order_type_rates as Partial<Record<OrderType, number>>) ?? {},
+      })),
     };
     return { ctx, orgId: outlet.org_id, device: device ? { id: device.id, code: device.code } : null };
   }
@@ -633,12 +637,22 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async getTaxSettings() {
       const { ctx } = await resolve();
       const [tax, st] = await Promise.all([
-        db().from('taxes').select('id,name,rate,is_default').is('deleted_at', null).order('created_at').limit(1),
-        db().from('outlet_settings').select('tax_calc').eq('outlet_id', ctx.outletId).single(),
+        db().from('taxes').select('id,name,rate,is_default,order_types,order_type_rates').is('deleted_at', null).order('created_at').limit(1),
+        db().from('outlet_settings').select('tax_calc,tax_mode').eq('outlet_id', ctx.outletId).single(),
       ]);
       const t = ((must(tax) as Row[] | null) ?? [])[0];
-      const inclusive = (must(st) as Row).tax_calc === 'inclusive';
-      return t ? { enabled: !!t.is_default, name: t.name, rate: Number(t.rate), inclusive } satisfies TaxSettings : { ...DEFAULT_TAX, inclusive };
+      const stRow = (must(st) as Row | null) ?? {};
+      const inclusive = stRow.tax_calc === 'inclusive';
+      const taxMode = (stRow.tax_mode as TaxMode) ?? 'per_order';
+      return t ? {
+        enabled: !!t.is_default,
+        name: t.name,
+        rate: Number(t.rate),
+        inclusive,
+        taxMode,
+        orderTypes: (t.order_types as OrderType[]) ?? ['dine_in', 'takeaway', 'delivery', 'service'],
+        orderTypeRates: (t.order_type_rates as Partial<Record<OrderType, number>>) ?? {},
+      } satisfies TaxSettings : { ...DEFAULT_TAX, inclusive, taxMode };
     },
     async saveTaxSettings(input) {
       const problem = taxSettingsProblem(input);
@@ -650,7 +664,13 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         if (probe.error) throw new DataError('invalid', 'Mode harga sudah termasuk pajak belum bisa dinyalakan: database belum menerima migrasi 0012 (minta Claude menerapkannya).');
       }
       const rows = (must(await db().from('taxes').select('id').is('deleted_at', null).order('created_at').limit(1)) as Row[] | null) ?? [];
-      const fields = { name: input.name.trim(), rate: input.rate, is_default: input.enabled };
+      const fields: Row = {
+        name: input.name.trim(),
+        rate: input.rate,
+        is_default: input.enabled,
+        order_types: input.orderTypes ?? ['dine_in', 'takeaway', 'delivery', 'service'],
+        order_type_rates: input.orderTypeRates ?? {},
+      };
       if (rows[0]) {
         const r = must(await db().from('taxes').update(fields).eq('id', rows[0].id).select('id').maybeSingle()) as Row | null;
         if (!r) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pajak');
@@ -659,7 +679,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       }
       const cur = (must(await db().from('outlet_settings').select('tax_calc').eq('outlet_id', ctx.outletId).single()) as Row).tax_calc as string;
       const taxCalc = input.inclusive ? 'inclusive' : cur === 'inclusive' ? 'after_discount' : cur;
-      const s = must(await db().from('outlet_settings').update({ tax_calc: taxCalc }).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
+      const taxMode = input.taxMode ?? 'per_order';
+      const s = must(await db().from('outlet_settings').update({ tax_calc: taxCalc, tax_mode: taxMode }).eq('outlet_id', ctx.outletId).select('outlet_id').maybeSingle()) as Row | null;
       if (!s) throw new DataError('forbidden', 'Hanya pemilik dan manajer yang bisa mengubah pajak');
       resolved = null;
     },
@@ -971,6 +992,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           if (input.trackStock !== undefined) patch.track_stock = input.trackStock;
           if (input.isFavorite !== undefined) patch.is_favorite = input.isFavorite;
           if (input.isActive !== undefined) patch.is_active = input.isActive;
+          if (input.taxRate !== undefined) patch.tax_rate = input.taxRate;
           const row = must(await db().from('products').update(patch).eq('id', input.id).select('id').maybeSingle()) as Row | null;
           if (!row) throw new DataError('not_found', 'Produk tidak ditemukan');
           must(await db().from('product_units').update({ price, sku }).eq('product_id', input.id).eq('is_base', true).is('deleted_at', null).select('id'));
@@ -983,6 +1005,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           id, org_id: orgId, kind: input.kind ?? 'goods', name, category_id: input.categoryId, base_unit_id: unit.id,
           is_sellable: true, show_in_menu: true, track_stock: input.trackStock ?? true, is_favorite: input.isFavorite ?? false,
           is_active: input.isActive ?? true,
+          ...(input.taxRate !== undefined ? { tax_rate: input.taxRate } : {}),
         }));
         must(await db().from('product_units').insert({ org_id: orgId, product_id: id, unit_id: unit.id, conversion: 1, is_base: true, price, sku }));
         return (await self.getProduct(id))!;
@@ -1034,7 +1057,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
             must(await db().from('products').update({ is_sellable: true, show_in_menu: true }).eq('id', input.id));
           }
         }
-        const p = await self.saveProduct({ id: input.id, name, categoryId: input.categoryId, price: input.price, sku: input.sku, kind, trackStock: input.trackStock, isFavorite: input.isFavorite, isActive: input.isActive });
+        const p = await self.saveProduct({ id: input.id, name, categoryId: input.categoryId, price: input.price, sku: input.sku, kind, trackStock: input.trackStock, isFavorite: input.isFavorite, isActive: input.isActive, taxRate: input.taxRate });
         return (await self.getCatalogProduct(p.id))!;
       }
       for (const v of input.variants) if (!Number.isFinite(v.price) || v.price < 0) throw new DataError('invalid', 'Harga varian tidak valid');
@@ -1049,9 +1072,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         const existing = input.id ? (must(await db().from('products').select('id').eq('id', input.id).maybeSingle()) as Row | null) : null;
         if (!existing) {
           must(await db().from('products').insert({ id: parentId, org_id: orgId, kind, name, category_id: input.categoryId, base_unit_id: unit.id,
-            is_sellable: false, show_in_menu: false, track_stock: false, is_favorite: isFavorite, is_active: groupActive }));
+            is_sellable: false, show_in_menu: false, track_stock: false, is_favorite: isFavorite, is_active: groupActive,
+            ...(input.taxRate !== undefined ? { tax_rate: input.taxRate } : {}) }));
         } else {
-          must(await db().from('products').update({ name, category_id: input.categoryId, kind, is_sellable: false, show_in_menu: false, is_favorite: isFavorite, is_active: groupActive }).eq('id', parentId));
+          must(await db().from('products').update({ name, category_id: input.categoryId, kind, is_sellable: false, show_in_menu: false, is_favorite: isFavorite, is_active: groupActive,
+            ...(input.taxRate !== undefined ? { tax_rate: input.taxRate } : {}) }).eq('id', parentId));
         }
         const kids = (must(await db().from('products').select('id').eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
         const kidIds = new Set(kids.map((k) => k.id as string));
@@ -1064,12 +1089,14 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           const sku = v.sku?.trim() || null;
           const active = groupActive && (v.isActive ?? true);
           if (v.id && kidIds.has(v.id)) {
-            must(await db().from('products').update({ name: childName, category_id: input.categoryId, kind, is_active: active, track_stock: trackStock, is_favorite: isFavorite }).eq('id', v.id));
+            must(await db().from('products').update({ name: childName, category_id: input.categoryId, kind, is_active: active, track_stock: trackStock, is_favorite: isFavorite,
+              ...(input.taxRate !== undefined ? { tax_rate: input.taxRate } : {}) }).eq('id', v.id));
             must(await db().from('product_units').update({ price, sku }).eq('product_id', v.id).eq('is_base', true).is('deleted_at', null).select('id'));
           } else {
             const id = newId();
             must(await db().from('products').insert({ id, org_id: orgId, kind, name: childName, category_id: input.categoryId, base_unit_id: unit.id, parent_id: parentId,
-              is_sellable: true, show_in_menu: true, track_stock: trackStock, is_favorite: isFavorite, is_active: active }));
+              is_sellable: true, show_in_menu: true, track_stock: trackStock, is_favorite: isFavorite, is_active: active,
+              ...(input.taxRate !== undefined ? { tax_rate: input.taxRate } : {}) }));
             must(await db().from('product_units').insert({ org_id: orgId, product_id: id, unit_id: unit.id, conversion: 1, is_base: true, price, sku }));
           }
         }
@@ -2568,10 +2595,13 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const missing = productIds.find((p) => !unitOf.has(p));
       if (missing) throw new DataError('not_found', 'Ada produk di pesanan yang sudah tidak tersedia');
 
+      const prodRows = must(await db().from('products').select('id,tax_rate').in('id', productIds)) as Row[] | null;
+      const taxRateOf = new Map((prodRows ?? []).map((p) => [p.id as string, p.tax_rate !== null && p.tax_rate !== undefined ? Number(p.tax_rate) : undefined]));
+
       const calc = computeOrder({
         orderType: draft.type, orderDiscount: draft.orderDiscount ?? (draft.discounts ?? []).reduce((n, d) => n + d.amount, 0), roundingStep: 0, settings: r.ctx.settings,
-        items: draft.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, extrasTotal: extrasLineTotal(i.qty, i.extras) })),
-        orderTaxes: r.ctx.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate })),
+        items: draft.items.map((i) => ({ id: i.id, qty: i.qty, unitPrice: i.unitPrice, extrasTotal: extrasLineTotal(i.qty, i.extras), taxRate: taxRateOf.get(i.productId) })),
+        orderTaxes: r.ctx.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate, orderTypes: t.orderTypes, orderTypeRates: t.orderTypeRates })),
       });
       const items = draft.items.map((i) => ({
         id: i.id, productId: i.productId, productUnitId: unitOf.get(i.productId)!.id as string, name: i.name,

@@ -6,7 +6,7 @@ import { Modal } from '../ui';
 
 const toCalc = (ctx: OutletContext, type: OrderType, lines: CartLine[]) => computeOrder({
   orderType: type, orderTaxes: ctx.taxes, settings: ctx.settings, roundingStep: 0, orderDiscount: 0,
-  items: lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })),
+  items: lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras), taxRate: l.taxRate ?? undefined })),
 });
 
 /** Pilih berapa dari tiap baris yang dibayar sekarang. Pajak dan biaya layanan dihitung ulang untuk tiap bagian. */
