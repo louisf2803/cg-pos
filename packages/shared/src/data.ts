@@ -2,6 +2,7 @@ import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { SalesInvoice, SalesInvoiceInput, SalesInvoicePayInput } from './sales-invoice';
 import type { OutletComparisonRow } from './outlet-compare';
+import type { GatewayTransaction } from './qris-report';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -440,5 +441,9 @@ export interface DataLayer {
   // ---------- perbandingan antar outlet (A131) ----------
   /** Penjualan, transaksi, produk terlaris, dan margin tiap outlet aktif pada rentang yang sama (from/to ISO UTC, to tidak termasuk). Pengelola saja. */
   outletComparison(range: SalesRange): Promise<OutletComparisonRow[]>;
+
+  // ---------- laporan QRIS/gateway (A133) ----------
+  /** Transaksi gateway yang dibuat pada rentang (from/to ISO UTC), terbaru dulu, paling banyak 1000. Hanya membaca; pengelola saja. */
+  listGatewayTransactions(range: SalesRange): Promise<GatewayTransaction[]>;
 }
 

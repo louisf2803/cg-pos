@@ -12,6 +12,7 @@ import { approvalProblem, recurringBillProblem, type ApprovalRequest, type Appro
 import { localDateString } from './local-date';
 import { salesInvoiceError, salesInvoiceProblem, type SalesInvoice } from './sales-invoice';
 import { comparisonRow } from './outlet-compare';
+import type { GatewayTransaction } from './qris-report';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3001,6 +3002,20 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- laporan QRIS/gateway (A133; migrasi 0133) ----------
+    async listGatewayTransactions(range) {
+      const { orgId } = await resolve();
+      const { data, error } = await db().rpc('gateway_transactions_report', { p_org: orgId, p_from: range.from, p_to: range.to });
+      if (error) throw new DataError(error.message === 'not allowed' ? 'forbidden' : 'invalid', error.message === 'not allowed' ? 'Hanya pemilik, admin, atau manajer yang boleh melihat laporan ini.' : error.message);
+      return ((data as Row[] | null) ?? []).map((r): GatewayTransaction => ({
+        id: r.id as string, outletName: r.outlet_name as string, reference: r.reference as string, amount: Number(r.amount), fee: Number(r.fee), status: r.status as string,
+        createdAt: r.created_at as string,
+        ...(r.paid_at ? { paidAt: r.paid_at as string } : {}),
+        ...(r.settlement_date ? { settlementDate: r.settlement_date as string } : {}),
+        ...(r.settlement_status ? { settlementStatus: r.settlement_status as GatewayTransaction['settlementStatus'] } : {}),
+      }));
     },
 
     // ---------- perbandingan antar outlet (A131; migrasi 0131) ----------

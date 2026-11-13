@@ -98,4 +98,5 @@ export * from './table-group';
 export * from './stock-import';
 export * from './sales-invoice';
 export * from './outlet-compare';
+export * from './qris-report';
 

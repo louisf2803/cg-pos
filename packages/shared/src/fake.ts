@@ -659,6 +659,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const self: DataLayer & { reset(): void } = {
     reset,
     ...salesInvoices,
+    async listGatewayTransactions() { return []; },
     async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },
     async getOutletSettings() {

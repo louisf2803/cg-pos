@@ -95,7 +95,7 @@ export const MODUL: NavModule[] = [
           { section: 'Katalog & Pelanggan', href: '/laporan/karyawan?tab=komisi', label: 'Komisi kasir', screen: 'S80', tier: 3, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/persediaan', label: 'Persediaan', screen: 'S80', tier: 2, built: true },
           { section: 'Katalog & Pelanggan', href: '/laporan/hpp', label: 'HPP dan margin produk', screen: 'S80', tier: 2, built: true },
-          { section: 'Katalog & Pelanggan', href: '/laporan/qris', label: 'Settlement QRIS', screen: 'S84', tier: 1 },
+          { section: 'Katalog & Pelanggan', href: '/laporan/qris', label: 'Settlement QRIS', screen: 'S84', tier: 1, built: true },
           { section: 'Lainnya', href: '/laporan/ekspor', label: 'Riwayat ekspor CSV', screen: 'S80', tier: 2, built: true },
         ],
       },
