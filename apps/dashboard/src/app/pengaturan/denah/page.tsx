@@ -14,19 +14,16 @@ import {
   RotateCw,
   Save,
   Trash2,
-  Upload,
   Users,
   X,
 } from 'lucide-react';
 import {
   MAX_TABLE_LABEL_LENGTH,
-  TABLE_COLOR_CONFIG,
   clampTablePosition,
   createDecorElement,
   defaultGridPositions,
   formatRp,
   newId,
-  resolveTableColorStatus,
   sanitizeDecorElements,
   sanitizeTableSettings,
   summarizeTableSettings,
@@ -38,8 +35,6 @@ import {
   type Floor,
   type FloorLayoutMode,
   type MinBillBehavior,
-  type TableColorInfo,
-  type TableColorStatus,
   type TablePosition,
   type TableSettings,
   type TableStatus,
@@ -61,7 +56,6 @@ const TABLE_POSITIONS_STORAGE_KEY = 'cgpos_custom_table_positions';
 const TABLE_SETTINGS_STORAGE_KEY = 'cgpos_table_settings';
 const TABLE_SHAPES_STORAGE_KEY = 'cgpos_custom_table_shapes';
 const DECOR_ELEMENTS_STORAGE_KEY = 'cgpos_custom_decor_elements';
-const FLOOR_BG_STORAGE_KEY = 'cgpos_floor_backgrounds';
 
 const MIN_BILL_MODES: readonly { value: MinBillBehavior; label: string; desc: string }[] = [
   {
@@ -160,10 +154,6 @@ function loadDecorElements(): DecorElement[] {
   return sanitizeDecorElements(parsed);
 }
 
-function loadFloorBackgrounds(): Record<string, string> {
-  return readJsonStorage<Record<string, string>>(FLOOR_BG_STORAGE_KEY, {});
-}
-
 function loadInactiveTableIds(): Set<string> {
   if (typeof window === 'undefined') return new Set();
   try {
@@ -239,10 +229,6 @@ export default function DenahDanMeja() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dlg, setDlg] = useState<Dlg | null>(null);
-  const [floorBackgrounds, setFloorBackgrounds] = useState<Record<string, string>>(() =>
-    loadFloorBackgrounds()
-  );
-  const bgInputRef = useRef<HTMLInputElement | null>(null);
 
   const lastFocusedElRef = useRef<HTMLElement | null>(null);
   const drawerRef = useRef<HTMLDivElement | null>(null);
@@ -357,60 +343,6 @@ export default function DenahDanMeja() {
 
   const floors = st.status === 'ready' ? st.data.floors : [];
   const allTables = st.status === 'ready' ? st.data.statuses : [];
-
-  const activeFloorId =
-    selectedFloorId !== 'all' ? selectedFloorId : floors[0]?.id ?? 'default';
-  const currentFloorBg = floorBackgrounds[activeFloorId];
-
-  const handleUploadBg = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setFloorBackgrounds((prev) => {
-        const next = { ...prev, [activeFloorId]: dataUrl };
-        writeJsonStorage(FLOOR_BG_STORAGE_KEY, next);
-        return next;
-      });
-      setPositionStatusMsg('Gambar denah latar berhasil diunggah.');
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleRemoveBg = () => {
-    setFloorBackgrounds((prev) => {
-      const next = { ...prev };
-      delete next[activeFloorId];
-      writeJsonStorage(FLOOR_BG_STORAGE_KEY, next);
-      return next;
-    });
-    setPositionStatusMsg('Gambar denah latar dihapus.');
-  };
-
-  const renderStatusLegend = () => (
-    <div
-      className="flex flex-wrap items-center gap-8 p-8 rounded-xl border border-border bg-surface-raised text-xs"
-      aria-label="Legenda status meja"
-    >
-      <span className="font-semibold text-text-muted">Status Meja:</span>
-      {Object.values(TABLE_COLOR_CONFIG).map((cfg) => (
-        <span key={cfg.status} className="flex items-center gap-4">
-          <span
-            className="w-8 h-8 rounded-full shrink-0"
-            style={{ backgroundColor: cfg.hexColor }}
-            aria-hidden
-          />
-          <span className="text-text-muted">{cfg.label}</span>
-        </span>
-      ))}
-      <span className="flex items-center gap-4">
-        <span className="w-8 h-8 rounded-full shrink-0 bg-border" aria-hidden />
-        <span className="text-text-muted">Nonaktif</span>
-      </span>
-    </div>
-  );
 
   const getTableEffectiveStatus = (t: TableStatus): 'kosong' | 'terisi' | 'nonaktif' => {
     if (t.order) return 'terisi';
@@ -913,32 +845,6 @@ export default function DenahDanMeja() {
                       Seret kartu meja untuk mengatur letak bebas di denah, atau klik meja untuk membuka detail &amp; pengaturan.
                     </p>
                     <div className="flex flex-wrap items-center gap-8 shrink-0">
-                      <input
-                        ref={bgInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleUploadBg}
-                        aria-label="Unggah berkas gambar denah"
-                      />
-                      <button
-                        type="button"
-                        className="cg-btn cg-btn--secondary cg-btn--sm flex items-center gap-[6px]"
-                        onClick={() => bgInputRef.current?.click()}
-                      >
-                        <Upload className="w-[14px] h-[14px] shrink-0" aria-hidden />
-                        {currentFloorBg ? 'Ganti Gambar Denah' : 'Unggah Gambar Denah'}
-                      </button>
-                      {currentFloorBg && (
-                        <button
-                          type="button"
-                          className="cg-btn cg-btn--ghost cg-btn--sm text-danger flex items-center gap-[6px]"
-                          onClick={handleRemoveBg}
-                        >
-                          <Trash2 className="w-[14px] h-[14px] shrink-0" aria-hidden />
-                          Hapus Gambar
-                        </button>
-                      )}
                       <button
                         type="button"
                         className="cg-btn cg-btn--secondary cg-btn--sm flex items-center gap-[6px]"
@@ -1022,8 +928,6 @@ export default function DenahDanMeja() {
                     </div>
                   )}
 
-                  {renderStatusLegend()}
-
                   <div className="w-full max-w-full overflow-x-auto rounded-xl border border-border bg-surface-raised min-w-0">
                     <div
                       ref={canvasRef}
@@ -1031,23 +935,13 @@ export default function DenahDanMeja() {
                       onClick={() => setSelectedDecorId(null)}
                       className="relative w-full min-w-[600px] tablet:min-w-full min-h-[460px] tablet:min-h-[540px] overflow-hidden select-none touch-none"
                       style={{
-                        backgroundImage: currentFloorBg
-                          ? `url(${currentFloorBg})`
-                          : 'radial-gradient(color-mix(in srgb, var(--color-border) 85%, transparent) 1px, transparent 1px)',
-                        backgroundSize: currentFloorBg ? 'contain' : '24px 24px',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'center',
-                        backgroundColor: currentFloorBg ? 'var(--color-surface-muted)' : undefined,
+                        backgroundImage:
+                          'radial-gradient(color-mix(in srgb, var(--color-border) 85%, transparent) 1px, transparent 1px)',
+                        backgroundSize: '24px 24px',
                       }}
                     >
                     {displayedTables.map((t) => {
-                      const isInactive = inactiveTableIds.has(t.id);
-                      const colorInfo = isInactive
-                        ? null
-                        : resolveTableColorStatus({
-                            table: t,
-                            settings: tableSettingsMap[t.id],
-                          });
+                      const status = getTableEffectiveStatus(t);
                       const pos = resolvedPositions[t.id] ?? { xPct: 8, yPct: 8 };
                       const tags = summarizeTableSettings(tableSettingsMap[t.id]);
                       const isDragging = draggingTableId === t.id;
@@ -1076,18 +970,17 @@ export default function DenahDanMeja() {
                           style={{
                             left: `calc(8px + (${pos.xPct} / 100) * (100% - 164px))`,
                             top: `calc(8px + (${pos.yPct} / 100) * (100% - 120px))`,
-                            borderLeft: colorInfo ? `4px solid ${colorInfo.hexColor}` : undefined,
                           }}
                           className={`absolute p-8 border flex flex-col transition-shadow focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent cursor-grab active:cursor-grabbing ${shapeSizeClass} ${
                             isDragging ? 'z-20 shadow-lg ring-2 ring-accent' : 'z-10 hover:shadow-sm'
                           } ${
-                            isInactive
+                            status === 'terisi'
+                              ? 'bg-warning/10 border-warning/60'
+                              : status === 'nonaktif'
                               ? 'bg-surface-muted border-border opacity-75'
                               : 'bg-surface border-border hover:border-accent'
                           }`}
-                          aria-label={`Meja ${t.name} pada koordinat ${pos.xPct}% x ${pos.yPct}%, status ${
-                            isInactive ? 'nonaktif' : colorInfo?.label
-                          }`}
+                          aria-label={`Meja ${t.name} pada koordinat ${pos.xPct}% x ${pos.yPct}%, status ${status}`}
                         >
                           <div className="flex items-start justify-between gap-4 min-w-0">
                             <strong
@@ -1109,21 +1002,19 @@ export default function DenahDanMeja() {
                           )}
 
                           <div className="flex items-center justify-between gap-4 min-w-0">
-                            {isInactive ? (
+                            {status === 'kosong' ? (
+                              <span className="cg-badge cg-badge--success text-[10px] font-semibold">
+                                Kosong
+                              </span>
+                            ) : status === 'terisi' ? (
+                              <span className="cg-badge cg-badge--warning text-[10px] font-semibold truncate">
+                                Terisi
+                              </span>
+                            ) : (
                               <span className="cg-badge text-[10px] text-text-muted border border-border font-semibold">
                                 Nonaktif
                               </span>
-                            ) : colorInfo ? (
-                              <span
-                                className="px-6 py-[2px] rounded text-[10px] font-semibold truncate"
-                                style={{
-                                  backgroundColor: `color-mix(in srgb, ${colorInfo.hexColor} 18%, transparent)`,
-                                  color: colorInfo.hexColor,
-                                }}
-                              >
-                                {colorInfo.label}
-                              </span>
-                            ) : null}
+                            )}
                             <span className="text-[10px] text-text-muted cg-num whitespace-nowrap">
                               {Math.round(pos.xPct)}%,{Math.round(pos.yPct)}%
                             </span>
@@ -1210,36 +1101,27 @@ export default function DenahDanMeja() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-12 min-w-0">
-                  {renderStatusLegend()}
-                  <div
-                    className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(144px,1fr))] gap-[10px] tablet:gap-12 min-w-0"
-                    aria-label="Grid Meja Denah"
-                  >
+                <div
+                  className="grid grid-cols-2 tablet:grid-cols-[repeat(auto-fill,minmax(144px,1fr))] gap-[10px] tablet:gap-12 min-w-0"
+                  aria-label="Grid Meja Denah"
+                >
                   {displayedTables.map((t) => {
-                    const isInactive = inactiveTableIds.has(t.id);
-                    const colorInfo = isInactive
-                      ? null
-                      : resolveTableColorStatus({
-                          table: t,
-                          settings: tableSettingsMap[t.id],
-                        });
+                    const status = getTableEffectiveStatus(t);
                     const tags = summarizeTableSettings(tableSettingsMap[t.id]);
                     return (
                       <button
                         key={t.id}
                         type="button"
                         onClick={(e) => openDrawer(t, e.currentTarget)}
-                        style={{
-                          borderLeft: colorInfo ? `4px solid ${colorInfo.hexColor}` : undefined,
-                        }}
                         className={`p-12 rounded-xl border text-left flex flex-col justify-between min-h-[118px] tablet:min-h-[128px] transition-all hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent min-w-0 ${
-                          isInactive
+                          status === 'terisi'
+                            ? 'bg-warning/5 border-warning/40 hover:border-warning'
+                            : status === 'nonaktif'
                             ? 'bg-surface-muted/40 border-border opacity-70 hover:opacity-100'
                             : 'bg-surface-raised border-border hover:border-accent'
                         }`}
-                        aria-label={`Meja ${t.name}, status ${isInactive ? 'nonaktif' : colorInfo?.label}${
-                          t.order ? `, pesanan ${t.order?.number}` : ''
+                        aria-label={`Meja ${t.name}, status ${status}${
+                          status === 'terisi' ? `, pesanan ${t.order?.number}` : ''
                         }`}
                       >
                         <div className="min-w-0">
@@ -1271,43 +1153,37 @@ export default function DenahDanMeja() {
                         </div>
 
                         <div className="min-w-0">
-                          {isInactive && (
+                          {status === 'kosong' && (
+                            <span className="cg-badge cg-badge--success text-[11px] font-semibold">
+                              Kosong
+                            </span>
+                          )}
+                          {status === 'terisi' && (
+                            <div className="min-w-0">
+                              <span className="cg-badge cg-badge--warning text-[11px] font-semibold mb-[2px] block w-fit">
+                                Terisi
+                              </span>
+                              <div
+                                className="text-xs font-bold text-text cg-num truncate"
+                                title={`${t.order?.number} (${formatRp(t.order?.total ?? 0)})`}
+                              >
+                                {t.order?.number}
+                              </div>
+                              <div className="text-[11px] font-semibold text-text-muted cg-num truncate">
+                                {formatRp(t.order?.total ?? 0)}
+                              </div>
+                            </div>
+                          )}
+                          {status === 'nonaktif' && (
                             <span className="cg-badge text-[11px] text-text-muted border border-border font-semibold">
                               Nonaktif
                             </span>
-                          )}
-                          {!isInactive && colorInfo && (
-                            <div className="min-w-0">
-                              <span
-                                className="px-6 py-[2px] rounded text-[11px] font-semibold mb-[2px] block w-fit"
-                                style={{
-                                  backgroundColor: `color-mix(in srgb, ${colorInfo.hexColor} 18%, transparent)`,
-                                  color: colorInfo.hexColor,
-                                }}
-                              >
-                                {colorInfo.label}
-                              </span>
-                              {t.order && (
-                                <>
-                                  <div
-                                    className="text-xs font-bold text-text cg-num truncate"
-                                    title={`${t.order?.number} (${formatRp(t.order?.total ?? 0)})`}
-                                  >
-                                    {t.order?.number}
-                                  </div>
-                                  <div className="text-[11px] font-semibold text-text-muted cg-num truncate">
-                                    {formatRp(t.order?.total ?? 0)}
-                                  </div>
-                                </>
-                              )}
-                            </div>
                           )}
                         </div>
                       </button>
                     );
                   })}
                 </div>
-              </div>
               )}
             </div>
           ) : (
@@ -1455,32 +1331,21 @@ export default function DenahDanMeja() {
                 <div className="flex items-center justify-between text-sm py-4 border-b border-border/60">
                   <span className="text-text-muted">Status Saat Ini</span>
                   <div>
-                    {inactiveTableIds.has(selectedTable.id) ? (
+                    {getTableEffectiveStatus(selectedTable) === 'kosong' && (
+                      <span className="cg-badge cg-badge--success text-xs font-semibold flex items-center gap-4">
+                        <CheckCircle2 className="w-12 h-12" aria-hidden /> Kosong
+                      </span>
+                    )}
+                    {getTableEffectiveStatus(selectedTable) === 'terisi' && (
+                      <span className="cg-badge cg-badge--warning text-xs font-semibold flex items-center gap-4">
+                        <AlertCircle className="w-12 h-12" aria-hidden /> Terisi
+                      </span>
+                    )}
+                    {getTableEffectiveStatus(selectedTable) === 'nonaktif' && (
                       <span className="cg-badge text-xs text-text-muted border border-border font-semibold flex items-center gap-4">
                         Nonaktif
                       </span>
-                    ) : (() => {
-                      const c = resolveTableColorStatus({
-                        table: selectedTable,
-                        settings: tableSettingsMap[selectedTable.id],
-                      });
-                      return (
-                        <span
-                          className="px-8 py-[3px] rounded text-xs font-semibold flex items-center gap-6"
-                          style={{
-                            backgroundColor: `color-mix(in srgb, ${c.hexColor} 18%, transparent)`,
-                            color: c.hexColor,
-                          }}
-                        >
-                          <span
-                            className="w-8 h-8 rounded-full shrink-0"
-                            style={{ backgroundColor: c.hexColor }}
-                            aria-hidden
-                          />
-                          {c.label}
-                        </span>
-                      );
-                    })()}
+                    )}
                   </div>
                 </div>
               </div>
