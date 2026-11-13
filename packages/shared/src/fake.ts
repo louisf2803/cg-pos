@@ -441,7 +441,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     departments = opts.seed === false ? [] : clone(DEPARTMENTS);
     floors = opts.seed === false ? [] : [{ id: 'f-1', name: 'Lantai 1', sort: 1 }, { id: 'f-teras', name: 'Teras', sort: 2 }];
     tables = opts.seed === false ? [] : ['T1', 'T2', 'T3', 'T4'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-1', name: n, sort: i + 1 })).concat(['T5', 'T6'].map((n, i): DiningTable => ({ id: `t-${n}`, floorId: 'f-teras', name: n, sort: i + 5 })));
-    employees = EMPLOYEES.map((e) => ({ ...e, isActive: true }));
+    employees = EMPLOYEES.map((e) => ({
+      ...e,
+      isActive: true,
+      hasPin: !!e.pin,
+      isLocked: false,
+      lockedUntil: null,
+      qrId: `QR-${e.id.toUpperCase()}`,
+      roleName: e.role === 'owner' ? 'Pemilik' : e.role === 'manager' ? 'Manajer' : 'Kasir',
+    }));
     attendance = [];
     customRoles = [];
     compensation = new Map(); schedules = new Map(); payrollRules = {}; incidents = []; cashAdvances = []; payrollRecords = [];
@@ -1445,28 +1453,91 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
     },
     async listEmployees() { return employees.filter((e) => e.isActive).map(({ pin: _pin, isActive: _a, ...e }) => e); },
-    async listManagedEmployees() { return employees.map(({ pin: _pin, ...e }) => ({ ...e })); },
+    async listManagedEmployees() {
+      return employees.map(({ pin, ...e }) => {
+        const custom = e.roleId ? customRoles.find((r) => r.id === e.roleId) : undefined;
+        return {
+          ...e,
+          roleName: custom ? custom.name : (e.role === 'manager' ? 'Manajer' : 'Kasir'),
+          hasPin: !!pin || !!e.hasPin,
+          isLocked: !!e.isLocked,
+          lockedUntil: e.lockedUntil ?? null,
+          qrId: e.qrId ?? null,
+        };
+      });
+    },
     async setEmployeeRoleId(employeeId, roleId) {
       const e = employees.find((x) => x.id === employeeId);
       if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
       if (roleId !== null && !customRoles.some((r) => r.id === roleId)) throw new DataError('not_found', 'Peran tidak ditemukan');
       if (roleId === null) delete e.roleId; else e.roleId = roleId;
-      const { pin: _p, ...out } = e; return { ...out };
+      const custom = e.roleId ? customRoles.find((r) => r.id === e.roleId) : undefined;
+      const { pin: _p, ...out } = e;
+      return {
+        ...out,
+        roleName: custom ? custom.name : (e.role === 'manager' ? 'Manajer' : 'Kasir'),
+        hasPin: !!e.pin || !!e.hasPin,
+        isLocked: !!e.isLocked,
+        lockedUntil: e.lockedUntil ?? null,
+        qrId: e.qrId ?? null,
+      };
+    },
+    async unlockEmployeePin(employeeId: string) {
+      const e = employees.find((x) => x.id === employeeId);
+      if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
+      e.isLocked = false;
+      e.lockedUntil = null;
     },
     async saveEmployee(input: EmployeeInput) {
       const name = input.name.trim();
       if (!name) throw new DataError('invalid', 'Nama karyawan wajib diisi');
       if (input.role !== 'manager' && input.role !== 'cashier') throw new DataError('invalid', 'Peran tidak dikenal');
       if (employees.some((x) => x.id !== input.id && x.isActive && x.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Sudah ada karyawan aktif bernama "${name}"`);
+      if (input.roleId && !customRoles.some((r) => r.id === input.roleId)) throw new DataError('not_found', 'Peran tidak ditemukan');
       if (input.id) {
         const e = employees.find((x) => x.id === input.id);
         if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
         if (e.role === 'owner') throw new DataError('forbidden', 'Data pemilik hanya bisa diubah oleh pemilik');
-        e.name = name; e.role = input.role; if (input.isActive !== undefined) e.isActive = input.isActive;
-        const { pin: _p, ...out } = e; return { ...out };
+        e.name = name;
+        e.role = input.role;
+        if (input.isActive !== undefined) e.isActive = input.isActive;
+        if (input.roleId !== undefined) {
+          if (input.roleId === null) delete e.roleId; else e.roleId = input.roleId;
+        }
+        if (input.qrId !== undefined) e.qrId = input.qrId ?? undefined;
+        const custom = e.roleId ? customRoles.find((r) => r.id === e.roleId) : undefined;
+        const { pin: _p, ...out } = e;
+        return {
+          ...out,
+          roleName: custom ? custom.name : (e.role === 'manager' ? 'Manajer' : 'Kasir'),
+          hasPin: !!e.pin || !!e.hasPin,
+          isLocked: !!e.isLocked,
+          lockedUntil: e.lockedUntil ?? null,
+          qrId: e.qrId ?? null,
+        };
       }
-      const e = { id: newId(), name, role: input.role, isActive: input.isActive ?? true, pin: '' };
-      employees.push(e); const { pin: _p, ...out } = e; return { ...out };
+      const e = {
+        id: newId(),
+        name,
+        role: input.role,
+        isActive: input.isActive ?? true,
+        pin: '',
+        roleId: input.roleId || undefined,
+        qrId: input.qrId || undefined,
+        isLocked: false,
+        lockedUntil: null,
+      };
+      employees.push(e);
+      const custom = e.roleId ? customRoles.find((r) => r.id === e.roleId) : undefined;
+      const { pin: _p, ...out } = e;
+      return {
+        ...out,
+        roleName: custom ? custom.name : (e.role === 'manager' ? 'Manajer' : 'Kasir'),
+        hasPin: false,
+        isLocked: false,
+        lockedUntil: null,
+        qrId: e.qrId ?? null,
+      };
     },
     async verifyPin(employeeId, pin) { return employees.some((e) => e.isActive && e.pin !== '' && e.id === employeeId && e.pin === pin); },
     async setEmployeePin(employeeId, pin) {

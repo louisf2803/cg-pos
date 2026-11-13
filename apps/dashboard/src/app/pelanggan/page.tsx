@@ -15,6 +15,7 @@ import {
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
+import { useShell } from '@/components/shell-context';
 import { ErrorBox, PageHeader } from '@/components/page';
 
 type Dlg = { kind: 'edit'; item?: Customer } | { kind: 'detail'; item: Customer } | { kind: 'delete'; item: Customer };
@@ -23,6 +24,7 @@ const fmtDate = (iso: string) => new Intl.DateTimeFormat('id-ID', { day: '2-digi
 
 export default function PelangganPage() {
   const data = useData();
+  const { canDo } = useShell();
   const [q, setQ] = useState('');
   const [term, setTerm] = useState('');
   useEffect(() => { const t = setTimeout(() => setTerm(q), 250); return () => clearTimeout(t); }, [q]);
@@ -34,7 +36,7 @@ export default function PelangganPage() {
   return (
     <>
       <PageHeader title="Pelanggan" subtitle="Simpan data pelanggan dan lihat riwayat belanjanya"
-        actions={<button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}><Plus className="cg-icon" aria-hidden /> Tambah pelanggan</button>} />
+        actions={canDo('buat') ? <button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}><Plus className="cg-icon" aria-hidden /> Tambah pelanggan</button> : null} />
       <div className="mb-16"><label className="cg-search">
         <Search className="cg-icon cg-icon--sm" aria-hidden />
         <input className="cg-input" type="search" placeholder="Cari nama, kode, atau nomor telepon" aria-label="Cari pelanggan" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -45,7 +47,7 @@ export default function PelangganPage() {
       {list.status === 'ready' && (list.data.length === 0 ? (
         <div className="cg-empty">
           <p><strong>{term ? 'Tidak ada pelanggan yang cocok.' : 'Belum ada pelanggan.'}</strong></p>
-          {!term && <button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}>Tambah pelanggan pertama</button>}
+          {!term && canDo('buat') && <button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}>Tambah pelanggan pertama</button>}
         </div>
       ) : (
         <div className="cg-data-wrap">
@@ -59,8 +61,12 @@ export default function PelangganPage() {
                   <td>{c.city ?? '—'}</td>
                   <td className="text-right cg-num">{c.pointsBalance}</td>
                   <td className="text-right whitespace-nowrap">
-                    <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'edit', item: c })} aria-label={`Ubah ${c.name}`}><Pencil className="cg-icon cg-icon--sm" aria-hidden /></button>
-                    <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'delete', item: c })} aria-label={`Hapus ${c.name}`}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    {canDo('ubah') && (
+                      <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'edit', item: c })} aria-label={`Ubah ${c.name}`}><Pencil className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    )}
+                    {canDo('hapus') && (
+                      <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'delete', item: c })} aria-label={`Hapus ${c.name}`}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    )}
                   </td>
                 </tr>
               ))}

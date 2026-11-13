@@ -299,6 +299,8 @@ export interface DataLayer {
   saveEmployee(input: EmployeeInput): Promise<ManagedEmployee>;
   /** Tautkan karyawan ke peran kustom (roleId dari listRoles) atau lepas tautan dengan null. Hanya pemilik/manajer. Galat: not_found (karyawan atau peran). */
   setEmployeeRoleId(employeeId: string, roleId: string | null): Promise<ManagedEmployee>;
+  /** Buka kunci akun karyawan yang terkunci setelah salah PIN beruntun (5x). Hanya pemilik/manajer. */
+  unlockEmployeePin(employeeId: string): Promise<void>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
 
   currentShift(): Promise<Shift | null>;

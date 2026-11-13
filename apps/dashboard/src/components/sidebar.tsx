@@ -34,6 +34,8 @@ export function Sidebar() {
     setActiveModuleHint,
     setLockedFeature,
     setInfoModal,
+    canAccess,
+    currentRole,
   } = useShell();
 
   // Outlet state
@@ -70,6 +72,18 @@ export function Sidebar() {
   const trimmed = path.length > 1 ? path.replace(/\/$/, '') : path;
   const currentModule = getModuleForPath(path, activeModuleHint);
 
+  // Saring modul dan grup berdasarkan hak akses peran saat ini (A142)
+  const permittedModules = MODUL.filter((m) =>
+    m.groups.some((g) => g.items.some((i) => canAccess(i.href))),
+  );
+
+  const filteredGroups = currentModule.groups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => canAccess(i.href)),
+    }))
+    .filter((g) => g.items.length > 0);
+
   // Determine active item: longest matching href
   const activeItem = ALL_ITEMS.filter((i) =>
     i.href === '/' ? trimmed === '/' : trimmed === i.href || trimmed.startsWith(i.href + '/')
@@ -80,16 +94,16 @@ export function Sidebar() {
 
   // Auto-open group matching active item when route or module changes
   useEffect(() => {
-    const matchingGroup = currentModule.groups.find((g) =>
+    const matchingGroup = filteredGroups.find((g) =>
       g.items.some((i) => i.href === activeItem)
     )?.label;
 
     if (matchingGroup) {
       setOpenGroup(matchingGroup);
-    } else if (currentModule.groups.length > 0 && currentModule.groups[0]) {
-      setOpenGroup(currentModule.groups[0].label);
+    } else if (filteredGroups.length > 0 && filteredGroups[0]) {
+      setOpenGroup(filteredGroups[0].label);
     }
-  }, [currentModule, activeItem]);
+  }, [filteredGroups, activeItem]);
 
   const toggleGroup = (label: string) => {
     setOpenGroup((prev) => (prev === label ? null : label));
@@ -110,7 +124,7 @@ export function Sidebar() {
   // Build favorite NavItems
   const favoriteItems: NavItem[] = favoriteHrefs
     .map((href) => ALL_ITEMS.find((i) => i.href === href))
-    .filter((item): item is NavItem => !!item);
+    .filter((item): item is NavItem => !!item && canAccess(item.href));
 
   // Outlets list
   const outletOptions = [
@@ -166,7 +180,7 @@ export function Sidebar() {
               PILIH MODUL
             </span>
             <div className="flex items-center gap-6 overflow-x-auto pb-4 scrollbar-none">
-              {MODUL.map((m) => {
+              {permittedModules.map((m) => {
                 const isActive = currentModule.id === m.id;
                 return (
                   <button
@@ -347,7 +361,7 @@ export function Sidebar() {
               </button>
 
               {/* Groups in icon mode */}
-              {currentModule.groups.map((group) => {
+              {filteredGroups.map((group) => {
                 const Icon = group.icon;
                 const isGroupActive = group.items.some((i) => i.href === activeItem);
 
@@ -437,7 +451,7 @@ export function Sidebar() {
               </div>
 
               {/* Module Groups (Accordion: Single open group at a time) */}
-              {currentModule.groups.map((group) => {
+              {filteredGroups.map((group) => {
                 const isExpanded = openGroup === group.label;
                 const Icon = group.icon;
 

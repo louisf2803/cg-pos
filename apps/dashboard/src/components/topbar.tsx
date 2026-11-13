@@ -20,6 +20,7 @@ import {
   ArrowRight,
   CheckCircle,
   RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   formatStockAlertSeenValue,
@@ -49,6 +50,10 @@ export function Topbar() {
     setInfoModal,
     activeModuleHint,
     setActiveModuleHint,
+    currentRole,
+    currentEmployee,
+    allEmployees,
+    switchEmployee,
   } = useShell();
 
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -528,9 +533,12 @@ export function Topbar() {
             <span className="text-sm font-semibold text-text leading-tight truncate max-w-[180px]">
               {businessName}
             </span>
-            <span className="text-xs text-text-muted leading-tight truncate max-w-[180px]">
-              {userName}
-            </span>
+            <div className="flex items-center justify-end gap-4 text-xs text-text-muted leading-tight truncate max-w-[180px]">
+              <span className="truncate">{currentEmployee?.name ?? userName}</span>
+              <span className="text-[10px] px-6 py-1 rounded bg-accent/10 text-accent font-bold uppercase tracking-wider">
+                {currentRole.name}
+              </span>
+            </div>
           </div>
 
           {/* User menu ⋮ */}
@@ -548,12 +556,39 @@ export function Topbar() {
             {userMenuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 mt-8 w-56 bg-surface-raised border border-border rounded-xl shadow-pop py-6 z-50 animate-fadeIn"
+                className="absolute right-0 mt-8 w-64 bg-surface-raised border border-border rounded-xl shadow-pop py-6 z-50 animate-fadeIn"
               >
                 <div className="px-16 py-8 border-b border-border mb-4">
                   <p className="text-sm font-semibold truncate">{businessName}</p>
                   <p className="text-xs text-text-muted truncate">{auth?.email ?? 'admin@cgpos.local'}</p>
+                  <div className="mt-8 pt-6 border-t border-border flex items-center justify-between text-xs">
+                    <span className="text-text-muted">Peran Aktif:</span>
+                    <span className="font-bold text-accent px-6 py-2 rounded bg-accent/10 text-[11px]">
+                      {currentRole.name}
+                    </span>
+                  </div>
                 </div>
+
+                {allEmployees.length > 0 && (
+                  <div className="px-16 py-8 border-b border-border mb-4">
+                    <label htmlFor="select-role-user" className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-4">
+                      Simulasi Peran Karyawan
+                    </label>
+                    <select
+                      id="select-role-user"
+                      value={currentEmployee?.id ?? ''}
+                      onChange={(e) => switchEmployee(e.target.value || null)}
+                      className="w-full text-xs p-6 rounded bg-surface border border-border text-text focus:outline-none focus:ring-1 focus:ring-accent"
+                    >
+                      <option value="">Pemilik (Akses Penuh)</option>
+                      {allEmployees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} ({emp.roleName ?? emp.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button
                   type="button"
                   role="menuitem"

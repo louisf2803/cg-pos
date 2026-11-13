@@ -1,8 +1,9 @@
 import {
   buildSubFeatureActionSet, DASHBOARD_ACCESS_MODULES, POS_ACCESS_MODULES, subFeatureKey,
-  type AccessModuleDef, type ActionPermissionSet, type DashboardAccessLevel, type PosAccessLevel, type RoleDefinition,
+  type AccessModuleDef, type ActionPermissionSet, type DashboardAccessLevel, type PermissionActionKey, type PosAccessLevel, type RoleDefinition,
 } from './permission-matrix';
 import type { Role } from './permissions';
+import type { Employee, ManagedEmployee } from './types';
 
 /**
  * Pemetaan peran kustom <-> tabel 0033 (roles, role_dashboard_perms, role_pos_perms_module, role_*_feature_perms).
@@ -102,4 +103,183 @@ export function roleFromRows(x: RoleRows): RoleDefinition {
     ...(r.default_dashboard_page ? { defaultDashboardPage: String(r.default_dashboard_page) } : {}),
     ...(r.default_pos_page ? { defaultPosPage: String(r.default_pos_page) } : {}),
   };
+}
+
+export interface DashboardRoutePermission {
+  moduleId: string;
+  featureId: string;
+  subFeatureId: string;
+}
+
+/** Petakan URL dashboard ke modul, fitur, dan sub-fitur granular katalog (A142). */
+export function getDashboardRoutePermission(pathname: string): DashboardRoutePermission | null {
+  const clean = (pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname).toLowerCase();
+
+  if (clean === '' || clean === '/') {
+    return { moduleId: 'penjualan', featureId: 'dash-overview', subFeatureId: 'ringkasan' };
+  }
+  if (clean.startsWith('/laporan/ekspor')) {
+    return { moduleId: 'penjualan', featureId: 'dash-laporan', subFeatureId: 'lap-ekspor' };
+  }
+  if (clean.startsWith('/laporan')) {
+    return { moduleId: 'penjualan', featureId: 'dash-laporan', subFeatureId: 'lap-penjualan' };
+  }
+  if (clean.startsWith('/analisa')) {
+    return { moduleId: 'penjualan', featureId: 'dash-analisa', subFeatureId: 'analisa-data' };
+  }
+  if (clean.startsWith('/produk') || clean.startsWith('/kategori') || clean.startsWith('/ekstra')) {
+    return { moduleId: 'penjualan', featureId: 'dash-produk', subFeatureId: 'produk-katalog' };
+  }
+  if (clean.startsWith('/inventori') || clean.startsWith('/pembelian') || clean.startsWith('/stok')) {
+    return { moduleId: 'penjualan', featureId: 'dash-inventori', subFeatureId: 'inv-stok' };
+  }
+  if (clean.startsWith('/pelanggan')) {
+    return { moduleId: 'penjualan', featureId: 'dash-pelanggan', subFeatureId: 'pel-daftar' };
+  }
+  if (
+    clean.startsWith('/promo') ||
+    clean.startsWith('/promosi') ||
+    clean.startsWith('/kupon') ||
+    clean.startsWith('/loyalti') ||
+    clean.startsWith('/deposit')
+  ) {
+    return { moduleId: 'penjualan', featureId: 'dash-pelanggan', subFeatureId: 'promo-program' };
+  }
+  if (clean.startsWith('/komisi')) {
+    return { moduleId: 'penjualan', featureId: 'dash-komisi', subFeatureId: 'komisi-grup' };
+  }
+  if (clean.startsWith('/dapur')) {
+    return { moduleId: 'penjualan', featureId: 'dash-komisi', subFeatureId: 'dapur-layar' };
+  }
+  if (clean.startsWith('/order-online')) {
+    return { moduleId: 'order-online', featureId: 'oo-pesanan', subFeatureId: 'oo-daftar' };
+  }
+  if (clean.startsWith('/appointment') || clean.startsWith('/reservasi')) {
+    return { moduleId: 'appointment', featureId: 'apt-jadwal', subFeatureId: 'apt-kelola' };
+  }
+  if (clean.startsWith('/karyawan/hak-akses')) {
+    return { moduleId: 'karyawan', featureId: 'kar-hak-akses', subFeatureId: 'kar-peran' };
+  }
+  if (clean.startsWith('/pengaturan/karyawan') || clean.startsWith('/karyawan')) {
+    return { moduleId: 'karyawan', featureId: 'kar-daftar', subFeatureId: 'kar-staf' };
+  }
+  if (clean.startsWith('/keuangan/kas') || clean.startsWith('/keuangan/biaya') || clean.startsWith('/keuangan/transfer')) {
+    return { moduleId: 'keuangan', featureId: 'keu-kas', subFeatureId: 'keu-kas-transaksi' };
+  }
+  if (clean.startsWith('/keuangan')) {
+    return { moduleId: 'keuangan', featureId: 'keu-akuntansi', subFeatureId: 'keu-laporan' };
+  }
+  if (clean.startsWith('/pengaturan/denah') || clean.startsWith('/pengaturan/meja')) {
+    return { moduleId: 'pengaturan', featureId: 'set-denah', subFeatureId: 'set-meja' };
+  }
+  if (clean.startsWith('/pengaturan/kode-otorisasi')) {
+    return { moduleId: 'pengaturan', featureId: 'set-denah', subFeatureId: 'set-kode' };
+  }
+  if (clean.startsWith('/pengaturan/pajak')) {
+    return { moduleId: 'pengaturan', featureId: 'set-outlet', subFeatureId: 'set-pajak' };
+  }
+  if (clean.startsWith('/pengaturan/struk')) {
+    return { moduleId: 'pengaturan', featureId: 'set-outlet', subFeatureId: 'set-struk' };
+  }
+  if (clean.startsWith('/pengaturan')) {
+    return { moduleId: 'pengaturan', featureId: 'set-outlet', subFeatureId: 'set-struk' };
+  }
+  if (clean.startsWith('/bantuan')) {
+    return { moduleId: 'bantuan', featureId: 'ban-pusat', subFeatureId: 'ban-tiket' };
+  }
+  return null;
+}
+
+/** Periksa apakah peran memiliki hak akses LIHAT ke rute dashboard tertentu (A142). */
+export function canRoleAccessDashboardPath(role: RoleDefinition, pathname: string): boolean {
+  if (role.baseRole === 'owner') return true;
+
+  const perm = getDashboardRoutePermission(pathname);
+  if (!perm) return true;
+
+  if (role.dashboardModuleEnabled) {
+    if (role.dashboardModuleEnabled[perm.moduleId] === false) return false;
+  } else if (role.dashboardPerms?.[perm.moduleId] === 'none') {
+    return false;
+  }
+
+  if (role.dashboardFeatureEnabled && role.dashboardFeatureEnabled[perm.featureId] === false) {
+    return false;
+  }
+
+  const key = subFeatureKey(perm.featureId, perm.subFeatureId);
+  const subPerm = role.dashboardSubFeaturePerms?.[key];
+  if (subPerm && subPerm.lihat === false) {
+    return false;
+  }
+
+  return true;
+}
+
+/** Periksa apakah peran boleh melakukan aksi granular (lihat, buat, ubah, hapus, void) (A142). */
+export function canRolePerformAction(
+  role: RoleDefinition,
+  options: {
+    pathname?: string;
+    moduleId?: string;
+    featureId?: string;
+    subFeatureId?: string;
+    action: PermissionActionKey;
+  },
+): boolean {
+  if (role.baseRole === 'owner') return true;
+
+  let moduleId = options.moduleId;
+  let featureId = options.featureId;
+  let subFeatureId = options.subFeatureId;
+
+  if (options.pathname && (!moduleId || !featureId || !subFeatureId)) {
+    const route = getDashboardRoutePermission(options.pathname);
+    if (route) {
+      moduleId ??= route.moduleId;
+      featureId ??= route.featureId;
+      subFeatureId ??= route.subFeatureId;
+    }
+  }
+
+  if (!moduleId || !featureId) return true;
+
+  if (role.dashboardModuleEnabled) {
+    if (role.dashboardModuleEnabled[moduleId] === false) return false;
+  } else if (role.dashboardPerms?.[moduleId] === 'none') {
+    return false;
+  }
+
+  if (role.dashboardFeatureEnabled && role.dashboardFeatureEnabled[featureId] === false) {
+    return false;
+  }
+
+  if (subFeatureId) {
+    const key = subFeatureKey(featureId, subFeatureId);
+    const subPerm = role.dashboardSubFeaturePerms?.[key];
+    if (subPerm && typeof subPerm[options.action] === 'boolean') {
+      return subPerm[options.action] === true;
+    }
+  }
+
+  const legacy = role.dashboardPerms?.[moduleId];
+  if (options.action === 'lihat') {
+    return legacy === 'read' || legacy === 'write';
+  }
+  return legacy === 'write';
+}
+
+/** Periksa apakah karyawan/peran berhak memberikan otorisasi kasir (void, refund, complimentary) (A142). */
+export function canEmployeeAuthorize(
+  employee: Employee | ManagedEmployee,
+  role: RoleDefinition | null,
+  action: 'void' | 'refund' | 'complimentary',
+): boolean {
+  if (employee.role === 'owner') return true;
+  if (role) {
+    if (action === 'void') return role.canAuthorizeVoid === true;
+    if (action === 'refund') return role.canAuthorizeRefund === true;
+    if (action === 'complimentary') return role.canAuthorizeComplimentary === true;
+  }
+  return employee.role === 'manager';
 }
