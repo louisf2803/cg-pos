@@ -64,3 +64,4 @@ Laporan uang muka (Penjualan > Laporan Penjualan),ada,A129: /laporan/uang-muka d
 Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi manual,sebagian,A128: pengaturan tersimpan; tutup kasir belum menjalankan rekonsiliasi otomatis
 Daftar harga ojek online,sebagian,A135: harga per kanal tersimpan di server (migrasi 0135); kasir belum memakainya
 "Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",sebagian,A135: harga berdasarkan waktu tersimpan (0135) dan jadwal harga A139; kasir belum memakai harga waktu; jadwal resep belum
+Buat faktur penjualan dari layar pembayaran (Jadikan Invoice),sebagian,"A129/A146: tombol Jadikan invoice di layar Pembayaran (diuji mode demo: faktur dibuat, pesanan ditutup tanpa bayar). Di server butuh peran pengelola; stok tidak dikurangi otomatis; belum diuji di server asli"

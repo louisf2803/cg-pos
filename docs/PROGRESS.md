@@ -1075,3 +1075,4 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
   - **`apps/dashboard`**: halaman `/keuangan/rekonsiliasi` dipecah modular (<350 baris) dengan filter per shift/metode/tanggal, filter status rekonsiliasi, modal rekonsiliasi manual & hitung biaya gateway (`reconcile-modal.tsx`), serta kartu pengaturan rekonsiliasi per outlet otomatis vs manual (`outlet-reconcile-card.tsx`).
   - Verifikasi: `pnpm -r typecheck` lulus, `pnpm -F @cgpos/shared test` (101 berkas, 613 tes lulus), `lint-tailwind.sh origin/main` bersih.
   - Waktu pengerjaan: Jam mulai: 20:26 WIB, Mulai menulis: 20:27 WIB, Selesai: 22:15 WIB.
+- **Jadikan invoice (Claude, 13 Nov 2026 malam)**: tombol di layar Pembayaran kasir (`payment/InvoiceDialog.tsx`, `order-invoice.ts` + 6 tes). Pesanan jadi faktur penjualan (total sama dengan pesanan), lalu ditutup tanpa pembayaran. Diuji di mode demo (FJ-000001). Belum: uji di server asli, stok tidak dikurangi.
