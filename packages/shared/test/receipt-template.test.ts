@@ -71,32 +71,6 @@ describe('templat struk', () => {
     expect(resolveReceiptTemplate({}).defaultPaperWidth).toBe('80');
     expect(resolveReceiptTemplate({ receiptTemplate: { defaultPaperWidth: '58' } }).defaultPaperWidth).toBe('58');
   });
-  it('mendukung konfigurasi logo, media sosial, kode QR, dan barcode', () => {
-    const ctx = {
-      ...base,
-      receiptTemplate: {
-        showLogo: true,
-        logoUrl: 'https://example.com/logo.png',
-        showSocialMedia: true,
-        socialMedia: { instagram: '@kopikami', facebook: 'kopikami.id', website: 'kopikami.com' },
-        showQrCode: true,
-        qrCodeType: 'payment_link',
-        showBarcode: true,
-      },
-    } as OutletContext;
-    const t = lines(ctx, 48).join('\n');
-    expect(t).toContain('[ LOGO ]');
-    expect(t).toContain('IG: @kopikami');
-    expect(t).toContain('FB: kopikami.id');
-    expect(t).toContain('Web: kopikami.com');
-    expect(t).toContain('[ KODE QR ]');
-    expect(t).toContain('https://cgpos.id/pay/OUT1/A/261110/101');
-    expect(t).toContain('||| | ||| OUT1/A/261110/101 ||| | |||');
-  });
-  it('validasi URL kustom kode QR', () => {
-    expect(receiptTemplateProblem({ showQrCode: true, qrCodeType: 'custom', qrCodeCustomUrl: '' })).toMatch(/kustom/);
-    expect(receiptTemplateProblem({ showQrCode: true, qrCodeType: 'custom', qrCodeCustomUrl: 'https://cgpos.id' })).toBeNull();
-  });
 });
 
 describe('templat struk lewat lapisan data (fake)', () => {

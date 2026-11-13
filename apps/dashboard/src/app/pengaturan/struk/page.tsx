@@ -10,16 +10,11 @@ import {
   FileText,
   Info,
   ShieldAlert,
-  Image as ImageIcon,
-  QrCode,
-  Share2,
-  Trash2,
 } from 'lucide-react';
 import {
   PRINT_THEMES,
   DEFAULT_RECEIPT_TEMPLATE,
   MAX_PRINTS_LIMIT,
-  QR_CODE_TYPES,
   resolveReceiptTemplate,
   receiptTemplateProblem,
   receiptPieces,
@@ -27,7 +22,6 @@ import {
   formatRp,
   paperCols,
   type PrintTheme,
-  type QrCodeType,
   type ReceiptTemplate,
   type OutletInfo,
   type OutletOptions,
@@ -150,8 +144,6 @@ function ReceiptEditor({
   const [defaultPaperWidth, setDefaultPaperWidth] = useState<PaperWidth>(initialTpl.defaultPaperWidth);
 
   // Header tab states
-  const [showLogo, setShowLogo] = useState(initialTpl.showLogo ?? false);
-  const [logoUrl, setLogoUrl] = useState(initialTpl.logoUrl ?? '');
   const [showOutletName, setShowOutletName] = useState(initialTpl.showOutletName);
   const [showAddress, setShowAddress] = useState(initialTpl.showAddress);
   const [showPhone, setShowPhone] = useState(initialTpl.showPhone);
@@ -170,17 +162,9 @@ function ReceiptEditor({
   const [showUnitPrice, setShowUnitPrice] = useState(initialTpl.showUnitPrice);
   const [showExtras, setShowExtras] = useState(initialTpl.showExtras);
   const [showNotes, setShowNotes] = useState(initialTpl.showNotes);
-  const [showQrCode, setShowQrCode] = useState(initialTpl.showQrCode ?? false);
-  const [qrCodeType, setQrCodeType] = useState<QrCodeType>(initialTpl.qrCodeType ?? 'order_no');
-  const [qrCodeCustomUrl, setQrCodeCustomUrl] = useState(initialTpl.qrCodeCustomUrl ?? '');
-  const [showBarcode, setShowBarcode] = useState(initialTpl.showBarcode ?? false);
 
   // Footer tab states
   const [receiptFooter, setReceiptFooter] = useState(options.receiptFooter ?? '');
-  const [showSocialMedia, setShowSocialMedia] = useState(initialTpl.showSocialMedia ?? false);
-  const [instagram, setInstagram] = useState(initialTpl.socialMedia?.instagram ?? '');
-  const [facebook, setFacebook] = useState(initialTpl.socialMedia?.facebook ?? '');
-  const [website, setWebsite] = useState(initialTpl.socialMedia?.website ?? '');
   const [showPrintTime, setShowPrintTime] = useState(initialTpl.showPrintTime);
 
   // Print limits states
@@ -218,14 +202,6 @@ function ReceiptEditor({
     showPrintTime,
     maxPrints: enableLimit ? maxPrints : 0,
     defaultPaperWidth,
-    showLogo,
-    logoUrl,
-    showSocialMedia,
-    socialMedia: { instagram, facebook, website },
-    showQrCode,
-    qrCodeType,
-    qrCodeCustomUrl,
-    showBarcode,
   }), [
     theme,
     showOutletName,
@@ -245,16 +221,6 @@ function ReceiptEditor({
     enableLimit,
     maxPrints,
     defaultPaperWidth,
-    showLogo,
-    logoUrl,
-    showSocialMedia,
-    instagram,
-    facebook,
-    website,
-    showQrCode,
-    qrCodeType,
-    qrCodeCustomUrl,
-    showBarcode,
   ]);
 
   // Context pratinjau yang reaktif terhadap perubahan formulir
@@ -304,16 +270,6 @@ function ReceiptEditor({
     setEnableLimit(false);
     setMaxPrints(3);
     setDefaultPaperWidth(DEFAULT_RECEIPT_TEMPLATE.defaultPaperWidth);
-    setShowLogo(false);
-    setLogoUrl('');
-    setShowSocialMedia(false);
-    setInstagram('');
-    setFacebook('');
-    setWebsite('');
-    setShowQrCode(false);
-    setQrCodeType('order_no');
-    setQrCodeCustomUrl('');
-    setShowBarcode(false);
   };
 
   const handlePrintSample = () => {
@@ -331,10 +287,6 @@ function ReceiptEditor({
 
     const widthMm = paper === '58' ? '48mm' : '72mm';
     const fontSize = theme === 'large' ? '14px' : theme === 'medium' ? '12px' : '11px';
-
-    const logoHtml = showLogo && logoUrl
-      ? `<div style="text-align: center; margin-bottom: 8px;"><img src="${logoUrl}" style="max-height: 48px; max-width: 140px; object-fit: contain;" alt="Logo" /></div>`
-      : '';
 
     const textContent = previewPieces.map((p) => {
       const alignStyle = p.align === 'center' ? 'text-align: center;' : 'text-align: left;';
@@ -364,7 +316,6 @@ function ReceiptEditor({
           </style>
         </head>
         <body>
-          ${logoHtml}
           ${textContent}
         </body>
       </html>
@@ -565,93 +516,11 @@ function ReceiptEditor({
                     />
                     <span>Nomor telepon ({info.phone || 'Belum diisi'})</span>
                   </label>
-                  
-                  {/* Pilihan Logo Toko */}
-                  <div className="space-y-8 pt-6 border-t border-border/50">
-                    <label className="flex items-center gap-8 text-sm cursor-pointer select-none font-medium">
-                      <input
-                        type="checkbox"
-                        checked={showLogo}
-                        onChange={(e) => setShowLogo(e.target.checked)}
-                      />
-                      <span>Tampilkan logo outlet di kepala struk</span>
-                    </label>
-
-                    {showLogo && (
-                      <div className="pl-24 space-y-8 p-12 bg-surface-raised rounded-md border border-border">
-                        <div className="flex flex-wrap items-center gap-12">
-                          {logoUrl ? (
-                            <img
-                              src={logoUrl}
-                              alt="Logo Outlet"
-                              className="h-48 w-48 object-contain rounded border border-border bg-white p-2"
-                            />
-                          ) : (
-                            <div className="h-48 w-48 rounded border border-dashed border-border flex items-center justify-center text-text-muted">
-                              <ImageIcon className="w-20 h-20" aria-hidden />
-                            </div>
-                          )}
-                          <div className="space-y-4 grow">
-                            <label className="cg-btn cg-btn--secondary cg-btn--sm inline-flex items-center gap-6 cursor-pointer">
-                              <ImageIcon className="w-14 h-14" aria-hidden />
-                              <span>Pilih gambar logo</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="sr-only"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  if (!file.type.startsWith('image/')) {
-                                    setErr('File harus berupa gambar (JPG, PNG, atau WebP)');
-                                    return;
-                                  }
-                                  if (file.size > 2_000_000) {
-                                    setErr('Ukuran logo maksimal 2 MB');
-                                    return;
-                                  }
-                                  const reader = new FileReader();
-                                  reader.onload = (ev) => {
-                                    const res = ev.target?.result;
-                                    if (typeof res === 'string') {
-                                      setLogoUrl(res);
-                                    }
-                                  };
-                                  reader.readAsDataURL(file);
-                                }}
-                              />
-                            </label>
-                            {logoUrl && (
-                              <button
-                                type="button"
-                                className="cg-btn cg-btn--ghost cg-btn--sm text-danger ml-8"
-                                onClick={() => setLogoUrl('')}
-                              >
-                                <Trash2 className="w-14 h-14" aria-hidden />
-                                <span>Hapus</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs text-text-muted block mb-2" htmlFor="struk-logo-url">
-                            Atau masukkan URL gambar logo:
-                          </label>
-                          <input
-                            id="struk-logo-url"
-                            type="url"
-                            className="cg-input text-xs"
-                            placeholder="https://example.com/logo.png"
-                            value={logoUrl.startsWith('data:') ? '' : logoUrl}
-                            onChange={(e) => setLogoUrl(e.target.value)}
-                          />
-                          {logoUrl.startsWith('data:') && (
-                            <p className="text-[11px] text-text-muted mt-2">Gambar logo terpasang dari berkas lokal.</p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <label className="flex items-center gap-8 text-sm text-text-muted select-none">
+                    <input type="checkbox" disabled checked={false} />
+                    <span>Logo outlet di kepala struk</span>
+                    <span className="cg-badge cg-badge--info text-xs">Segera</span>
+                  </label>
                 </div>
               </div>
 
@@ -776,74 +645,11 @@ function ReceiptEditor({
                     />
                     <span>Tampilkan catatan per item (mis. kurang manis)</span>
                   </label>
-
-                  {/* Kode QR & Barcode */}
-                  <div className="space-y-8 pt-8 border-t border-border/50">
-                    <label className="flex items-center gap-8 text-sm cursor-pointer select-none font-medium">
-                      <input
-                        type="checkbox"
-                        checked={showQrCode}
-                        onChange={(e) => setShowQrCode(e.target.checked)}
-                      />
-                      <QrCode className="w-16 h-16 text-accent" aria-hidden />
-                      <span>Cetak kode QR di struk</span>
-                    </label>
-
-                    {showQrCode && (
-                      <div className="pl-24 space-y-12 p-12 bg-surface-raised rounded-md border border-border">
-                        <div>
-                          <label className="text-xs font-semibold text-text-muted block mb-4">
-                            Tujuan Kode QR:
-                          </label>
-                          <div className="grid gap-6">
-                            {QR_CODE_TYPES.map((qt) => (
-                              <label key={qt.id} className="flex items-start gap-8 text-xs cursor-pointer select-none">
-                                <input
-                                  type="radio"
-                                  name="qrCodeType"
-                                  value={qt.id}
-                                  checked={qrCodeType === qt.id}
-                                  onChange={() => setQrCodeType(qt.id)}
-                                  className="mt-1"
-                                />
-                                <div>
-                                  <span className="font-semibold text-text">{qt.label}</span>
-                                  <p className="text-text-muted">{qt.desc}</p>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        {qrCodeType === 'custom' && (
-                          <div className="space-y-4">
-                            <label className="cg-label text-xs" htmlFor="struk-qr-custom-url">
-                              Tautan / URL Kustom:
-                            </label>
-                            <input
-                              id="struk-qr-custom-url"
-                              type="url"
-                              className="cg-input text-xs"
-                              placeholder="https://toko.id/promo atau https://survey.id"
-                              value={qrCodeCustomUrl}
-                              onChange={(e) => setQrCodeCustomUrl(e.target.value)}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <label className="flex items-center gap-8 text-sm cursor-pointer select-none font-medium pt-4">
-                      <input
-                        type="checkbox"
-                        checked={showBarcode}
-                        onChange={(e) => setShowBarcode(e.target.checked)}
-                      />
-                      <span>Cetak barcode nomor pesanan</span>
-                    </label>
-                    <p className="text-xs text-text-muted pl-24">
-                      Menampilkan barcode 1D nomor pesanan di bawah struk untuk dipindai oleh barcode scanner kasir.
-                    </p>
-                  </div>
+                  <label className="flex items-center gap-8 text-sm text-text-muted select-none">
+                    <input type="checkbox" disabled checked={false} />
+                    <span>Cetak kode QR pembayaran dinamis</span>
+                    <span className="cg-badge cg-badge--info text-xs">Segera</span>
+                  </label>
                 </div>
               </div>
 
@@ -878,65 +684,6 @@ function ReceiptEditor({
                 <p id="struk-footer-help" className="text-xs text-text-muted">
                   Tampil di akhir struk ({receiptFooter.length}/300 karakter).
                 </p>
-              </div>
-
-              {/* Bagian Media Sosial */}
-              <div className="space-y-8 pt-12 border-t border-border">
-                <label className="flex items-center gap-8 text-sm cursor-pointer select-none font-medium">
-                  <input
-                    type="checkbox"
-                    checked={showSocialMedia}
-                    onChange={(e) => setShowSocialMedia(e.target.checked)}
-                  />
-                  <Share2 className="w-16 h-16 text-accent" aria-hidden />
-                  <span>Tampilkan akun media sosial di kaki struk</span>
-                </label>
-
-                {showSocialMedia && (
-                  <div className="pl-24 space-y-8 p-12 bg-surface-raised rounded-md border border-border">
-                    <div className="grid grid-cols-1 tablet:grid-cols-3 gap-8">
-                      <div>
-                        <label className="cg-label text-xs" htmlFor="struk-ig">
-                          Instagram
-                        </label>
-                        <input
-                          id="struk-ig"
-                          type="text"
-                          className="cg-input text-xs"
-                          placeholder="@nama_toko"
-                          value={instagram}
-                          onChange={(e) => setInstagram(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="cg-label text-xs" htmlFor="struk-fb">
-                          Facebook
-                        </label>
-                        <input
-                          id="struk-fb"
-                          type="text"
-                          className="cg-input text-xs"
-                          placeholder="fb.com/nama_toko"
-                          value={facebook}
-                          onChange={(e) => setFacebook(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="cg-label text-xs" htmlFor="struk-web">
-                          Website
-                        </label>
-                        <input
-                          id="struk-web"
-                          type="text"
-                          className="cg-input text-xs"
-                          placeholder="toko.id"
-                          value={website}
-                          onChange={(e) => setWebsite(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Tampilkan Waktu Cetak */}
@@ -1050,29 +797,18 @@ function ReceiptEditor({
               }}
               data-testid="receipt-preview-paper"
             >
-              {showLogo && logoUrl && (
-                <div className="flex justify-center mb-8">
-                  <img
-                    src={logoUrl}
-                    alt="Logo Toko"
-                    className="max-h-48 max-w-[140px] object-contain"
-                  />
-                </div>
-              )}
-              {previewPieces
-                .filter((p) => !(showLogo && logoUrl && p.text === '[ LOGO ]'))
-                .map((p, idx) => {
-                  const alignClass = p.align === 'center' ? 'text-center' : 'text-left';
-                  const boldClass = p.bold ? 'font-bold' : '';
-                  return (
-                    <div
-                      key={idx}
-                      className={`${alignClass} ${boldClass} whitespace-pre`}
-                    >
-                      {p.text}
-                    </div>
-                  );
-                })}
+              {previewPieces.map((p, idx) => {
+                const alignClass = p.align === 'center' ? 'text-center' : 'text-left';
+                const boldClass = p.bold ? 'font-bold' : '';
+                return (
+                  <div
+                    key={idx}
+                    className={`${alignClass} ${boldClass} whitespace-pre`}
+                  >
+                    {p.text}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

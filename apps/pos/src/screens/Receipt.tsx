@@ -38,16 +38,6 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { 
   return (
     <div className={`receipt receipt--${paper} receipt--${tpl.theme}`} data-testid="receipt">
       <header className="receipt__center">
-        {tpl.showLogo && tpl.logoUrl && (
-          <div className="mb-8">
-            <img
-              src={tpl.logoUrl}
-              alt="Logo Toko"
-              className="max-h-64 max-w-[160px] mx-auto object-contain"
-              onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
-            />
-          </div>
-        )}
         {tpl.showOutletName && <strong>{ctx.outletName}</strong>}
         {tpl.showAddress && ctx.address && <div>{ctx.address}</div>}
         {tpl.showPhone && ctx.phone && <div>{ctx.phone}</div>}
@@ -98,40 +88,8 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { 
           <div className="receipt__row"><span>Sisa</span><span>{formatRp(order.total - order.paidTotal)}</span></div>
         </>
       )}
-      {(ctx.receiptFooter || tpl.showPrintTime || (tpl.showSocialMedia && tpl.socialMedia) || tpl.showQrCode || tpl.showBarcode) && <hr />}
+      {(ctx.receiptFooter || tpl.showPrintTime) && <hr />}
       {ctx.receiptFooter && <div className="receipt__center">{ctx.receiptFooter}</div>}
-      {tpl.showSocialMedia && tpl.socialMedia && (tpl.socialMedia.instagram || tpl.socialMedia.facebook || tpl.socialMedia.website) && (
-        <div className="receipt__center text-xs mt-6 space-y-2">
-          {tpl.socialMedia.instagram && <div>Instagram: {tpl.socialMedia.instagram}</div>}
-          {tpl.socialMedia.facebook && <div>Facebook: {tpl.socialMedia.facebook}</div>}
-          {tpl.socialMedia.website && <div>Web: {tpl.socialMedia.website}</div>}
-        </div>
-      )}
-      {tpl.showQrCode && (
-        <div className="receipt__center my-8">
-          <div className="inline-block p-6 bg-white border border-border text-center">
-            <div className="font-mono text-[10px] uppercase font-bold tracking-wider mb-2">Pindai Kode QR</div>
-            <div className="w-24 h-24 mx-auto bg-text text-surface flex items-center justify-center text-xs font-mono">
-              QR
-            </div>
-            <div className="text-[10px] text-text-muted mt-2 font-mono truncate max-w-[140px]">
-              {tpl.qrCodeType === 'custom' && tpl.qrCodeCustomUrl
-                ? tpl.qrCodeCustomUrl
-                : tpl.qrCodeType === 'payment_link'
-                ? `https://cgpos.id/pay/${order.number}`
-                : order.number}
-            </div>
-          </div>
-        </div>
-      )}
-      {tpl.showBarcode && (
-        <div className="receipt__center my-6">
-          <div className="font-mono text-base tracking-[4px] font-bold">
-            || ||| | |||| | ||
-          </div>
-          <div className="font-mono text-[11px] text-text-muted">{order.number}</div>
-        </div>
-      )}
       {tpl.showPrintTime && <div className="receipt__center">dicetak {fmt(new Date().toISOString(), ctx.timezone)}</div>}
     </div>
   );
