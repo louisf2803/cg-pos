@@ -4,7 +4,7 @@ import { ingredientCategoryName } from './ingredient-categories';
 import { createTableOps } from './table-ops';
 import { sanitizeReceiptTemplate } from './receipt-template';
 import { customerMatches, customerProblem, normalizePhone } from './customer';
-import { DEFAULT_LOYALTY, loyaltyRulesProblem, refundPointsDelta, earnedPoints, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
+import { DEFAULT_LOYALTY, loyaltyRulesProblem, loyaltyRewardProblem, refundPointsDelta, earnedPoints, type LoyaltyEntry, type LoyaltyRules, type LoyaltyProductReward } from './loyalty';
 import { couponInputProblem, couponReferenceProblem, fitDiscounts, normalizeCode, normalizeCouponReference, promotionProblem } from './promo';
 import { bytesToDataUri, photoProblem } from './photo';
 import { buildShiftReport, type ShiftInputs } from './shift-report';
@@ -157,6 +157,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let promotions: (Promotion & { deleted?: boolean })[] = [];
   let coupons: Coupon[] = [];
   let loyaltyRules: LoyaltyRules = { ...DEFAULT_LOYALTY };
+  let loyaltyProductRewards: LoyaltyProductReward[] = [];
   let ledger: LoyaltyEntry[] = [];
   let ingredients: { id: string; name: string; unit: string; qty: number; categoryId?: string }[] = [];
   let recipes = new Map<string, RecipeLine[]>();
@@ -463,6 +464,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     promotions = opts.seed === false ? [] : clone(SEED_PROMOS);
     coupons = opts.seed === false ? [] : clone(SEED_COUPONS);
     loyaltyRules = opts.seed === false ? { ...DEFAULT_LOYALTY } : { ...DEFAULT_LOYALTY, isActive: true };
+    loyaltyProductRewards = opts.seed === false ? [] : [
+      { id: 'lrew-1', productId: 'p8', pointsCost: 25, isActive: true, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z' },
+      { id: 'lrew-2', productId: 'p5', pointsCost: 50, isActive: true, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z' },
+      { id: 'lrew-3', productId: 'p1', pointsCost: 75, isActive: true, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z' },
+    ];
     ledger = [];
     if (opts.seed !== false) pushPoints('cu-ani', 120, 'adjust', 'Saldo awal');
     seedStock();
@@ -561,7 +567,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     if (!loyaltyRules.isActive) return 'Loyalti sedang tidak aktif, tukar poin tidak bisa dipakai.';
     let used = 0;
     for (const e of pts) {
-      if (!e.points || e.points < 1 || e.amount !== e.points * loyaltyRules.redeemValuePerPoint) return 'Potongan poin tidak sesuai aturan loyalti.';
+      if (!e.points || e.points < 1) return 'Potongan poin tidak sesuai aturan loyalti.';
+      if (e.amount > 0 && e.amount !== e.points * loyaltyRules.redeemValuePerPoint) return 'Potongan poin tidak sesuai aturan loyalti.';
       used += e.points;
     }
     const bal = customers.find((c) => c.id === draft.customerId)?.pointsBalance ?? 0;
@@ -2095,6 +2102,49 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         byMethod: [...byMethod.values()].sort((a, b) => b.amount - a.amount), byHour,
         topProducts: [...top.values()].sort((a, b) => b.amount - a.amount).slice(0, 5),
       } satisfies SalesSummary;
+    },
+
+    async listLoyaltyProductRewards(activeOnly) {
+      const list = activeOnly ? loyaltyProductRewards.filter((r) => r.isActive) : loyaltyProductRewards;
+      return list.map((r) => ({
+        ...clone(r),
+        productName: products.find((p) => p.id === r.productId)?.name ?? r.productName,
+      }));
+    },
+
+    async saveLoyaltyProductReward(reward) {
+      const prob = loyaltyRewardProblem(reward);
+      if (prob) throw new DataError('invalid', prob);
+      const at = now().toISOString();
+      const existing = loyaltyProductRewards.find(
+        (r) => (reward.id && r.id === reward.id) || r.productId === reward.productId,
+      );
+      if (existing) {
+        existing.pointsCost = reward.pointsCost;
+        if (reward.isActive !== undefined) existing.isActive = reward.isActive;
+        existing.updatedAt = at;
+        return {
+          ...clone(existing),
+          productName: products.find((p) => p.id === existing.productId)?.name,
+        };
+      }
+      const item: LoyaltyProductReward = {
+        id: reward.id || newId(),
+        productId: reward.productId,
+        pointsCost: reward.pointsCost,
+        isActive: reward.isActive ?? true,
+        createdAt: at,
+        updatedAt: at,
+      };
+      loyaltyProductRewards.push(item);
+      return {
+        ...clone(item),
+        productName: products.find((p) => p.id === item.productId)?.name,
+      };
+    },
+
+    async deleteLoyaltyProductReward(id) {
+      loyaltyProductRewards = loyaltyProductRewards.filter((r) => r.id !== id);
     },
   };
   const tableOps = createTableOps({

@@ -1033,3 +1033,10 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A140 Server: Tukar Poin menjadi Produk Gratis Selesai
+- Migrasi `packages/db/migrations/0099_loyalty_product_rewards.sql` & tes SQL `packages/db/tests/20_loyalty_product_rewards.sql`: tabel `pos.loyalty_product_rewards`, RPC save/delete, trigger `loyalty_guard_discount()` diperbarui agar membolehkan reward produk gratis (`amount = 0`, `points_used > 0`) dengan validasi saldo poin.
+- DataLayer: `listLoyaltyProductRewards`, `saveLoyaltyProductReward`, `deleteLoyaltyProductReward` di `data.ts`, `fake.ts`, `supabase.ts`, dan offline cached reads.
+- Dashboard `/loyalty`: tab "Hadiah Produk" untuk kelola katalog produk hadiah dan biaya poinnya.
+- Kasir (`DiscountDialog.tsx`, `Register.tsx`): tab Poin menampilkan daftar klaim hadiah produk gratis, memasukkan baris Rp0 ke pesanan, dan mencatat potongan poin otomatis saat pesanan lunas.
+- Seluruh tes vitest passing (10 tests `loyalty.test.ts`), `pnpm -r typecheck` lulus, `lint-tailwind` bersih.

@@ -41,6 +41,7 @@ export function isNetworkError(e: unknown): boolean {
 const CACHED_READS = [
   'getContext', 'listCategories', 'listDepartments', 'listProducts', 'listEmployees', 'listPaymentMethods', 'currentShift',
   'listExtraGroups', 'listFloors', 'listTables', 'listTableStatus', 'listPromotions', 'getLoyaltyRules', 'getCustomItemProductId', 'listPrintStations', 'listNotePresets',
+  'listLoyaltyProductRewards',
 ] as const;
 
 interface Options { storage: KV; isOnline?: () => boolean; now?: () => Date }

@@ -35,6 +35,22 @@ export function redeemProblem(points: number, balance: number, remaining: number
   if (redeemAmount(points, r) > remaining) return `Potongan tidak boleh melebihi sisa tagihan (maksimal ${maxRedeemPoints(balance, remaining, r)} poin = ${formatRp(redeemAmount(maxRedeemPoints(balance, remaining, r), r))}).`;
   return null;
 }
+export interface LoyaltyProductReward {
+  id: string;
+  productId: string;
+  productName?: string;
+  pointsCost: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export function loyaltyRewardProblem(reward: { productId: string; pointsCost: number }): string | null {
+  if (!reward.productId?.trim()) return 'Pilih produk hadiah terlebih dahulu.';
+  if (!Number.isInteger(reward.pointsCost) || reward.pointsCost < 1) return 'Poin yang dibutuhkan harus bilangan bulat minimal 1.';
+  return null;
+}
+
 /** Perubahan poin akibat refund: poin didapat dikurangi, poin tukar dikembalikan, sebanding bagian yang di-refund. */
 export function refundPointsDelta(earned: number, redeemed: number, refundTotal: number, paidTotal: number): number {
   if (paidTotal <= 0) return 0;

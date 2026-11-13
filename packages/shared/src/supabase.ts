@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
-import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
+import { DEFAULT_LOYALTY, loyaltyRulesProblem, loyaltyRewardProblem, type LoyaltyEntry, type LoyaltyRules, type LoyaltyProductReward } from './loyalty';
 import { photoExt, photoPath, photoProblem, type ProductPhotoInput } from './photo';
 import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
@@ -2716,6 +2716,56 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const { ctx } = await resolve();
       const paid = await fetchOrders((qb) => qb.eq('outlet_id', ctx.outletId).eq('status', 'paid').gte('closed_at', range.from).lt('closed_at', range.to));
       return summarizeSales(paid, ctx.timezone);
+    },
+
+    // ---------- hadiah produk loyalti ----------
+    async listLoyaltyProductRewards(activeOnly) {
+      const { orgId } = await resolve();
+      try {
+        let q = db().from('loyalty_product_rewards').select('*, products(name)').eq('org_id', orgId);
+        if (activeOnly) q = q.eq('is_active', true);
+        const rows = must(await q.order('points_cost')) as (Row & { products?: { name?: string } | null })[] | null;
+        return (rows ?? []).map((r): LoyaltyProductReward => ({
+          id: r.id as string,
+          productId: r.product_id as string,
+          productName: r.products?.name ?? undefined,
+          pointsCost: Number(r.points_cost),
+          isActive: Boolean(r.is_active),
+          createdAt: r.created_at as string,
+          updatedAt: r.updated_at as string,
+        }));
+      } catch (e) {
+        const m = e instanceof Error ? e.message : '';
+        if (/relation.*does not exist|table.*does not exist/i.test(m)) return [];
+        throw e;
+      }
+    },
+    async saveLoyaltyProductReward(reward) {
+      const prob = loyaltyRewardProblem(reward);
+      if (prob) throw new DataError('invalid', prob);
+      const { orgId } = await resolve();
+      const res = must(await db().rpc('loyalty_reward_save', {
+        p_org: orgId,
+        p_id: reward.id || null,
+        p_product_id: reward.productId,
+        p_points_cost: reward.pointsCost,
+        p_is_active: reward.isActive ?? true,
+      })) as Row;
+      return {
+        id: res.id as string,
+        productId: res.product_id as string,
+        pointsCost: Number(res.points_cost),
+        isActive: Boolean(res.is_active),
+        createdAt: res.created_at as string,
+        updatedAt: res.updated_at as string,
+      };
+    },
+    async deleteLoyaltyProductReward(id) {
+      const { orgId } = await resolve();
+      must(await db().rpc('loyalty_reward_delete', {
+        p_org: orgId,
+        p_id: id,
+      }));
     },
   };
   const tableOps = createTableOps({

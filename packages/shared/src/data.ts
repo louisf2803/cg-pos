@@ -7,7 +7,7 @@ import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, Rec
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
 import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
-import type { LoyaltyEntry, LoyaltyRules } from './loyalty';
+import type { LoyaltyEntry, LoyaltyRules, LoyaltyProductReward } from './loyalty';
 import type { Account, AccountInput, BalanceSheetTotals, CashFlow, Journal, JournalInput, JournalSummary, Ledger, PayableRow, StatementRow, TrialRow } from './finance';
 import type { PayAccount, PurchaseInvoice, PurchaseInvoiceInput, PurchaseInvoiceSummary, PurchaseItem, PurchaseOrder, PurchaseOrderInput, PurchaseOrderSummary, PurchasePayInput, PurchaseReceiveInput, Supplier, SupplierInput } from './purchasing';
 import type { StockFilter, StockItem, StockMove, StockOpname, StockOpnameInput, StockOpnameSummary, StockPostInput, StockMoveEntry, StockMoveKind } from './stock';
@@ -400,5 +400,10 @@ export interface DataLayer {
   // ---------- laporan promo ----------
   /** Potongan yang tercatat pada pesanan lunas yang ditutup dalam rentang [from, to). Hanya baca. */
   listDiscountUses(range: { from: string; to: string }): Promise<DiscountUse[]>;
+
+  // ---------- hadiah produk loyalti ----------
+  listLoyaltyProductRewards(activeOnly?: boolean): Promise<LoyaltyProductReward[]>;
+  saveLoyaltyProductReward(reward: { id?: string; productId: string; pointsCost: number; isActive?: boolean }): Promise<LoyaltyProductReward>;
+  deleteLoyaltyProductReward(id: string): Promise<void>;
 }
 

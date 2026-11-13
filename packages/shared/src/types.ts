@@ -103,7 +103,7 @@ export interface PromotionInput {
 export interface Coupon { id: string; promotionId: string; code: string; usageLimit?: number; usedCount: number; validFrom?: string; validTo?: string; isActive: boolean }
 export interface CouponInput { id?: string; promotionId: string; code: string; usageLimit?: number; validFrom?: string; validTo?: string; isActive?: boolean }
 /** Satu potongan tingkat order yang tercatat pada pesanan. */
-export interface DiscountEntry { id: string; source: 'promo' | 'coupon' | 'manual' | 'points'; points?: number; promotionId?: string; couponId?: string; label: string; amount: number; authorizedBy?: string; /** nomor referensi kupon/promo yang diketik kasir (maks 60 huruf) */ reference?: string }
+export interface DiscountEntry { id: string; source: 'promo' | 'coupon' | 'manual' | 'points'; points?: number; promotionId?: string; couponId?: string; label: string; amount: number; authorizedBy?: string; rewardProductId?: string; /** nomor referensi kupon/promo yang diketik kasir (maks 60 huruf) */ reference?: string }
 export interface Order {
   id: string; number: string; type: OrderType; tableId?: string; customerId?: string; customerName?: string; label?: string; guestCount?: number; shiftId?: string; cashierId: string;
   status: 'open' | 'partially_paid' | 'paid' | 'void';
