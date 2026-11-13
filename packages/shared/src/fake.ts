@@ -787,11 +787,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         const p = products.find((x) => x.id === input.id);
         if (!p) throw new DataError('not_found', 'Produk tidak ditemukan');
         Object.assign(p, { name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku || undefined,
-          kind: input.kind ?? p.kind, trackStock: input.trackStock ?? p.trackStock, isFavorite: input.isFavorite ?? p.isFavorite, isActive: input.isActive ?? p.isActive });
+          kind: input.kind ?? p.kind, trackStock: input.trackStock ?? p.trackStock, isFavorite: input.isFavorite ?? p.isFavorite, isActive: input.isActive ?? p.isActive,
+          serviceDurationMin: input.serviceDurationMin !== undefined ? input.serviceDurationMin : p.serviceDurationMin,
+          serviceStaffIds: input.serviceStaffIds !== undefined ? input.serviceStaffIds : p.serviceStaffIds });
         return clone(p);
       }
       const p: Product = { id: newId(), name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku || undefined,
-        kind: input.kind ?? 'goods', trackStock: input.trackStock ?? true, stock: 0, isActive: input.isActive ?? true, isFavorite: input.isFavorite ?? false };
+        kind: input.kind ?? 'goods', trackStock: input.trackStock ?? true, stock: 0, isActive: input.isActive ?? true, isFavorite: input.isFavorite ?? false,
+        serviceDurationMin: input.serviceDurationMin, serviceStaffIds: input.serviceStaffIds };
       products.push(p); return clone(p);
     },
     async setProductActive(id, active) {
@@ -826,7 +829,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         const kids = groupId ? products.filter((p) => p.parentId === groupId) : [];
         for (const k of kids) products.splice(products.indexOf(k), 1);
         const cur = groupId ? products.find((p) => p.id === groupId) : undefined;
-        const patch = { name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active };
+        const patch = {
+          name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku?.trim() || undefined,
+          kind, trackStock, isFavorite, isActive: active,
+          serviceDurationMin: input.serviceDurationMin,
+          serviceStaffIds: input.serviceStaffIds,
+        };
         if (cur) Object.assign(cur, patch);
         else products.push({ id: groupId ?? newId(), stock: 0, ...patch });
         return clone((await this.getCatalogProduct(groupId ?? products[products.length - 1]!.id))!);
@@ -837,7 +845,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const kept = new Set(input.variants.map((v) => v.id).filter(Boolean));
       for (const k of products.filter((p) => p.parentId === parentId && !kept.has(p.id))) products.splice(products.indexOf(k), 1);
       for (const v of input.variants) {
-        const patch = { name: variantProductName(name, v.label), categoryId: input.categoryId, price: Math.round(v.price), sku: v.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active && (v.isActive ?? true), parentId };
+        const patch = {
+          name: variantProductName(name, v.label), categoryId: input.categoryId, price: Math.round(v.price), sku: v.sku?.trim() || undefined,
+          kind, trackStock, isFavorite, isActive: active && (v.isActive ?? true), parentId,
+          serviceDurationMin: input.serviceDurationMin,
+          serviceStaffIds: input.serviceStaffIds,
+        };
         const cur = v.id ? products.find((p) => p.id === v.id) : undefined;
         if (cur) Object.assign(cur, patch); else products.push({ id: newId(), stock: 0, ...patch });
       }

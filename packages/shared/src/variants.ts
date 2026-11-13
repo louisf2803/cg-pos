@@ -69,6 +69,8 @@ export function assembleCatalog(all: Product[]): CatalogProduct[] {
       ...((head?.priceOverridePct ?? first.priceOverridePct) ? { priceOverridePct: (head?.priceOverridePct ?? first.priceOverridePct)! } : {}),
       ...((head?.printStationId ?? first.printStationId) ? { printStationId: (head?.printStationId ?? first.printStationId)! } : {}),
       ...((head?.photoUrl ?? kids.find((k) => k.photoUrl)?.photoUrl) ? { photoUrl: (head?.photoUrl ?? kids.find((k) => k.photoUrl)?.photoUrl)! } : {}),
+      ...((head?.serviceDurationMin ?? first.serviceDurationMin) !== undefined ? { serviceDurationMin: (head?.serviceDurationMin ?? first.serviceDurationMin)! } : {}),
+      ...((head?.serviceStaffIds ?? first.serviceStaffIds) ? { serviceStaffIds: (head?.serviceStaffIds ?? first.serviceStaffIds)! } : {}),
     };
   };
   const seen = new Set<string>();
@@ -82,7 +84,14 @@ export function assembleCatalog(all: Product[]): CatalogProduct[] {
       const kids = children.get(p.id);
       if (kids?.length) out.push(group(p.id, p.name, p, kids));
     } else {
-      out.push({ id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind as CatalogProduct['kind'], trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [], ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}), ...(p.priceOverridePct ? { priceOverridePct: p.priceOverridePct } : {}), ...(p.printStationId ? { printStationId: p.printStationId } : {}) });
+      out.push({
+        id: p.id, name: p.name, categoryId: p.categoryId, kind: p.kind as CatalogProduct['kind'], trackStock: p.trackStock, isActive: p.isActive, isFavorite: p.isFavorite, price: p.price, sku: p.sku, variants: [],
+        ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
+        ...(p.priceOverridePct ? { priceOverridePct: p.priceOverridePct } : {}),
+        ...(p.printStationId ? { printStationId: p.printStationId } : {}),
+        ...(p.serviceDurationMin !== undefined ? { serviceDurationMin: p.serviceDurationMin } : {}),
+        ...(p.serviceStaffIds ? { serviceStaffIds: p.serviceStaffIds } : {}),
+      });
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name, 'id'));

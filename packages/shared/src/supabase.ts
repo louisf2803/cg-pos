@@ -973,6 +973,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           if (input.trackStock !== undefined) patch.track_stock = input.trackStock;
           if (input.isFavorite !== undefined) patch.is_favorite = input.isFavorite;
           if (input.isActive !== undefined) patch.is_active = input.isActive;
+          if (input.serviceDurationMin !== undefined) patch.service_duration_min = input.serviceDurationMin;
+          if (input.serviceStaffIds !== undefined) patch.service_staff_ids = input.serviceStaffIds;
           const row = must(await db().from('products').update(patch).eq('id', input.id).select('id').maybeSingle()) as Row | null;
           if (!row) throw new DataError('not_found', 'Produk tidak ditemukan');
           must(await db().from('product_units').update({ price, sku }).eq('product_id', input.id).eq('is_base', true).is('deleted_at', null).select('id'));
@@ -985,6 +987,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           id, org_id: orgId, kind: input.kind ?? 'goods', name, category_id: input.categoryId, base_unit_id: unit.id,
           is_sellable: true, show_in_menu: true, track_stock: input.trackStock ?? true, is_favorite: input.isFavorite ?? false,
           is_active: input.isActive ?? true,
+          service_duration_min: input.serviceDurationMin ?? null,
+          service_staff_ids: input.serviceStaffIds ?? [],
         }));
         must(await db().from('product_units').insert({ org_id: orgId, product_id: id, unit_id: unit.id, conversion: 1, is_base: true, price, sku }));
         return (await self.getProduct(id))!;
@@ -1036,7 +1040,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
             must(await db().from('products').update({ is_sellable: true, show_in_menu: true }).eq('id', input.id));
           }
         }
-        const p = await self.saveProduct({ id: input.id, name, categoryId: input.categoryId, price: input.price, sku: input.sku, kind, trackStock: input.trackStock, isFavorite: input.isFavorite, isActive: input.isActive });
+        const p = await self.saveProduct({
+          id: input.id, name, categoryId: input.categoryId, price: input.price, sku: input.sku, kind,
+          trackStock: input.trackStock, isFavorite: input.isFavorite, isActive: input.isActive,
+          serviceDurationMin: input.serviceDurationMin, serviceStaffIds: input.serviceStaffIds,
+        });
         return (await self.getCatalogProduct(p.id))!;
       }
       for (const v of input.variants) if (!Number.isFinite(v.price) || v.price < 0) throw new DataError('invalid', 'Harga varian tidak valid');
@@ -1050,10 +1058,16 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       try {
         const existing = input.id ? (must(await db().from('products').select('id').eq('id', input.id).maybeSingle()) as Row | null) : null;
         if (!existing) {
-          must(await db().from('products').insert({ id: parentId, org_id: orgId, kind, name, category_id: input.categoryId, base_unit_id: unit.id,
-            is_sellable: false, show_in_menu: false, track_stock: false, is_favorite: isFavorite, is_active: groupActive }));
+          must(await db().from('products').insert({
+            id: parentId, org_id: orgId, kind, name, category_id: input.categoryId, base_unit_id: unit.id,
+            is_sellable: false, show_in_menu: false, track_stock: false, is_favorite: isFavorite, is_active: groupActive,
+            service_duration_min: input.serviceDurationMin ?? null, service_staff_ids: input.serviceStaffIds ?? [],
+          }));
         } else {
-          must(await db().from('products').update({ name, category_id: input.categoryId, kind, is_sellable: false, show_in_menu: false, is_favorite: isFavorite, is_active: groupActive }).eq('id', parentId));
+          must(await db().from('products').update({
+            name, category_id: input.categoryId, kind, is_sellable: false, show_in_menu: false, is_favorite: isFavorite, is_active: groupActive,
+            service_duration_min: input.serviceDurationMin ?? null, service_staff_ids: input.serviceStaffIds ?? [],
+          }).eq('id', parentId));
         }
         const kids = (must(await db().from('products').select('id').eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
         const kidIds = new Set(kids.map((k) => k.id as string));
@@ -1066,12 +1080,18 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           const sku = v.sku?.trim() || null;
           const active = groupActive && (v.isActive ?? true);
           if (v.id && kidIds.has(v.id)) {
-            must(await db().from('products').update({ name: childName, category_id: input.categoryId, kind, is_active: active, track_stock: trackStock, is_favorite: isFavorite }).eq('id', v.id));
+            must(await db().from('products').update({
+              name: childName, category_id: input.categoryId, kind, is_active: active, track_stock: trackStock, is_favorite: isFavorite,
+              service_duration_min: input.serviceDurationMin ?? null, service_staff_ids: input.serviceStaffIds ?? [],
+            }).eq('id', v.id));
             must(await db().from('product_units').update({ price, sku }).eq('product_id', v.id).eq('is_base', true).is('deleted_at', null).select('id'));
           } else {
             const id = newId();
-            must(await db().from('products').insert({ id, org_id: orgId, kind, name: childName, category_id: input.categoryId, base_unit_id: unit.id, parent_id: parentId,
-              is_sellable: true, show_in_menu: true, track_stock: trackStock, is_favorite: isFavorite, is_active: active }));
+            must(await db().from('products').insert({
+              id, org_id: orgId, kind, name: childName, category_id: input.categoryId, base_unit_id: unit.id, parent_id: parentId,
+              is_sellable: true, show_in_menu: true, track_stock: trackStock, is_favorite: isFavorite, is_active: active,
+              service_duration_min: input.serviceDurationMin ?? null, service_staff_ids: input.serviceStaffIds ?? [],
+            }));
             must(await db().from('product_units').insert({ org_id: orgId, product_id: id, unit_id: unit.id, conversion: 1, is_base: true, price, sku }));
           }
         }
