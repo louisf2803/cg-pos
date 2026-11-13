@@ -49,3 +49,12 @@ Tinjau diff, `pnpm -r typecheck`, 578 tes shared, build dashboard, `lint-tailwin
   - A115, A117, A119, A140, A141: konflik dengan main (TablePicker, index.ts, device-prefs, data/fake/supabase, cart/SplitBillDialog). Rebase pada main terbaru setelah gelombang ini.
 - Migrasi 0044, 0097, 0098 sudah lolos tes SQL lokal tetapi BELUM diterapkan ke produksi (pemeriksa izin menolak; menunggu persetujuan Louis).
 - Perbaikan tes: 19_local_date.sql membersihkan datanya (sebelumnya merusak 19_recurring_approvals).
+
+## 13 Nov 2026 (siang) — tinjauan gelombang 2 (Claude)
+- DIGABUNG: A122 (harga kasir dan izin), A115 (meja gabung/pisah). Typecheck, 600 tes shared, lint, build, tes SQL penuh lulus.
+- KEMBALI KE ANTIGRAVITY:
+  - A120 (ekstra bahan) dan A121 (produk layanan): `lint-tailwind` GAGAL (A120: nilai spasi tak terdefinisi; A121: awalan breakpoint tidak ada, pakai tablet:/laptop:/desktop:/wide:).
+  - A145 (metode bayar server): migrasi 0109 memanggil `pos.touch()` yang tidak ada, jadi migrasi gagal dimuat. Pakai pola trigger yang sudah ada atau isi `updated_at` langsung.
+  - A123 (info outlet): tes SQL `28_outlet_business_bank_group.sql` memakai pgTAP (`plan()`), yang tidak dipakai proyek ini; tulis ulang dengan pola `pg_temp.ok` seperti tes lain. Nama berkas juga harus `19_...` atau berurut dengan tes lain.
+  - A143 dan A144: konflik di `packages/shared/src/data.ts` (sama-sama menambah metode); rebase pada main.
+  - Masih konflik dengan main: A117, A119, A140, A141. Belum diperbaiki: A114, A118, A142, A87.
