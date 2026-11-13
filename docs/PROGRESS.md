@@ -1038,3 +1038,10 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
   - **`apps/pos` (`device-prefs.ts`, `Register.tsx`)**: menambahkan filter kategori `Deposit` di rel navigasi kategori kasir (hanya tampil jika terdapat produk/kategori deposit), menyembunyikan mode SKU dari pilihan `VIEW_MODES` (dibuang Louis), menambahkan `Mode Meja` dan `Mode Jasa` di preferensi perangkat dengan inisialisasi otomatis jenis pesanan (`dine_in` / `service`) dan tombol aksi pilih meja yang diutamakan.
   - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/pos test --run` (4 lulus), `lint-tailwind.sh origin/main` bersih.
 
+- **A144 (`ag/a144-deposit-paket-laporan`)**:
+  - **Migrasi & SQL test**: `0107_deposit_packages_and_ledger.sql` (`deposit_packages`, `customer_deposits`, `customer_deposit_entries`, trigger sinkronisasi saldo deposit, RPC `pos.buy_deposit_package` dengan jurnal Dr Kas/Bank & Cr Deposit Pelanggan `2-1300`, touch/seq/log triggers, RLS), tes SQL `24_deposit.sql`.
+  - **`DataLayer` (`packages/shared/src/{data,fake,supabase}.ts`)**: 8 metode deposit (`listDepositPackages`, `saveDepositPackage`, `deleteDepositPackage`, `buyDepositPackage`, `listDepositSales`, `listDepositRefunds`, `listCustomerDepositBalances`, `getCustomerDeposit`), diuji di `deposit.test.ts`. Sesuai keputusan Louis, saldo deposit hanya dibeli dan dilihat (pemakaian sebagai alat bayar dibatalkan).
+  - **Dashboard**: menyambungkan `/deposit` ke data nyata; menyambungkan `/laporan/deposit` (Penjualan, Refund, Saldo Pelanggan) ke data nyata dan melepas label pratinjau; menambahkan tab Deposit dan kartu Saldo Deposit di detail pelanggan (`/pelanggan`).
+  - Verifikasi: `pnpm -r typecheck`, vitest `deposit.test.ts` & `deposit-report.test.ts` (7 lulus), POS vitest (7 lulus), `lint-tailwind.sh origin/main` bersih.
+
+
