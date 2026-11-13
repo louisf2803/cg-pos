@@ -1053,3 +1053,11 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 - **A129 (Claude, 13 Nov 2026)**: faktur penjualan B2B. Migrasi `0129_sales_invoices.sql` (tabel faktur/baris/pembayaran, RPC `sales_invoice_create` dan `sales_invoice_pay`, jurnal piutang-penjualan-pajak, uang muka sebagai pembayaran pertama) + tes `19_sales_invoices.sql`; DataLayer `listSalesInvoices/createSalesInvoice/paySalesInvoice` (`sales-invoice.ts`, fake dan Supabase); halaman `/keuangan/faktur-penjualan` (daftar, filter, rincian, terima bayar, tab Laporan uang muka).
   - Verifikasi: typecheck, 621 tes shared, lint-tailwind, build dashboard, `run.sh` SEMUA TES LULUS. Jam: mulai 20:38, selesai ±20:52.
   - Belum: tombol "Jadikan Invoice" di layar bayar kasir (apps/pos); laporan uang muka di Penjualan > Laporan Penjualan (sementara tab di halaman faktur). Migrasi belum diterapkan ke produksi.
+
+- **A127 (`ag/a127-batas-stok`)**:
+  - **`packages/db`**: migrasi `0127_enforce_allow_negative_stock.sql` menegakkan `allow_negative_stock = false` pada `pos.stock_post` (menolak mutasi `adjust_out` dan `waste` jika stok minus), `pos._apply_op` (`order.upsert` di `sync_push` menolak pesanan melebihi sisa stok dengan pesan galat `insufficient_stock`), dan `pos.finalize_order`. Tes SQL `19_enforce_allow_negative_stock.sql` memvalidasi penolakan dan penerimaan.
+  - **`apps/pos` (`Register.tsx`)**: ubin produk dan varian ukuran menampilkan lencana stok habis dan memberitahukan batas stok; scanner SKU menolak dan mengabarkan sisa stok saat habis alih-alih menampilkan pesan sukses masuk pesanan; klik ubin varian yang habis langsung menampilkan pesan sisa stok.
+  - **`apps/dashboard` (`inventori/stok/page.tsx`)**: dialog mutasi stok manual (`PostDialog`) menonaktifkan tombol simpan dan menampilkan banner bahaya saat `allowNegativeStock = false` dan jumlah keluar/rusak melebihi sisa stok.
+  - Jam mulai: 19:44
+  - Jam mulai menulis: 20:07
+  - Jam selesai: 21:00 (berkas dibaca: Register.tsx)
