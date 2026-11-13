@@ -3373,7 +3373,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           expectedAmount: Number(r.expected_amount ?? 0),
           actualAmount: r.actual_amount != null ? Number(r.actual_amount) : undefined,
           feeAmount: r.fee_amount != null ? Number(r.fee_amount) : undefined,
-          difference: r.difference != null ? Number(r.difference) : undefined,
+          difference: r.difference != null ? -Number(r.difference) : undefined,
           status: (r.status as 'unreconciled' | 'reconciled') ?? 'unreconciled',
           bankAccountId: (r.bank_account_id as string) ?? undefined,
           reconciledAt: (r.reconciled_at as string) ?? undefined,
@@ -3397,52 +3397,33 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         p_notes: input.notes || null,
       });
 
-      if (!rpcRes.error && rpcRes.data) {
-        const row = rpcRes.data as Row;
-        return {
-          id: (row.id as string) ?? input.id ?? newId(),
-          outletId: ctx.outletId,
-          shiftId: input.shiftId,
-          methodId: input.methodId,
-          methodName: 'Non-Tunai',
-          methodKind: 'noncash',
-          expectedAmount: Number(row.expected_amount ?? actual),
-          actualAmount: actual,
-          feeAmount: fee,
-          difference: Number(row.difference ?? 0),
-          status: 'reconciled',
-          reconciledAt: (row.reconciled_at as string) ?? now().toISOString(),
+      if (rpcRes.error) {
+        const m = rpcRes.error.message;
+        const known: Record<string, string> = {
+          'not allowed': 'Hanya pemilik, admin, atau manajer yang boleh merekonsiliasi.',
+          'reconciliation not found': 'Baris rekonsiliasi tidak ditemukan. Baris dibuat saat kasir menutup shift.',
+          'already reconciled': 'Baris ini sudah direkonsiliasi.',
+          'invalid actual amount': 'Jumlah yang masuk harus bilangan bulat rupiah, tidak negatif.',
+          'invalid fee amount': 'Biaya gateway harus bilangan bulat rupiah, tidak negatif.',
+          'bank account not found': 'Akun bank tujuan tidak ditemukan.',
         };
+        throw new DataError(m === 'not allowed' ? 'forbidden' : 'invalid', known[m] ?? m);
       }
-
-      // Fallback pembaruan tabel langsung
-      const probe = await db().from('reconciliations').select('id, expected_amount').eq('id', input.id || '').maybeSingle();
-      const expected = probe.data ? Number((probe.data as Row).expected_amount) : actual;
-      const diff = (actual + fee) - expected;
-
-      if (probe.data) {
-        await db().from('reconciliations').update({
-          actual_amount: actual,
-          fee_amount: fee,
-          difference: diff,
-          status: 'reconciled',
-          reconciled_at: now().toISOString(),
-        }).eq('id', input.id!);
-      }
-
+      const row = rpcRes.data as Row;
       return {
-        id: input.id || newId(),
+        id: (row.id as string) ?? input.id ?? newId(),
         outletId: ctx.outletId,
         shiftId: input.shiftId,
         methodId: input.methodId,
         methodName: 'Non-Tunai',
         methodKind: 'noncash',
-        expectedAmount: expected,
+        expectedAmount: Number(row.expected_amount ?? actual),
         actualAmount: actual,
         feeAmount: fee,
-        difference: diff,
+        // Di tabel positif = uang kurang; di aplikasi positif = uang lebih (sama dengan mode demo).
+        difference: -Number(row.difference ?? 0),
         status: 'reconciled',
-        reconciledAt: now().toISOString(),
+        reconciledAt: (row.reconciled_at as string) ?? now().toISOString(),
       };
     },
   };
