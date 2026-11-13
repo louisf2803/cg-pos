@@ -46,9 +46,9 @@ Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsilia
 "Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",sebagian,PIN pindah/reset meja belum
 "Karyawan, peran, dan hak akses",sebagian,A86 ada; penegakan izin per fitur di layar/RLS belum
 "Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",sebagian,sebagian pengaturan masih di peramban
-Harga grosir bertingkat (sampai 5 tingkat),sebagian,A104 pratinjau; tabel server belum
-Penjadwalan harga,sebagian,A105 pratinjau; tabel server belum
-Grup pelanggan dan harga spesial,sebagian,A106 pratinjau; tabel server belum
+Harga grosir bertingkat (sampai 5 tingkat),ada,A139 + migrasi 0097/0098 (diterapkan 13 Nov)
+Penjadwalan harga,ada,A139 + migrasi 0097/0098
+Grup pelanggan dan harga spesial,ada,A139 + migrasi 0097/0098
 Tukar poin loyalty (potongan atau produk gratis),sebagian,potongan ada; produk gratis belum
 Reservasi dan appointment dengan kalender,sebagian,A110 kalender ada; masih pratinjau lokal
 "Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order",sebagian,A100: pajak per produk dan per jenis order menunggu skema
