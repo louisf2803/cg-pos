@@ -1117,5 +1117,10 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
   - **`DataLayer` (`packages/shared/src/{data,fake,supabase}.ts`)**: 4 metode konfigurasi metode pembayaran (`listPaymentMethodConfigs`, `savePaymentMethodConfig`, `deletePaymentMethodConfig`, `togglePaymentMethodActive`), diuji di `payment-methods.test.ts`. Gateway QRIS/DOKU tetap dijaga nonaktif ("Payment belum tersambung") sesuai aturan repo.
   - **Dashboard**: menyambungkan `/pengaturan/metode-bayar` ke DataLayer server, menghapus dependensi penyimpanan lokal `a59-preview`, dan menghapus banner pratinjau.
   - Verifikasi: `pnpm -r typecheck`, vitest `payment-methods.test.ts` (4 lulus), POS vitest (7 lulus), `lint-tailwind.sh origin/main` bersih.
+- **A123 (`ag/a123-outlet-info`)**:
+  - **`packages/db`**: migrasi `0123_outlet_business_bank_group.sql` (kolom informasi bisnis, rekening bank, grup outlet, logo url pada `pos.outlets` serta tabel `pos.outlet_groups` + RLS), tes SQL `28_outlet_business_bank_group.sql`.
+  - **`packages/shared`**: tipe `ManagedOutlet` dan ekstensi `OutletInfo`, metode DataLayer `listOutlets`, `saveOutlet`, `listOutletGroups` di `fake.ts` dan `supabase.ts`; unit test `outlet-info.test.ts` (2 lulus).
+  - **`apps/dashboard`**: layar `/pengaturan/outlet` dibagi menjadi 3 tab: Informasi Bisnis (identitas, kontak, NPWP, jenis usaha, grup wilayah, logo), Rekening Pembayaran (bank, nomor rekening, atas nama), dan Daftar Outlet (tabel multi-outlet, status aktif, modal tambah/ubah cabang).
+  - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test outlet-info.test.ts` (2 lulus), `lint-tailwind.sh origin/main` bersih.
 
 

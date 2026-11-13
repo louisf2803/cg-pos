@@ -50,7 +50,7 @@ import type {
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord, PriceChange,
 } from './types';
 import { computeOrder, type OrderType } from './order-calc';
-import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem } from './outlet';
+import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem, type ManagedOutlet } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
 import { bundleProblem } from './bundle';
@@ -231,7 +231,36 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const seqOf = new Map<string, number>();
   let extraGroups: ExtraGroup[] = [];
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
-  let outlet = { address: '', phone: '', receiptFooter: '' };
+  let outlet: {
+    address: string;
+    phone: string;
+    receiptFooter: string;
+    email?: string;
+    taxIdNumber?: string;
+    businessType?: string;
+    outletGroup?: string;
+    logoUrl?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+  } = { address: '', phone: '', receiptFooter: '' };
+  let outletsList: ManagedOutlet[] = [
+    {
+      id: 'out-1',
+      code: 'OUT1',
+      name: 'Outlet Contoh',
+      address: 'Jl. Sudirman No. 12, Jakarta',
+      phone: '081234567890',
+      timezone: 'Asia/Jakarta',
+      isActive: true,
+      outletGroup: 'Jabodetabek',
+      email: 'kontak@kopicontoh.id',
+      taxIdNumber: '01.234.567.8-901.000',
+      bankName: 'BCA',
+      bankAccountNumber: '1234567890',
+      bankAccountName: 'Kopi Contoh',
+    },
+  ];
   let employees: (ManagedEmployee & { pin: string })[] = [];
   let attendance: AttendanceRecord[] = [];
   let customRoles: RoleDefinition[] = [];
@@ -833,7 +862,21 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async getOutletSettings() {
       const st = CTX.settings;
       return clone({
-        info: { code: CTX.outletCode, name: CTX.outletName, address: outlet.address, phone: outlet.phone, timezone: CTX.timezone },
+        info: {
+          code: CTX.outletCode,
+          name: CTX.outletName,
+          address: outlet.address,
+          phone: outlet.phone,
+          timezone: CTX.timezone,
+          email: outlet.email,
+          taxIdNumber: outlet.taxIdNumber,
+          businessType: outlet.businessType,
+          outletGroup: outlet.outletGroup,
+          logoUrl: outlet.logoUrl,
+          bankName: outlet.bankName,
+          bankAccountNumber: outlet.bankAccountNumber,
+          bankAccountName: outlet.bankAccountName,
+        },
         options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
           roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter,
           cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null,
@@ -846,6 +889,67 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (problem) throw new DataError('invalid', problem);
       CTX.outletName = input.name.trim(); outlet.address = input.address.trim(); outlet.phone = input.phone.trim();
       CTX.address = outlet.address || undefined; CTX.phone = outlet.phone || undefined;
+      outlet.email = input.email?.trim() || undefined;
+      outlet.taxIdNumber = input.taxIdNumber?.trim() || undefined;
+      outlet.businessType = input.businessType?.trim() || undefined;
+      outlet.outletGroup = input.outletGroup?.trim() || undefined;
+      outlet.logoUrl = input.logoUrl?.trim() || undefined;
+      outlet.bankName = input.bankName?.trim() || undefined;
+      outlet.bankAccountNumber = input.bankAccountNumber?.trim() || undefined;
+      outlet.bankAccountName = input.bankAccountName?.trim() || undefined;
+      const target = outletsList.find((o) => o.code === CTX.outletCode) ?? outletsList[0];
+      if (target) {
+        Object.assign(target, {
+          name: CTX.outletName, address: outlet.address, phone: outlet.phone,
+          email: outlet.email, taxIdNumber: outlet.taxIdNumber, outletGroup: outlet.outletGroup,
+          bankName: outlet.bankName, bankAccountNumber: outlet.bankAccountNumber, bankAccountName: outlet.bankAccountName,
+        });
+      }
+    },
+    async listOutlets() {
+      return clone(outletsList);
+    },
+    async saveOutlet(input) {
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama outlet wajib diisi');
+      if (input.id) {
+        const o = outletsList.find((x) => x.id === input.id);
+        if (!o) throw new DataError('not_found', 'Outlet tidak ditemukan');
+        Object.assign(o, {
+          name,
+          address: input.address !== undefined ? input.address.trim() : o.address,
+          phone: input.phone !== undefined ? input.phone.trim() : o.phone,
+          email: input.email !== undefined ? input.email.trim() : o.email,
+          outletGroup: input.outletGroup !== undefined ? input.outletGroup.trim() : o.outletGroup,
+          bankName: input.bankName !== undefined ? input.bankName.trim() : o.bankName,
+          bankAccountNumber: input.bankAccountNumber !== undefined ? input.bankAccountNumber.trim() : o.bankAccountNumber,
+          bankAccountName: input.bankAccountName !== undefined ? input.bankAccountName.trim() : o.bankAccountName,
+          isActive: input.isActive ?? o.isActive,
+        });
+        return clone(o);
+      }
+      const code = (input.code?.trim() || 'CG' + Math.floor(Math.random() * 90 + 10)).toUpperCase();
+      const o: ManagedOutlet = {
+        id: newId(),
+        code,
+        name,
+        address: input.address?.trim(),
+        phone: input.phone?.trim(),
+        email: input.email?.trim(),
+        timezone: input.timezone || 'Asia/Jakarta',
+        isActive: input.isActive ?? true,
+        outletGroup: input.outletGroup?.trim(),
+        bankName: input.bankName?.trim(),
+        bankAccountNumber: input.bankAccountNumber?.trim(),
+        bankAccountName: input.bankAccountName?.trim(),
+      };
+      outletsList.push(o);
+      return clone(o);
+    },
+    async listOutletGroups() {
+      const groups = new Set<string>();
+      for (const o of outletsList) if (o.outletGroup) groups.add(o.outletGroup);
+      return [...groups].sort();
     },
     async getTaxSettings() {
       return {
