@@ -8,7 +8,8 @@ do $$
 declare
   t_org uuid := gen_random_uuid();
   mgr uuid := gen_random_uuid();
-  loc uuid := gen_random_uuid();
+  outl uuid := gen_random_uuid();
+  loc uuid;
   loc_src uuid := gen_random_uuid();
   sup uuid := gen_random_uuid();
   prod uuid := gen_random_uuid();
@@ -20,14 +21,16 @@ declare
   ap uuid := gen_random_uuid();
   invacc uuid := gen_random_uuid();
   taxacc uuid := gen_random_uuid();
+  today date := (now() at time zone 'Asia/Jakarta')::date;
   r jsonb;
 begin
   -- Setup org & member mandiri agar terisolasi dari tes lain
   insert into orgs(id, name) values (t_org, 'Org Tes Purchase Void');
   insert into auth.users(id, email) values (mgr, 'mgr-pvoid@x');
   insert into org_members(org_id, user_id, role) values (t_org, mgr, 'manager');
+  insert into outlets(id, org_id, name, code) values (outl, t_org, 'Outlet Utama', 'OU1');
+  select id into loc from locations where outlet_id = outl;
   insert into locations(id, org_id, name, kind, is_active) values
-    (loc, t_org, 'Outlet Utama', 'outlet', true),
     (loc_src, t_org, 'Gudang Pusat', 'warehouse', true);
   insert into suppliers(id, org_id, name, term_days) values (sup, t_org, 'Pemasok Mandiri', 7);
   insert into units(id, org_id, name) values (u_base, t_org, 'pcs');
@@ -50,7 +53,7 @@ begin
 
   -- 1. Buat PO dengan referensi permintaan & uang muka
   r := pos.purchase_order_save(
-    po_id, loc, sup, current_date, current_date + 3,
+    po_id, loc, sup, today, today + 3,
     0, 0, 0, 'PO Uji DP', 'ordered',
     jsonb_build_array(jsonb_build_object('product_id', prod, 'unit_id', u_base, 'qty', 10, 'unit_price', 10000)),
     req_id, 25000
@@ -60,7 +63,7 @@ begin
 
   -- 2. Buat faktur dari PO dengan uang muka & lampiran
   r := pos.purchase_invoice_create(
-    inv_id, loc, sup, po_id, 'INV-SUP-1', current_date, 7,
+    inv_id, loc, sup, po_id, 'INV-SUP-1', today, 7,
     0, 0, 0, 'Faktur uji void',
     jsonb_build_array(jsonb_build_object('product_id', prod, 'unit_id', u_base, 'qty', 10, 'unit_price', 10000, 'received_qty', 10)),
     25000, 'bukti_faktur.pdf'

@@ -4,9 +4,11 @@
 
 begin;
 
--- Tambah kolom request_id pada purchase_orders jika belum ada
+-- Tambah kolom request_id dan down_payment pada purchase_orders jika belum ada
 alter table pos.purchase_orders
-  add column if not exists request_id uuid references pos.stock_requests(id, org_id);
+  add column if not exists request_id uuid references pos.stock_requests(id);
+alter table pos.purchase_orders
+  add column if not exists down_payment numeric(18,2) not null default 0;
 
 -- Update pos.purchase_order_save agar menerima referensi permintaan dan uang muka
 create or replace function pos.purchase_order_save(
@@ -55,7 +57,7 @@ begin
     v_num := pos.next_doc_number(l.org_id, 'PO', 0);
     insert into purchase_orders(id, org_id, location_id, supplier_id, number, status, order_date, expected_date,
                                 discount, tax_amount, other_cost, down_payment, request_id, total, note, created_by)
-    values (p_id, l.org_id, l.id, p_supplier, 'PO-' || lpad(v_num::text, 6, '0'), p_status, coalesce(p_date, current_date), p_expected,
+    values (p_id, l.org_id, l.id, p_supplier, 'PO-' || lpad(v_num::text, 6, '0'), p_status, coalesce(p_date, (now() at time zone 'Asia/Jakarta')::date), p_expected,
             coalesce(p_discount, 0), coalesce(p_tax, 0), coalesce(p_other, 0), coalesce(p_down_payment, 0), p_request_id,
             v_total, nullif(left(trim(coalesce(p_note, '')), 200), ''), auth.uid())
     returning * into o;
@@ -116,7 +118,7 @@ begin
   end if;
   v_term := coalesce(p_term, (select term_days from suppliers where id = p_supplier), 0);
   if v_term < 0 or v_term > 3650 then raise exception 'invalid term'; end if;
-  v_date := coalesce(p_date, current_date);
+  v_date := coalesce(p_date, (now() at time zone 'Asia/Jakarta')::date);
 
   for ln in select * from jsonb_array_elements(p_lines) loop
     v_qty := (ln->>'qty')::numeric; v_price := (ln->>'unit_price')::numeric; v_disc := coalesce((ln->>'discount')::numeric, 0);
@@ -222,7 +224,7 @@ begin
   end if;
   if inv.total > 0 then
     v_rev_jl := v_rev_jl || jsonb_build_array(jsonb_build_object('account_id', v_ap_acc, 'debit', inv.total, 'memo', 'Batal utang ' || inv.number));
-    perform pos.post_journal(inv.org_id, null, pos.open_book_date(inv.org_id, current_date), 'REV', 'Batal ' || inv.number || coalesce(' - ' || p_reason, ''), 'purchase_invoice', inv.id, 'purchase_void:' || inv.id, v_rev_jl);
+    perform pos.post_journal(inv.org_id, null, pos.open_book_date(inv.org_id, (now() at time zone 'Asia/Jakarta')::date), 'REV', 'Batal ' || inv.number || coalesce(' - ' || p_reason, ''), 'purchase_invoice', inv.id, 'purchase_void:' || inv.id, v_rev_jl);
   end if;
 
   update purchase_invoices
