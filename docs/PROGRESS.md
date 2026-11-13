@@ -1033,3 +1033,12 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A142 Penegakan Izin Granular Peran & Status Karyawan Selesai
+- Cabang: `ag/a142-izin-granular`, commit `c3d0c39`.
+- Migrasi: `0103_granular_role_enforcement.sql` & tes SQL `22_granular_role_enforcement.sql`.
+- Server: RPC `unlock_employee_pin`, `list_managed_employees_status`, `can_employee_authorize_void`, `can_employee_authorize_refund`, fungsi RLS `can_user_perform` beserta guard triggers di `products`, `customers`, dan `price_schedules`.
+- Shared: Helper `canRoleAccessDashboardPath`, `canRolePerformAction`, `getDashboardRoutePermission`, `canEmployeeAuthorize` di `roles.ts`. Model `ManagedEmployee` & `EmployeeInput` diperluas dengan `hasPin`, `isLocked`, `lockedUntil`, `qrId`. DataLayer `unlockEmployeePin` diimplementasikan di `fake.ts` dan `supabase.ts`.
+- Dashboard: `RouteGuard` memblokir akses rute tak berizin dengan pesan ramah, `Sidebar` menyaring modul & item menu tak berizin, tombol aksi Tambah/Ubah/Hapus/Void di `/produk`, `/pelanggan`, dan `/pengaturan/karyawan` ditegakkan sesuai izin granular, serta `/pengaturan/karyawan` menampilkan badge status PIN/kunci/QR dan aksi buka kunci.
+- Verifikasi: `pnpm -r typecheck` lulus, vitest `roles.test.ts` (12) dan seluruh 96 file unit test `@cgpos/shared` (594 test) lulus, vitest `@cgpos/pos` (4) lulus, `lint-tailwind` lulus.
+
