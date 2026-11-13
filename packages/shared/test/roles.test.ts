@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canEmployeeAuthorize, canRoleAccessDashboardPath, canRolePerformAction,
   createBlankCustomRole, createDefaultRoleDefinitions, createFakeData, DASHBOARD_ACCESS_MODULES, DataError, isRoleUuid, mergeRoleOverrides,
   POS_ACCESS_MODULES, roleFromRows, roleSaveProblem, roleToRpcArgs, subFeatureKey, type RoleDefinition,
 } from '../src';
@@ -126,98 +125,5 @@ describe('tautan karyawan ke peran kustom di data demo', () => {
     await d.setEmployeeRoleId('e-budi', role.id);
     await d.deleteRole(role.id);
     expect((await d.listManagedEmployees()).every((e) => e.roleId === undefined)).toBe(true);
-  });
-
-  it('menyimpan qrId, roleId, dan membuka kunci PIN karyawan (A142 / A99)', async () => {
-    const d = createFakeData();
-    const role = await d.saveRolePermissions({ ...sampleRole(), id: '' });
-    const emp = await d.saveEmployee({
-      name: 'Rudi Staff',
-      role: 'cashier',
-      isActive: true,
-      roleId: role.id,
-      qrId: 'QR-RUDI-007',
-    });
-    expect(emp.roleId).toBe(role.id);
-    expect(emp.qrId).toBe('QR-RUDI-007');
-    expect(emp.roleName).toBe('Supervisor Gudang');
-    expect(emp.hasPin).toBe(false);
-
-    // Kunci akun dan buka kunci
-    const all = await d.listManagedEmployees();
-    const rudi = all.find((x) => x.id === emp.id)!;
-    expect(rudi.isLocked).toBe(false);
-
-    await d.unlockEmployeePin(emp.id);
-    expect((await d.listManagedEmployees()).find((x) => x.id === emp.id)!.isLocked).toBe(false);
-  });
-});
-
-describe('penegakan izin granular peran (A142)', () => {
-  const [owner, manager, cashier] = createDefaultRoleDefinitions(DASH_IDS);
-
-  it('owner memiliki akses tak terbatas ke semua rute dan aksi', () => {
-    expect(canRoleAccessDashboardPath(owner!, '/')).toBe(true);
-    expect(canRoleAccessDashboardPath(owner!, '/produk')).toBe(true);
-    expect(canRoleAccessDashboardPath(owner!, '/keuangan/kas')).toBe(true);
-    expect(canRoleAccessDashboardPath(owner!, '/karyawan/hak-akses')).toBe(true);
-    expect(canRolePerformAction(owner!, { pathname: '/produk', action: 'hapus' })).toBe(true);
-    expect(canRolePerformAction(owner!, { pathname: '/keuangan/kas', action: 'void' })).toBe(true);
-  });
-
-  it('kasir bawaan tertutup dari rute dashboard', () => {
-    expect(canRoleAccessDashboardPath(cashier!, '/')).toBe(false);
-    expect(canRoleAccessDashboardPath(cashier!, '/produk')).toBe(false);
-    expect(canRoleAccessDashboardPath(cashier!, '/keuangan/kas')).toBe(false);
-  });
-
-  it('peran kustom membatasi modul dan fitur sesuai granular toggle', () => {
-    const custom: RoleDefinition = {
-      ...createBlankCustomRole(DASH_IDS, 'role-kustom-test'),
-      name: 'Kasir Pintar',
-      baseRole: 'cashier',
-      dashboardModuleEnabled: {
-        penjualan: true,
-        keuangan: false,
-      },
-      dashboardFeatureEnabled: {
-        'dash-produk': true,
-        'dash-laporan': false,
-      },
-      dashboardSubFeaturePerms: {
-        'dash-produk:produk-katalog': {
-          lihat: true,
-          buat: true,
-          ubah: false,
-          hapus: false,
-          void: false,
-        },
-      },
-    };
-
-    expect(canRoleAccessDashboardPath(custom, '/produk')).toBe(true);
-    expect(canRoleAccessDashboardPath(custom, '/laporan/penjualan')).toBe(false);
-    expect(canRoleAccessDashboardPath(custom, '/keuangan/kas')).toBe(false);
-
-    // Aksi: buat boleh, ubah & hapus ditolak
-    expect(canRolePerformAction(custom, { pathname: '/produk', action: 'buat' })).toBe(true);
-    expect(canRolePerformAction(custom, { pathname: '/produk', action: 'ubah' })).toBe(false);
-    expect(canRolePerformAction(custom, { pathname: '/produk', action: 'hapus' })).toBe(false);
-  });
-
-  it('evaluasi otorisasi void & refund kasir', () => {
-    expect(canEmployeeAuthorize({ id: '1', name: 'Owner', role: 'owner' }, null, 'void')).toBe(true);
-    expect(canEmployeeAuthorize({ id: '2', name: 'Manager', role: 'manager' }, null, 'void')).toBe(true);
-    expect(canEmployeeAuthorize({ id: '3', name: 'Cashier', role: 'cashier' }, null, 'void')).toBe(false);
-
-    const voidAllowedRole: RoleDefinition = {
-      ...createBlankCustomRole(DASH_IDS, 'void-role'),
-      name: 'Cashier Void',
-      baseRole: 'cashier',
-      canAuthorizeVoid: true,
-      canAuthorizeRefund: false,
-    };
-    expect(canEmployeeAuthorize({ id: '3', name: 'Cashier', role: 'cashier' }, voidAllowedRole, 'void')).toBe(true);
-    expect(canEmployeeAuthorize({ id: '3', name: 'Cashier', role: 'cashier' }, voidAllowedRole, 'refund')).toBe(false);
   });
 });

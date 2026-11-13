@@ -28,7 +28,6 @@ import {
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
-import { useShell } from '@/components/shell-context';
 import { ErrorBox, PageHeader } from '@/components/page';
 
 const ROLE = ROLE_LABEL;
@@ -40,7 +39,6 @@ const ACCESS_TEXT: Record<Access, string> = {
 
 export default function KaryawanDanAkses() {
   const data = useData();
-  const { canDo } = useShell();
 
   // Load context outlet, karyawan, & peran kustom
   const contextAsync = useAsync(async () => {
@@ -166,16 +164,14 @@ export default function KaryawanDanAkses() {
               <Building2 className="cg-icon cg-icon--xs" aria-hidden />
               <span>Ringkasan outlet</span>
             </button>
-            {canDo('buat') && (
-              <button
-                type="button"
-                className="cg-btn cg-btn--primary inline-flex items-center gap-6 text-xs font-semibold"
-                onClick={() => setEditEmployee('new')}
-              >
-                <Plus className="cg-icon cg-icon--xs" aria-hidden />
-                <span>Tambah karyawan</span>
-              </button>
-            )}
+            <button
+              type="button"
+              className="cg-btn cg-btn--primary inline-flex items-center gap-6 text-xs font-semibold"
+              onClick={() => setEditEmployee('new')}
+            >
+              <Plus className="cg-icon cg-icon--xs" aria-hidden />
+              <span>Tambah karyawan</span>
+            </button>
           </div>
         }
       />
@@ -369,14 +365,7 @@ export default function KaryawanDanAkses() {
                             {/* Nama + Kode */}
                             <td className="py-12 px-16">
                               <div className="font-semibold text-text text-sm">{e.name}</div>
-                              <div className="flex items-center gap-6 text-[11px] font-mono text-text-muted">
-                                <span>{code}</span>
-                                {e.qrId && (
-                                  <span className="text-accent bg-accent/10 px-4 py-1 rounded text-[10px]">
-                                    QR: {e.qrId}
-                                  </span>
-                                )}
-                              </div>
+                              <div className="text-[11px] font-mono text-text-muted">{code}</div>
                             </td>
 
                             {/* Posisi / Peran Bawaan + Lencana Kustom */}
@@ -466,41 +455,12 @@ export default function KaryawanDanAkses() {
                                     <KeyRound className="w-12 h-12" aria-hidden />
                                     <span>PIN baru diatur</span>
                                   </span>
-                                ) : e.hasPin ? (
+                                ) : e.isActive ? (
                                   <span className="inline-flex items-center gap-4 text-[11px] font-medium text-text-muted" title="PIN dienkripsi satu arah di server">
                                     <KeyRound className="w-12 h-12" aria-hidden />
                                     <span>PIN tersimpan</span>
                                   </span>
-                                ) : e.isActive ? (
-                                  <span className="inline-flex items-center gap-4 text-[11px] font-medium text-warning" title="Belum memiliki PIN masuk kasir">
-                                    <KeyRound className="w-12 h-12" aria-hidden />
-                                    <span>Belum ada PIN</span>
-                                  </span>
                                 ) : null}
-
-                                {e.isLocked && (
-                                  <div className="flex items-center gap-4 mt-2">
-                                    <span className="inline-flex items-center gap-2 text-[10px] font-bold text-danger bg-danger/10 px-6 py-1 rounded">
-                                      Terkunci (salah PIN 5x)
-                                    </span>
-                                    {canDo('ubah') && (
-                                      <button
-                                        type="button"
-                                        className="text-[10px] font-semibold text-accent underline hover:no-underline"
-                                        onClick={async () => {
-                                          try {
-                                            await data.unlockEmployeePin(e.id);
-                                            contextAsync.reload();
-                                          } catch (err) {
-                                            setErrorMessage(err instanceof Error ? err.message : 'Gagal membuka kunci akun.');
-                                          }
-                                        }}
-                                      >
-                                        Buka kunci
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             </td>
 
@@ -604,14 +564,7 @@ export default function KaryawanDanAkses() {
                       <div className="flex items-start justify-between gap-8">
                         <div>
                           <h3 className="font-bold text-text text-sm break-words">{e.name}</h3>
-                          <div className="flex items-center gap-6 text-[11px] font-mono text-text-muted">
-                            <span>{code}</span>
-                            {e.qrId && (
-                              <span className="text-accent bg-accent/10 px-4 py-1 rounded text-[10px]">
-                                QR: {e.qrId}
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-[11px] font-mono text-text-muted">{code}</span>
                         </div>
                         <div className="flex flex-col items-end gap-4">
                           {e.isActive ? (
@@ -630,40 +583,7 @@ export default function KaryawanDanAkses() {
                               <KeyRound className="w-12 h-12" aria-hidden />
                               <span>PIN diatur</span>
                             </span>
-                          ) : e.hasPin ? (
-                            <span className="inline-flex items-center gap-4 px-8 py-4 rounded-full text-[11px] font-medium bg-surface text-text-muted">
-                              <KeyRound className="w-12 h-12" aria-hidden />
-                              <span>PIN diatur</span>
-                            </span>
-                          ) : e.isActive ? (
-                            <span className="inline-flex items-center gap-4 px-8 py-4 rounded-full text-[11px] font-medium bg-warning/10 text-warning">
-                              <KeyRound className="w-12 h-12" aria-hidden />
-                              <span>Belum ada PIN</span>
-                            </span>
                           ) : null}
-                          {e.isLocked && (
-                            <div className="flex items-center gap-4 mt-2">
-                              <span className="text-[10px] font-bold text-danger bg-danger/10 px-6 py-1 rounded">
-                                Terkunci
-                              </span>
-                              {canDo('ubah') && (
-                                <button
-                                  type="button"
-                                  className="text-[10px] font-semibold text-accent underline"
-                                  onClick={async () => {
-                                    try {
-                                      await data.unlockEmployeePin(e.id);
-                                      contextAsync.reload();
-                                    } catch (err) {
-                                      setErrorMessage(err instanceof Error ? err.message : 'Gagal membuka kunci.');
-                                    }
-                                  }}
-                                >
-                                  Buka
-                                </button>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -1065,7 +985,6 @@ function EmployeeDialog({
     employee?.role === 'manager' ? 'manager' : 'cashier',
   );
   const [roleId, setRoleId] = useState<string>(employee?.roleId ?? '');
-  const [qrId, setQrId] = useState<string>(employee?.qrId ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1080,13 +999,7 @@ function EmployeeDialog({
     setBusy(true);
     setError(null);
     try {
-      const saved = await data.saveEmployee({
-        id: employee?.id,
-        name,
-        role,
-        roleId: roleId ? roleId : null,
-        qrId: qrId.trim() || null,
-      });
+      const saved = await data.saveEmployee({ id: employee?.id, name, role });
       const targetId = employee?.id ?? saved.id;
       const initialRoleId = employee?.roleId ?? '';
       if (initialRoleId !== roleId) {
@@ -1163,20 +1076,6 @@ function EmployeeDialog({
           <p className="text-[11px] text-text-muted mt-4">
             Pilih peran kustom untuk menetapkan izin spesifik, atau gunakan Bawaan untuk hak akses standar.
           </p>
-        </div>
-
-        <div className="cg-field">
-          <label className="cg-label text-xs font-semibold" htmlFor="qr-karyawan">
-            ID Kartu / Kode QR (Opsional)
-          </label>
-          <input
-            id="qr-karyawan"
-            className="cg-input text-xs font-mono"
-            maxLength={40}
-            value={qrId}
-            onChange={(e) => setQrId(e.target.value)}
-            placeholder="Misal: QR-CSH-01 untuk login cepat via scanner"
-          />
         </div>
 
         {!employee && (
