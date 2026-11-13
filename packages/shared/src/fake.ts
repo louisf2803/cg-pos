@@ -2037,7 +2037,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         for (const it of o.items) {
           const d = it.basePrice == null ? null : priceDelta(it.basePrice, it.unitPrice);
           if (!d) continue;
-          out.push({ orderId: o.id, orderNumber: o.number, orderStatus: o.status, itemId: it.id, itemName: it.name, qty: it.qty, basePrice: it.basePrice!, unitPrice: it.unitPrice, diff: d.diff, diffPct: d.diffPct, lineImpact: d.diff * it.qty, cashierId: o.cashierId, cashierName: employees.find((e) => e.id === o.cashierId)?.name ?? '(karyawan dihapus)', at: o.openedAt });
+          out.push({
+            orderId: o.id, orderNumber: o.number, orderStatus: o.status, itemId: it.id, itemName: it.name, qty: it.qty,
+            basePrice: it.basePrice!, unitPrice: it.unitPrice, diff: d.diff, diffPct: d.diffPct, lineImpact: d.diff * it.qty,
+            cashierId: o.cashierId, cashierName: employees.find((e) => e.id === o.cashierId)?.name ?? '(karyawan dihapus)',
+            at: o.openedAt,
+            reason: it.note ?? undefined,
+          });
         }
       }
       return clone(out.sort((a, b) => (a.at < b.at ? 1 : -1)));

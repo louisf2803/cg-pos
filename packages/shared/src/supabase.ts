@@ -2645,7 +2645,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async listPriceChanges(range) {
       const names = await employeeNames();
       const rows = await pageAll((from, to) => db().from('order_items')
-        .select('id,order_id,name,qty,unit_price,base_price,orders!inner(number,status,cashier_id,opened_at)')
+        .select('id,order_id,name,qty,unit_price,base_price,note,orders!inner(number,status,cashier_id,opened_at)')
         .not('base_price', 'is', null).gte('orders.opened_at', range.from).lt('orders.opened_at', range.to)
         .order('created_at', { ascending: false }).range(from, to));
       const out: PriceChange[] = [];
@@ -2653,7 +2653,14 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         const o = x.orders as unknown as Row;
         const base = Number(x.base_price), unit = Number(x.unit_price), d = priceDelta(base, unit);
         if (!d) continue;
-        out.push({ orderId: x.order_id as string, orderNumber: o.number as string, orderStatus: o.status as PriceChange['orderStatus'], itemId: x.id as string, itemName: x.name as string, qty: Number(x.qty), basePrice: base, unitPrice: unit, diff: d.diff, diffPct: d.diffPct, lineImpact: d.diff * Number(x.qty), cashierId: o.cashier_id as string, cashierName: names.get(o.cashier_id as string) ?? '(karyawan dihapus)', at: o.opened_at as string });
+        out.push({
+          orderId: x.order_id as string, orderNumber: o.number as string, orderStatus: o.status as PriceChange['orderStatus'],
+          itemId: x.id as string, itemName: x.name as string, qty: Number(x.qty), basePrice: base, unitPrice: unit,
+          diff: d.diff, diffPct: d.diffPct, lineImpact: d.diff * Number(x.qty),
+          cashierId: o.cashier_id as string, cashierName: names.get(o.cashier_id as string) ?? '(karyawan dihapus)',
+          at: o.opened_at as string,
+          reason: (x.note as string) || undefined,
+        });
       }
       return out.sort((a, b) => (a.at < b.at ? 1 : -1));
     },

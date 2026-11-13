@@ -62,7 +62,7 @@ export type Action =
   | { t: 'custom'; productId: string; name: string; unitPrice: number; qty: number; note?: string }
   | { t: 'qty'; lineId: string; qty: number; pricing?: CartPricingRules }
   | { t: 'note'; lineId: string; note: string }
-  | { t: 'price'; lineId: string; unitPrice: number }
+  | { t: 'price'; lineId: string; unitPrice: number; reason?: string }
   | { t: 'type'; type: OrderType }
   | { t: 'table'; tableId?: string; tableName?: string }
   | { t: 'meta'; label?: string; guestCount?: number }
@@ -168,7 +168,15 @@ function reduce(s: CartState, a: Action): CartState {
     case 'note':
       return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, note: a.note.slice(0, 120) || undefined } : l)) };
     case 'price':
-      return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, unitPrice: a.unitPrice, manualPrice: true } : l)) };
+      return {
+        ...s,
+        lines: s.lines.map((l) => (l.id === a.lineId ? {
+          ...l,
+          unitPrice: a.unitPrice,
+          manualPrice: true,
+          ...(a.reason ? { note: (l.note ? `${l.note} (${a.reason})` : a.reason).slice(0, 120) } : {}),
+        } : l)),
+      };
     case 'type':
       return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
     case 'table':

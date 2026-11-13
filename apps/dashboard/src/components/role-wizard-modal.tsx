@@ -165,6 +165,9 @@ function deriveLegacyPosPerms(draft: RoleDefinition): Record<string, PosAccessLe
     Boolean(draft.canAuthorizeRefund) ||
     hasSubAction(p, 'pos-riwayat', 'pos-void-refund', 'buat');
   const allowDiscount = hasSubAction(p, 'pos-transaksi', 'pos-diskon', 'ubah');
+  const allowPriceOverride =
+    Boolean(draft.canAuthorizePriceOverride) ||
+    allowDiscount;
   const allowDrawer = hasSubAction(p, 'pos-transaksi', 'pos-laci', 'buat');
   const allowLap = Boolean(featEnabled['pos-lap-harian']);
 
@@ -173,7 +176,7 @@ function deriveLegacyPosPerms(draft: RoleDefinition): Record<string, PosAccessLe
     allow_void: allowVoid ? 'allow' : 'approve',
     allow_refund: allowRefund ? 'allow' : 'approve',
     allow_discount: allowDiscount ? 'allow' : 'approve',
-    allow_price_override: allowDiscount ? 'allow' : 'approve',
+    allow_price_override: allowPriceOverride ? 'allow' : 'approve',
     allow_cash_drawer_open: allowDrawer ? 'allow' : 'deny',
     allow_close_shift: Boolean(featEnabled['pos-transaksi']) ? 'allow' : 'deny',
     allow_view_shift_report: allowLap ? 'allow' : 'deny',
@@ -209,6 +212,7 @@ export function RoleWizardModal({
       canAuthorizeRefund: Boolean(migrated.canAuthorizeRefund),
       canAuthorizeVoid: Boolean(migrated.canAuthorizeVoid),
       canAuthorizeComplimentary: Boolean(migrated.canAuthorizeComplimentary),
+      canAuthorizePriceOverride: Boolean(migrated.canAuthorizePriceOverride),
       defaultDashboardPage: migrated.defaultDashboardPage ?? '',
       defaultPosPage: migrated.defaultPosPage ?? '',
     };
@@ -332,6 +336,7 @@ export function RoleWizardModal({
         canAuthorizeRefund: Boolean(seeded.canAuthorizeRefund),
         canAuthorizeVoid: Boolean(seeded.canAuthorizeVoid),
         canAuthorizeComplimentary: Boolean(seeded.canAuthorizeComplimentary),
+        canAuthorizePriceOverride: Boolean(seeded.canAuthorizePriceOverride),
         defaultDashboardPage: seeded.defaultDashboardPage ?? '',
         defaultPosPage: seeded.defaultPosPage ?? '',
       });
@@ -1038,6 +1043,29 @@ export function RoleWizardModal({
                         setDraft((prev) => ({
                           ...prev,
                           canAuthorizeComplimentary: !prev.canAuthorizeComplimentary,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-12 p-12 rounded-lg border border-border bg-surface-raised">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text">Otorisasi Ubah Harga</div>
+                      <div className="text-xs text-text-muted">
+                        Dapat mengotorisasi atau menyetujui perubahan harga produk di kasir.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(draft.canAuthorizePriceOverride)}
+                      aria-label="Otorisasi Ubah Harga"
+                      data-testid="auth-price-override-toggle"
+                      className="cg-toggle shrink-0"
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          canAuthorizePriceOverride: !prev.canAuthorizePriceOverride,
                         }))
                       }
                     />

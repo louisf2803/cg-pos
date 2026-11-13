@@ -35,7 +35,8 @@ type PriceColKey =
   | 'diff'
   | 'diffPct'
   | 'lineImpact'
-  | 'orderStatus';
+  | 'orderStatus'
+  | 'reason';
 
 const PRICE_CHANGE_COLUMNS: ColumnDef<PriceColKey>[] = [
   { key: 'orderNumber', label: 'Nomor pesanan', align: 'left' },
@@ -49,6 +50,7 @@ const PRICE_CHANGE_COLUMNS: ColumnDef<PriceColKey>[] = [
   { key: 'diffPct', label: 'Persen (%)', align: 'right' },
   { key: 'lineImpact', label: 'Dampak', align: 'right' },
   { key: 'orderStatus', label: 'Status pesanan', align: 'left' },
+  { key: 'reason', label: 'Alasan / Catatan', align: 'left' },
 ];
 
 const STATUS_BADGE: Record<Order['status'], string> = {
@@ -153,6 +155,12 @@ function renderCell(key: PriceColKey, row: PriceChange, tz: string) {
           </span>
         </td>
       );
+    case 'reason':
+      return (
+        <td key={key} className="break-words max-w-[200px] text-xs text-text-muted">
+          {row.reason || '—'}
+        </td>
+      );
   }
 }
 
@@ -238,6 +246,8 @@ export default function LaporanHargaDiubahPage() {
             return row.lineImpact;
           case 'orderStatus':
             return PRICE_CHANGE_ORDER_STATUS_LABEL[row.orderStatus];
+          case 'reason':
+            return row.reason ?? '';
         }
       }),
     );

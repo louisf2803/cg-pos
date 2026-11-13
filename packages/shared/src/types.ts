@@ -74,6 +74,7 @@ export interface OrderItem { id: string; productId: string; name: string; qty: n
 export interface PriceChange {
   orderId: string; orderNumber: string; orderStatus: Order['status']; itemId: string; itemName: string; qty: number;
   basePrice: number; unitPrice: number; diff: number; diffPct: number; lineImpact: number; cashierId: string; cashierName: string; at: string;
+  reason?: string;
 }
 export interface ExtraOption { id: string; name: string; price: number; sort: number }
 /** Grup Ekstra (modifier): satu atau banyak pilihan, wajib atau tidak, dengan harga tambahan per pilihan. */

@@ -4,9 +4,10 @@ import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orde
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
-import { useCart, type CartPricingRules } from '../lib/cart';
+import { useCart, type CartLine, type CartPricingRules } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
+import { ApproverFields, useApprover } from '../lib/approver';
 import { forwardNotice, forwardOrder, useTickets } from '../lib/stations';
 import { TicketStrip } from './TicketHost';
 import { useOnline } from '../lib/online';
@@ -115,7 +116,7 @@ export function Register({
   }), [schedulesRes, tieredPricesRes]);
 
   const [noteFor, setNoteFor] = useState<string | null>(null);
-  const [priceFor, setPriceFor] = useState<{ id: string; text: string; err: string } | null>(null);
+  const [priceForId, setPriceForId] = useState<string | null>(null);
   const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS, pricingRules);
 
   const activePricing = useMemo<CartPricingRules>(() => ({
@@ -887,42 +888,20 @@ export function Register({
                         )}
                         {l.overridePct && l.basePrice !== undefined && (
                           <div className="flex items-center gap-6 w-full">
-                            {priceFor?.id === l.id ? (
-                              <form
-                                className="grid gap-4 w-full mt-4"
-                                noValidate
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  const price = Number(priceFor.text.replace(/\./g, '').replace(',', '.'));
-                                  const problem = priceOverrideProblem(l.basePrice!, l.overridePct!, price);
-                                  if (problem) return setPriceFor({ ...priceFor, err: problem });
-                                  cart.dispatch({ t: 'price', lineId: l.id, unitPrice: price });
-                                  setPriceFor(null);
+                            {priceForId === l.id ? (
+                              <PriceOverrideForm
+                                line={l}
+                                onApply={(price, reason) => {
+                                  cart.dispatch({ t: 'price', lineId: l.id, unitPrice: price, reason });
+                                  setPriceForId(null);
                                 }}
-                              >
-                                <label className="text-[11px] text-text-muted" htmlFor={`harga-${l.id}`}>
-                                  Harga baru {l.name} (daftar {formatRp(l.basePrice)}, batas {l.overridePct}%)
-                                </label>
-                                <div className="flex items-center gap-6">
-                                  <input
-                                    id={`harga-${l.id}`}
-                                    className="cg-input cg-num h-[30px] text-xs flex-1 min-w-0"
-                                    inputMode="numeric"
-                                    autoFocus
-                                    value={priceFor.text}
-                                    onChange={(e) => setPriceFor({ ...priceFor, text: e.target.value.replace(/[^\d.,]/g, ''), err: '' })}
-                                    onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setPriceFor(null); } }}
-                                  />
-                                  <button type="submit" className="cg-btn cg-btn--primary cg-btn--sm">Pakai</button>
-                                  <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setPriceFor(null)}>Batal</button>
-                                </div>
-                                {priceFor.err && <p role="alert" className="text-xs text-danger-strong break-words">{priceFor.err}</p>}
-                              </form>
+                                onCancel={() => setPriceForId(null)}
+                              />
                             ) : (
                               <button
                                 type="button"
                                 className="text-xs text-text-muted hover:text-accent font-medium underline"
-                                onClick={() => setPriceFor({ id: l.id, text: String(l.unitPrice), err: '' })}
+                                onClick={() => setPriceForId(l.id)}
                                 aria-label={`Ubah harga ${l.name}`}
                               >
                                 {l.unitPrice === l.basePrice ? 'Ubah harga' : `Harga diubah (${formatRp(l.unitPrice)})`}
@@ -1253,6 +1232,95 @@ function ExtraPicker({ product, groups, onClose, onAdd }: { product: Product; gr
         </div>
       </div>
     </Modal>
+  );
+}
+
+function PriceOverrideForm({
+  line,
+  onApply,
+  onCancel,
+}: {
+  line: CartLine;
+  onApply: (price: number, reason?: string) => void;
+  onCancel: () => void;
+}) {
+  const approver = useApprover('price_override');
+  const [text, setText] = useState(String(line.unitPrice));
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const price = Number(text.replace(/\./g, '').replace(',', '.'));
+    const problem = priceOverrideProblem(line.basePrice!, line.overridePct!, price);
+    if (problem) return setErr(problem);
+    if (approver.mode === 'deny') return setErr('Peran kamu tidak boleh mengubah harga.');
+    setBusy(true); setErr('');
+    const by = await approver.authorize();
+    setBusy(false);
+    if (!by) return setErr('PIN salah atau otorisasi belum disetujui.');
+    onApply(price, reason.trim() || undefined);
+  }
+
+  const QUICK_REASONS = ['Tawar-menawar', 'Produk cacat', 'Harga khusus', 'Pelanggan tetap'];
+
+  return (
+    <form className="grid gap-6 w-full mt-4 p-8 rounded border border-border bg-surface" noValidate onSubmit={submit}>
+      <label className="text-[11px] text-text-muted font-medium" htmlFor={`harga-${line.id}`}>
+        Harga baru {line.name} (daftar {formatRp(line.basePrice ?? line.unitPrice)}, batas ±{line.overridePct}%)
+      </label>
+      <div className="flex items-center gap-6">
+        <input
+          id={`harga-${line.id}`}
+          className="cg-input cg-num h-[30px] text-xs flex-1 min-w-0"
+          inputMode="numeric"
+          autoFocus
+          value={text}
+          onChange={(e) => { setText(e.target.value.replace(/[^\d.,]/g, '')); setErr(''); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } }}
+        />
+      </div>
+
+      <div className="grid gap-4">
+        <label className="text-[11px] text-text-muted" htmlFor={`alasan-${line.id}`}>
+          Alasan perubahan harga (opsional)
+        </label>
+        <input
+          id={`alasan-${line.id}`}
+          className="cg-input h-[28px] text-xs"
+          placeholder="Misal: Tawar-menawar, kemasan rusak..."
+          value={reason}
+          maxLength={80}
+          onChange={(e) => setReason(e.target.value)}
+        />
+        <div className="flex flex-wrap gap-4">
+          {QUICK_REASONS.map((qr) => (
+            <button
+              key={qr}
+              type="button"
+              className="cg-chip text-[10px] py-1 px-4"
+              onClick={() => setReason(qr)}
+            >
+              {qr}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ApproverFields a={approver} idPrefix={`price-${line.id}`} what="ubah harga" />
+
+      {err && <p role="alert" className="text-xs text-danger-strong break-words">{err}</p>}
+
+      <div className="flex items-center gap-6 mt-2">
+        <button type="submit" disabled={busy || !approver.credentialReady} className="cg-btn cg-btn--primary cg-btn--sm">
+          {busy ? 'Memverifikasi…' : 'Pakai'}
+        </button>
+        <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onCancel}>
+          Batal
+        </button>
+      </div>
+    </form>
   );
 }
 

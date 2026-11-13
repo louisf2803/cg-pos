@@ -73,6 +73,7 @@ export interface RoleDefinition {
   canAuthorizeRefund?: boolean;
   canAuthorizeVoid?: boolean;
   canAuthorizeComplimentary?: boolean;
+  canAuthorizePriceOverride?: boolean;
   /** Halaman awal begitu pengguna login */
   defaultDashboardPage?: string;
   defaultPosPage?: string;

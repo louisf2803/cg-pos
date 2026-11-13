@@ -43,4 +43,45 @@ describe('ubah harga di kasir', () => {
     expect(overridePricingForProduct({ price: 25000, priceOverridePct: 0 })).toEqual({ basePrice: 25000 });
     expect(overridePricingForProduct({ price: 25000, priceOverridePct: 15 })).toEqual({ basePrice: 25000, overridePct: 15 });
   });
+
+  it('memeriksa hak akses peran kasir untuk price_override', async () => {
+    const { accessFor } = await import('../src/permissions');
+    expect(accessFor('owner', 'price_override')).toBe('allow');
+    expect(accessFor('manager', 'price_override')).toBe('allow');
+    expect(accessFor('cashier', 'price_override')).toBe('approve');
+  });
+
+  it('listPriceChanges menyertakan alasan dari catatan item', async () => {
+    const d = createFakeData();
+    await d.openShift({ employeeId: 'emp1', cashBalance: 100000 });
+    const order = await d.saveOrder(
+      {
+        id: 'ord-price-test',
+        type: 'dine_in',
+        items: [
+          {
+            id: 'it1',
+            productId: 'p1',
+            name: 'Kopi Susu',
+            qty: 1,
+            unitPrice: 18000,
+            basePrice: 20000,
+            lineTotal: 18000,
+            note: 'Tawar-menawar',
+          },
+        ],
+      },
+      'emp1',
+    );
+
+    const changes = await d.listPriceChanges({
+      from: '2020-01-01T00:00:00Z',
+      to: '2030-01-01T00:00:00Z',
+    });
+
+    const item = changes.find((c) => c.orderId === order.id);
+    expect(item).toBeDefined();
+    expect(item?.reason).toBe('Tawar-menawar');
+    expect(item?.diff).toBe(-2000);
+  });
 });
