@@ -1050,3 +1050,11 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
   - **`packages/shared`**: menambahkan `locationId` & `locationName` pada `StockItem`, `StockPostInput`, dan filter `listStock({ locationId })`; mengisolasi stok gudang (`LOC_GUDANG`) dan outlet di `fake.ts` & `supabase.ts`; membuat helper spreadsheet parser & template XLSX/CSV `stock-import.ts` beserta unit test (4 lulus).
   - **`apps/dashboard`**: menambahkan pemilih lokasi outlet/gudang (`listStockLocations`), label lokasi di tabel stok, dan dialog impor stok (.xlsx/.csv) lengkap dengan unduh template, validasi selisih stok, ringkasan galat, dan eksekusi penyesuaian stok massal.
   - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test stock-import`, `pnpm -F @cgpos/shared test stock.test`, `lint-tailwind.sh origin/main` bersih.
+
+
+- **A128 (`ag/a128-rekonsiliasi-nontunai`)**:
+  - **`packages/shared`**: menambahkan filter per shift `shift_method`, fee gateway MDR, status terekonsiliasi pada rekonsiliasi non-tunai (`reconcile.ts`), opsi `autoReconcileNoncash` pada `OutletOptions` & `OutletContext`, metode `listNonCashReconciliations` dan `saveNonCashReconciliation` di `DataLayer` (`fake.ts`, `supabase.ts`) dengan posting otomatis akun Piutang Gateway (1-1300), Piutang Non-tunai (1-1310), Biaya Gateway (6-2100), dan Selisih Rekonsiliasi (6-2400); unit test `reconcile-shift.test.ts` (4 lulus).
+  - **`packages/db`**: migrasi `0128_noncash_reconciliation.sql` (kolom `outlet_settings.auto_reconcile_noncash`, RPC `save_noncash_reconciliation`) dan tes SQL `19_noncash_reconciliation.sql`.
+  - **`apps/dashboard`**: halaman `/keuangan/rekonsiliasi` dipecah modular (<350 baris) dengan filter per shift/metode/tanggal, filter status rekonsiliasi, modal rekonsiliasi manual & hitung biaya gateway (`reconcile-modal.tsx`), serta kartu pengaturan rekonsiliasi per outlet otomatis vs manual (`outlet-reconcile-card.tsx`).
+  - Verifikasi: `pnpm -r typecheck` lulus, `pnpm -F @cgpos/shared test` (101 berkas, 613 tes lulus), `lint-tailwind.sh origin/main` bersih.
+  - Waktu pengerjaan: Jam mulai: 20:26 WIB, Mulai menulis: 20:27 WIB, Selesai: 22:15 WIB.
