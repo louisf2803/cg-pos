@@ -895,11 +895,25 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async listExtraGroups() {
       const rows = must(await db().from('extra_groups')
-        .select('id,name,is_required,select_mode,max_select,extra_options(id,name,price,sort,deleted_at),product_extra_groups(product_id)')
+        .select('id,name,is_required,select_mode,max_select,extra_options(id,name,price,sort,deleted_at,extra_option_ingredients(ingredient_id,qty,unit_id,products(name),units(name))),product_extra_groups(product_id)')
         .is('deleted_at', null).order('name')) as Row[] | null;
       return (rows ?? []).map((g): ExtraGroup => ({
         id: g.id, name: g.name, required: !!g.is_required, mode: g.select_mode, maxSelect: g.max_select ?? null,
-        options: ((g.extra_options ?? []) as Row[]).filter((o) => !o.deleted_at).map((o) => ({ id: o.id, name: o.name, price: Number(o.price), sort: Number(o.sort) })).sort((a, b) => a.sort - b.sort),
+        options: ((g.extra_options ?? []) as Row[]).filter((o) => !o.deleted_at).map((o) => {
+          const ingRows = (o.extra_option_ingredients ?? []) as Row[];
+          const ing = ingRows[0];
+          return {
+            id: o.id,
+            name: o.name,
+            price: Number(o.price),
+            sort: Number(o.sort),
+            ingredientId: ing?.ingredient_id ?? undefined,
+            ingredientName: ing?.products?.name ?? undefined,
+            ingredientQty: ing ? Number(ing.qty) : undefined,
+            ingredientUnit: ing?.units?.name ?? undefined,
+            ingredientUnitId: ing?.unit_id ?? undefined,
+          };
+        }).sort((a, b) => a.sort - b.sort),
         productIds: ((g.product_extra_groups ?? []) as Row[]).map((x) => x.product_id),
       }));
     },
@@ -922,6 +936,32 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const gone = [...keep.keys()].filter((k) => !opts.some((o) => o.id === k));
       if (gone.length) must(await db().from('extra_options').update({ deleted_at: new Date().toISOString() }).in('id', gone));
       if (opts.length) must(await db().from('extra_options').upsert(opts.map((o) => ({ ...o, org_id: orgId, group_id: id, deleted_at: null })), { onConflict: 'id' }));
+
+      // Tautkan bahan baku untuk tiap opsi ekstra
+      for (const o of input.options) {
+        if (!o.name.trim()) continue;
+        const opt = opts.find((x) => x.name === o.name.trim());
+        if (!opt) continue;
+        if (o.ingredientId && o.ingredientQty && o.ingredientQty > 0) {
+          let unitId = o.ingredientUnitId;
+          if (!unitId) {
+            const pRow = must(await db().from('products').select('base_unit_id').eq('id', o.ingredientId).maybeSingle()) as Row | null;
+            unitId = pRow?.base_unit_id;
+          }
+          if (unitId) {
+            must(await db().from('extra_option_ingredients').upsert({
+              option_id: opt.id,
+              ingredient_id: o.ingredientId,
+              org_id: orgId,
+              qty: o.ingredientQty,
+              unit_id: unitId,
+            }, { onConflict: 'option_id,ingredient_id' }));
+          }
+        } else {
+          must(await db().from('extra_option_ingredients').delete().eq('option_id', opt.id));
+        }
+      }
+
       const ids = [...new Set(input.productIds)];
       const drop = (old?.productIds ?? []).filter((p) => !ids.includes(p));
       if (drop.length) must(await db().from('product_extra_groups').delete().eq('group_id', id).in('product_id', drop));

@@ -40,6 +40,9 @@ export function extraGroupProblem(i: ExtraGroupInput): string | null {
     if (seen.has(k)) return `Pilihan "${o.name.trim()}" muncul dua kali.`;
     seen.add(k);
     if (!Number.isFinite(o.price) || o.price < 0 || Math.round(o.price) !== o.price) return `Harga "${o.name.trim()}" harus rupiah bulat, 0 atau lebih.`;
+    if (o.ingredientId && (!o.ingredientQty || o.ingredientQty <= 0)) {
+      return `Jumlah bahan untuk "${o.name.trim()}" harus lebih dari 0.`;
+    }
   }
   if (i.maxSelect != null && (!Number.isInteger(i.maxSelect) || i.maxSelect < 1)) return 'Batas pilihan harus angka bulat 1 atau lebih.';
   if (i.mode === 'single' && i.maxSelect != null && i.maxSelect !== 1) return 'Grup satu pilihan tidak memakai batas.';

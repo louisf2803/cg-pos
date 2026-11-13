@@ -762,7 +762,20 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (extraGroups.some((g) => g.id !== input.id && g.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Grup "${name}" sudah ada`);
       const old = extraGroups.find((g) => g.id === input.id);
       if (input.id && !old) throw new DataError('not_found', 'Grup tidak ditemukan');
-      const options = input.options.filter((o) => o.name.trim()).map((o, k) => ({ id: o.id && old?.options.some((x) => x.id === o.id) ? o.id : newId(), name: o.name.trim(), price: o.price, sort: k + 1 }));
+      const options = input.options.filter((o) => o.name.trim()).map((o, k) => {
+        const ing = o.ingredientId ? ingredients.find((x) => x.id === o.ingredientId) : undefined;
+        return {
+          id: o.id && old?.options.some((x) => x.id === o.id) ? o.id : newId(),
+          name: o.name.trim(),
+          price: o.price,
+          sort: k + 1,
+          ingredientId: o.ingredientId,
+          ingredientName: ing?.name,
+          ingredientQty: o.ingredientQty,
+          ingredientUnit: ing?.unit,
+          ingredientUnitId: o.ingredientUnitId,
+        };
+      });
       const g: ExtraGroup = { id: old?.id ?? newId(), name, required: input.required, mode: input.mode, maxSelect: input.mode === 'single' ? null : input.maxSelect ?? null, options, productIds: [...new Set(input.productIds)] };
       extraGroups = old ? extraGroups.map((x) => (x.id === old.id ? g : x)) : [...extraGroups, g];
       return clone(g);

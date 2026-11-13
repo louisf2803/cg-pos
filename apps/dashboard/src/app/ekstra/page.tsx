@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
-import { extraGroupProblem, formatRp, newId, parseRp, type CatalogProduct, type ExtraGroup } from '@cgpos/shared';
+import { extraGroupProblem, formatRp, newId, parseRp, type CatalogProduct, type ExtraGroup, type RecipeIngredient } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
@@ -11,8 +11,12 @@ type Dlg = { kind: 'edit'; item?: ExtraGroup } | { kind: 'delete'; item: ExtraGr
 export default function ProdukEkstra() {
   const data = useData();
   const st = useAsync(async () => {
-    const [groups, products] = await Promise.all([data.listExtraGroups(), data.listCatalog({ includeInactive: true })]);
-    return { groups, products };
+    const [groups, products, ingredients] = await Promise.all([
+      data.listExtraGroups(),
+      data.listCatalog({ includeInactive: true }),
+      data.listRecipeIngredients(),
+    ]);
+    return { groups, products, ingredients };
   }, [data]);
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const done = () => { setDlg(null); st.reload(); };
@@ -42,7 +46,18 @@ export default function ProdukEkstra() {
                   </span>
                 </div>
                 <ul className="flex flex-wrap gap-8">
-                  {g.options.map((o) => <li key={o.id} className="border border-border rounded-md bg-surface px-12 py-4 break-words">{o.name} <span className="text-text-muted cg-num">{o.price > 0 ? `+${formatRp(o.price)}` : 'gratis'}</span></li>)}
+                  {g.options.map((o) => (
+                    <li key={o.id} className="border border-border rounded-md bg-surface px-12 py-6 break-words">
+                      <div>
+                        {o.name} <span className="text-text-muted cg-num">{o.price > 0 ? `+${formatRp(o.price)}` : 'gratis'}</span>
+                      </div>
+                      {o.ingredientName && (
+                        <div className="text-[11px] text-accent mt-2 font-medium">
+                          Bahan: {o.ingredientName} {o.ingredientQty ? `(${o.ingredientQty} ${o.ingredientUnit ?? ''})` : ''}
+                        </div>
+                      )}
+                    </li>
+                  ))}
                 </ul>
                 <p className="text-text-muted text-sm break-words">{names.length === 0 ? 'Belum dipakai produk mana pun.' : `Dipakai: ${names.join(', ')}`}</p>
               </li>
@@ -50,7 +65,15 @@ export default function ProdukEkstra() {
           })}
         </ul>
       ))}
-      {dlg?.kind === 'edit' && <EditDialog item={dlg.item} products={st.status === 'ready' ? st.data.products : []} onClose={() => setDlg(null)} onSaved={done} />}
+      {dlg?.kind === 'edit' && (
+        <EditDialog
+          item={dlg.item}
+          products={st.status === 'ready' ? st.data.products : []}
+          ingredients={st.status === 'ready' ? st.data.ingredients : []}
+          onClose={() => setDlg(null)}
+          onSaved={done}
+        />
+      )}
       {dlg?.kind === 'delete' && <DeleteDialog item={dlg.item} onClose={() => setDlg(null)} onDeleted={done} />}
     </>
   );
@@ -62,28 +85,73 @@ function useModal() {
   return ref;
 }
 
-function EditDialog({ item, products, onClose, onSaved }: { item?: ExtraGroup; products: CatalogProduct[]; onClose: () => void; onSaved: () => void }) {
+function EditDialog({
+  item,
+  products,
+  ingredients,
+  onClose,
+  onSaved,
+}: {
+  item?: ExtraGroup;
+  products: CatalogProduct[];
+  ingredients: RecipeIngredient[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const data = useData();
   const ref = useModal();
   const [name, setName] = useState(item?.name ?? '');
   const [required, setRequired] = useState(item?.required ?? false);
   const [mode, setMode] = useState<'single' | 'multiple'>(item?.mode ?? 'single');
   const [max, setMax] = useState(item?.maxSelect ? String(item.maxSelect) : '');
-  const [rows, setRows] = useState<{ key: string; id?: string; name: string; price: string }[]>(
-    item?.options.length ? item.options.map((o) => ({ key: o.id, id: o.id, name: o.name, price: String(o.price) })) : [{ key: newId(), name: '', price: '' }]);
+  const [rows, setRows] = useState<{
+    key: string;
+    id?: string;
+    name: string;
+    price: string;
+    ingredientId: string;
+    ingredientQty: string;
+    ingredientUnitId: string;
+  }[]>(
+    item?.options.length
+      ? item.options.map((o) => ({
+          key: o.id,
+          id: o.id,
+          name: o.name,
+          price: String(o.price),
+          ingredientId: o.ingredientId ?? '',
+          ingredientQty: o.ingredientQty ? String(o.ingredientQty) : '',
+          ingredientUnitId: o.ingredientUnitId ?? '',
+        }))
+      : [{ key: newId(), name: '', price: '', ingredientId: '', ingredientQty: '', ingredientUnitId: '' }]
+  );
   const [picked, setPicked] = useState<Set<string>>(new Set(item?.productIds ?? []));
   const [find, setFind] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const shown = products.filter((p) => !find.trim() || p.name.toLowerCase().includes(find.trim().toLowerCase()));
-  const setRow = (key: string, patch: Partial<{ name: string; price: string }>) => setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
+  const setRow = (key: string, patch: Partial<{ name: string; price: string; ingredientId: string; ingredientQty: string; ingredientUnitId: string }>) =>
+    setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     const input = {
-      id: item?.id, name, required, mode, maxSelect: mode === 'multiple' && max.trim() ? Number(max) : null,
-      options: rows.filter((r) => r.name.trim()).map((r) => ({ id: r.id, name: r.name, price: r.price.trim() ? parseRp(r.price) : 0 })),
+      id: item?.id,
+      name,
+      required,
+      mode,
+      maxSelect: mode === 'multiple' && max.trim() ? Number(max) : null,
+      options: rows
+        .filter((r) => r.name.trim())
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          price: r.price.trim() ? parseRp(r.price) : 0,
+          ingredientId: r.ingredientId || undefined,
+          ingredientQty: r.ingredientId && r.ingredientQty ? Number(r.ingredientQty) : undefined,
+          ingredientUnitId: r.ingredientUnitId || undefined,
+        })),
       productIds: [...picked],
     };
     const problem = extraGroupProblem(input);
@@ -118,15 +186,78 @@ function EditDialog({ item, products, onClose, onSaved }: { item?: ExtraGroup; p
           <label className="flex items-center gap-8"><input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Wajib dipilih kasir</label>
         </div>
         <fieldset className="grid gap-8 border-0 p-0 m-0 min-w-0">
-          <legend className="cg-label mb-4">Pilihan</legend>
-          {rows.map((r, i) => (
-            <div key={r.key} className="flex gap-8 items-start min-w-0">
-              <input className="cg-input min-w-0 flex-1" aria-label={`Nama pilihan ${i + 1}`} placeholder="Nama pilihan" maxLength={60} value={r.name} onChange={(e) => setRow(r.key, { name: e.target.value })} />
-              <input className="cg-input w-[110px] shrink-0" aria-label={`Harga tambahan pilihan ${i + 1}`} inputMode="numeric" placeholder="Rp 0" value={r.price} onChange={(e) => setRow(r.key, { price: e.target.value.replace(/[^\d]/g, '') })} />
-              <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm shrink-0" aria-label={`Hapus pilihan ${i + 1}`} disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))}><X className="cg-icon cg-icon--sm" aria-hidden /></button>
-            </div>
-          ))}
-          <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm w-fit" onClick={() => setRows((x) => [...x, { key: newId(), name: '', price: '' }])}><Plus className="cg-icon cg-icon--sm" aria-hidden /> Tambah pilihan</button>
+          <legend className="cg-label mb-4">Pilihan & Tautan Bahan Baku</legend>
+          {rows.map((r, i) => {
+            const ing = ingredients.find((x) => x.id === r.ingredientId);
+            return (
+              <div key={r.key} className="grid gap-6 border border-border/60 rounded-md p-8 bg-surface-muted/20 min-w-0">
+                <div className="flex gap-8 items-start min-w-0">
+                  <input
+                    className="cg-input min-w-0 flex-1"
+                    aria-label={`Nama pilihan ${i + 1}`}
+                    placeholder="Nama pilihan"
+                    maxLength={60}
+                    value={r.name}
+                    onChange={(e) => setRow(r.key, { name: e.target.value })}
+                  />
+                  <input
+                    className="cg-input w-[110px] shrink-0"
+                    aria-label={`Harga tambahan pilihan ${i + 1}`}
+                    inputMode="numeric"
+                    placeholder="Rp 0"
+                    value={r.price}
+                    onChange={(e) => setRow(r.key, { price: e.target.value.replace(/[^\d]/g, '') })}
+                  />
+                  <button
+                    type="button"
+                    className="cg-btn cg-btn--ghost cg-btn--sm shrink-0"
+                    aria-label={`Hapus pilihan ${i + 1}`}
+                    disabled={rows.length === 1}
+                    onClick={() => setRows((x) => x.filter((y) => y.key !== r.key))}
+                  >
+                    <X className="cg-icon cg-icon--sm" aria-hidden />
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-6 text-xs text-text-muted pt-2">
+                  <span className="shrink-0 font-medium">Bahan terpotong:</span>
+                  <select
+                    className="cg-input text-xs h-[28px] py-0 max-w-[200px]"
+                    aria-label={`Bahan baku pilihan ${i + 1}`}
+                    value={r.ingredientId}
+                    onChange={(e) => {
+                      const sel = ingredients.find((x) => x.id === e.target.value);
+                      setRow(r.key, {
+                        ingredientId: e.target.value,
+                        ingredientUnitId: sel?.units[0]?.unitId ?? '',
+                      });
+                    }}
+                  >
+                    <option value="">(Tanpa bahan baku)</option>
+                    {ingredients.map((ingItem) => (
+                      <option key={ingItem.id} value={ingItem.id}>
+                        {ingItem.name} ({ingItem.baseUnit})
+                      </option>
+                    ))}
+                  </select>
+                  {r.ingredientId && (
+                    <div className="flex items-center gap-4">
+                      <span>Jml:</span>
+                      <input
+                        className="cg-input text-xs h-[28px] w-[64px] py-0"
+                        aria-label={`Jumlah bahan pilihan ${i + 1}`}
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={r.ingredientQty}
+                        onChange={(e) => setRow(r.key, { ingredientQty: e.target.value.replace(/[^\d.,]/g, '').replace(',', '.') })}
+                      />
+                      <span>{ing?.baseUnit ?? ''}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm w-fit" onClick={() => setRows((x) => [...x, { key: newId(), name: '', price: '', ingredientId: '', ingredientQty: '', ingredientUnitId: '' }])}><Plus className="cg-icon cg-icon--sm" aria-hidden /> Tambah pilihan</button>
         </fieldset>
         <fieldset className="grid gap-8 border-0 p-0 m-0 min-w-0">
           <legend className="cg-label mb-4">Dipakai oleh produk ({picked.size})</legend>

@@ -48,4 +48,41 @@ describe('Ekstra (modifier)', () => {
     await d.deleteExtraGroup(g.id);
     expect((await d.listExtraGroups()).some((x) => x.id === g.id)).toBe(false);
   });
+
+  it('mendukung tautan opsi ekstra ke bahan baku', async () => {
+    const d = mk();
+    const ingredients = await d.listRecipeIngredients();
+    expect(ingredients.length).toBeGreaterThan(0);
+    const ing = ingredients[0]!;
+
+    const g = await d.saveExtraGroup({
+      name: 'Topping Susu',
+      required: false,
+      mode: 'single',
+      options: [
+        {
+          name: 'Susu Tambahan',
+          price: 5000,
+          ingredientId: ing.id,
+          ingredientQty: 50,
+        },
+      ],
+      productIds: ['p1'],
+    });
+
+    expect(g.options[0]?.ingredientId).toBe(ing.id);
+    expect(g.options[0]?.ingredientQty).toBe(50);
+    expect(g.options[0]?.ingredientName).toBe(ing.name);
+
+    // Validasi jumlah bahan harus > 0 bila ingredientId diisi
+    expect(
+      extraGroupProblem({
+        name: 'Grup Salah',
+        required: false,
+        mode: 'single',
+        options: [{ name: 'Opsi Salah', price: 1000, ingredientId: ing.id, ingredientQty: 0 }],
+        productIds: [],
+      })
+    ).toMatch(/harus lebih dari 0/);
+  });
 });

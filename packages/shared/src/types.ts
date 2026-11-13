@@ -75,12 +75,30 @@ export interface PriceChange {
   orderId: string; orderNumber: string; orderStatus: Order['status']; itemId: string; itemName: string; qty: number;
   basePrice: number; unitPrice: number; diff: number; diffPct: number; lineImpact: number; cashierId: string; cashierName: string; at: string;
 }
-export interface ExtraOption { id: string; name: string; price: number; sort: number }
+export interface ExtraOption {
+  id: string;
+  name: string;
+  price: number;
+  sort: number;
+  ingredientId?: string;
+  ingredientName?: string;
+  ingredientQty?: number;
+  ingredientUnit?: string;
+  ingredientUnitId?: string;
+}
 /** Grup Ekstra (modifier): satu atau banyak pilihan, wajib atau tidak, dengan harga tambahan per pilihan. */
 export interface ExtraGroup { id: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect: number | null; options: ExtraOption[]; productIds: string[] }
 export interface ExtraGroupInput {
   id?: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect?: number | null;
-  options: { id?: string; name: string; price: number }[]; productIds: string[];
+  options: {
+    id?: string;
+    name: string;
+    price: number;
+    ingredientId?: string;
+    ingredientQty?: number;
+    ingredientUnitId?: string;
+  }[];
+  productIds: string[];
 }
 export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string; reference?: string }
 /** Pelanggan. pointsBalance = saldo poin loyalti (diisi server). */
