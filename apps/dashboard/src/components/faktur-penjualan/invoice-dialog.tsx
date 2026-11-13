@@ -12,15 +12,19 @@ const digits = (s: string) => s.replace(/[^\d]/g, '');
 const num = (s: string) => Number(digits(s)) || 0;
 const GRID = { gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' } as const;
 
-export function InvoiceDialog({ customers, accounts, onClose, onDone }: {
-  customers: Customer[]; accounts: Account[]; onClose: () => void; onDone: (inv: SalesInvoice) => void;
+export interface InvoicePrefill { customerId?: string; lines: { name: string; qty: number; unitPrice: number }[] }
+
+export function InvoiceDialog({ customers, accounts, prefill, onClose, onDone }: {
+  customers: Customer[]; accounts: Account[]; prefill?: InvoicePrefill; onClose: () => void; onDone: (inv: SalesInvoice) => void;
 }) {
   const data = useData();
   const d = useDialog(onClose);
   const [id] = useState(() => newId());
   const cash = useMemo(() => accounts.filter((a) => a.category === 'cash_bank' && a.kind === 'detail' && a.isActive), [accounts]);
-  const [f, setF] = useState({ customerId: '', date: todayKey(), term: '14', discount: '', tax: '', down: '', accountId: cash[0]?.id ?? '', note: '' });
-  const [rows, setRows] = useState<Row[]>([blank()]);
+  const [f, setF] = useState({ customerId: prefill?.customerId ?? '', date: todayKey(), term: '14', discount: '', tax: '', down: '', accountId: cash[0]?.id ?? '', note: '' });
+  const [rows, setRows] = useState<Row[]>(() => (prefill && prefill.lines.length > 0
+    ? prefill.lines.map((l) => ({ key: newId(), name: l.name, qty: String(l.qty), price: String(l.unitPrice) }))
+    : [blank()]));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof f>) => { setF((s) => ({ ...s, ...p })); setErr(''); };

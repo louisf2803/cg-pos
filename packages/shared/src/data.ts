@@ -4,6 +4,7 @@ import type { SalesInvoice, SalesInvoiceInput, SalesInvoicePayInput } from './sa
 import type { OutletComparisonRow } from './outlet-compare';
 import type { GatewayTransaction } from './qris-report';
 import type { PaymentMethodAccount } from './payment-accounts';
+import type { SalesDocType, SalesDocument, SalesDocumentInput } from './sales-documents';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -452,5 +453,15 @@ export interface DataLayer {
   listPaymentMethodAccounts(): Promise<PaymentMethodAccount[]>;
   /** Ganti akun metode tunai/non-tunai/gateway (pemilik dan admin). Berlaku untuk pembayaran baru. */
   setPaymentMethodAccount(methodId: string, accountId: string): Promise<void>;
+
+  // ---------- dokumen penjualan berantai (A130) ----------
+  /** Penawaran, pesanan, pengiriman, atau penerimaan (semua bila type kosong), terbaru dulu, beserta baris. Pengelola saja. */
+  listSalesDocuments(type?: SalesDocType): Promise<SalesDocument[]>;
+  /** Buat dokumen (idempoten menurut id). Dengan parentId: turunan dari dokumen sebelumnya, baris disalin, induk menjadi "sudah dilanjutkan". */
+  createSalesDocument(input: SalesDocumentInput): Promise<SalesDocument>;
+  /** Batalkan dokumen yang masih terbuka. */
+  cancelSalesDocument(id: string): Promise<void>;
+  /** Hubungkan pesanan atau penerimaan ke faktur penjualan yang sudah dibuat; dokumen menjadi "sudah dilanjutkan". */
+  linkSalesDocumentInvoice(docId: string, invoiceId: string): Promise<void>;
 }
 

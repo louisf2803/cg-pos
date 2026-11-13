@@ -28,6 +28,7 @@ import { localDateString, localMonthStart } from './local-date';
 import { createFakeSalesInvoices } from './sales-invoice';
 import { fakeOutletComparison } from './outlet-compare';
 import { createFakePaymentAccounts } from './payment-accounts';
+import { createFakeSalesDocuments } from './sales-documents';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -657,12 +658,19 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     newId,
   });
 
+  const salesDocuments = createFakeSalesDocuments({
+    customerName: async (id) => (await self.listCustomers({ limit: 5000 })).find((c) => c.id === id)?.name,
+    invoiceExists: async (id) => (await self.listSalesInvoices()).some((i) => i.id === id),
+    today: () => localDateString(now()),
+    newId,
+  });
   const paymentAccounts = createFakePaymentAccounts({ methods: () => self.listPaymentMethods(), accounts: () => self.listAccounts() });
 
   const self: DataLayer & { reset(): void } = {
     reset,
     ...salesInvoices,
     ...paymentAccounts,
+    ...salesDocuments,
     async listGatewayTransactions() { return []; },
     async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },

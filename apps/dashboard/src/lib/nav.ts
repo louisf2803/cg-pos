@@ -178,11 +178,11 @@ export const MODUL: NavModule[] = [
         label: 'Invoice',
         icon: FileText,
         items: [
-          { href: '/invoice/penawaran', label: 'Daftar penawaran penjualan', screen: 'S46', tier: 3 },
-          { href: '/invoice/pesanan', label: 'Daftar pesanan penjualan', screen: 'S46', tier: 3 },
-          { href: '/invoice/pengiriman', label: 'Daftar pengiriman penjualan', screen: 'S46', tier: 3 },
-          { href: '/invoice', label: 'Daftar invoice', screen: 'S46', tier: 3 },
-          { href: '/invoice/penerimaan', label: 'Daftar penerimaan penjualan', screen: 'S46', tier: 3 },
+          { href: '/invoice/penawaran', label: 'Daftar penawaran penjualan', screen: 'S46', tier: 3, built: true },
+          { href: '/invoice/pesanan', label: 'Daftar pesanan penjualan', screen: 'S46', tier: 3, built: true },
+          { href: '/invoice/pengiriman', label: 'Daftar pengiriman penjualan', screen: 'S46', tier: 3, built: true },
+          { href: '/invoice', label: 'Daftar invoice', screen: 'S46', tier: 3, built: true },
+          { href: '/invoice/penerimaan', label: 'Daftar penerimaan penjualan', screen: 'S46', tier: 3, built: true },
         ],
       },
       {

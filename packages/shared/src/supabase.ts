@@ -14,6 +14,7 @@ import { salesInvoiceError, salesInvoiceProblem, type SalesInvoice } from './sal
 import { comparisonRow } from './outlet-compare';
 import type { GatewayTransaction } from './qris-report';
 import { paymentAccountError, type PaymentMethodAccount } from './payment-accounts';
+import { salesDocumentError, salesDocumentProblem, type SalesDocType, type SalesDocument } from './sales-documents';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3003,6 +3004,42 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- dokumen penjualan berantai (A130; migrasi 0130) ----------
+    async listSalesDocuments(type?: SalesDocType) {
+      let q = db().from('sales_documents').select('*, sales_document_lines(*)').order('doc_date', { ascending: false }).order('number', { ascending: false }).limit(500);
+      if (type) q = q.eq('doc_type', type);
+      const [rows, customers] = await Promise.all([q, self.listCustomers({ limit: 5000 })]);
+      const name = new Map(customers.map((c) => [c.id, c.name]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): SalesDocument => ({
+        id: r.id as string, type: r.doc_type as SalesDocType, number: r.number as string,
+        customerName: r.customer_id ? name.get(r.customer_id as string) ?? '(pelanggan dihapus)' : '(tanpa pelanggan)',
+        date: r.doc_date as string, status: r.status as SalesDocument['status'], total: Number(r.total),
+        ...(r.customer_id ? { customerId: r.customer_id as string } : {}), ...(r.parent_id ? { parentId: r.parent_id as string } : {}),
+        ...(r.invoice_id ? { invoiceId: r.invoice_id as string } : {}), ...(r.note ? { note: r.note as string } : {}),
+        lines: ((r.sales_document_lines ?? []) as Row[]).map((l) => ({ id: l.id as string, name: l.name as string, qty: Number(l.qty), unitPrice: Number(l.unit_price), lineTotal: Number(l.line_total) })),
+      }));
+    },
+    async createSalesDocument(input) {
+      const problem = salesDocumentProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('sales_doc_create', {
+        p_id: input.id, p_org: orgId, p_type: input.type, p_customer: input.customerId ?? null, p_date: input.date ?? null, p_note: input.note?.trim() || null,
+        p_parent: input.parentId ?? null,
+        p_lines: input.lines && input.lines.length > 0 ? input.lines.map((l) => ({ name: l.name.trim(), qty: l.qty, unit_price: l.unitPrice })) : null,
+      });
+      if (error) throw salesDocumentError(error);
+      return (await self.listSalesDocuments()).find((d) => d.id === input.id)!;
+    },
+    async cancelSalesDocument(id) {
+      const { error } = await db().rpc('sales_doc_cancel', { p_id: id });
+      if (error) throw salesDocumentError(error);
+    },
+    async linkSalesDocumentInvoice(docId, invoiceId) {
+      const { error } = await db().rpc('sales_doc_link_invoice', { p_doc: docId, p_invoice: invoiceId });
+      if (error) throw salesDocumentError(error);
     },
 
     // ---------- akun perantara metode bayar (A134; migrasi 0134) ----------
