@@ -1033,3 +1033,9 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 
 ## Claude (13 Nov 2026) — FASE 2 aktif (persetujuan Louis di chat)
 `docs/queue/PHASE2-FULLSTACK.md`, tugas A139 sampai A145, catatan FASE 2 di A113 sampai A145, dan pengecualian sementara di `AGENTS.md` (aturan 2 dan 3). Rencana lanjutan atas permintaan Louis: setelah semi goal 93/93, Claude menulis tugas A146+ untuk Antigravity: uji Playwright dengan screenshot 390 dan 1280 px untuk semua fitur, lalu Claude mencocokkan alur dengan Majoo dan menaikkan `clone` ke yes.
+
+## Antigravity (13 Nov 2026) — A139 Server: Harga Grosir, Jadwal Harga, Grup Pelanggan Selesai
+- Migrasi `0097_tiered_pricing_schedules_customer_groups.sql` dan tes SQL `19_tiered_pricing_schedules_customer_groups.sql`: skema `pos.customer_groups`, `pos.customer_group_members`, `pos.tiered_prices` (maks 5 tingkat), `pos.price_schedules`, RLS pengelola, dan RPC CRUD atomik.
+- DataLayer (`data.ts`, `fake.ts`, `supabase.ts`): `listCustomerGroups`, `saveCustomerGroup`, `deleteCustomerGroup`, `listCustomerGroupMembers`, `setCustomerGroup`, `listTieredPrices`, `saveTieredPrices`, `deleteTieredPrices`, `listPriceSchedules`, `savePriceSchedule`, `deletePriceSchedule`.
+- Tiga layar dashboard (`/pelanggan/grup`, `/pelanggan/harga-spesial`, `/harga-jadwal`) tersambung penuh ke DataLayer, label pratinjau dihapus.
+- Kasir POS (`apps/pos/src/lib/cart.ts`, `Register.tsx`): integrasi `resolveScheduledPrice` dan `resolveTieredPrice` otomatis saat penambahan produk, perubahan kuantitas, maupun pemilihan pelanggan/grup; unit test `cart.test.ts` lulus; typecheck, vitest shared (590 tes) dan pos (7 tes), serta lint-tailwind lulus.
