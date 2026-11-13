@@ -1078,3 +1078,18 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
 - **Jadikan invoice (Claude, 13 Nov 2026 malam)**: tombol di layar Pembayaran kasir (`payment/InvoiceDialog.tsx`, `order-invoice.ts` + 6 tes). Pesanan jadi faktur penjualan (total sama dengan pesanan), lalu ditutup tanpa pembayaran. Diuji di mode demo (FJ-000001). Belum: uji di server asli, stok tidak dikurangi.
 - **A148 (Claude, 13 Nov 2026 malam)**: Pengaturan perangkat > Printer dan perangkat: daftar + cari + Tambah perangkat (tiga langkah: jenis, koneksi, form dengan driver/kertas/pindai Bluetooth), uji cetak printer kasir, tersimpan per perangkat (`device-registry.ts`, 5 tes). Hanya Bluetooth aktif; lain 'belum didukung'. Belum: printer dapur/label/alamat belum dipakai pencetaknya (hanya tersimpan); pindai asli perlu diuji di perangkat dengan printer fisik.
 - **A149 (Claude, 13 Nov 2026 malam)**: label barcode dikendalikan dari backoffice. Migrasi `0138_label_papers` + tes SQL; DataLayer `listLabelPapers/saveLabelPaper/deleteLabelPaper`; `/produk/barcode` kini memakai kertas (kertas bawaan baca-saja, Tambah kertas, Atur kertas: ukuran, kolom, jarak, margin, isi label), pratinjau dan cetak mengikuti kertas. Aplikasi kasir tidak punya pengaturan label. Belum: satuan produk pada label (data satuan belum ada di daftar produk); cetak ke printer label Bluetooth (TSPL) belum; migrasi 0138 belum diterapkan ke produksi.
+- **A150 (Claude, 13 Nov 2026 malam)**: kendali tampilan struk dari backoffice. Audit `/pengaturan/struk` terhadap layar kasir (`Receipt.tsx`) dan cetak ESC/POS (`escpos.ts`):
+
+  | Pengaturan | Layar kasir | Cetak ESC/POS |
+  |---|---|---|
+  | Tema ukuran huruf (normal/sedang/besar) | ya | ya |
+  | Nama outlet, alamat, telepon | ya | ya |
+  | Teks kepala | ya | ya |
+  | Nomor order, jenis order, meja, tamu, waktu, kasir, pelanggan | ya | ya |
+  | Harga satuan, ekstra, catatan item | ya | ya |
+  | Teks kaki, waktu cetak | ya | ya |
+  | Batas cetak ulang | ya | (batas berlaku di dialog cetak) |
+  | Lebar kertas bawaan | ya (58/76/80 mm) | ya (32/40/48 kolom) |
+  | BARU: biaya layanan, pajak, pembulatan, metode bayar, kembalian | ya | ya |
+
+  Tersimpan di jsonb `receipt_template` (tanpa migrasi). Subtotal, potongan, dan TOTAL selalu tercetak. Pratinjau di dashboard berubah langsung. Belum: logo struk (butuh penyimpanan gambar), cetak QR pembayaran (menunggu payment tersambung), dan struk gabungan meja belum memakai kendali baru untuk semua baris. Dicek di peramban (mode demo).

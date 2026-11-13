@@ -19,10 +19,10 @@ import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
 
-type Paper = '58' | '80';
+type Paper = '58' | '76' | '80';
 const KEY = 'cgpos.paper';
 /** Kertas tersimpan di perangkat ini bila kasir pernah memilih sendiri; selain itu pakai bawaan outlet (lebar kertas bawaan di /pengaturan/struk). */
-const readPaper = (fallback: Paper = '80'): Paper => { try { const v = localStorage.getItem(KEY); return v === '58' || v === '80' ? v : fallback; } catch { return fallback; } };
+const readPaper = (fallback: Paper = '80'): Paper => { try { const v = localStorage.getItem(KEY); return v === '58' || v === '76' || v === '80' ? v : fallback; } catch { return fallback; } };
 
 const PKEY = (id: string) => `cgpos.prints.${id}`;
 const readPrints = (id: string): number => { try { return Number(localStorage.getItem(PKEY(id))) || 0; } catch { return 0; } };
@@ -69,17 +69,17 @@ export function ReceiptBody({ order, ctx, cashierName, kind, paper, points }: { 
           ))}
         </>
       )}
-      {order.serviceCharge > 0 && <div className="receipt__row"><span>Biaya layanan</span><span>{formatRp(order.serviceCharge)}</span></div>}
-      {d.tax > 0 && !d.inclusive && <div className="receipt__row"><span>Pajak</span><span>{formatRp(d.tax)}</span></div>}
-      {order.rounding !== 0 && <div className="receipt__row"><span>Pembulatan</span><span>{formatRp(order.rounding)}</span></div>}
+      {tpl.showServiceCharge && order.serviceCharge > 0 && <div className="receipt__row"><span>Biaya layanan</span><span>{formatRp(order.serviceCharge)}</span></div>}
+      {tpl.showTax && d.tax > 0 && !d.inclusive && <div className="receipt__row"><span>Pajak</span><span>{formatRp(d.tax)}</span></div>}
+      {tpl.showRounding && order.rounding !== 0 && <div className="receipt__row"><span>Pembulatan</span><span>{formatRp(order.rounding)}</span></div>}
       <div className="receipt__row receipt__total"><span>TOTAL</span><span>{formatRp(order.total)}</span></div>
-      {d.inclusive && <div className="receipt__row"><span>Sudah termasuk pajak</span><span>{formatRp(d.tax)}</span></div>}
+      {tpl.showTax && d.inclusive && <div className="receipt__row"><span>Sudah termasuk pajak</span><span>{formatRp(d.tax)}</span></div>}
       {kind === 'receipt' && points && points.earned > 0 && <div className="receipt__row"><span>Poin didapat (saldo {points.balance})</span><span>+{points.earned}</span></div>}
       {kind === 'receipt' && (
         <>
-          <hr />
-          {order.payments.map((p) => <div key={p.id} className="receipt__row"><span>{p.methodName}</span><span>{formatRp(p.amount)}</span></div>)}
-          {last && last.kind === 'cash' && last.change > 0 && <div className="receipt__row"><span>Kembalian</span><span>{formatRp(last.change)}</span></div>}
+          {(tpl.showPaymentMethod || tpl.showChange) && <hr />}
+          {tpl.showPaymentMethod && order.payments.map((p) => <div key={p.id} className="receipt__row"><span>{p.methodName}</span><span>{formatRp(p.amount)}</span></div>)}
+          {tpl.showChange && last && last.kind === 'cash' && last.change > 0 && <div className="receipt__row"><span>Kembalian</span><span>{formatRp(last.change)}</span></div>}
         </>
       )}
       {kind === 'bill' && order.paidTotal > 0 && (
@@ -252,7 +252,7 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
         </div>
       )}
       <div className="cg-tabs mb-12" role="tablist" aria-label="Lebar kertas">
-        {(['58', '80'] as const).map((p) => <button key={p} role="tab" className="cg-tab" aria-selected={paper === p} onClick={() => choose(p)}>Kertas {p} mm</button>)}
+        {(['58', '76', '80'] as const).map((p) => <button key={p} role="tab" className="cg-tab" aria-selected={paper === p} onClick={() => choose(p)}>Kertas {p} mm</button>)}
       </div>
       <div className="receipt-preview">
         <div className="receipt-print">

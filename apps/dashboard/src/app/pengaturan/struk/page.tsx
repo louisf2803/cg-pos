@@ -30,6 +30,7 @@ import {
   type PaperWidth,
 } from '@cgpos/shared';
 import { PageHeader, ErrorBox } from '@/components/page';
+import { LINE_TOGGLE_KEYS, LineToggleGroup, type LineToggles } from '@/components/struk/line-toggles';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 
@@ -162,6 +163,7 @@ function ReceiptEditor({
   const [showUnitPrice, setShowUnitPrice] = useState(initialTpl.showUnitPrice);
   const [showExtras, setShowExtras] = useState(initialTpl.showExtras);
   const [showNotes, setShowNotes] = useState(initialTpl.showNotes);
+  const [lineToggles, setLineToggles] = useState<LineToggles>(() => Object.fromEntries(LINE_TOGGLE_KEYS.map((k) => [k, initialTpl[k]])) as LineToggles);
 
   // Footer tab states
   const [receiptFooter, setReceiptFooter] = useState(options.receiptFooter ?? '');
@@ -200,9 +202,11 @@ function ReceiptEditor({
     showExtras,
     showNotes,
     showPrintTime,
+    ...lineToggles,
     maxPrints: enableLimit ? maxPrints : 0,
     defaultPaperWidth,
   }), [
+    lineToggles,
     theme,
     showOutletName,
     showAddress,
@@ -267,6 +271,7 @@ function ReceiptEditor({
     setShowExtras(DEFAULT_RECEIPT_TEMPLATE.showExtras);
     setShowNotes(DEFAULT_RECEIPT_TEMPLATE.showNotes);
     setShowPrintTime(DEFAULT_RECEIPT_TEMPLATE.showPrintTime);
+    setLineToggles(Object.fromEntries(LINE_TOGGLE_KEYS.map((k) => [k, DEFAULT_RECEIPT_TEMPLATE[k]])) as LineToggles);
     setEnableLimit(false);
     setMaxPrints(3);
     setDefaultPaperWidth(DEFAULT_RECEIPT_TEMPLATE.defaultPaperWidth);
@@ -285,7 +290,7 @@ function ReceiptEditor({
     const doc = iframe.contentWindow?.document;
     if (!doc) return;
 
-    const widthMm = paper === '58' ? '48mm' : '72mm';
+    const widthMm = paper === '58' ? '48mm' : paper === '76' ? '64mm' : '72mm';
     const fontSize = theme === 'large' ? '14px' : theme === 'medium' ? '12px' : '11px';
 
     const textContent = previewPieces.map((p) => {
@@ -408,7 +413,7 @@ function ReceiptEditor({
             Lebar Kertas Bawaan
           </label>
           <div className="flex flex-wrap items-center gap-8">
-            {(['58', '80'] as const).map((w) => (
+            {(['58', '76', '80'] as const).map((w) => (
               <button
                 key={w}
                 type="button"
@@ -653,11 +658,13 @@ function ReceiptEditor({
                 </div>
               </div>
 
+              <LineToggleGroup value={lineToggles} onChange={setLineToggles} />
+
               {/* Catatan Ketentuan Tetap */}
               <div className="p-12 border border-border rounded-md bg-surface-raised flex items-start gap-12 text-xs text-text-muted">
                 <Info className="w-16 h-16 text-accent shrink-0 mt-[2px]" aria-hidden />
                 <p>
-                  Subtotal, potongan diskon, biaya layanan, pajak, pembulatan, dan rincian metode pembayaran selalu dicetak dan tidak dapat disembunyikan agar struk memenuhi standar audit dan transparansi pelanggan.
+                  Subtotal, potongan diskon, dan TOTAL selalu dicetak. Baris lain di atas bisa disembunyikan; pengaturan ini dipakai oleh layar kasir dan cetak printer.
                 </p>
               </div>
             </div>
@@ -775,6 +782,14 @@ function ReceiptEditor({
               <button
                 type="button"
                 className="cg-chip"
+                aria-pressed={paper === '76'}
+                onClick={() => setPaper('76')}
+              >
+                76 mm
+              </button>
+              <button
+                type="button"
+                className="cg-chip"
                 aria-pressed={paper === '80'}
                 onClick={() => setPaper('80')}
               >
@@ -791,7 +806,7 @@ function ReceiptEditor({
                 fontFamily: 'ui-monospace, "Courier New", monospace',
                 fontSize: theme === 'large' ? 14 : theme === 'medium' ? 12 : 11,
                 lineHeight: 1.35,
-                width: paper === '58' ? '240px' : '320px',
+                width: paper === '58' ? '240px' : paper === '76' ? '290px' : '320px',
                 maxWidth: '100%',
                 boxSizing: 'border-box',
               }}

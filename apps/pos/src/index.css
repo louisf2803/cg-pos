@@ -114,6 +114,7 @@ body { overscroll-behavior: none; }
 /* ---------- struk ---------- */
 .receipt { font-family: ui-monospace, 'Courier New', monospace; font-size: 12px; line-height: 1.35; color: #000; background: #fff; padding: 8px; }
 .receipt--80 { width: 72mm; }
+.receipt--76 { width: 64mm; font-size: 12px; }
 .receipt--58 { width: 48mm; font-size: 11px; }
 .receipt--medium { font-size: 15px; line-height: 1.4; }
 .receipt--58.receipt--medium { font-size: 13px; }

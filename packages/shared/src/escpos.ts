@@ -9,8 +9,8 @@ import type { Order, OutletContext } from './types';
  * Pembuat byte ESC/POS untuk printer thermal umum (58 mm = 32 kolom, 80 mm = 48 kolom).
  * Murni (tanpa DOM/Bluetooth) supaya bisa diuji; pengiriman byte ada di aplikasi kasir.
  */
-export type PaperWidth = '58' | '80';
-export const paperCols = (p: PaperWidth) => (p === '58' ? 32 : 48);
+export type PaperWidth = '58' | '76' | '80';
+export const paperCols = (p: PaperWidth) => (p === '58' ? 32 : p === '76' ? 40 : 48);
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -96,16 +96,16 @@ export function receiptPieces(o: { order: Order; ctx: OutletContext; cashierName
     row('Potongan', `-${formatRp(d.discount)}`);
     for (const x of order.discounts ?? []) if (x.reference) text(`  ${discountDisplayLabel(x)}`);
   }
-  if (order.serviceCharge > 0) row('Biaya layanan', formatRp(order.serviceCharge));
-  if (d.tax > 0 && !d.inclusive) row('Pajak', formatRp(d.tax));
-  if (order.rounding !== 0) row('Pembulatan', formatRp(order.rounding));
+  if (tpl.showServiceCharge && order.serviceCharge > 0) row('Biaya layanan', formatRp(order.serviceCharge));
+  if (tpl.showTax && d.tax > 0 && !d.inclusive) row('Pajak', formatRp(d.tax));
+  if (tpl.showRounding && order.rounding !== 0) row('Pembulatan', formatRp(order.rounding));
   row('TOTAL', formatRp(order.total), true);
-  if (d.inclusive) row('Sudah termasuk pajak', formatRp(d.tax));
+  if (tpl.showTax && d.inclusive) row('Sudah termasuk pajak', formatRp(d.tax));
   if (kind === 'receipt') {
-    p.push({ text: dash });
-    for (const pay of order.payments) row(pay.methodName, formatRp(pay.amount));
+    if (tpl.showPaymentMethod || tpl.showChange) p.push({ text: dash });
+    if (tpl.showPaymentMethod) for (const pay of order.payments) row(pay.methodName, formatRp(pay.amount));
     const last = order.payments[order.payments.length - 1];
-    if (last && last.kind === 'cash' && last.change > 0) row('Kembalian', formatRp(last.change));
+    if (tpl.showChange && last && last.kind === 'cash' && last.change > 0) row('Kembalian', formatRp(last.change));
   } else if (order.paidTotal > 0) {
     row('Sudah dibayar', formatRp(order.paidTotal));
     row('Sisa', formatRp(order.total - order.paidTotal));
