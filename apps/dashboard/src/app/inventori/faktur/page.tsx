@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Ban, Banknote, PackageCheck, Paperclip, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Banknote, PackageCheck, Plus, Save } from 'lucide-react';
 import {
   addDays, formatRp, INVOICE_STATUS_LABEL, invoiceOverdue, newId, purchaseInvoiceProblem, purchasePayProblem, purchaseReceiveProblem, purchaseSubtotal, purchaseTotal,
   type PurchaseInvoice, type PurchaseInvoiceStatus,
@@ -49,7 +49,7 @@ export default function InvoicesPage() {
       <div className="flex flex-wrap gap-8 mb-12 items-end">
         <div className="cg-field"><label className="cg-label" htmlFor="fk-status">Status</label>
           <select id="fk-status" className="cg-input" value={filter} onChange={(e) => setFilter(e.target.value as '' | PurchaseInvoiceStatus)}>
-            <option value="">Semua</option><option value="open">Belum dibayar</option><option value="partially_paid">Dibayar sebagian</option><option value="paid">Lunas</option><option value="void">Batal</option></select></div>
+            <option value="">Semua</option><option value="open">Belum dibayar</option><option value="partially_paid">Dibayar sebagian</option><option value="paid">Lunas</option></select></div>
         {list.status === 'ready' && rows.length > 0 && <p className="pb-8" data-testid="ringkasan-faktur">Sisa hutang <strong className="cg-num">{formatRp(owed)}</strong>{late.length > 0 && <> · <strong className="text-danger-strong">{late.length} lewat jatuh tempo</strong></>}</p>}
       </div>
       {list.status === 'error' && <ErrorBox message={list.message} onRetry={list.reload} />}
@@ -63,19 +63,11 @@ export default function InvoicesPage() {
             <thead><tr><th>Faktur</th><th>Pemasok</th><th>Tanggal</th><th>Jatuh tempo</th><th>Status</th><th className="text-right">Total</th><th className="text-right">Sisa</th><th><span className="cg-sr">Aksi</span></th></tr></thead>
             <tbody>{rows.map((i) => (
               <tr key={i.id}>
-                <td>
-                  <strong>{i.number}</strong>
-                  {i.supplierInvoiceNo && <span className="block text-sm text-text-muted">{i.supplierInvoiceNo}</span>}
-                  {i.hasAttachment && <span className="inline-flex items-center gap-4 text-xs text-text-muted mt-2"><Paperclip className="cg-icon cg-icon--xs" aria-hidden /> Ada lampiran</span>}
-                </td>
+                <td><strong>{i.number}</strong>{i.supplierInvoiceNo && <span className="block text-sm text-text-muted">{i.supplierInvoiceNo}</span>}</td>
                 <td className="break-words max-w-[220px]">{i.supplierName}</td><td className="text-sm whitespace-nowrap">{fmtDate(i.invoiceDate)}</td>
                 <td className={`text-sm whitespace-nowrap ${invoiceOverdue(i, today) ? 'text-danger-strong' : ''}`}>{i.dueDate ? fmtDate(i.dueDate) : '—'}{invoiceOverdue(i, today) && <span className="block">Lewat tempo</span>}</td>
-                <td><span className={`cg-badge ${BADGE[i.status]}`}>{INVOICE_STATUS_LABEL[i.status]}</span>{!i.fullyReceived && i.status !== 'void' && <span className="block text-sm text-text-muted">Belum lengkap</span>}</td>
-                <td className="text-right cg-num">
-                  {formatRp(i.total)}
-                  {!!i.downPayment && <span className="block text-xs text-text-muted">DP {formatRp(i.downPayment)}</span>}
-                </td>
-                <td className="text-right cg-num">{i.outstanding > 0 ? formatRp(i.outstanding) : '—'}</td>
+                <td><span className={`cg-badge ${BADGE[i.status]}`}>{INVOICE_STATUS_LABEL[i.status]}</span>{!i.fullyReceived && <span className="block text-sm text-text-muted">Belum lengkap</span>}</td>
+                <td className="text-right cg-num">{formatRp(i.total)}</td><td className="text-right cg-num">{i.outstanding > 0 ? formatRp(i.outstanding) : '—'}</td>
                 <td className="text-right whitespace-nowrap"><button className="cg-btn cg-btn--ghost cg-btn--sm" aria-label={`Buka ${i.number}`} onClick={() => { setNotice(''); setView({ kind: 'show', id: i.id }); }}>Buka</button></td>
               </tr>
             ))}</tbody>
@@ -100,9 +92,6 @@ function Editor({ id, poId, onBack, onDone }: { id: string; poId?: string; onBac
   const [discount, setDiscount] = useState('');
   const [tax, setTax] = useState('');
   const [other, setOther] = useState('');
-  const [downPayment, setDownPayment] = useState('');
-  const [attachmentName, setAttachmentName] = useState('');
-  const [attachmentDataUrl, setAttachmentDataUrl] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -112,7 +101,6 @@ function Editor({ id, poId, onBack, onDone }: { id: string; poId?: string; onBac
     if (!o) return;
     setSupplierId(o.supplierId); setNote(o.note ?? '');
     setDiscount(o.discount ? String(o.discount) : ''); setTax(o.taxAmount ? String(o.taxAmount) : ''); setOther(o.otherCost ? String(o.otherCost) : '');
-    if (o.downPayment) setDownPayment(String(o.downPayment));
     setLines(o.lines.length ? o.lines.map(fromLine) : [emptyLine()]);
   }, [loaded]);
   const supplier = loaded?.suppliers.find((s) => s.id === supplierId);
@@ -121,25 +109,12 @@ function Editor({ id, poId, onBack, onDone }: { id: string; poId?: string; onBac
   const total = purchaseTotal(inputs, numOf(discount), numOf(tax), numOf(other));
   const orderBad = !!poId && loaded && (!loaded.order || loaded.order.status !== 'ordered');
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAttachmentName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachmentDataUrl(String(reader.result));
-    };
-    reader.readAsDataURL(file);
-  }
-
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     const input = {
       id, supplierId: supplierId || null, orderId: poId ?? null, supplierInvoiceNo: supplierNo.trim() || undefined, invoiceDate: date || undefined, ...(term.trim() !== '' ? { termDays: Number(term) } : {}),
-      discount: numOf(discount), tax: numOf(tax), otherCost: numOf(other), downPayment: numOf(downPayment),
-      attachmentName: attachmentName.trim() || null, attachmentDataUrl: attachmentDataUrl || null,
-      note: note.trim() || undefined, lines: inputs,
+      discount: numOf(discount), tax: numOf(tax), otherCost: numOf(other), note: note.trim() || undefined, lines: inputs,
     };
     const problem = purchaseInvoiceProblem(input);
     if (problem) return setErr(problem);
@@ -171,28 +146,10 @@ function Editor({ id, poId, onBack, onDone }: { id: string; poId?: string; onBac
             <div className="cg-field"><label className="cg-label" htmlFor="fk-diskon">Diskon faktur (Rp)</label><input id="fk-diskon" className="cg-input" inputMode="numeric" maxLength={13} value={discount} onChange={(e) => setDiscount(rpDigits(e.target.value))} /></div>
             <div className="cg-field"><label className="cg-label" htmlFor="fk-pajak">Pajak masukan (Rp)</label><input id="fk-pajak" className="cg-input" inputMode="numeric" maxLength={13} value={tax} onChange={(e) => setTax(rpDigits(e.target.value))} /></div>
             <div className="cg-field"><label className="cg-label" htmlFor="fk-lain">Biaya lain (Rp)</label><input id="fk-lain" className="cg-input" inputMode="numeric" maxLength={13} value={other} onChange={(e) => setOther(rpDigits(e.target.value))} /></div>
-            <div className="cg-field"><label className="cg-label" htmlFor="fk-dp">Potongan uang muka (Rp)</label><input id="fk-dp" className="cg-input" inputMode="numeric" maxLength={13} value={downPayment} onChange={(e) => setDownPayment(rpDigits(e.target.value))} /></div>
           </div>
-          <div className="grid gap-12" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-            <div className="cg-field"><label className="cg-label" htmlFor="fk-catatan">Catatan</label><input id="fk-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
-            <div className="cg-field">
-              <label className="cg-label" htmlFor="fk-file">Lampiran faktur / nota (opsional)</label>
-              <div className="flex items-center gap-8">
-                <input id="fk-file" type="file" className="cg-input" onChange={handleFile} accept=".pdf,image/*,.xlsx,.csv" />
-                {attachmentName && (
-                  <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => { setAttachmentName(''); setAttachmentDataUrl(''); }}>
-                    Hapus
-                  </button>
-                )}
-              </div>
-              {attachmentName && <span className="text-xs text-text-muted mt-2 block">Terpilih: {attachmentName}</span>}
-            </div>
-          </div>
-          <p data-testid="total-faktur">
-            Subtotal <strong className="cg-num">{formatRp(purchaseSubtotal(inputs))}</strong> · total tagihan <strong className="cg-num">{formatRp(total)}</strong>
-            {numOf(downPayment) > 0 && <> · potongan DP <strong className="cg-num">{formatRp(numOf(downPayment))}</strong></>}
-          </p>
-          <p className="text-sm text-text-muted">Diskon dan biaya lain dibagi ke harga barang. Pajak masukan dicatat terpisah. Faktur yang salah dapat dibatalkan selama belum ada pembayaran.</p>
+          <div className="cg-field"><label className="cg-label" htmlFor="fk-catatan">Catatan</label><input id="fk-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+          <p data-testid="total-faktur">Subtotal <strong className="cg-num">{formatRp(purchaseSubtotal(inputs))}</strong> · total tagihan <strong className="cg-num">{formatRp(total)}</strong></p>
+          <p className="text-sm text-text-muted">Diskon dan biaya lain dibagi ke harga barang. Pajak masukan dicatat terpisah. Faktur yang sudah dibuat tidak bisa diubah; koreksi lewat stok keluar atau jurnal.</p>
           {err && <p role="alert" className="text-danger-strong">{err}</p>}
           <div><button type="submit" className="cg-btn cg-btn--primary" disabled={busy} aria-busy={busy}><Save className="cg-icon" aria-hidden /> {busy ? 'Menyimpan…' : 'Buat faktur'}</button></div>
         </form>
@@ -204,7 +161,7 @@ function Editor({ id, poId, onBack, onDone }: { id: string; poId?: string; onBac
 function Viewer({ id, initialNotice, onBack }: { id: string; initialNotice: string; onBack: () => void }) {
   const data = useData();
   const state = useAsync(() => data.getPurchaseInvoice(id), [data, id]);
-  const [dlg, setDlg] = useState<'receive' | 'pay' | 'void' | null>(null);
+  const [dlg, setDlg] = useState<'receive' | 'pay' | null>(null);
   const [notice, setNotice] = useState(initialNotice);
   const f: PurchaseInvoice | null | undefined = state.status === 'ready' ? state.data : undefined;
   const incomplete = f?.lines.some((l) => l.receivedQty < l.qty);
@@ -214,11 +171,6 @@ function Viewer({ id, initialNotice, onBack }: { id: string; initialNotice: stri
       <PageHeader title={f ? f.number : 'Faktur'} subtitle={f ? `${f.supplierName} · ${INVOICE_STATUS_LABEL[f.status]}` : undefined}
         actions={<button className="cg-btn cg-btn--ghost" onClick={onBack}><ArrowLeft className="cg-icon" aria-hidden /> Kembali</button>} />
       {notice && <p role="status" className="cg-banner cg-banner--info mb-16">{notice}</p>}
-      {f?.status === 'void' && (
-        <p role="status" className="cg-banner cg-banner--danger mb-16">
-          Faktur ini telah dibatalkan.{f.voidReason ? ` Alasan: ${f.voidReason}` : ''}
-        </p>
-      )}
       {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
       {state.status === 'loading' && <div className="cg-skeleton" style={{ height: 160 }} aria-busy="true" aria-label="Memuat" />}
       {state.status === 'ready' && !f && <div className="cg-empty"><p><strong>Faktur tidak ditemukan.</strong></p></div>}
@@ -235,30 +187,11 @@ function Viewer({ id, initialNotice, onBack }: { id: string; initialNotice: stri
               ))}</tbody>
             </table>
           </div>
-          <p>
-            Subtotal {formatRp(f.subtotal)} · diskon {formatRp(f.discount)} · pajak {formatRp(f.taxAmount)} · biaya lain {formatRp(f.otherCost)}
-            {!!f.downPayment && <> · uang muka terpotong <strong className="cg-num">{formatRp(f.downPayment)}</strong></>}
-          </p>
+          <p>Subtotal {formatRp(f.subtotal)} · diskon {formatRp(f.discount)} · pajak {formatRp(f.taxAmount)} · biaya lain {formatRp(f.otherCost)}</p>
           <p>Total <strong className="cg-num" data-testid="total-faktur">{formatRp(f.total)}</strong> · dibayar <strong className="cg-num">{formatRp(f.paidTotal)}</strong> · sisa <strong className="cg-num" data-testid="sisa-faktur">{formatRp(f.outstanding)}</strong></p>
-          {f.attachmentName && (
-            <div className="flex items-center gap-8 p-8 border border-border rounded-md bg-surface">
-              <Paperclip className="cg-icon cg-icon--sm" aria-hidden />
-              <span className="text-sm">Lampiran: <strong>{f.attachmentName}</strong></span>
-              {f.attachmentDataUrl && (
-                <a href={f.attachmentDataUrl} download={f.attachmentName} className="cg-btn cg-btn--ghost cg-btn--sm">
-                  Unduh
-                </a>
-              )}
-            </div>
-          )}
           <div className="flex flex-wrap gap-8">
-            {incomplete && f.status !== 'void' && <button className="cg-btn cg-btn--secondary" onClick={() => { setNotice(''); setDlg('receive'); }}><PackageCheck className="cg-icon" aria-hidden /> Terima barang</button>}
+            {incomplete && <button className="cg-btn cg-btn--secondary" onClick={() => { setNotice(''); setDlg('receive'); }}><PackageCheck className="cg-icon" aria-hidden /> Terima barang</button>}
             {payable && <button className="cg-btn cg-btn--primary" onClick={() => { setNotice(''); setDlg('pay'); }}><Banknote className="cg-icon" aria-hidden /> Bayar faktur</button>}
-            {f.status !== 'void' && f.payments.length === 0 && (
-              <button className="cg-btn cg-btn--ghost text-danger-strong" onClick={() => { setNotice(''); setDlg('void'); }}>
-                <Ban className="cg-icon" aria-hidden /> Batalkan faktur
-              </button>
-            )}
           </div>
           {f.payments.length > 0 && (
             <div className="cg-data-wrap">
@@ -274,7 +207,6 @@ function Viewer({ id, initialNotice, onBack }: { id: string; initialNotice: stri
       )}
       {dlg === 'receive' && f && <ReceiveDialog invoice={f} onClose={() => setDlg(null)} onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }} />}
       {dlg === 'pay' && f && <PayDialog invoice={f} onClose={() => setDlg(null)} onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }} />}
-      {dlg === 'void' && f && <VoidDialog invoice={f} onClose={() => setDlg(null)} onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }} />}
     </>
   );
 }
@@ -359,54 +291,6 @@ function PayDialog({ invoice, onClose, onDone }: { invoice: PurchaseInvoice; onC
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Batal</button>
           <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || list.length === 0} aria-busy={busy}>{busy ? 'Menyimpan…' : 'Catat pembayaran'}</button>
-        </div>
-      </form>
-    </dialog>
-  );
-}
-
-function VoidDialog({ invoice, onClose, onDone }: { invoice: PurchaseInvoice; onClose: () => void; onDone: (msg: string) => void }) {
-  const data = useData();
-  const d = useDialog(onClose);
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    setBusy(true); setErr('');
-    try {
-      await data.cancelPurchaseInvoice(invoice.id, reason.trim() || undefined);
-      onDone(`Faktur ${invoice.number} berhasil dibatalkan. Stok yang diterima telah dikembalikan.`);
-    } catch (x) {
-      setErr(x instanceof Error ? x.message : 'Faktur gagal dibatalkan.');
-      setBusy(false);
-    }
-  }
-  return (
-    <dialog {...d.props} aria-labelledby="judul-batal">
-      <form onSubmit={submit} className="grid gap-12" noValidate>
-        <h2 id="judul-batal" className="cg-modal__title text-danger-strong">Batalkan Faktur · {invoice.number}</h2>
-        <p className="text-sm text-text-muted">
-          Pembatalan faktur akan mengembalikan seluruh stok barang yang telah diterima dan membatalkan pencatatan hutang ke pemasok.
-        </p>
-        <div className="cg-field">
-          <label className="cg-label" htmlFor="void-alasan">Alasan pembatalan</label>
-          <input
-            id="void-alasan"
-            className="cg-input"
-            maxLength={200}
-            placeholder="Contoh: Kesalahan nota, barang rusak dikembalikan total"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </div>
-        {err && <p role="alert" className="text-danger-strong">{err}</p>}
-        <div className="cg-modal__actions">
-          <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Batal</button>
-          <button type="submit" className="cg-btn cg-btn--danger" disabled={busy} aria-busy={busy}>
-            {busy ? 'Membatalkan…' : 'Ya, batalkan faktur'}
-          </button>
         </div>
       </form>
     </dialog>
