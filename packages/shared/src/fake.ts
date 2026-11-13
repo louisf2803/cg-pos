@@ -1,5 +1,6 @@
 import type { DataLayer } from './data';
 import { COFFEE_GROUND_BAHAN_BAKU } from './seed-bahan-baku';
+import { mergePaymentMethodConfigs, paymentMethodProblem, type PaymentMethodConfig, type PaymentChannelKind } from './payment-methods';
 import { ingredientCategoryName } from './ingredient-categories';
 import { createTableOps } from './table-ops';
 import { sanitizeReceiptTemplate } from './receipt-template';
@@ -202,6 +203,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const customerDepositBalances = new Map<string, { purchased: number; used: number; refunded: number; lastAt?: string }>();
   let customerDepositEntries: CustomerDepositEntry[] = [];
   let reconciliations: NonCashReconciliationRecord[] = [];
+  let paymentMethods: (PaymentMethod & { isActive?: boolean })[] = [];
+  let paymentConfigs: PaymentMethodConfig[] = [];
   type AuthCodeFake = { id: string; code: string; permission: AuthCodePermission; note?: string; issuedAt: string; expiresAt: string; usedAt?: string; revokedAt?: string };
   // contoh untuk demo/tes tampilan: dua kode aktif (void dan komplimen) supaya alur kasir bisa dicoba tanpa dashboard
   const authCodes: AuthCodeFake[] = [
@@ -542,6 +545,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         },
       ];
     }
+    paymentMethods = clone(METHODS);
+    paymentConfigs = mergePaymentMethodConfigs(paymentMethods, {}, []);
     Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10, orderTypes: ['dine_in', 'takeaway', 'delivery', 'service'] };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
@@ -2398,7 +2403,108 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       customRoles.splice(i, 1);
       for (const e of employees) if (e.roleId === roleId) delete e.roleId;
     },
-    async listPaymentMethods() { return clone(METHODS); },
+    async listPaymentMethods() { return clone(paymentMethods.filter((m) => m.isActive !== false)); },
+    async listPaymentMethodConfigs() {
+      return clone(paymentConfigs);
+    },
+    async savePaymentMethodConfig(input) {
+      const cleanName = input.name.trim();
+      const cleanCode = input.code.trim().toUpperCase();
+      const problem = paymentMethodProblem(
+        {
+          name: cleanName,
+          code: cleanCode,
+          channel: input.channel,
+          feePct: input.feePct,
+          feeFixed: input.feeFixed,
+          accountNumber: input.accountNumber,
+          settlementNote: input.settlementNote,
+        },
+        paymentConfigs,
+        input.id
+      );
+      if (problem) throw new DataError('invalid', problem);
+
+      const isGateway = input.code === 'QRIS' || input.channel === 'qris';
+      const active = isGateway ? false : input.isActive;
+      const existingIdx = input.id ? paymentConfigs.findIndex((c) => c.id === input.id) : paymentConfigs.findIndex((c) => c.code === cleanCode);
+
+      let saved: PaymentMethodConfig;
+      if (existingIdx >= 0) {
+        const prev = paymentConfigs[existingIdx]!;
+        saved = {
+          ...prev,
+          name: cleanName,
+          code: cleanCode,
+          channel: input.channel,
+          isActive: active,
+          feePct: Number(input.feePct.toFixed(2)),
+          feeFixed: Math.round(input.feeFixed),
+          accountName: input.accountName?.trim() || undefined,
+          accountNumber: input.accountNumber?.trim() || undefined,
+          settlementNote: input.settlementNote?.trim() || undefined,
+        };
+        paymentConfigs[existingIdx] = saved;
+
+        const pm = paymentMethods.find((m) => m.id === prev.id || m.code === prev.code);
+        if (pm) {
+          pm.name = cleanName;
+          pm.isActive = active;
+        }
+      } else {
+        const newMethodId = input.id || `pm-${newId()}`;
+        saved = {
+          id: newMethodId,
+          code: cleanCode,
+          name: cleanName,
+          channel: input.channel,
+          baseKind: 'noncash',
+          isActive: active,
+          feePct: Number(input.feePct.toFixed(2)),
+          feeFixed: Math.round(input.feeFixed),
+          accountName: input.accountName?.trim() || undefined,
+          accountNumber: input.accountNumber?.trim() || undefined,
+          settlementNote: input.settlementNote?.trim() || undefined,
+          requiresOnline: false,
+          isBuiltIn: false,
+        };
+        paymentConfigs.push(saved);
+        paymentMethods.push({
+          id: newMethodId,
+          code: cleanCode,
+          name: cleanName,
+          kind: 'noncash',
+          requiresOnline: false,
+          isActive: active,
+        });
+      }
+      return clone(saved);
+    },
+    async deletePaymentMethodConfig(id: string) {
+      const idx = paymentConfigs.findIndex((c) => c.id === id);
+      if (idx < 0) throw new DataError('not_found', 'Metode pembayaran tidak ditemukan');
+      if (paymentConfigs[idx]!.isBuiltIn) {
+        throw new DataError('forbidden', 'Metode pembayaran bawaan tidak dapat dihapus');
+      }
+      const [removed] = paymentConfigs.splice(idx, 1);
+      const mIdx = paymentMethods.findIndex((m) => m.id === id || (removed && m.code === removed.code));
+      if (mIdx >= 0) {
+        paymentMethods.splice(mIdx, 1);
+      }
+    },
+    async togglePaymentMethodActive(id: string, isActive: boolean) {
+      const cfg = paymentConfigs.find((c) => c.id === id);
+      if (!cfg) throw new DataError('not_found', 'Metode pembayaran tidak ditemukan');
+      if (cfg.baseKind === 'gateway') {
+        cfg.isActive = false;
+        return;
+      }
+      cfg.isActive = isActive;
+      const pm = paymentMethods.find((m) => m.id === id || m.code === cfg.code);
+      if (pm) {
+        pm.isActive = isActive;
+      }
+    },
 
     async currentShift() { return clone(shifts.find((s) => s.status === 'open') ?? null); },
     async openShift({ id, cashierId, openingCash }) {

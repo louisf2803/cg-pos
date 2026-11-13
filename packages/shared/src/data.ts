@@ -35,6 +35,7 @@ import type { StockLocation, StockTransfer, StockTransferInput } from './stock-t
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
 import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, TieredPriceRule } from './tiered-pricing';
 import type { PriceSchedule } from './price-schedule';
+import type { PaymentMethodConfig, PaymentChannelKind } from './payment-methods';
 import type {
   Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceOpen, AttendanceRecord, PriceChange,
@@ -546,5 +547,26 @@ export interface DataLayer {
   listLoyaltyProductRewards(activeOnly?: boolean): Promise<LoyaltyProductReward[]>;
   saveLoyaltyProductReward(reward: { id?: string; productId: string; pointsCost: number; isActive?: boolean }): Promise<LoyaltyProductReward>;
   deleteLoyaltyProductReward(id: string): Promise<void>;
+
+  // ---------- metode pembayaran & pengaturan MDR ----------
+  /** Ambil seluruh konfigurasi metode pembayaran (bawaan + kustom beserta penyesuaian nama/MDR/status/rekening) yang tersimpan di server. */
+  listPaymentMethodConfigs(): Promise<PaymentMethodConfig[]>;
+  /** Simpan atau perbarui konfigurasi metode pembayaran (bawaan maupun kustom). */
+  savePaymentMethodConfig(input: {
+    id?: string;
+    code: string;
+    name: string;
+    channel: PaymentChannelKind;
+    isActive: boolean;
+    feePct: number;
+    feeFixed: number;
+    accountName?: string;
+    accountNumber?: string;
+    settlementNote?: string;
+  }): Promise<PaymentMethodConfig>;
+  /** Hapus metode pembayaran kustom (metode bawaan ditolak). */
+  deletePaymentMethodConfig(id: string): Promise<void>;
+  /** Toggle cepat aktif/nonaktif metode pembayaran. */
+  togglePaymentMethodActive(id: string, isActive: boolean): Promise<void>;
 }
 

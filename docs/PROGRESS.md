@@ -1112,3 +1112,10 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
 - Logika & DataLayer: `effectiveProductTaxRate`, `computeOrder` & `computeInclusive` mendukung cakupan `per_order` vs `per_product`, jenis order aktif (`orderTypes`), serta tarif pajak produk bebas (0%) / tarif khusus.
 - UI: `/pengaturan/pajak` mendukung pilihan cakupan dan multi-select jenis order kena pajak (banner pratinjau dihapus); `product-form.tsx` mendukung pilihan aturan pajak produk (ikut outlet / bebas 0% / tarif khusus).
 - Verifikasi: `pnpm -r typecheck` lulus, 7 tes `tax.test.ts` & 19 tes `calc.test.ts` lulus, `lint-tailwind` bersih.
+- **A145 (`ag/a145-metode-bayar-server`)**:
+  - **Migrasi & SQL test**: `0109_payment_method_settings.sql` (tabel `pos.payment_method_settings`, RPC `pos.save_payment_method_config` yang menyinkronkan nama & status ke `pos.payment_methods`, RPC `pos.delete_payment_method_config` dengan penjagaan metode bawaan tidak boleh dihapus, RLS, touch/updated_at triggers), tes SQL `25_payment_method_settings.sql`.
+  - **`DataLayer` (`packages/shared/src/{data,fake,supabase}.ts`)**: 4 metode konfigurasi metode pembayaran (`listPaymentMethodConfigs`, `savePaymentMethodConfig`, `deletePaymentMethodConfig`, `togglePaymentMethodActive`), diuji di `payment-methods.test.ts`. Gateway QRIS/DOKU tetap dijaga nonaktif ("Payment belum tersambung") sesuai aturan repo.
+  - **Dashboard**: menyambungkan `/pengaturan/metode-bayar` ke DataLayer server, menghapus dependensi penyimpanan lokal `a59-preview`, dan menghapus banner pratinjau.
+  - Verifikasi: `pnpm -r typecheck`, vitest `payment-methods.test.ts` (4 lulus), POS vitest (7 lulus), `lint-tailwind.sh origin/main` bersih.
+
+
