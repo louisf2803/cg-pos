@@ -157,5 +157,65 @@ describe('appointment helpers', () => {
     expect(nov15?.appointments.length).toBe(2);
     expect(nov15?.activeCount).toBe(1);
   });
+
+  it('handles appointment CRUD and conflict rejection via DataLayer', async () => {
+    const { createFakeData } = await import('../src/fake');
+    const data = createFakeData({ seed: false });
+
+    // Initial empty
+    const initial = await data.listAppointments();
+    expect(initial).toEqual([]);
+
+    // Save appointment 1
+    const apt1 = await data.saveAppointment({
+      kind: 'table',
+      targetName: 'Meja 5',
+      customerName: 'Doni Pratama',
+      customerPhone: '08123456789',
+      date: '2026-11-20',
+      startTime: '14:00',
+      endTime: '16:00',
+      status: 'confirmed',
+      note: 'Ulang tahun',
+    });
+    expect(apt1.id).toBeDefined();
+    expect(apt1.targetName).toBe('Meja 5');
+
+    // Overlapping appointment should be rejected
+    await expect(
+      data.saveAppointment({
+        kind: 'table',
+        targetName: 'Meja 5',
+        customerName: 'Siti Nurhaliza',
+        customerPhone: '08987654321',
+        date: '2026-11-20',
+        startTime: '15:00',
+        endTime: '17:00',
+      }),
+    ).rejects.toThrow(/bentrok/i);
+
+    // Contiguous appointment (16:00 - 18:00) should be accepted
+    const apt2 = await data.saveAppointment({
+      kind: 'table',
+      targetName: 'Meja 5',
+      customerName: 'Bambang',
+      customerPhone: '08111222333',
+      date: '2026-11-20',
+      startTime: '16:00',
+      endTime: '18:00',
+      status: 'confirmed',
+    });
+    expect(apt2.id).toBeDefined();
+
+    // List with date range filter
+    const listed = await data.listAppointments({ from: '2026-11-20', to: '2026-11-20' });
+    expect(listed.length).toBe(2);
+
+    // Delete appointment
+    await data.deleteAppointment(apt1.id);
+    const afterDelete = await data.listAppointments();
+    expect(afterDelete.length).toBe(1);
+    expect(afterDelete[0]?.id).toBe(apt2.id);
+  });
 });
 
