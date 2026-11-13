@@ -33,7 +33,7 @@ Denah meja kustom dengan drag posisi,sebagian,pratinjau localStorage
 "Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo",sebagian,pisah item ada; grosir/promo belum dihitung ulang (A116)
 "Pengaturan tampilan struk (logo, teks)",sebagian,templat ada; logo/QR/media sosial belum
 Produk layanan (jasa),sebagian,jenis jasa ada; durasi/staf dan mode jasa belum
-"Outlet: informasi bisnis, rekening, grup outlet",sebagian,"rekening, grup outlet, logo belum"
+"Outlet: informasi bisnis, rekening, grup outlet",ada,"A123: email, NPWP, jenis usaha, grup, logo (URL), rekening; migrasi 0123 belum di produksi"
 "Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter",ada,A125: pemilih lokasi/gudang + impor xlsx/csv lewat postStock (nama berkas templat masih pakai tanggal UTC; minor)
 "Pemesanan stok (PO) dengan referensi permintaan atau tanpa referensi, diskon, pajak, biaya lain, uang muka",ada,A126: referensi permintaan stok dan uang muka; migrasi 0126 di produksi
 "Faktur pembelian: termin, penerimaan sebagian, lampiran",sebagian,lampiran dan pembatalan belum
@@ -45,13 +45,13 @@ Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsilia
 "Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas",sebagian,tutup kasir otomatis dan foto bukti kas belum
 "Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",sebagian,PIN pindah/reset meja belum
 "Karyawan, peran, dan hak akses",sebagian,A86 ada; penegakan izin per fitur di layar/RLS belum
-"Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",sebagian,sebagian pengaturan masih di peramban
+"Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",ada,"A145: tersimpan di server (nama, kanal, MDR persen dan tetap, rekening); migrasi 0109 belum di produksi"
 Harga grosir bertingkat (sampai 5 tingkat),ada,A139 + migrasi 0097/0098 (diterapkan 13 Nov)
 Penjadwalan harga,ada,A139 + migrasi 0097/0098
 Grup pelanggan dan harga spesial,ada,A139 + migrasi 0097/0098
 Tukar poin loyalty (potongan atau produk gratis),sebagian,potongan ada; produk gratis belum
 Reservasi dan appointment dengan kalender,ada,"A143: tersimpan di server (migrasi 0105 di produksi), bentrok jadwal dijaga server"
-"Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order",sebagian,A100: pajak per produk dan per jenis order menunggu skema
+"Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order",ada,"A141: tarif per produk dan per jenis order tersimpan di server, kasir menghitung per baris; migrasi 0101 belum di produksi"
 Denah meja dari gambar (grid meja) di dashboard,belum,A114
 Faktur penjualan dengan termin dan status bayar,ada,"A129: migrasi 0129 di produksi, jurnal piutang/penjualan/pajak, uang muka, pembayaran bertahap"
 "Penawaran, pesanan penjualan, pengiriman, penerimaan penjualan (alur B2B)",ada,A130: migrasi 0130 di produksi; penawaran > pesanan > pengiriman > penerimaan > faktur

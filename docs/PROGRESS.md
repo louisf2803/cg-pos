@@ -1124,3 +1124,9 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
   - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test outlet-info.test.ts` (2 lulus), `lint-tailwind.sh origin/main` bersih.
 
 
+
+## 14 Nov 2026 — Claude: A142, A145, A123 digabung ke main
+- A142 (izin granular): QR karyawan hanya lewat RPC `employee_set_qr` (klien tak punya hak kolom), pemicu penjaga hanya memeriksa tulisan langsung klien, tes `19_granular_role_enforcement` membersihkan datanya.
+- A145 (metode bayar di server): migrasi 0109 memakai `pos.touch_updated_at`, tes jadi `19_payment_method_settings` dengan pengguna sendiri dan pemulihan data.
+- A123 (info outlet): konflik diselesaikan, tes pgTAP diganti tes biasa `19_outlet_business_bank_group`.
+- Semua ini BELUM diterapkan ke produksi: migrasi 0099, 0101, 0103, 0107, 0109, 0123, 0127 menunggu persetujuan Louis.
