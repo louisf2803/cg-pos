@@ -22,6 +22,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { downloadCsvWithHistory } from '@/lib/export';
 import { ErrorBox, PageHeader } from '@/components/page';
+import { useShell } from '@/components/shell-context';
 
 type Dlg = { kind: 'edit'; item?: Customer } | { kind: 'detail'; item: Customer } | { kind: 'delete'; item: Customer };
 const GENDER: Record<string, string> = { female: 'Perempuan', male: 'Laki-laki', other: 'Lainnya' };

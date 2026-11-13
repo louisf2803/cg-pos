@@ -11,7 +11,7 @@ declare
   mgr uuid := gen_random_uuid(); cash uuid := gen_random_uuid();
   emp_mgr uuid; emp_cash uuid;
   role_limited uuid; role_can_void uuid;
-  n int; ok boolean;
+  n int; ok boolean; locked_until timestamptz;
   stat record;
 begin
   insert into auth.users(id, email) values (mgr, 'mgr-a142@x'), (cash, 'cash-a142@x');
@@ -26,14 +26,28 @@ begin
   values (o1, cash, 'Kasir Budi', 'cashier', 'QR-CSH-02', 5, now() + interval '5 minutes')
   returning id into emp_cash;
 
+  -- fungsi pengelola dipanggil sebagai manajer (pos.can_manage membutuhkan pengguna masuk)
+  perform set_config('request.jwt.claim.sub', mgr::text, true);
+  set local role authenticated;
   -- 1. Uji unlock_employee_pin
   perform pos.unlock_employee_pin(emp_cash);
-  select pin_failed_count, pin_locked_until into n, stat.locked_until from employees where id = emp_cash;
-  perform pg_temp.okr(n = 0 and stat.locked_until is null, 'unlock_employee_pin mereset kegagalan dan kunci');
+  reset role;
+  select pin_failed_count, pin_locked_until into n, locked_until from employees where id = emp_cash;
+  set local role authenticated;
+  perform pg_temp.okr(n = 0 and locked_until is null, 'unlock_employee_pin mereset kegagalan dan kunci');
 
   -- 2. Uji list_managed_employees_status
   select * into stat from pos.list_managed_employees_status(o1) where id = emp_mgr;
-  perform pg_temp.okr(stat.qr_id = 'QR-MGR-01', 'qr_id terbaca lewat fungsi status');
+  perform pg_temp.okr(stat.qr_id = 'QR-MGR-01', 'qr_id terbaca pengelola lewat fungsi status');
+  -- klien tidak boleh membaca atau menulis kolom qr_code langsung; pengelola mengubahnya lewat employee_set_qr
+  begin perform qr_code from pos.employees where id = emp_mgr; ok := false; exception when insufficient_privilege then ok := true; end;
+  perform pg_temp.okr(ok, 'klien tidak boleh membaca employees.qr_code');
+  begin update pos.employees set qr_code = 'X' where id = emp_mgr; ok := false; exception when insufficient_privilege then ok := true; end;
+  perform pg_temp.okr(ok, 'klien tidak boleh menulis employees.qr_code');
+  perform pos.employee_set_qr(emp_cash, '  QR-BARU-03 ');
+  select * into stat from pos.list_managed_employees_status(o1) where id = emp_cash;
+  perform pg_temp.okr(stat.qr_id = 'QR-BARU-03', 'employee_set_qr menyimpan QR yang dirapikan');
+  reset role;
 
   -- 3. Uji can_employee_authorize_void & can_employee_authorize_refund
   perform pg_temp.okr(pos.can_employee_authorize_void(emp_mgr) = true, 'manager bawaan boleh authorize void');
@@ -75,4 +89,10 @@ begin
   perform pg_temp.okr(ok, 'user tanpa can_create ditolak trigger guard produk');
 
   reset role;
+
+  -- bersihkan data uji agar tes lain (mis. daftar peran) tidak terpengaruh
+  delete from role_dashboard_feature_perms where role_id in (role_limited, role_can_void);
+  update employees set role_id = null where id in (emp_mgr, emp_cash);
+  delete from roles where id in (role_limited, role_can_void);
+  delete from employees where id in (emp_mgr, emp_cash);
 end $$;

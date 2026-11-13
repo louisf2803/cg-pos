@@ -2013,7 +2013,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async listManagedEmployees() {
       const { orgId, ctx } = await resolve();
-      const rows = must(await db().from('employees').select('id,name,role,is_active,role_id,roles(name),qr_code,employee_outlets!inner(outlet_id)')
+      const rows = must(await db().from('employees').select('id,name,role,is_active,role_id,roles(name),employee_outlets!inner(outlet_id)')
         .eq('employee_outlets.outlet_id', ctx.outletId).is('deleted_at', null)
         .in('role', ['owner', 'manager', 'cashier']).order('name')) as Row[] | null;
       const statusMap = new Map<string, { has_pin: boolean; is_locked: boolean; locked_until: string | null; qr_id: string | null }>();
@@ -2045,7 +2045,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           hasPin: st ? st.has_pin : false,
           isLocked: st ? st.is_locked : false,
           lockedUntil: st?.locked_until ?? null,
-          qrId: st?.qr_id ?? (e.qr_code ? String(e.qr_code) : null),
+          qrId: st?.qr_id ?? null,
         };
       });
     },
@@ -2074,24 +2074,29 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         role: r.role,
         isActive: !!r.is_active,
         ...(r.role_id ? { roleId: r.role_id as string } : {}),
-        qrId: r.qr_code ? String(r.qr_code) : null,
+        qrId: null,
       });
+      const setQr = async (employeeId: string, qr: string | null | undefined) => {
+        if (qr === undefined) return;
+        const { error } = await db().rpc('employee_set_qr', { p_employee: employeeId, p_qr: qr });
+        if (error) throw mapDbError(error);
+      };
       if (input.id) {
         const patch: Record<string, unknown> = { name, role: input.role };
         if (input.isActive !== undefined) patch.is_active = input.isActive;
         if (input.roleId !== undefined) patch.role_id = input.roleId;
-        if (input.qrId !== undefined) patch.qr_code = input.qrId;
-        const row = must(await db().from('employees').update(patch).eq('id', input.id).neq('role', 'owner').is('deleted_at', null).select('id,name,role,is_active,role_id,qr_code').maybeSingle()) as Row | null;
+        const row = must(await db().from('employees').update(patch).eq('id', input.id).neq('role', 'owner').is('deleted_at', null).select('id,name,role,is_active,role_id').maybeSingle()) as Row | null;
         if (!row) throw new DataError('not_found', 'Karyawan tidak ditemukan, atau datanya hanya bisa diubah pemilik');
-        return out(row);
+        await setQr(input.id, input.qrId);
+        return { ...out(row), qrId: input.qrId ?? null };
       }
       const id = newId();
       const insertData: Record<string, unknown> = { id, org_id: orgId, name, role: input.role, is_active: input.isActive ?? true };
       if (input.roleId) insertData.role_id = input.roleId;
-      if (input.qrId) insertData.qr_code = input.qrId;
-      const row = must(await db().from('employees').insert(insertData).select('id,name,role,is_active,role_id,qr_code').single()) as Row;
+      const row = must(await db().from('employees').insert(insertData).select('id,name,role,is_active,role_id').single()) as Row;
+      if (input.qrId) await setQr(id, input.qrId);
       must(await db().from('employee_outlets').insert({ employee_id: id, outlet_id: ctx.outletId, org_id: orgId }));
-      return out(row);
+      return { ...out(row), qrId: input.qrId ?? null };
     },
     async verifyPin(employeeId, pin) {
       const { r } = await requireDevice();

@@ -10,8 +10,20 @@ set local search_path = pos, extensions, public;
 -- 1. Kolom dan izin karyawan: qr_code boleh diakses klien aman; status PIN & fungsi buka kunci
 -- =====================================================================================
 
-grant select (qr_code) on pos.employees to authenticated;
-grant update (qr_code) on pos.employees to authenticated;
+-- qr_code adalah kredensial masuk (QR ID): klien TIDAK diberi hak baca atau tulis kolomnya. Pengelola membaca lewat list_managed_employees_status
+-- dan mengubah lewat employee_set_qr (keduanya security definer dan memeriksa peran).
+create or replace function pos.employee_set_qr(p_employee uuid, p_qr text) returns void
+language plpgsql security definer set search_path = pos, extensions, pg_temp as $$
+declare v_org uuid; v_qr text := nullif(btrim(coalesce(p_qr, '')), '');
+begin
+  select org_id into v_org from employees where id = p_employee and deleted_at is null;
+  if v_org is null then raise exception 'employee not found'; end if;
+  if not pos.can_manage(v_org) then raise exception 'no access'; end if;
+  if v_qr is not null and char_length(v_qr) > 64 then raise exception 'qr too long'; end if;
+  update employees set qr_code = v_qr where id = p_employee;
+end $$;
+revoke all on function pos.employee_set_qr(uuid, text) from public, anon;
+grant execute on function pos.employee_set_qr(uuid, text) to authenticated, service_role;
 
 -- Fungsi buka kunci PIN kasir yang terkunci akibat salah PIN beruntun (5x)
 create or replace function pos.unlock_employee_pin(p_employee uuid) returns void
@@ -24,7 +36,7 @@ begin
   update employees set pin_failed_count = 0, pin_locked_until = null where id = p_employee;
 end $$;
 
-revoke all on function pos.unlock_employee_pin(uuid) from public;
+revoke all on function pos.unlock_employee_pin(uuid) from public, anon;
 grant execute on function pos.unlock_employee_pin(uuid) to authenticated, service_role;
 
 -- Pembacaan status PIN & kunci tanpa membocorkan hash rahasia ke klien
@@ -46,7 +58,7 @@ language sql stable security definer set search_path = pos, extensions, pg_temp 
   where e.org_id = p_org and e.deleted_at is null and (pos.can_manage(p_org) or auth.uid() is null);
 $$;
 
-revoke all on function pos.list_managed_employees_status(uuid) from public;
+revoke all on function pos.list_managed_employees_status(uuid) from public, anon;
 grant execute on function pos.list_managed_employees_status(uuid) to authenticated, service_role;
 
 -- =====================================================================================
@@ -141,14 +153,17 @@ begin
   return (v_emp.role in ('owner', 'manager'));
 end $$;
 
-revoke all on function pos.can_user_perform(uuid, text, text, text) from public;
+revoke all on function pos.can_user_perform(uuid, text, text, text) from public, anon;
 grant execute on function pos.can_user_perform(uuid, text, text, text) to authenticated, service_role;
 
 -- Guard triggers untuk tabel utama yang ditulis klien
 create or replace function pos.guard_granular_catalog() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = pos, extensions, pg_temp as $$
 declare v_action text;
 begin
+  -- Hanya tulisan langsung dari klien (peran authenticated) yang diperiksa. Fungsi security definer yang sah (mis. custom_item_product) berjalan sebagai
+  -- pemilik fungsi dan melakukan pemeriksaan perannya sendiri.
+  if current_user <> 'authenticated' then return coalesce(new, old); end if;
   if tg_op = 'INSERT' then v_action := 'create';
   elsif tg_op = 'UPDATE' then v_action := 'edit';
   elsif tg_op = 'DELETE' then v_action := 'delete';
@@ -165,9 +180,10 @@ create trigger trg_guard_products before insert or update or delete on pos.produ
 for each row execute function pos.guard_granular_catalog();
 
 create or replace function pos.guard_granular_customers() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = pos, extensions, pg_temp as $$
 declare v_action text;
 begin
+  if current_user <> 'authenticated' then return coalesce(new, old); end if;
   if tg_op = 'INSERT' then v_action := 'create';
   elsif tg_op = 'UPDATE' then v_action := 'edit';
   elsif tg_op = 'DELETE' then v_action := 'delete';
@@ -184,9 +200,10 @@ create trigger trg_guard_customers before insert or update or delete on pos.cust
 for each row execute function pos.guard_granular_customers();
 
 create or replace function pos.guard_granular_price_schedules() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = pos, extensions, pg_temp as $$
 declare v_action text;
 begin
+  if current_user <> 'authenticated' then return coalesce(new, old); end if;
   if tg_op = 'INSERT' then v_action := 'create';
   elsif tg_op = 'UPDATE' then v_action := 'edit';
   elsif tg_op = 'DELETE' then v_action := 'delete';
