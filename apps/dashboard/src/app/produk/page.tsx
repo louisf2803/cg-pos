@@ -5,10 +5,12 @@ import { ArrowUpDown, ChevronDown, ChevronRight, Plus, Printer, Search } from 'l
 import { formatRp } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
+import { useShell } from '@/components/shell-context';
 import { ErrorBox, PageHeader } from '@/components/page';
 
 export default function DaftarProduk() {
   const data = useData();
+  const { canDo } = useShell();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [kindFilter, setKindFilter] = useState<'' | 'goods' | 'service'>('');
@@ -48,9 +50,11 @@ export default function DaftarProduk() {
             <Link href="/produk/impor" className="cg-btn cg-btn--secondary">
               <ArrowUpDown className="cg-icon" aria-hidden /> Impor / Ekspor
             </Link>
-            <Link href="/produk/baru" className="cg-btn cg-btn--primary">
-              <Plus className="cg-icon" aria-hidden /> Tambah produk
-            </Link>
+            {canDo('buat') ? (
+              <Link href="/produk/baru" className="cg-btn cg-btn--primary">
+                <Plus className="cg-icon" aria-hidden /> Tambah produk
+              </Link>
+            ) : null}
           </div>
         }
       />
@@ -106,7 +110,7 @@ export default function DaftarProduk() {
       {state.status === 'ready' && (items.length === 0 ? (
         <div className="cg-empty">
           <p><strong>{q ? `Tidak ada produk untuk “${q}”.` : kindFilter === 'service' ? 'Belum ada produk jasa.' : kindFilter === 'goods' ? 'Belum ada produk barang.' : 'Belum ada produk.'}</strong></p>
-          {!q && <Link href="/produk/baru" className="cg-btn cg-btn--primary">Tambah produk pertama</Link>}
+          {!q && canDo('buat') && <Link href="/produk/baru" className="cg-btn cg-btn--primary">Tambah produk pertama</Link>}
         </div>
       ) : (
         <div className="cg-data-wrap">
@@ -129,8 +133,12 @@ export default function DaftarProduk() {
                       <td className="text-text-muted whitespace-nowrap">{grouped ? '—' : p.sku ?? '—'}</td>
                       <td className="cg-num whitespace-nowrap">{grouped ? `mulai ${formatRp(p.price)}` : formatRp(p.price)}</td>
                       <td className="whitespace-nowrap">
-                        <Link className="cg-btn cg-btn--ghost cg-btn--sm" href={`/produk/ubah/?id=${p.id}`} aria-label={`Ubah ${p.name}`}>Ubah</Link>
-                        <button className="cg-btn cg-btn--ghost cg-btn--sm" disabled={busy === p.id} onClick={() => toggle(p.id, !p.isActive)}>{p.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                        {canDo('ubah') && (
+                          <Link className="cg-btn cg-btn--ghost cg-btn--sm" href={`/produk/ubah/?id=${p.id}`} aria-label={`Ubah ${p.name}`}>Ubah</Link>
+                        )}
+                        {canDo('ubah') && (
+                          <button className="cg-btn cg-btn--ghost cg-btn--sm" disabled={busy === p.id} onClick={() => toggle(p.id, !p.isActive)}>{p.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                        )}
                       </td>
                     </tr>
                     {grouped && expanded && p.variants.map((v) => (

@@ -29,6 +29,7 @@ const fmtDate = (iso: string) => new Intl.DateTimeFormat('id-ID', { day: '2-digi
 
 export default function PelangganPage() {
   const data = useData();
+  const { canDo } = useShell();
   const [q, setQ] = useState('');
   const [term, setTerm] = useState('');
   useEffect(() => { const t = setTimeout(() => setTerm(q), 250); return () => clearTimeout(t); }, [q]);
@@ -106,7 +107,7 @@ export default function PelangganPage() {
       {list.status === 'ready' && (list.data.length === 0 ? (
         <div className="cg-empty">
           <p><strong>{term ? 'Tidak ada pelanggan yang cocok.' : 'Belum ada pelanggan.'}</strong></p>
-          {!term && <button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}>Tambah pelanggan pertama</button>}
+          {!term && canDo('buat') && <button className="cg-btn cg-btn--primary" onClick={() => setDlg({ kind: 'edit' })}>Tambah pelanggan pertama</button>}
         </div>
       ) : (
         <div className="cg-data-wrap">
@@ -133,8 +134,12 @@ export default function PelangganPage() {
                   <td className="text-right cg-num">{c.pointsBalance}</td>
                   <td className="text-right cg-num font-medium">{formatRp(depositMap.get(c.id) ?? 0)}</td>
                   <td className="text-right whitespace-nowrap">
-                    <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'edit', item: c })} aria-label={`Ubah ${c.name}`}><Pencil className="cg-icon cg-icon--sm" aria-hidden /></button>
-                    <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'delete', item: c })} aria-label={`Hapus ${c.name}`}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    {canDo('ubah') && (
+                      <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'edit', item: c })} aria-label={`Ubah ${c.name}`}><Pencil className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    )}
+                    {canDo('hapus') && (
+                      <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'delete', item: c })} aria-label={`Hapus ${c.name}`}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
+                    )}
                   </td>
                 </tr>
               ))}
