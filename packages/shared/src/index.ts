@@ -95,4 +95,5 @@ export * from './deposit-report';
 export * from './customer-export';
 export * from './cashier-report';
 export * from './table-group';
+export * from './stock-import';
 

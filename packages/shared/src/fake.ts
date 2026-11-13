@@ -279,11 +279,16 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     costs.set(id, r.avgCost);
     moves.unshift({ id: newId(), productId: id, kind, qtyDelta: delta, unitCost: r.unitCost, totalCost: r.totalCost, qtyAfter: r.qty, avgCostAfter: r.avgCost, reason: o.reason, refType: o.refType, occurredAt: now().toISOString() });
   }
-  function stockItem(id: string): StockItem {
+  function stockItem(id: string, locId?: string): StockItem {
     const b = stockBal(id)!;
+    const isWh = locId === LOC_GUDANG;
+    const q = isWh ? (whQty.get(id) ?? 0) : b.qty;
+    const locationId = locId ?? LOC_OUTLET;
+    const locationName = locNames[locationId] ?? 'Outlet utama';
     return makeStockItem({
-      productId: id, name: b.name, kind: b.kind, unit: b.unit, qty: b.qty, avgCost: costs.get(id) ?? 0, minQty: mins.get(id),
+      productId: id, name: b.name, kind: b.kind, unit: b.unit, qty: q, avgCost: costs.get(id) ?? 0, minQty: mins.get(id),
       ...(b.categoryId ? { categoryId: b.categoryId, categoryName: ingredientCategoryName(b.categoryId) } : {}),
+      locationId, locationName,
     });
   }
   function opnameView(o: StockOpname & { values: Map<string, number> }): StockOpname {
@@ -431,6 +436,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (p) p.stock = 0;                                  // saldo dibangun dari gerakan 'Stok awal', bukan ditambah dua kali
       costs.set(id, 0); recordStock(id, qty, 'opening', { unitCost: cost });
     }
+    whQty.set('ing-kopi', 25000); // 25 kg di gudang
+    whQty.set('ing-susu', 50000); // 50 L di gudang
+    whQty.set('ing-gula', 10000); // 10 L di gudang
+    whQty.set('ing-gelas', 2000); // 2000 pcs di gudang
+    whQty.set('p8', 20);          // 20 pcs di gudang
   }
 
   function recompute(draft: OrderDraft, step: number) {
@@ -1014,7 +1024,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
 
     async listStock(q) {
       const ids = [...ingredients.map((i) => i.id), ...products.filter((p) => stockBal(p.id)).map((p) => p.id)];
-      return ids.map(stockItem).filter((i) => (!q?.kind || i.kind === q.kind) && stockFilterMatches(i, q?.status) && stockSearchMatches(i, q?.search))
+      const locId = q?.locationId;
+      return ids
+        .map((id) => stockItem(id, locId))
+        .filter((i) => (!q?.kind || i.kind === q.kind) && stockFilterMatches(i, q?.status) && stockSearchMatches(i, q?.search))
         .sort((a, b) => a.name.localeCompare(b.name, 'id'));
     },
     async postStock(input: StockPostInput) {
@@ -1023,12 +1036,19 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const bal = stockBal(input.productId);
       if (!bal) throw new DataError('not_found', 'Barang tidak ditemukan atau stoknya tidak dilacak.');
       if (!stockKeys.has(input.id)) {
-        const negProblem = stockPostProblem(input, { allowNegative: CTX.settings.allowNegativeStock, currentQty: bal.qty });
+        const isWh = input.locationId === LOC_GUDANG;
+        const currentQty = isWh ? (whQty.get(input.productId) ?? 0) : bal.qty;
+        const negProblem = stockPostProblem(input, { allowNegative: CTX.settings.allowNegativeStock, currentQty });
         if (negProblem) throw new DataError('invalid', negProblem);
         stockKeys.add(input.id);
-        recordStock(input.productId, input.kind === 'adjust_in' ? input.qty : -input.qty, input.kind, { unitCost: input.kind === 'adjust_in' ? input.unitCost : undefined, reason: input.reason?.trim() || undefined, refType: 'manual' });
+        if (isWh) {
+          const delta = input.kind === 'adjust_in' ? input.qty : -input.qty;
+          whQty.set(input.productId, currentQty + delta);
+        } else {
+          recordStock(input.productId, input.kind === 'adjust_in' ? input.qty : -input.qty, input.kind, { unitCost: input.kind === 'adjust_in' ? input.unitCost : undefined, reason: input.reason?.trim() || undefined, refType: 'manual' });
+        }
       }
-      return stockItem(input.productId);
+      return stockItem(input.productId, input.locationId);
     },
     async listStockMovesBetween(range, kinds) {
       return clone(moves.filter((m) => m.occurredAt >= range.from && m.occurredAt < range.to && (!kinds?.length || kinds.includes(m.kind)))

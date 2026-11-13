@@ -1247,7 +1247,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     // ---------- stok ----------
     async listStock(q) {
       const { ctx } = await resolve();
-      const loc = await stockLocation(ctx.outletId);
+      const loc = q?.locationId ?? await stockLocation(ctx.outletId);
       const [prods, units, bals] = await Promise.all([
         fetchAll<Row>((f, t) => db().from('products').select('id,name,kind,base_unit_id,stock_alert_min').in('kind', ['goods', 'ingredient']).eq('track_stock', true).is('deleted_at', null).order('id').range(f, t)),
         fetchAll<Row>((f, t) => db().from('units').select('id,name').is('deleted_at', null).order('id').range(f, t)),
@@ -1263,7 +1263,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const problem = stockPostProblem(input);
       if (problem) throw new DataError('invalid', problem);
       const { ctx } = await resolve();
-      const loc = await stockLocation(ctx.outletId);
+      const loc = input.locationId ?? await stockLocation(ctx.outletId);
       const { error } = await db().rpc('stock_post', {
         p_location: loc, p_product: input.productId, p_kind: input.kind, p_qty: input.qty,
         p_unit_cost: input.kind === 'adjust_in' ? input.unitCost ?? null : null, p_reason: input.reason?.trim() || null, p_key: input.id,

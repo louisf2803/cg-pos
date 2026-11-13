@@ -129,7 +129,7 @@ export interface DataLayer {
   adjustPoints(customerId: string, delta: number, note?: string): Promise<number>;
 
   /** Stok di outlet ini: bahan baku dan barang yang stoknya dilacak. Urut nama. */
-  listStock(q?: { search?: string; kind?: StockItem['kind']; status?: StockFilter }): Promise<StockItem[]>;
+  listStock(q?: { search?: string; kind?: StockItem['kind']; status?: StockFilter; locationId?: string }): Promise<StockItem[]>;
   /** Catat stok masuk, keluar, atau terbuang (pemilik dan manajer). Idempoten menurut `id`. Stok boleh minus. Mengembalikan keadaan terbaru. */
   postStock(input: StockPostInput): Promise<StockItem>;
   /** Kartu stok: gerakan satu item, terbaru dulu. */
