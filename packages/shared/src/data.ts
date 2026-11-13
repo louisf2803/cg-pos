@@ -3,6 +3,7 @@ import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-rep
 import type { SalesInvoice, SalesInvoiceInput, SalesInvoicePayInput } from './sales-invoice';
 import type { OutletComparisonRow } from './outlet-compare';
 import type { GatewayTransaction } from './qris-report';
+import type { PaymentMethodAccount } from './payment-accounts';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -445,5 +446,11 @@ export interface DataLayer {
   // ---------- laporan QRIS/gateway (A133) ----------
   /** Transaksi gateway yang dibuat pada rentang (from/to ISO UTC), terbaru dulu, paling banyak 1000. Hanya membaca; pengelola saja. */
   listGatewayTransactions(range: SalesRange): Promise<GatewayTransaction[]>;
+
+  // ---------- akun perantara metode bayar (A134) ----------
+  /** Tiap metode bayar beserta akun yang di-debit saat pembayaran diterima. */
+  listPaymentMethodAccounts(): Promise<PaymentMethodAccount[]>;
+  /** Ganti akun metode tunai/non-tunai/gateway (pemilik dan admin). Berlaku untuk pembayaran baru. */
+  setPaymentMethodAccount(methodId: string, accountId: string): Promise<void>;
 }
 

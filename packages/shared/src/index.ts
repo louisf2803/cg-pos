@@ -99,4 +99,5 @@ export * from './stock-import';
 export * from './sales-invoice';
 export * from './outlet-compare';
 export * from './qris-report';
+export * from './payment-accounts';
 

@@ -368,6 +368,7 @@ export const MODUL: NavModule[] = [
           { href: '/pengaturan/biaya', label: 'Biaya dan pembulatan', screen: 'S39', tier: 1, built: true },
           { href: '/pengaturan/pajak', label: 'Pajak', screen: 'S40', tier: 1, built: true },
           { href: '/pengaturan/metode-bayar', label: 'Metode pembayaran', screen: 'S40', tier: 2, built: true },
+          { href: '/pengaturan/akun-perantara', label: 'Akun perantara kasir', screen: 'S40', tier: 2, built: true },
         ],
       },
       {

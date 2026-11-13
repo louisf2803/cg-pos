@@ -13,6 +13,7 @@ import { localDateString } from './local-date';
 import { salesInvoiceError, salesInvoiceProblem, type SalesInvoice } from './sales-invoice';
 import { comparisonRow } from './outlet-compare';
 import type { GatewayTransaction } from './qris-report';
+import { paymentAccountError, type PaymentMethodAccount } from './payment-accounts';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -3002,6 +3003,24 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       });
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
+    },
+
+    // ---------- akun perantara metode bayar (A134; migrasi 0134) ----------
+    async listPaymentMethodAccounts() {
+      const [rows, accounts] = await Promise.all([
+        db().from('payment_methods').select('id,code,name,kind,account_id,sort').is('deleted_at', null).eq('is_active', true).order('sort'),
+        self.listAccounts(),
+      ]);
+      const name = new Map(accounts.map((a) => [a.id, `${a.code} · ${a.name}`]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): PaymentMethodAccount => ({
+        methodId: r.id as string, code: r.code as string, name: r.name as string, kind: r.kind as PaymentMethodAccount['kind'],
+        accountId: r.account_id as string, accountName: name.get(r.account_id as string) ?? '—',
+        configurable: r.kind === 'cash' || r.kind === 'noncash' || r.kind === 'gateway',
+      }));
+    },
+    async setPaymentMethodAccount(methodId, accountId) {
+      const { error } = await db().rpc('payment_method_set_account', { p_method: methodId, p_account: accountId });
+      if (error) throw paymentAccountError(error);
     },
 
     // ---------- laporan QRIS/gateway (A133; migrasi 0133) ----------

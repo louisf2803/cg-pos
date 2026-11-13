@@ -27,6 +27,7 @@ import { purchasePriceProblem, suggestPurchasePrice as pickSuggestion, type Purc
 import { localDateString, localMonthStart } from './local-date';
 import { createFakeSalesInvoices } from './sales-invoice';
 import { fakeOutletComparison } from './outlet-compare';
+import { createFakePaymentAccounts } from './payment-accounts';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -656,9 +657,12 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     newId,
   });
 
+  const paymentAccounts = createFakePaymentAccounts({ methods: () => self.listPaymentMethods(), accounts: () => self.listAccounts() });
+
   const self: DataLayer & { reset(): void } = {
     reset,
     ...salesInvoices,
+    ...paymentAccounts,
     async listGatewayTransactions() { return []; },
     async outletComparison(range) { return fakeOutletComparison({ id: CTX.outletId, name: CTX.outletName }, range, (r) => self.salesSummary(r)); },
     async getContext() { return clone(CTX); },
