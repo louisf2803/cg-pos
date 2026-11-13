@@ -34,3 +34,10 @@ Tanpa build penuh, tanpa Playwright/peramban, tanpa screenshot (Claude yang meme
 ## 5. Konflik dengan cabang lain
 - Sebelum push: `git fetch origin && git rebase origin/main`. Selesaikan konflik di `data.ts`, `fake.ts`, `supabase.ts`, `index.ts`, `nav.ts` dengan MENGGABUNGKAN kedua sisi (jangan membuang metode orang lain).
 - `docs/PROGRESS.md`: kedua sisi dipertahankan.
+
+## 6. Catat jam (mulai A127; supaya lama tiap tugas bisa dianalisis)
+Tulis jam lokal (`Get-Date -Format HH:mm`) sebagai tiga baris di AKHIR `docs/PROGRESS.md` untuk tiap tugas:
+- `Jam mulai: HH:mm` (saat mulai membaca)
+- `Jam mulai menulis: HH:mm` (saat berkas pertama diubah)
+- `Jam selesai: HH:mm` (saat semua verifikasi lulus), plus berkas besar yang paling lama dibaca (bila ada).
+Tujuannya hanya pengukuran, bukan penilaian.
