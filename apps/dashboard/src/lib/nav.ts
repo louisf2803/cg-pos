@@ -74,7 +74,7 @@ export const MODUL: NavModule[] = [
           { section: 'Penjualan', href: '/laporan/penjualan', label: 'Detail penjualan', screen: 'S81', tier: 1, built: true },
           { section: 'Penjualan', href: '/laporan/periode', label: 'Per periode', screen: 'S80', tier: 2, built: true },
           { section: 'Penjualan', href: '/laporan/outlet', label: 'Per outlet', screen: 'S80', tier: 3, built: true },
-          { section: 'Penjualan', href: '/laporan/uang-muka', label: 'Uang muka', screen: 'S80', tier: 3 },
+          { section: 'Penjualan', href: '/laporan/uang-muka', label: 'Uang muka', screen: 'S80', tier: 3, built: true },
           { section: 'Penjualan', href: '/laporan/jenis-bayar', label: 'Jenis bayar', screen: 'S80', tier: 2, built: true },
           { section: 'Penjualan', href: '/laporan/jenis-order', label: 'Jenis order', screen: 'S80', tier: 2, built: true },
           { section: 'Penjualan', href: '/laporan/void', label: 'Void', screen: 'S80', tier: 2, built: true },
