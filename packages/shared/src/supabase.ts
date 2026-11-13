@@ -10,6 +10,7 @@ import { purchasePriceProblem, type PurchasePriceMapping, type PurchasePriceSugg
 import { stockRequestProblem, type StockRequest, type StockRequestStatus } from './stock-requests';
 import { approvalProblem, recurringBillProblem, type ApprovalRequest, type ApprovalStatus, type RecurringBill, type RecurringBillRun } from './bills';
 import { localDateString } from './local-date';
+import { salesInvoiceError, salesInvoiceProblem, type SalesInvoice } from './sales-invoice';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2952,6 +2953,53 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         reason: (r.reason as string) ?? undefined,
         occurredAt: (r.occurred_at as string) ?? now().toISOString(),
       }));
+    },
+
+    // ---------- faktur penjualan B2B (A129; migrasi 0129) ----------
+    async listSalesInvoices() {
+      const [rows, customers] = await Promise.all([
+        db().from('sales_invoices').select('*, sales_invoice_lines(*), sales_invoice_payments(*)').order('invoice_date', { ascending: false }).order('number', { ascending: false }).limit(500),
+        self.listCustomers({ limit: 5000 }),
+      ]);
+      const name = new Map(customers.map((c) => [c.id, c.name]));
+      return ((must(rows) as Row[] | null) ?? []).map((r): SalesInvoice => {
+        const total = Number(r.total), paid = Number(r.paid_total);
+        return {
+          id: r.id as string, number: r.number as string, customerName: r.customer_id ? name.get(r.customer_id as string) ?? '(pelanggan dihapus)' : '(tanpa pelanggan)',
+          invoiceDate: r.invoice_date as string, termDays: Number(r.term_days), dueDate: r.due_date as string,
+          subtotal: Number(r.subtotal), discount: Number(r.discount), taxAmount: Number(r.tax_amount), total,
+          downPayment: Number(r.down_payment), paidTotal: paid, outstanding: total - paid, status: r.status as SalesInvoice['status'],
+          ...(r.customer_id ? { customerId: r.customer_id as string } : {}), ...(r.note ? { note: r.note as string } : {}),
+          lines: ((r.sales_invoice_lines ?? []) as Row[]).map((l) => ({
+            id: l.id as string, name: l.name as string, qty: Number(l.qty), unitPrice: Number(l.unit_price), lineTotal: Number(l.line_total),
+            ...(l.product_id ? { productId: l.product_id as string } : {}),
+          })),
+          payments: ((r.sales_invoice_payments ?? []) as Row[]).map((p) => ({
+            id: p.id as string, paidOn: p.paid_on as string, accountId: p.account_id as string, amount: Number(p.amount), isDownPayment: Boolean(p.is_down_payment),
+            ...(p.note ? { note: p.note as string } : {}),
+          })).sort((a, b) => a.paidOn.localeCompare(b.paidOn)),
+        };
+      });
+    },
+    async createSalesInvoice(input) {
+      const problem = salesInvoiceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('sales_invoice_create', {
+        p_id: input.id, p_org: orgId, p_customer: input.customerId ?? null, p_date: input.date ?? null, p_term: input.termDays,
+        p_discount: input.discount, p_tax: input.taxAmount, p_down_payment: input.downPayment, p_account: input.accountId ?? null,
+        p_note: input.note?.trim() || null,
+        p_lines: input.lines.map((l) => ({ product_id: l.productId ?? null, name: l.name.trim(), qty: l.qty, unit_price: l.unitPrice })),
+      });
+      if (error) throw salesInvoiceError(error);
+      return (await self.listSalesInvoices()).find((i) => i.id === input.id)!;
+    },
+    async paySalesInvoice(input) {
+      const { error } = await db().rpc('sales_invoice_pay', {
+        p_id: input.id, p_invoice: input.invoiceId, p_account: input.accountId, p_date: input.date ?? null, p_amount: input.amount, p_note: input.note?.trim() || null,
+      });
+      if (error) throw salesInvoiceError(error);
+      return (await self.listSalesInvoices()).find((i) => i.id === input.invoiceId)!;
     },
   };
   const tableOps = createTableOps({

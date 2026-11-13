@@ -25,6 +25,7 @@ import { roleSaveProblem } from './roles';
 import { isBuiltInRole, validateRoleName, type RoleDefinition } from './permission-matrix';
 import { purchasePriceProblem, suggestPurchasePrice as pickSuggestion, type PurchasePriceMapping } from './purchase-price';
 import { localDateString, localMonthStart } from './local-date';
+import { createFakeSalesInvoices } from './sales-invoice';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
@@ -648,8 +649,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     };
   }
 
+  const salesInvoices = createFakeSalesInvoices({
+    customerName: async (id) => (await self.listCustomers({ limit: 5000 })).find((c) => c.id === id)?.name,
+    today: () => localDateString(now()),
+    newId,
+  });
+
   const self: DataLayer & { reset(): void } = {
     reset,
+    ...salesInvoices,
     async getContext() { return clone(CTX); },
     async getOutletSettings() {
       const st = CTX.settings;

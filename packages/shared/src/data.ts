@@ -1,5 +1,6 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
+import type { SalesInvoice, SalesInvoiceInput, SalesInvoicePayInput } from './sales-invoice';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -426,5 +427,13 @@ export interface DataLayer {
   listCustomerDepositBalances(): Promise<CustomerDepositBalance[]>;
   /** Riwayat mutasi deposit pelanggan (pembelian paket, pemakaian di kasir, refund), terbaru dulu. */
   listCustomerDepositEntries(customerId: string): Promise<CustomerDepositEntry[]>;
+
+  // ---------- faktur penjualan B2B (A129) ----------
+  /** Semua faktur penjualan (terbaru dulu) beserta baris dan pembayarannya; pengelola saja. */
+  listSalesInvoices(): Promise<SalesInvoice[]>;
+  /** Buat faktur (idempoten menurut id). Uang muka dicatat sebagai pembayaran pertama; jurnal piutang, penjualan, pajak dibukukan. */
+  createSalesInvoice(input: SalesInvoiceInput): Promise<SalesInvoice>;
+  /** Terima pembayaran faktur (sebagian atau lunas). Idempoten menurut id pembayaran. */
+  paySalesInvoice(input: SalesInvoicePayInput): Promise<SalesInvoice>;
 }
 

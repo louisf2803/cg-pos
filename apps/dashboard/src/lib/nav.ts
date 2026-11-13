@@ -323,7 +323,7 @@ export const MODUL: NavModule[] = [
         label: 'Penjualan B2B & Aset',
         icon: Building,
         items: [
-          { href: '/keuangan/faktur-penjualan', label: 'Faktur penjualan B2B', screen: 'S74', tier: 3 },
+          { href: '/keuangan/faktur-penjualan', label: 'Faktur penjualan B2B', screen: 'S74', tier: 3, built: true },
           { href: '/keuangan/aset', label: 'Daftar aset tetap', screen: 'S77', tier: 3, built: true },
           { href: '/keuangan/aset/penyusutan', label: 'Penyusutan aset', screen: 'S77', tier: 3, built: true },
           { href: '/keuangan/aset/pelepasan', label: 'Pelepasan aset', screen: 'S77', tier: 3, built: true },
