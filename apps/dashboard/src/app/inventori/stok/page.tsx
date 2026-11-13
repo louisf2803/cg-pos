@@ -294,7 +294,14 @@ function PostDialog({
         <p role="alert" className="min-h-[24px] text-danger-strong">{err}</p>
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Batal</button>
-          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy} aria-busy={busy}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
+          <button
+            type="submit"
+            className="cg-btn cg-btn--primary"
+            disabled={busy || (!allowNegativeStock && mode !== 'adjust_in' && willBe < 0)}
+            aria-busy={busy}
+          >
+            {busy ? 'Menyimpan…' : 'Simpan'}
+          </button>
         </div>
       </form>
     </dialog>
