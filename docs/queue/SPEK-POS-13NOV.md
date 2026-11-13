@@ -13,7 +13,7 @@ Perbandingan wajib: untuk tiap layar, buka layar kita di lebar tablet landscape 
 
 ## 2. Dialog detail produk (ketuk kartu produk)
 - Header: tombol tutup, judul, tombol "Simpan" hijau di kanan. Baris ringkas: foto kecil, nama, harga.
-- Kuantitas dengan tombol minus/plus (stepper) dan Satuan (dropdown). Bagian Ekstra: kelompok ekstra memuat aturan ("Harus dipilih" atau opsional, "Hanya bisa pilih 1" atau banyak) dan tiap opsi punya harga tambahan, stepper jumlah, dan "Stok tersedia: n". Menyimpan tanpa memilih ekstra yang WAJIB menampilkan pesan singkat "belum memilih ekstra" dan dialog tidak menutup. Kolom catatan opsional (0/100). Bagian "Produk tidak dijual" untuk mengatur status produk (hanya di kasir, dll.).
+- (Ekstra: ditunda, lihat catatan di bawah.) Kuantitas dengan tombol minus/plus (stepper) dan Satuan (dropdown). BAGIAN EKSTRA DILEWATI: Louis akan mengajukan alur ekstra yang baru, jadi JANGAN membangun ekstra/modifier, aturan wajib/opsional, atau stok per opsi di dialog ini (biarkan perilaku yang sudah ada). Kolom catatan opsional (0/100). Bagian "Produk tidak dijual" untuk mengatur status produk (hanya di kasir, dll.).
 
 ## 3. Layar Pembayaran (Checkout)
 - Header: panah kembali, judul "Pembayaran", penanda Online. Tiga angka besar sejajar: Total Tagihan, Sisa Tagihan (merah selama belum lunas), Kembalian (biru).
@@ -39,3 +39,7 @@ Kartu profil outlet (logo, nama outlet, nama kasir, ID) lalu menu: Kasir, Penjua
 - Atur Ukuran Kertas (form): catatan "ukuran kertas hanya berlaku untuk printer laser/inkjet"; Nama Kertas (maks 50 karakter), Panjang Kertas (mm), Lebar Kertas (mm), Jumlah Kolom, Panjang Label (mm), Lebar Label (mm), Jarak Baris (mm), Jarak Kolom (mm), Jarak Kiri (mm), Jarak Atas (mm). Bagian "Isi Label Barcode": Ukuran Huruf (mm), Maksimal Karakter, sakelar Tampilkan Barcode + Tinggi Barcode (mm), sakelar Tampilkan Kode Produk, Nama Produk, Satuan, Nama Merchant (bawaan mati), Harga + Ukuran Harga (mm). Tombol "Preview" dan "Simpan" di header. Kertas bawaan boleh baca-saja (kolom abu).
 - Contoh nilai awal yang wajar: kertas 165 x 210 mm, 3 kolom, label 50 x 18 mm, jarak baris 2, jarak kolom 5, jarak kiri 3, jarak atas 7, huruf 2,4, maks 15 karakter, tinggi barcode 1,6, harga 2,3.
 - (Keputusan Louis: "mode SKU" dibuang; "Kode Produk" boleh tampil sebagai pilihan isi label saja.)
+
+## Catatan keputusan Louis (13 Nov 2026)
+- Alur ekstra: DITUNDA. Louis akan mengajukan alur baru; jangan mengerjakan ekstra (termasuk A120) sampai ada tugas baru.
+- Tampilan label dan struk harus bisa dikendalikan dari backoffice (dashboard). Aplikasi kasir hanya MEMAKAI pengaturan itu saat mencetak. Lihat A149 (label) dan A150 (struk).

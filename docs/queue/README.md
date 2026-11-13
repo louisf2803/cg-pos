@@ -28,3 +28,5 @@ Aturan tambahan untuk SEMUA tugas dashboard, dari review A29/A30: (1) Preset Tai
 > **URUTAN KERJA SEKARANG (13 Nov 2026):** (1) selesaikan A124 yang sedang berjalan, (2) kerjakan `docs/queue/REWORK-13NOV.md` (perbaikan cabang yang dikembalikan), (3) lanjut A125 dan seterusnya. Semua tugas wajib mengikuti `docs/queue/EFISIENSI.md` (cara membaca berkas panjang, verifikasi tiga perintah, daftar periksa lint dan SQL).
 
 > **Tugas baru dari pengamatan layar acuan (13 Nov 2026):** A146 (Checkout), A147 (kasir utama + detail produk), A148 (perangkat), A149 (label barcode). Kerjakan setelah REWORK-13NOV, sebelum A125 dan seterusnya bila Louis tidak menyatakan lain. Spesifikasi: `docs/queue/SPEK-POS-13NOV.md`.
+
+> **Tambahan:** A150 (kendali tampilan struk dari backoffice). Alur ekstra DITUNDA (Louis akan mengajukan alur baru); lewati A120 dan jangan ubah ekstra di A147.
