@@ -219,11 +219,6 @@ export function Register({
     if (exact) { choose(exact); setScanMsg({ ok: true, text: `${exact.name} masuk pesanan.` }); setQ(''); return; }
     if (only) {
       if (only.kind === 'group') { setPickErr(''); setPicking(only); setQ(''); setScanMsg(null); return; }
-      if (!stockOk(only.product)) {
-        const lim = optionLimit(only.product);
-        setScanMsg({ ok: false, text: stockLimitMessage(only.product.name, lim.available) });
-        return;
-      }
       choose(only.product); setScanMsg({ ok: true, text: `${only.product.name} masuk pesanan.` }); setQ(''); return;
     }
     setScanMsg({ ok: false, text: visible.length ? `Ada ${visible.length} produk yang cocok. Pilih dari daftar atau ketik kode SKU lengkap.` : `Kode atau nama “${code}” tidak ditemukan.` });
@@ -564,12 +559,7 @@ export function Register({
                 key={t.key}
                 className="cg-tile relative group"
                 onClick={() => {
-                  if (isGroup) {
-                    if (limitExhausted) {
-                      setNotice(stockLimitMessage(t.name, 0));
-                    }
-                    setPickErr(''); setPicking(t);
-                  }
+                  if (isGroup) { setPickErr(''); setPicking(t); }
                   else choose(t.product);
                 }}
                 aria-haspopup={isGroup ? 'dialog' : undefined}
