@@ -176,6 +176,8 @@ export interface DataLayer {
   receivePurchase(input: PurchaseReceiveInput): Promise<PurchaseInvoice>;
   /** Bayar faktur (sebagian atau lunas). Idempoten menurut id. */
   payPurchase(input: PurchasePayInput): Promise<PurchaseInvoice>;
+  /** Batalkan faktur pembelian (status void, pembalikan stok diterima, kembalikan status PO bila ada). */
+  cancelPurchaseInvoice(id: string, reason?: string): Promise<PurchaseInvoice>;
 
   /** Daftar akun (chart of accounts) org ini, urut kode. Nonaktif ikut. */
   listAccounts(): Promise<Account[]>;

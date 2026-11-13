@@ -1056,3 +1056,10 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
 - **A130-A135 (Claude, 13 Nov 2026; mulai 20:58, selesai ±21:35)**: enam tugas, tiap tugas satu commit, tiap migrasi lulus `run.sh` lokal.
   - A130 `0130_sales_documents` (penawaran, pesanan, pengiriman, penerimaan berantai, jadikan faktur) + `/invoice/*`; A131 `0131_outlet_sales_compare` + `/laporan/outlet`; A132 `0132_crm_campaigns` (kampanye tanpa kirim pesan, sasaran, penerima, ditandai dihubungi) + `/marketing/kirim` dan `/marketing/beli`; A133 `0133_qris_settlement_report` + `/laporan/qris`; A134 `0134_payment_method_account` + `/pengaturan/akun-perantara`; A135 `0135_channel_and_time_prices` + `/harga-ojol` dan `/harga-waktu`. Tambahan A129: `/laporan/uang-muka`.
   - Belum: kasir belum memakai harga kanal dan harga waktu (A135); paket deposit ada di A144 (belum digabung); "Jadikan Invoice" di layar bayar kasir (A129); master resep dan kategori catatan (A135); migrasi 0129-0135 belum diterapkan ke produksi.
+
+
+- **A126 (`ag/a126-po-faktur-lanjut`)**:
+  - **`packages/shared`**: menambahkan `requestId` & `downPayment` pada PO, `downPayment`, `attachmentName`, `attachmentDataUrl` pada Faktur, metode DataLayer `cancelPurchaseInvoice`, validasi `purchaseOrderProblem` / `purchaseInvoiceProblem`, serta unit test (8 lulus).
+  - **`packages/db`**: migrasi `0126_purchase_request_ref_and_invoice_void.sql` & tes `19_purchase_request_void.sql` untuk referensi permintaan, uang muka, lampiran, dan pembatalan faktur (`purchase_invoice_void`) dengan pembalikan stok dan jurnal.
+  - **`apps/dashboard`**: formulir PO mendukung pemilih referensi permintaan stok & uang muka; faktur mendukung pemotongan DP, lampiran dokumen, status void, dan tombol batalkan faktur.
+  - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test purchase`, `lint-tailwind.sh origin/main` bersih.
