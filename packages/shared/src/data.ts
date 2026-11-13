@@ -1,4 +1,4 @@
-import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
+import type { ManagedOutlet, OutletInfo, OutletOptions, TaxSettings } from './outlet';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -38,8 +38,39 @@ export interface DataLayer {
   getContext(): Promise<OutletContext>;
   /** Informasi dan pengaturan outlet untuk layar Pengaturan outlet. */
   getOutletSettings(): Promise<{ info: OutletInfo; options: OutletOptions }>;
-  /** Nama, alamat, telepon. Hanya pemilik/admin organisasi. */
-  saveOutletInfo(input: { name: string; address: string; phone: string }): Promise<void>;
+  /** Informasi bisnis, rekening, kontak, dan logo outlet. Hanya pemilik/admin organisasi. */
+  saveOutletInfo(input: {
+    name: string;
+    address: string;
+    phone: string;
+    email?: string;
+    taxIdNumber?: string;
+    businessType?: string;
+    outletGroup?: string;
+    logoUrl?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+  }): Promise<void>;
+  /** Daftar seluruh outlet dalam organisasi. */
+  listOutlets(): Promise<ManagedOutlet[]>;
+  /** Tambah atau perbarui data outlet. */
+  saveOutlet(input: {
+    id?: string;
+    code?: string;
+    name: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    timezone?: string;
+    isActive?: boolean;
+    outletGroup?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+  }): Promise<ManagedOutlet>;
+  /** Daftar nama grup outlet yang tersedia. */
+  listOutletGroups(): Promise<string[]>;
   /** Biaya layanan, pembulatan, aturan kasir, catatan kaki struk. Pemilik dan manajer. */
   saveOutletOptions(input: OutletOptions): Promise<void>;
   /** Pajak PB1: nyala/mati, nama, tarif, harga termasuk pajak atau tidak. */

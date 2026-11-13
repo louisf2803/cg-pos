@@ -1,7 +1,37 @@
 import type { OrderType } from './order-calc';
 import { receiptTemplateProblem } from './receipt-template';
 
-export interface OutletInfo { code: string; name: string; address: string; phone: string; timezone: string }
+export interface OutletInfo {
+  code: string;
+  name: string;
+  address: string;
+  phone: string;
+  timezone: string;
+  email?: string;
+  taxIdNumber?: string;
+  businessType?: string;
+  outletGroup?: string;
+  logoUrl?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+}
+
+export interface ManagedOutlet {
+  id: string;
+  code: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  timezone: string;
+  isActive: boolean;
+  outletGroup?: string;
+  email?: string;
+  taxIdNumber?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+}
 export interface OutletOptions {
   serviceChargePct: number; serviceChargeTaxable: boolean; serviceChargeOrderTypes: OrderType[];
   roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean;

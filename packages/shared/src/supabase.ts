@@ -59,7 +59,7 @@ import { computeOrder } from './order-calc';
 import { formatOrderNumber, localDateKey } from './order-number';
 import { roundToStep } from './money';
 import { newId } from './id';
-import { DEFAULT_TAX, outletInfoProblem, outletOptionsProblem, taxSettingsProblem, type TaxSettings } from './outlet';
+import { DEFAULT_TAX, outletInfoProblem, outletOptionsProblem, taxSettingsProblem, type ManagedOutlet, type TaxSettings } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
 import { bundleProblem } from './bundle';
@@ -607,12 +607,26 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async getOutletSettings() {
       const { ctx } = await resolve();
       const [o, st] = await Promise.all([
-        db().from('outlets').select('code,name,address,phone,timezone').eq('id', ctx.outletId).single(),
+        db().from('outlets').select('code,name,address,phone,timezone,email,tax_id_number,business_type,outlet_group,logo_url,bank_name,bank_account_number,bank_account_name').eq('id', ctx.outletId).single(),
         db().from('outlet_settings').select('*').eq('outlet_id', ctx.outletId).single(),
       ]);
       const a = must(o) as Row, s = must(st) as Row;
       return {
-        info: { code: a.code, name: a.name, address: a.address ?? '', phone: a.phone ?? '', timezone: a.timezone },
+        info: {
+          code: a.code,
+          name: a.name,
+          address: a.address ?? '',
+          phone: a.phone ?? '',
+          timezone: a.timezone,
+          email: (a.email as string) || undefined,
+          taxIdNumber: (a.tax_id_number as string) || undefined,
+          businessType: (a.business_type as string) || undefined,
+          outletGroup: (a.outlet_group as string) || undefined,
+          logoUrl: (a.logo_url as string) || undefined,
+          bankName: (a.bank_name as string) || undefined,
+          bankAccountNumber: (a.bank_account_number as string) || undefined,
+          bankAccountName: (a.bank_account_name as string) || undefined,
+        },
         options: {
           serviceChargePct: Number(s.service_charge_pct), serviceChargeTaxable: !!s.service_charge_taxable, serviceChargeOrderTypes: (s.service_charge_order_types ?? []) as OrderType[],
           roundingCashStep: Number(s.rounding_cash_step), roundingNoncashStep: Number(s.rounding_noncash_step), requireOpenShift: !!s.require_open_shift,
@@ -628,9 +642,84 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const problem = outletInfoProblem(input);
       if (problem) throw new DataError('invalid', problem);
       const { ctx } = await resolve();
-      const row = must(await db().from('outlets').update({ name: input.name.trim(), address: input.address.trim() || null, phone: input.phone.trim() || null }).eq('id', ctx.outletId).select('id').maybeSingle()) as Row | null;
+      const patch: Row = {
+        name: input.name.trim(),
+        address: input.address.trim() || null,
+        phone: input.phone.trim() || null,
+      };
+      if (input.email !== undefined) patch.email = input.email.trim() || null;
+      if (input.taxIdNumber !== undefined) patch.tax_id_number = input.taxIdNumber.trim() || null;
+      if (input.businessType !== undefined) patch.business_type = input.businessType.trim() || null;
+      if (input.outletGroup !== undefined) patch.outlet_group = input.outletGroup.trim() || null;
+      if (input.logoUrl !== undefined) patch.logo_url = input.logoUrl.trim() || null;
+      if (input.bankName !== undefined) patch.bank_name = input.bankName.trim() || null;
+      if (input.bankAccountNumber !== undefined) patch.bank_account_number = input.bankAccountNumber.trim() || null;
+      if (input.bankAccountName !== undefined) patch.bank_account_name = input.bankAccountName.trim() || null;
+      const row = must(await db().from('outlets').update(patch).eq('id', ctx.outletId).select('id').maybeSingle()) as Row | null;
       if (!row) throw new DataError('forbidden', 'Hanya pemilik yang bisa mengubah informasi outlet');
       resolved = null;
+    },
+    async listOutlets(): Promise<ManagedOutlet[]> {
+      const { orgId } = await resolve();
+      const rows = (must(await db().from('outlets').select('id,code,name,address,phone,timezone,is_active,outlet_group,email,tax_id_number,bank_name,bank_account_number,bank_account_name').eq('org_id', orgId).is('deleted_at', null).order('code')) as Row[] | null) ?? [];
+      return rows.map((r) => ({
+        id: r.id as string,
+        code: r.code as string,
+        name: r.name as string,
+        address: (r.address as string) || undefined,
+        phone: (r.phone as string) || undefined,
+        timezone: r.timezone as string,
+        isActive: !!r.is_active,
+        outletGroup: (r.outlet_group as string) || undefined,
+        email: (r.email as string) || undefined,
+        taxIdNumber: (r.tax_id_number as string) || undefined,
+        bankName: (r.bank_name as string) || undefined,
+        bankAccountNumber: (r.bank_account_number as string) || undefined,
+        bankAccountName: (r.bank_account_name as string) || undefined,
+      }));
+    },
+    async saveOutlet(input): Promise<ManagedOutlet> {
+      const { orgId } = await resolve();
+      const name = input.name.trim();
+      if (!name) throw new DataError('invalid', 'Nama outlet wajib diisi');
+      if (input.id) {
+        const patch: Row = { name };
+        if (input.address !== undefined) patch.address = input.address.trim() || null;
+        if (input.phone !== undefined) patch.phone = input.phone.trim() || null;
+        if (input.email !== undefined) patch.email = input.email.trim() || null;
+        if (input.outletGroup !== undefined) patch.outlet_group = input.outletGroup.trim() || null;
+        if (input.bankName !== undefined) patch.bank_name = input.bankName.trim() || null;
+        if (input.bankAccountNumber !== undefined) patch.bank_account_number = input.bankAccountNumber.trim() || null;
+        if (input.bankAccountName !== undefined) patch.bank_account_name = input.bankAccountName.trim() || null;
+        if (input.isActive !== undefined) patch.is_active = input.isActive;
+        const row = must(await db().from('outlets').update(patch).eq('id', input.id).select('id').maybeSingle()) as Row | null;
+        if (!row) throw new DataError('not_found', 'Outlet tidak ditemukan');
+        const list = await this.listOutlets();
+        return list.find((o) => o.id === input.id)!;
+      }
+      const code = (input.code?.trim() || 'CG' + Math.floor(Math.random() * 90 + 10)).toUpperCase();
+      const id = newId();
+      must(await db().from('outlets').insert({
+        id, org_id: orgId, code, name,
+        address: input.address?.trim() || null,
+        phone: input.phone?.trim() || null,
+        email: input.email?.trim() || null,
+        timezone: input.timezone || 'Asia/Jakarta',
+        is_active: input.isActive ?? true,
+        outlet_group: input.outletGroup?.trim() || null,
+        bank_name: input.bankName?.trim() || null,
+        bank_account_number: input.bankAccountNumber?.trim() || null,
+        bank_account_name: input.bankAccountName?.trim() || null,
+      }));
+      const list = await this.listOutlets();
+      return list.find((o) => o.id === id)!;
+    },
+    async listOutletGroups(): Promise<string[]> {
+      const { orgId } = await resolve();
+      const rows = (must(await db().from('outlets').select('outlet_group').eq('org_id', orgId).is('deleted_at', null).not('outlet_group', 'is', null)) as Row[] | null) ?? [];
+      const set = new Set<string>();
+      for (const r of rows) if (r.outlet_group) set.add(r.outlet_group as string);
+      return [...set].sort();
     },
     async getTaxSettings() {
       const { ctx } = await resolve();
