@@ -25,6 +25,7 @@ import { localDateString, localMonthStart } from './local-date';
 import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
+import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
@@ -224,6 +225,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const employeeHr: EmployeeHr[] = [];
   const attendanceSettings: AttendanceSettings[] = [];
   const notifications: EmployeeNotification[] = [];
+  let appointments: Appointment[] = [];
   let cashAdvances: (CashAdvance)[] = [];
   let payrollRecords: PayrollRecord[] = [];
   let products: Product[] = [];
@@ -464,6 +466,25 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     coupons = opts.seed === false ? [] : clone(SEED_COUPONS);
     loyaltyRules = opts.seed === false ? { ...DEFAULT_LOYALTY } : { ...DEFAULT_LOYALTY, isActive: true };
     ledger = [];
+    appointments = opts.seed === false ? [] : [
+      {
+        id: 'apt-seed-1',
+        kind: 'table',
+        targetId: 't-T2',
+        targetName: 'Meja T2',
+        customerId: 'cu-ani',
+        customerName: 'Ani Wulandari',
+        customerPhone: '08123456789',
+        date: localDateString(now()),
+        startTime: '13:00',
+        endTime: '15:00',
+        startAt: `${localDateString(now())}T13:00`,
+        endAt: `${localDateString(now())}T15:00`,
+        status: 'confirmed',
+        note: 'Dekat jendela',
+        createdAt: now().toISOString(),
+      },
+    ];
     if (opts.seed !== false) pushPoints('cu-ani', 120, 'adjust', 'Saldo awal');
     seedStock();
     if (opts.seed !== false) seedHistory();
@@ -1821,6 +1842,54 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const i = notifications.findIndex((x) => x.id === id);
       if (i < 0) throw new DataError('not_found', 'Notifikasi tidak ditemukan');
       notifications.splice(i, 1);
+    },
+    async listAppointments(range) {
+      return clone(
+        appointments
+          .filter((a) => {
+            if (range?.from && a.date < range.from) return false;
+            if (range?.to && a.date > range.to) return false;
+            return true;
+          })
+          .sort((a, b) => {
+            if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+            return a.startTime < b.startTime ? -1 : 1;
+          }),
+      );
+    },
+    async saveAppointment(input: AppointmentInput) {
+      const problem = appointmentProblem(input, appointments);
+      if (problem) throw new DataError('invalid', problem);
+      const row: Appointment = {
+        id: input.id ?? newId(),
+        kind: input.kind,
+        ...(input.targetId ? { targetId: input.targetId } : {}),
+        targetName: input.targetName.trim(),
+        ...(input.customerId ? { customerId: input.customerId } : {}),
+        customerName: input.customerName.trim(),
+        customerPhone: input.customerPhone.trim(),
+        date: input.date,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        startAt: `${input.date}T${input.startTime}`,
+        endAt: `${input.date}T${input.endTime}`,
+        status: input.status ?? 'pending',
+        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+        createdAt: now().toISOString(),
+      };
+      const idx = appointments.findIndex((a) => a.id === row.id);
+      if (idx >= 0) {
+        row.createdAt = appointments[idx]!.createdAt;
+        appointments[idx] = row;
+      } else {
+        appointments.push(row);
+      }
+      return clone(row);
+    },
+    async deleteAppointment(id: string) {
+      const idx = appointments.findIndex((a) => a.id === id);
+      if (idx < 0) throw new DataError('not_found', 'Reservasi tidak ditemukan');
+      appointments.splice(idx, 1);
     },
     async listCashAdvances(employeeId) {
       return clone(cashAdvances.filter((x) => !employeeId || x.employeeId === employeeId).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));

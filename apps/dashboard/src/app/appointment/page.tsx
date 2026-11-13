@@ -18,6 +18,7 @@ import {
   appointmentProblem,
   buildCalendarMonth,
   type Appointment,
+  type AppointmentInput,
   type AppointmentKind,
   type AppointmentStatus,
   type Customer,
@@ -27,8 +28,6 @@ import {
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
-
-const STORAGE_KEY = 'cgpos_appointments_v1';
 
 const todayKey = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
@@ -40,27 +39,6 @@ const fmtDate = (d: string) =>
     month: 'short',
     year: 'numeric',
   }).format(new Date(`${d}T00:00:00Z`));
-
-function loadStoredAppointments(): Appointment[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Appointment[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistAppointments(rows: Appointment[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-  } catch {
-    // Abaikan galat penyimpanan browser (mis. mode privat penuh)
-  }
-}
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
   pending: '',
@@ -74,21 +52,29 @@ type ViewTab = 'list' | 'calendar';
 export default function AppointmentPage() {
   const data = useData();
   const master = useAsync(async () => {
-    const [tables, products, customers] = await Promise.all([
+    const [tables, products, customers, appointments] = await Promise.all([
       data.listTables(),
       data.listProducts({ includeInactive: false }),
       data.listCustomers(),
+      data.listAppointments(),
     ]);
     return {
       tables,
       services: products.filter((p) => p.kind === 'service' && p.isActive),
       customers,
+      appointments,
     };
   }, [data]);
 
   const initialToday = todayKey();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+
+  const masterData = master.status === 'ready' ? master.data : null;
+  useEffect(() => {
+    if (masterData) {
+      setAppointments(masterData.appointments);
+    }
+  }, [masterData]);
 
   const [tab, setTab] = useState<ViewTab>('list');
   const [search, setSearch] = useState('');
@@ -101,16 +87,6 @@ export default function AppointmentPage() {
 
   const [dlgDate, setDlgDate] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAppointments(loadStoredAppointments());
-    setHydrated(true);
-  }, []);
-
-  const updateAll = (next: Appointment[]) => {
-    setAppointments(next);
-    persistAppointments(next);
-  };
 
   const activeAppointments = useMemo(
     () => appointments.filter((a) => a.status !== 'cancelled'),
@@ -163,25 +139,50 @@ export default function AppointmentPage() {
     setCalMonth(d.getUTCMonth() + 1);
   };
 
-  const handleStatusChange = (id: string, status: AppointmentStatus) => {
-    const next = appointments.map((a) => (a.id === id ? { ...a, status } : a));
-    updateAll(next);
-    setNotice(`Status reservasi diperbarui ke "${APPOINTMENT_STATUS_LABEL[status]}".`);
+  const handleStatusChange = async (id: string, status: AppointmentStatus) => {
+    const cur = appointments.find((a) => a.id === id);
+    if (!cur) return;
+    try {
+      const updated = await data.saveAppointment({
+        id: cur.id,
+        kind: cur.kind,
+        targetId: cur.targetId,
+        targetName: cur.targetName,
+        customerId: cur.customerId,
+        customerName: cur.customerName,
+        customerPhone: cur.customerPhone,
+        date: cur.date,
+        startTime: cur.startTime,
+        endTime: cur.endTime,
+        status,
+        note: cur.note,
+      });
+      setAppointments((prev) => prev.map((a) => (a.id === id ? updated : a)));
+      setNotice(`Status reservasi diperbarui ke "${APPOINTMENT_STATUS_LABEL[status]}".`);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Gagal memperbarui status reservasi.');
+    }
   };
 
-  const handleDelete = (id: string) => {
-    updateAll(appointments.filter((a) => a.id !== id));
-    setNotice('Reservasi dihapus dari daftar pratinjau.');
+  const handleDelete = async (id: string) => {
+    try {
+      await data.deleteAppointment(id);
+      setAppointments((prev) => prev.filter((a) => a.id !== id));
+      setNotice('Reservasi berhasil dihapus.');
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Gagal menghapus reservasi.');
+    }
   };
 
-  const handleCreated = (created: Appointment) => {
-    updateAll([created, ...appointments]);
+  const handleCreated = async (input: AppointmentInput) => {
+    const created = await data.saveAppointment(input);
+    setAppointments((prev) => [created, ...prev.filter((a) => a.id !== created.id)]);
     setDlgDate(null);
     setSelectedDate(created.date);
     setCalYear(Number(created.date.slice(0, 4)));
     setCalMonth(Number(created.date.slice(5, 7)));
     setNotice(
-      `Reservasi ${created.customerName} (${APPOINTMENT_KIND_LABEL[created.kind]} · ${created.targetName}) pada ${fmtDate(created.date)} ${created.startTime}–${created.endTime} disimpan.`,
+      `Reservasi ${created.customerName} (${APPOINTMENT_KIND_LABEL[created.kind]} · ${created.targetName}) pada ${fmtDate(created.date)} ${created.startTime}–${created.endTime} tersimpan.`,
     );
   };
 
@@ -203,16 +204,6 @@ export default function AppointmentPage() {
         }
       />
 
-      <div className="cg-banner cg-banner--info mb-16 flex flex-wrap items-center justify-between gap-8" role="status">
-        <div>
-          <strong>Pratinjau — reservasi belum tersimpan di server, akan hilang bila data peramban dibersihkan.</strong>
-          <p className="text-xs text-text-muted mt-4">
-            Pilihan meja memakai data master outlet saat ini; penyimpanan jangka panjang menunggu dukungan tabel server.
-          </p>
-        </div>
-        <span className="cg-badge text-xs shrink-0">Pratinjau</span>
-      </div>
-
       {notice && (
         <p role="status" className="cg-banner cg-banner--success mb-16">
           {notice}
@@ -223,7 +214,7 @@ export default function AppointmentPage() {
         <ErrorBox message={master.message} onRetry={master.reload} />
       )}
 
-      {(master.status === 'loading' || !hydrated) && (
+      {master.status === 'loading' && (
         <div className="grid gap-12" aria-busy="true" aria-label="Memuat jadwal reservasi">
           <div className="grid grid-cols-1 tablet:grid-cols-3 gap-12">
             {[0, 1, 2].map((i) => (
@@ -234,7 +225,7 @@ export default function AppointmentPage() {
         </div>
       )}
 
-      {master.status === 'ready' && hydrated && (
+      {master.status === 'ready' && (
         <div className="grid gap-16 min-w-0">
           {/* KPI */}
           <dl className="grid grid-cols-1 tablet:grid-cols-3 gap-12">
@@ -695,7 +686,7 @@ function NewAppointmentDialog({
   customers: Customer[];
   existing: Appointment[];
   onClose: () => void;
-  onCreated: (created: Appointment) => void;
+  onCreated: (input: AppointmentInput) => Promise<void> | void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -715,6 +706,7 @@ function NewAppointmentDialog({
   const [status, setStatus] = useState<'pending' | 'confirmed'>('confirmed');
   const [note, setNote] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const resolvedTarget = (() => {
     if (kind === 'table' && tables.length > 0) {
@@ -738,9 +730,9 @@ function NewAppointmentDialog({
     }
   };
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const input = {
+    const input: AppointmentInput = {
       kind,
       targetId: resolvedTarget.targetId,
       targetName: resolvedTarget.targetName,
@@ -759,23 +751,15 @@ function NewAppointmentDialog({
       return;
     }
 
-    onCreated({
-      id: `apt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      kind: input.kind,
-      targetId: input.targetId,
-      targetName: input.targetName.trim(),
-      customerId: input.customerId,
-      customerName: input.customerName.trim(),
-      customerPhone: input.customerPhone.trim(),
-      date: input.date,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      startAt: `${input.date}T${input.startTime}`,
-      endAt: `${input.date}T${input.endTime}`,
-      status: input.status ?? 'confirmed',
-      note: input.note,
-      createdAt: new Date().toISOString(),
-    });
+    try {
+      setSubmitting(true);
+      setError(null);
+      await onCreated(input);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal menyimpan reservasi.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -1055,8 +1039,8 @@ function NewAppointmentDialog({
           >
             Batal
           </button>
-          <button type="submit" className="cg-btn cg-btn--primary">
-            Simpan reservasi
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={submitting}>
+            {submitting ? 'Menyimpan...' : 'Simpan reservasi'}
           </button>
         </div>
       </form>

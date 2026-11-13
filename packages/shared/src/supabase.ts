@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTableOps } from './table-ops';
 import { DEFAULT_LOYALTY, loyaltyRulesProblem, type LoyaltyEntry, type LoyaltyRules } from './loyalty';
+import { appointmentProblem, type Appointment, type AppointmentInput, type AppointmentKind, type AppointmentStatus } from './appointment';
 import { photoExt, photoPath, photoProblem, type ProductPhotoInput } from './photo';
 import { attendanceMinutes, attendanceProblem } from './attendance';
 import { priceDelta } from './price-change';
@@ -2433,6 +2434,86 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteNotification(id) {
       const { error } = await db().from('employee_notifications').delete().eq('id', id);
       if (error) throw mapHrError(error);
+    },
+    async listAppointments(range) {
+      const rows = await pageAll((from, to) => {
+        let q = db().from('appointments').select('*').is('deleted_at', null);
+        if (range?.from) q = q.gte('date', range.from);
+        if (range?.to) q = q.lte('date', range.to);
+        return q.order('date', { ascending: true }).order('start_time', { ascending: true }).range(from, to);
+      });
+      return rows.map((x): Appointment => ({
+        id: x.id as string,
+        kind: x.kind as AppointmentKind,
+        ...(x.target_id ? { targetId: x.target_id as string } : {}),
+        targetName: x.target_name as string,
+        ...(x.customer_id ? { customerId: x.customer_id as string } : {}),
+        customerName: x.customer_name as string,
+        customerPhone: x.customer_phone as string,
+        date: x.date as string,
+        startTime: x.start_time as string,
+        endTime: x.end_time as string,
+        startAt: x.start_at as string,
+        endAt: x.end_at as string,
+        status: x.status as AppointmentStatus,
+        ...(x.note ? { note: x.note as string } : {}),
+        createdAt: x.created_at as string,
+      }));
+    },
+    async saveAppointment(input) {
+      const existing = await self.listAppointments({ from: input.date, to: input.date });
+      const problem = appointmentProblem(input, existing);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = input.id ?? newId();
+      const startAt = `${input.date}T${input.startTime}:00+07:00`;
+      const endAt = `${input.date}T${input.endTime}:00+07:00`;
+      const payload = {
+        id,
+        org_id: r.orgId,
+        outlet_id: r.ctx.outletId,
+        customer_id: input.customerId ?? null,
+        customer_name: input.customerName.trim(),
+        customer_phone: input.customerPhone.trim(),
+        kind: input.kind,
+        target_id: input.targetId ?? null,
+        target_name: input.targetName.trim(),
+        date: input.date,
+        start_time: input.startTime,
+        end_time: input.endTime,
+        start_at: startAt,
+        end_at: endAt,
+        status: input.status ?? 'pending',
+        note: input.note?.trim() || null,
+      };
+      const { data, error } = await db().from('appointments').upsert(payload, { onConflict: 'id' }).select('created_at').single();
+      if (error) {
+        if (error.message?.includes('bentrok') || error.code === '23505' || error.code === 'P0001') {
+          throw new DataError('invalid', error.message || 'Jadwal reservasi bentrok.');
+        }
+        throw mapDbError(error);
+      }
+      return {
+        id,
+        kind: input.kind,
+        ...(input.targetId ? { targetId: input.targetId } : {}),
+        targetName: input.targetName.trim(),
+        ...(input.customerId ? { customerId: input.customerId } : {}),
+        customerName: input.customerName.trim(),
+        customerPhone: input.customerPhone.trim(),
+        date: input.date,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        startAt: `${input.date}T${input.startTime}`,
+        endAt: `${input.date}T${input.endTime}`,
+        status: input.status ?? 'pending',
+        ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+        createdAt: (data as Row | null)?.created_at as string ?? new Date().toISOString(),
+      };
+    },
+    async deleteAppointment(id) {
+      const { error } = await db().from('appointments').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw mapDbError(error);
     },
     async listCashAdvances(employeeId) {
       const names = await employeeNames();

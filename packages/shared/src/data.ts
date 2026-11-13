@@ -1,4 +1,5 @@
 import type { OutletInfo, OutletOptions, TaxSettings } from './outlet';
+import type { Appointment, AppointmentInput } from './appointment';
 import type { ProductPhotoInput } from './photo';
 import type { RoleDefinition } from './permission-matrix';
 import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion } from './purchase-price';
@@ -245,6 +246,10 @@ export interface DataLayer {
   listNotifications(): Promise<EmployeeNotification[]>;
   sendNotification(input: EmployeeNotificationInput): Promise<EmployeeNotification>;
   deleteNotification(id: string): Promise<void>;
+  // ---- reservasi dan appointment dengan kalender (migrasi 0105; A143) ----
+  listAppointments(range?: { from?: string; to?: string }): Promise<Appointment[]>;
+  saveAppointment(input: AppointmentInput): Promise<Appointment>;
+  deleteAppointment(id: string): Promise<void>;
   // ---- aset tetap (migrasi 0040); hanya pemilik/admin. Rancangan Claude atas arahan Louis (Majoo tidak bisa dilihat). ----
   listFixedAssets(): Promise<FixedAsset[]>;
   /** Riwayat penyusutan yang sudah dicatat, satu aset atau semua (terbaru dulu). */
