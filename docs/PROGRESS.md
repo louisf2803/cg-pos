@@ -1038,3 +1038,10 @@ Atas keputusan Louis: target sementara tanpa bukti screenshot. `node scripts/goa
   - **`apps/pos` (`device-prefs.ts`, `Register.tsx`)**: menambahkan filter kategori `Deposit` di rel navigasi kategori kasir (hanya tampil jika terdapat produk/kategori deposit), menyembunyikan mode SKU dari pilihan `VIEW_MODES` (dibuang Louis), menambahkan `Mode Meja` dan `Mode Jasa` di preferensi perangkat dengan inisialisasi otomatis jenis pesanan (`dine_in` / `service`) dan tombol aksi pilih meja yang diutamakan.
   - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/pos test --run` (4 lulus), `lint-tailwind.sh origin/main` bersih.
 
+- **A145 (`ag/a145-metode-bayar-server`)**:
+  - **Migrasi & SQL test**: `0109_payment_method_settings.sql` (tabel `pos.payment_method_settings`, RPC `pos.save_payment_method_config` yang menyinkronkan nama & status ke `pos.payment_methods`, RPC `pos.delete_payment_method_config` dengan penjagaan metode bawaan tidak boleh dihapus, RLS, touch/updated_at triggers), tes SQL `25_payment_method_settings.sql`.
+  - **`DataLayer` (`packages/shared/src/{data,fake,supabase}.ts`)**: 4 metode konfigurasi metode pembayaran (`listPaymentMethodConfigs`, `savePaymentMethodConfig`, `deletePaymentMethodConfig`, `togglePaymentMethodActive`), diuji di `payment-methods.test.ts`. Gateway QRIS/DOKU tetap dijaga nonaktif ("Payment belum tersambung") sesuai aturan repo.
+  - **Dashboard**: menyambungkan `/pengaturan/metode-bayar` ke DataLayer server, menghapus dependensi penyimpanan lokal `a59-preview`, dan menghapus banner pratinjau.
+  - Verifikasi: `pnpm -r typecheck`, vitest `payment-methods.test.ts` (4 lulus), POS vitest (7 lulus), `lint-tailwind.sh origin/main` bersih.
+
+
