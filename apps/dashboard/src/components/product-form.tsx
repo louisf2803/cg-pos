@@ -51,6 +51,12 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const [trackStock, setTrackStock] = useState(initial?.trackStock ?? false);
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [overridePct, setOverridePct] = useState(initial?.priceOverridePct ? String(initial.priceOverridePct) : '');
+  const [taxOption, setTaxOption] = useState<'outlet' | 'exempt' | 'custom'>(
+    initial?.taxRate === 0 ? 'exempt' : typeof initial?.taxRate === 'number' && initial.taxRate > 0 ? 'custom' : 'outlet'
+  );
+  const [customTaxRate, setCustomTaxRate] = useState<string>(
+    typeof initial?.taxRate === 'number' && initial.taxRate > 0 ? String(initial.taxRate) : '10'
+  );
   const [err, setErr] = useState<{ field?: string; msg: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -134,11 +140,26 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
     const pct = overridePct.trim() === '' ? 0 : Number(overridePct.replace(',', '.'));
     const pctProblem = priceOverridePctProblem(pct);
     if (pctProblem) return setErr({ field: 'override', msg: pctProblem });
+
+    let resolvedTaxRate: number | null | undefined;
+    if (taxOption === 'exempt') {
+      resolvedTaxRate = 0;
+    } else if (taxOption === 'custom') {
+      const parsed = Number(customTaxRate.replace(',', '.'));
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+        return setErr({ field: 'taxRate', msg: 'Tarif pajak khusus harus berupa angka antara 0 dan 100%.' });
+      }
+      resolvedTaxRate = parsed;
+    } else {
+      resolvedTaxRate = null;
+    }
+
     setSaving(true);
     try {
       const saved = await data.saveCatalogProduct({
         id: savedId.current, name, categoryId: categoryId || null, price: hasVariants ? 0 : parseRp(price), sku: hasVariants ? undefined : sku.trim() || undefined,
         trackStock: kind === 'service' ? false : trackStock, isActive, isFavorite: initial?.isFavorite, kind, variants,
+        taxRate: resolvedTaxRate,
       });
       if (pct > 0 || initial?.priceOverridePct) await data.setPriceOverride(saved.variants.length ? saved.variants.map((v) => v.id) : [saved.id], pct);
       savedId.current = saved.id;      // bila foto gagal, simpan ulang memperbarui produk yang sama, bukan membuat ganda
@@ -280,12 +301,54 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
 
         {initial && <label className="flex items-center gap-8"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Produk aktif (tampil di kasir)</label>}
 
-        <div className="p-12 rounded-lg bg-surface-raised border border-border text-xs text-text-muted flex items-start justify-between gap-8" role="note">
+        <div className="p-16 rounded-lg border border-border bg-surface-raised grid gap-12" role="group" aria-labelledby="tax-rules-title">
           <div>
-            <span className="font-semibold text-text block">Aturan Pajak Produk</span>
-            <span>Produk ini mengikuti kebijakan pajak outlet aktif. Pemilihan tarif khusus atau pembebasan pajak per produk menunggu dukungan skema server lanjutan.</span>
+            <span id="tax-rules-title" className="font-semibold text-text text-sm block">Aturan Pajak Produk</span>
+            <span className="text-xs text-text-muted">Tentukan bagaimana pajak dikenakan untuk produk ini.</span>
           </div>
-          <span className="cg-badge cg-badge--secondary text-[11px] shrink-0">Otomatis Outlet</span>
+          <div className="grid gap-8 text-sm">
+            <label className="flex items-center gap-8 cursor-pointer">
+              <input
+                type="radio"
+                name="tax-option"
+                checked={taxOption === 'outlet'}
+                onChange={() => setTaxOption('outlet')}
+              />
+              <span><strong>Ikuti aturan outlet (bawaan).</strong> Dikenakan pajak bila pajak outlet aktif.</span>
+            </label>
+            <label className="flex items-center gap-8 cursor-pointer">
+              <input
+                type="radio"
+                name="tax-option"
+                checked={taxOption === 'exempt'}
+                onChange={() => setTaxOption('exempt')}
+              />
+              <span><strong>Bebas pajak (0%).</strong> Produk ini tidak pernah dikenakan pajak penjualan.</span>
+            </label>
+            <label className="flex items-center gap-8 cursor-pointer">
+              <input
+                type="radio"
+                name="tax-option"
+                checked={taxOption === 'custom'}
+                onChange={() => setTaxOption('custom')}
+              />
+              <span><strong>Tarif pajak khusus.</strong> Gunakan persentase tarif pajak berbeda untuk produk ini.</span>
+            </label>
+          </div>
+          {taxOption === 'custom' && (
+            <div className="cg-field max-w-[200px] mt-4">
+              <label className="cg-label text-xs" htmlFor="custom-tax-input">Tarif pajak produk (%)</label>
+              <input
+                id="custom-tax-input"
+                className="cg-input"
+                inputMode="decimal"
+                value={customTaxRate}
+                onChange={(e) => setCustomTaxRate(e.target.value)}
+                placeholder="10"
+              />
+              {err?.field === 'taxRate' && <p className="cg-error">{err.msg}</p>}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-8">

@@ -1107,3 +1107,8 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
 - Dashboard `/loyalty`: tab "Hadiah Produk" untuk kelola katalog produk hadiah dan biaya poinnya.
 - Kasir (`DiscountDialog.tsx`, `Register.tsx`): tab Poin menampilkan daftar klaim hadiah produk gratis, memasukkan baris Rp0 ke pesanan, dan mencatat potongan poin otomatis saat pesanan lunas.
 - Seluruh tes vitest passing (10 tests `loyalty.test.ts`), `pnpm -r typecheck` lulus, `lint-tailwind` bersih.
+## Antigravity (13 Nov 2026) — A141 Server: Pajak per Produk dan per Jenis Order Selesai
+- Migrasi `packages/db/migrations/0101_tax_per_product_and_order_types.sql` & tes SQL `packages/db/tests/21_tax_per_product_and_order_types.sql`: kolom `pos.products.tax_rate`, `pos.taxes.order_type_rates`, dan RPC `pos.tax_settings_save`.
+- Logika & DataLayer: `effectiveProductTaxRate`, `computeOrder` & `computeInclusive` mendukung cakupan `per_order` vs `per_product`, jenis order aktif (`orderTypes`), serta tarif pajak produk bebas (0%) / tarif khusus.
+- UI: `/pengaturan/pajak` mendukung pilihan cakupan dan multi-select jenis order kena pajak (banner pratinjau dihapus); `product-form.tsx` mendukung pilihan aturan pajak produk (ikut outlet / bebas 0% / tarif khusus).
+- Verifikasi: `pnpm -r typecheck` lulus, 7 tes `tax.test.ts` & 19 tes `calc.test.ts` lulus, `lint-tailwind` bersih.

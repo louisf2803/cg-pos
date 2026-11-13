@@ -40,7 +40,10 @@ export interface CartLine {
   basePrice?: number;
   overridePct?: number;
   manualPrice?: boolean;
+  /** pajak khusus produk (persen); kosong = pakai pajak order */
+  taxRate?: number | null;
 }
+
 
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState {
@@ -132,6 +135,7 @@ function reduce(s: CartState, a: Action): CartState {
             qty: 1,
             unitPrice: initialPrice,
             basePrice: a.product.price,
+            ...(a.product.taxRate !== undefined ? { taxRate: a.product.taxRate } : {}),
             ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}),
             ...(a.extras?.length ? { extras: a.extras } : {}),
           },
@@ -253,6 +257,7 @@ function reduce(s: CartState, a: Action): CartState {
           ...overridePricingForProduct(byId.get(i.productId)),
           ...(i.extras?.length ? { extras: i.extras } : {}),
           ...(i.note ? { note: i.note } : {}),
+          taxRate: byId.get(i.productId)?.taxRate,
         })),
       };
     }
@@ -286,7 +291,7 @@ export function useCart(
   const calc: CalcResult = useMemo(
     () => computeOrder({
       orderType: state.type, orderTaxes: ctx.taxes, settings: ctx.settings, roundingStep, orderDiscount: discounts.total,
-      items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })),
+      items: state.lines.map((l) => ({ id: l.id, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras), taxRate: l.taxRate ?? undefined })),
     }),
     [state, ctx, roundingStep, discounts],
   );

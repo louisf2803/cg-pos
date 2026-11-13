@@ -24,6 +24,7 @@ const toCalc = (ctx: OutletContext, type: OrderType, lines: CartLine[]) =>
       qty: l.qty,
       unitPrice: l.unitPrice,
       extrasTotal: extrasLineTotal(l.qty, l.extras),
+      taxRate: l.taxRate ?? undefined,
     })),
   });
 

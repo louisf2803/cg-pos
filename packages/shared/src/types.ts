@@ -5,8 +5,8 @@ export interface Category { id: string; name: string; sort: number; departmentId
 export interface Product {
   id: string; name: string; categoryId: string | null; price: number; sku?: string;
   kind: 'goods' | 'service' | 'bundle'; trackStock: boolean; stock?: number; isActive: boolean; isFavorite: boolean;
-  /** persen pajak khusus produk (mode per_product) */
-  taxRate?: number; photoUrl?: string;
+  /** persen pajak khusus produk (mode per_product); null/undefined = ikut aturan outlet, 0 = bebas pajak */
+  taxRate?: number | null; photoUrl?: string;
   /** produk induk bila ini varian ukuran (S/M/L); tidak ada untuk produk tunggal */
   parentId?: string | null;
   /** false untuk induk grup varian (tidak dijual langsung). Kosong = dijual. */
@@ -19,6 +19,7 @@ export interface Product {
 export interface ProductInput {
   id?: string; name: string; categoryId: string | null; price: number; sku?: string;
   kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;
+  taxRate?: number | null;
 }
 /** Satu ukuran/varian dari sebuah produk (mis. Americano: S, M, L), masing-masing punya harga dan SKU sendiri. */
 export interface CatalogVariant { id: string; label: string; price: number; sku?: string; isActive: boolean }
@@ -27,11 +28,13 @@ export interface CatalogProduct {
   id: string; name: string; categoryId: string | null; kind: 'goods' | 'service'; trackStock: boolean; isActive: boolean; isFavorite: boolean;
   /** produk tunggal: harganya; produk berarian: harga varian termurah */
   price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string; priceOverridePct?: number; printStationId?: string;
+  taxRate?: number | null;
 }
 export interface CatalogInput {
   id?: string; name: string; categoryId: string | null; kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;
   price: number; sku?: string;
   variants: { id?: string; label: string; price: number; sku?: string; isActive?: boolean }[];
+  taxRate?: number | null;
 }
 /** Paket: beberapa produk dijual dengan satu harga. Stok yang terpotong adalah stok komponennya. */
 export interface Bundle { id: string; name: string; categoryId: string | null; price: number; sku?: string; isActive: boolean; items: { productId: string; name: string; qty: number }[] }
@@ -152,7 +155,7 @@ export interface OutletContext {
   /** templat struk (migrasi 0031): tema, bagian tampil/sembunyi, batas cetak; tidak diisi = bawaan */
   receiptTemplate?: Partial<import('./receipt-template').ReceiptTemplate>;
   deviceCode: string; settings: CalcSettings & { roundingCashStep: number; roundingNoncashStep: number; requireOpenShift: boolean; allowNegativeStock: boolean; cashOutDailyLimit?: number | null; defaultOpeningCash?: number | null; autoReconcileNoncash?: boolean };
-  taxes: { id: string; name: string; rate: number }[];
+  taxes: { id: string; name: string; rate: number; orderTypes?: OrderType[]; orderTypeRates?: Partial<Record<OrderType, number>> }[];
 }
 
 export type DataErrorCode = 'no_open_shift' | 'shift_already_open' | 'order_locked' | 'bad_amount' | 'not_found' | 'bad_pin' | 'invalid' | 'forbidden' | 'network';

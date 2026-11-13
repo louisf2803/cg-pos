@@ -1,4 +1,4 @@
-import type { OrderType } from './order-calc';
+import type { OrderType, TaxMode } from './order-calc';
 import { receiptTemplateProblem } from './receipt-template';
 
 export interface OutletInfo { code: string; name: string; address: string; phone: string; timezone: string }
@@ -49,6 +49,7 @@ export function outletInfoProblem(i: Pick<OutletInfo, 'name' | 'address' | 'phon
   return null;
 }
 
+
 /** Pajak (PB1) yang bisa dinyalakan atau dimatikan per outlet. Mati = pesanan tidak dikenai pajak. */
 export interface TaxSettings {
   enabled: boolean; name: string;
@@ -56,13 +57,38 @@ export interface TaxSettings {
   rate: number;
   /** true = harga menu sudah termasuk pajak; false = pajak ditambahkan di atas harga menu */
   inclusive: boolean;
+  /** cakupan perhitungan: per_order (bawaan) atau per_product */
+  taxMode?: TaxMode;
+  /** jenis order yang dikenakan pajak; jika kosong/tidak diisi = semua jenis order */
+  orderTypes?: OrderType[];
+  /** tarif khusus per jenis order (opsional, jika berbeda dari rate) */
+  orderTypeRates?: Partial<Record<OrderType, number>>;
 }
-export const DEFAULT_TAX: TaxSettings = { enabled: false, name: 'PB1', rate: 10, inclusive: false };
+export const DEFAULT_TAX: TaxSettings = {
+  enabled: false,
+  name: 'PB1',
+  rate: 10,
+  inclusive: false,
+  taxMode: 'per_order',
+  orderTypes: ['dine_in', 'takeaway', 'delivery', 'service'],
+};
 export function taxSettingsProblem(t: TaxSettings): string | null {
   if (!t.name.trim()) return 'Nama pajak wajib diisi.';
   if (t.name.trim().length > 40) return 'Nama pajak maksimal 40 karakter.';
   if (!Number.isFinite(t.rate) || t.rate < 0 || t.rate > 100) return 'Tarif pajak harus antara 0 dan 100 persen.';
-  if (t.enabled && t.rate === 0) return 'Tarif 0 persen tidak ada gunanya; matikan pajak atau isi tarifnya.';
+  if (t.enabled && t.rate === 0 && (!t.orderTypeRates || Object.values(t.orderTypeRates).every((r) => !r || r === 0))) {
+    return 'Tarif 0 persen tidak ada gunanya; matikan pajak atau isi tarifnya.';
+  }
+  if (t.taxMode && t.taxMode !== 'per_order' && t.taxMode !== 'per_product') {
+    return 'Mode pajak tidak valid.';
+  }
+  if (t.orderTypeRates) {
+    for (const [k, v] of Object.entries(t.orderTypeRates)) {
+      if (v !== undefined && (!Number.isFinite(v) || v < 0 || v > 100)) {
+        return `Tarif jenis order ${k} harus antara 0 dan 100 persen.`;
+      }
+    }
+  }
   return null;
 }
 type GrossItem = { qty: number; unitPrice: number; extras?: { price: number }[] };

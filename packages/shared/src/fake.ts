@@ -48,7 +48,7 @@ import type {
   Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord, PriceChange,
 } from './types';
-import { computeOrder } from './order-calc';
+import { computeOrder, type OrderType } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
@@ -77,10 +77,10 @@ const CTX: OutletContext = {
     taxCalc: 'after_discount', taxMode: 'per_order', serviceChargePct: 0, serviceChargeTaxable: false,
     serviceChargeOrderTypes: ['dine_in'], roundingCashStep: 100, roundingNoncashStep: 0, requireOpenShift: true, allowNegativeStock: true, autoReconcileNoncash: false,
   },
-  taxes: [{ id: 'tax-pb1', name: 'PB1', rate: 10 }],
+  taxes: [{ id: 'tax-pb1', name: 'PB1', rate: 10, orderTypes: ['dine_in', 'takeaway', 'delivery', 'service'] }],
 };
 
-let fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
+let fakeTax: { id: string; name: string; rate: number; orderTypes?: OrderType[]; orderTypeRates?: Partial<Record<OrderType, number>> } = { id: 'tax-pb1', name: 'PB1', rate: 10, orderTypes: ['dine_in', 'takeaway', 'delivery', 'service'] };
 const CTX0 = JSON.parse(JSON.stringify(CTX)) as OutletContext;
 const CATEGORIES: Category[] = [
   { id: 'c-kopi', name: 'Kopi', sort: 1, departmentId: 'd-min' }, { id: 'c-non', name: 'Non-kopi', sort: 2, departmentId: 'd-min' },
@@ -472,7 +472,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     }));
     return computeOrder({
       orderType: draft.type, items, orderDiscount: draft.orderDiscount ?? (draft.discounts ?? []).reduce((n, d) => n + d.amount, 0),
-      orderTaxes: CTX.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate })),
+      orderTaxes: CTX.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate, orderTypes: t.orderTypes, orderTypeRates: t.orderTypeRates })),
       settings: CTX.settings, roundingStep: step,
     });
   }
@@ -534,7 +534,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         },
       ];
     }
-    Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10 };
+    Object.assign(CTX, JSON.parse(JSON.stringify(CTX0))); fakeTax = { id: 'tax-pb1', name: 'PB1', rate: 10, orderTypes: ['dine_in', 'takeaway', 'delivery', 'service'] };
     outlet = { address: '', phone: '', receiptFooter: '' };
     products = opts.seed === false ? [] : clone(PRODUCTS);
     stations = opts.seed === false ? [] : [
@@ -835,14 +835,29 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       CTX.address = outlet.address || undefined; CTX.phone = outlet.phone || undefined;
     },
     async getTaxSettings() {
-      return { enabled: CTX.taxes.length > 0, name: fakeTax.name, rate: fakeTax.rate, inclusive: CTX.settings.taxCalc === 'inclusive' };
+      return {
+        enabled: CTX.taxes.length > 0,
+        name: fakeTax.name,
+        rate: fakeTax.rate,
+        inclusive: CTX.settings.taxCalc === 'inclusive',
+        taxMode: CTX.settings.taxMode,
+        orderTypes: fakeTax.orderTypes ?? ['dine_in', 'takeaway', 'delivery', 'service'],
+        orderTypeRates: fakeTax.orderTypeRates ?? {},
+      };
     },
     async saveTaxSettings(input) {
       const problem = taxSettingsProblem(input);
       if (problem) throw new DataError('invalid', problem);
-      fakeTax = { ...fakeTax, name: input.name.trim(), rate: input.rate };
+      fakeTax = {
+        ...fakeTax,
+        name: input.name.trim(),
+        rate: input.rate,
+        orderTypes: input.orderTypes ?? ['dine_in', 'takeaway', 'delivery', 'service'],
+        orderTypeRates: input.orderTypeRates ?? {},
+      };
       CTX.taxes = input.enabled ? [{ ...fakeTax }] : [];
       CTX.settings.taxCalc = input.inclusive ? 'inclusive' : CTX.settings.taxCalc === 'inclusive' ? 'after_discount' : CTX.settings.taxCalc;
+      if (input.taxMode) CTX.settings.taxMode = input.taxMode;
     },
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);
@@ -1007,11 +1022,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         const p = products.find((x) => x.id === input.id);
         if (!p) throw new DataError('not_found', 'Produk tidak ditemukan');
         Object.assign(p, { name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku || undefined,
-          kind: input.kind ?? p.kind, trackStock: input.trackStock ?? p.trackStock, isFavorite: input.isFavorite ?? p.isFavorite, isActive: input.isActive ?? p.isActive });
+          kind: input.kind ?? p.kind, trackStock: input.trackStock ?? p.trackStock, isFavorite: input.isFavorite ?? p.isFavorite, isActive: input.isActive ?? p.isActive,
+          taxRate: input.taxRate !== undefined ? input.taxRate : p.taxRate });
         return clone(p);
       }
       const p: Product = { id: newId(), name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku || undefined,
-        kind: input.kind ?? 'goods', trackStock: input.trackStock ?? true, stock: 0, isActive: input.isActive ?? true, isFavorite: input.isFavorite ?? false };
+        kind: input.kind ?? 'goods', trackStock: input.trackStock ?? true, stock: 0, isActive: input.isActive ?? true, isFavorite: input.isFavorite ?? false,
+        taxRate: input.taxRate !== undefined ? input.taxRate : undefined };
       products.push(p); return clone(p);
     },
     async setProductActive(id, active) {
@@ -1046,7 +1063,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         const kids = groupId ? products.filter((p) => p.parentId === groupId) : [];
         for (const k of kids) products.splice(products.indexOf(k), 1);
         const cur = groupId ? products.find((p) => p.id === groupId) : undefined;
-        const patch = { name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active };
+        const patch = { name, categoryId: input.categoryId, price: Math.round(input.price), sku: input.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active, taxRate: input.taxRate !== undefined ? input.taxRate : undefined };
         if (cur) Object.assign(cur, patch);
         else products.push({ id: groupId ?? newId(), stock: 0, ...patch });
         return clone((await this.getCatalogProduct(groupId ?? products[products.length - 1]!.id))!);
@@ -1057,7 +1074,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const kept = new Set(input.variants.map((v) => v.id).filter(Boolean));
       for (const k of products.filter((p) => p.parentId === parentId && !kept.has(p.id))) products.splice(products.indexOf(k), 1);
       for (const v of input.variants) {
-        const patch = { name: variantProductName(name, v.label), categoryId: input.categoryId, price: Math.round(v.price), sku: v.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active && (v.isActive ?? true), parentId };
+        const patch = { name: variantProductName(name, v.label), categoryId: input.categoryId, price: Math.round(v.price), sku: v.sku?.trim() || undefined, kind, trackStock, isFavorite, isActive: active && (v.isActive ?? true), parentId, taxRate: input.taxRate !== undefined ? input.taxRate : undefined };
         const cur = v.id ? products.find((p) => p.id === v.id) : undefined;
         if (cur) Object.assign(cur, patch); else products.push({ id: newId(), stock: 0, ...patch });
       }
