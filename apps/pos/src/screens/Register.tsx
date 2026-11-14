@@ -21,6 +21,8 @@ import { CustomerPicker } from './CustomerPicker';
 import { DiscountDialog } from './DiscountDialog';
 import { SideDrawer } from './SideDrawer';
 import { Sales } from './Sales';
+import { Reports } from './Reports';
+import { HelpDialog } from './HelpDialog';
 import { SplitBillDialog } from './SplitBillDialog';
 
 const TYPES: { v: OrderType; label: string }[] = [
@@ -60,7 +62,7 @@ export function Register({
   onLock: () => void;
 }) {
   const data = useData();
-  const { session } = useSession();
+  const { session, logout } = useSession();
   const tickets = useTickets();
   const online = useOnline();
   const cats = useAsync(() => data.listCategories(), [data]);
@@ -87,6 +89,8 @@ export function Register({
   const [ordersTab, setOrdersTab] = useState<'waiting' | 'pending'>('waiting');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
+  const [showReports, setShowReports] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const pend = usePending();
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
@@ -325,6 +329,9 @@ export function Register({
   }
   if (showSales) {
     return <Sales ctx={ctx} onClose={() => setShowSales(false)} />;
+  }
+  if (showReports) {
+    return <Reports ctx={ctx} onClose={() => setShowReports(false)} />;
   }
   if (showOrders) {
     return <Orders ctx={ctx} canResume={cart.state.lines.length === 0} initialTab={ordersTab}
@@ -1184,6 +1191,8 @@ export function Register({
       {drawerOpen && (
         <SideDrawer
           outletName={ctx.outletName}
+          orgName={ctx.orgName}
+          outletCode={ctx.outletCode}
           cashierName={session.employee.name}
           canOpenKitchen={canOpenKitchen}
           onClose={() => setDrawerOpen(false)}
@@ -1193,27 +1202,25 @@ export function Register({
               // Sudah di kasir
             } else if (view === 'sales') {
               setShowSales(true);
-            } else if (view === 'orders') {
-              setOrdersTab('waiting');
-              setShowOrders(true);
+            } else if (view === 'reports') {
+              setShowReports(true);
+            } else if (view === 'help') {
+              setShowHelp(true);
+            } else if (view === 'logout') {
+              logout();
             } else if (view === 'kitchen') {
               onOpenKitchen?.();
-            } else if (view === 'customerDisplay') {
-              openCustomerScreen();
-            } else if (view === 'shift') {
-              setShiftOpen(true);
             } else if (view === 'attendance') {
               onOpenAttendance?.();
             } else if (view === 'settings') {
               setSettings(true);
-            } else if (view === 'lock') {
-              onLock();
             } else if (view === 'closeShift') {
               onCloseShift();
             }
           }}
         />
       )}
+      {showHelp && <HelpDialog ctx={ctx} onClose={() => setShowHelp(false)} />}
     </div>
   );
 }
