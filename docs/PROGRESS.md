@@ -1137,4 +1137,9 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
   - **`apps/dashboard`**: formulir produk (`product-form.tsx`) menambahkan isian estimasi durasi layanan dan multi-select staf pelaksana saat jenis Jasa; daftar produk (`/produk`) menampilkan durasi dan jumlah staf pelaksana.
   - Verifikasi: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test service-product.test.ts`, `pnpm -F @cgpos/pos test`, `lint-tailwind.sh origin/main` bersih.
 
+## Antigravity (13 Nov 2026) — A117 Kirim Pesanan ke Dapur per Item (Checker)
+- `packages/shared` (`kitchen-selection.ts`, `kitchen-selection.test.ts`, `index.ts`): helper seleksi centang item per tiket (`toggleTicketItemSelection`, `toggleAllTicketItems`, `isAllTicketItemsSelected`, `getSelectedTicketItemIds`, `clearTicketSelection`), penentuan aksi bulk (`resolveBulkNextStatus`). 4 unit tests lulus.
+- `apps/pos` (`KitchenDisplay.tsx`): pilihan centang item per baris dan centang semua item tiket, aksi bulk (Mulai olah/Tandai siap/Kirim ulang), aksi per item mundurkan status/olah lagi/tahap berikutnya, penonjolan catatan item (`it.note`) dengan badge kuning kontras dan status per item.
+- `apps/dashboard` (`dapur/page.tsx`): pilihan centang item dan pilih semua item tiket, aksi bulk untuk item dicentang (Mulai Olah / Tandai Siap / Kirim Ulang), penonjolan catatan item dan status per item.
+- Lolos: `pnpm -r typecheck`, `pnpm -F @cgpos/shared test kitchen`, `lint-tailwind.sh origin/main` bersih.
 

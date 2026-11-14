@@ -16,17 +16,23 @@ import {
 } from 'lucide-react';
 import {
   accessFor,
+  clearTicketSelection,
   filterKitchenTickets,
   filterRowsByStation,
   formatRole,
+  getSelectedTicketItemIds,
   groupTickets,
+  isAllTicketItemsSelected,
   KITCHEN_NEXT,
   KITCHEN_NEXT_LABEL,
   KITCHEN_PREV,
   KITCHEN_STATUS_LABEL,
   kitchenAlert,
   orderTypeLabel,
+  resolveBulkNextStatus,
   ticketAdvancePlan,
+  toggleAllTicketItems,
+  toggleTicketItemSelection,
   waitMinutes,
   type KitchenStatus,
   type KitchenTicket,
@@ -89,6 +95,7 @@ export function KitchenDisplay({
   const [query, setQuery] = useState('');
   const [showServed, setShowServed] = useState(false);
   const [busyIds, setBusyIds] = useState<Record<string, boolean>>({});
+  const [selectedItems, setSelectedItems] = useState<Record<string, string[]>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -459,6 +466,12 @@ export function KitchenDisplay({
               const alert = t.lane === 'served' ? 'ok' : kitchenAlert(mins);
               const plan = ticketAdvancePlan(t);
               const ticketBusy = t.items.some((it) => busyIds[it.itemId]);
+              const selectedTicketItemIds = getSelectedTicketItemIds(selectedItems, t.orderId);
+              const allSelected = isAllTicketItemsSelected(
+                selectedItems,
+                t.orderId,
+                t.items.map((it) => it.itemId),
+              );
 
               return (
                 <article
@@ -492,6 +505,39 @@ export function KitchenDisplay({
                       <span className={LANE_BADGE[t.lane]}>{KITCHEN_STATUS_LABEL[t.lane]}</span>
                       {t.label && <span className="text-xs font-medium text-text truncate">{t.label}</span>}
                     </div>
+
+                    {/* Pilihan Centang Semua Item */}
+                    <div className="flex items-center justify-between pt-4 border-t border-border/50 text-xs text-text-muted">
+                      <label className="inline-flex items-center gap-6 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={() =>
+                            setSelectedItems((prev) =>
+                              toggleAllTicketItems(
+                                prev,
+                                t.orderId,
+                                t.items.map((it) => it.itemId),
+                              ),
+                            )
+                          }
+                          className="cursor-pointer"
+                          aria-label={`Pilih semua item pesanan ${t.orderNumber}`}
+                        />
+                        <span>Pilih semua ({selectedTicketItemIds.length}/{t.items.length})</span>
+                      </label>
+                      {selectedTicketItemIds.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() =>
+                            setSelectedItems((prev) => clearTicketSelection(prev, t.orderId))
+                          }
+                        >
+                          Batal pilih
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Daftar Item Tiket */}
@@ -501,29 +547,48 @@ export function KitchenDisplay({
                       const nextLabel = KITCHEN_NEXT_LABEL[it.status];
                       const prev = KITCHEN_PREV[it.status];
                       const rowBusy = !!busyIds[it.itemId];
+                      const itemSelected = selectedTicketItemIds.includes(it.itemId);
 
                       return (
-                        <li key={it.itemId} className="py-8 space-y-6 text-xs">
-                          <div className="flex items-start justify-between gap-8">
-                            <div className="min-w-0">
-                              <p className="font-semibold text-text text-sm">
-                                {it.qty}× {it.name}
-                              </p>
+                        <li
+                          key={it.itemId}
+                          className={`py-8 space-y-6 text-xs transition-colors ${
+                            itemSelected ? 'bg-primary/5 -mx-12 px-12 rounded' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-8">
+                            <input
+                              type="checkbox"
+                              checked={itemSelected}
+                              onChange={() =>
+                                setSelectedItems((prev) =>
+                                  toggleTicketItemSelection(prev, t.orderId, it.itemId),
+                                )
+                              }
+                              className="mt-3 cursor-pointer shrink-0"
+                              aria-label={`Pilih item ${it.name}`}
+                            />
+                            <div className="grow min-w-0">
+                              <div className="flex items-start justify-between gap-8">
+                                <p className="font-semibold text-text text-sm">
+                                  {it.qty}× {it.name}
+                                </p>
+                                <span className={LANE_BADGE[it.status]}>{KITCHEN_STATUS_LABEL[it.status]}</span>
+                              </div>
                               {it.extras.length > 0 && (
                                 <p className="text-text-muted mt-2">
                                   + {it.extras.map((ex) => `${ex.name}${ex.qty > 1 ? ` ×${ex.qty}` : ''}`).join(', ')}
                                 </p>
                               )}
                               {it.note && (
-                                <p className="mt-4 px-8 py-4 rounded bg-warning-soft text-warning-strong font-medium">
-                                  Catatan: {it.note}
+                                <p className="mt-4 px-8 py-4 rounded bg-warning-soft text-warning-strong font-medium border border-warning/30">
+                                  <strong>Catatan:</strong> {it.note}
                                 </p>
                               )}
                             </div>
-                            <span className={LANE_BADGE[it.status]}>{KITCHEN_STATUS_LABEL[it.status]}</span>
                           </div>
 
-                          <div className="flex flex-wrap items-center justify-end gap-6">
+                          <div className="flex flex-wrap items-center justify-end gap-6 pl-24">
                             {prev && (
                               <button
                                 type="button"
@@ -534,6 +599,18 @@ export function KitchenDisplay({
                               >
                                 <RotateCcw className="cg-icon cg-icon--xs" aria-hidden />
                                 <span>Mundur</span>
+                              </button>
+                            )}
+                            {(it.status === 'ready' || it.status === 'served') && (
+                              <button
+                                type="button"
+                                className="cg-btn cg-btn--ghost cg-btn--sm"
+                                disabled={rowBusy}
+                                onClick={() => void changeStatus([it.itemId], 'preparing')}
+                                aria-label={`Kirim ulang atau olah lagi ${it.name}`}
+                              >
+                                <RotateCcw className="cg-icon cg-icon--xs" aria-hidden />
+                                <span>Olah lagi</span>
                               </button>
                             )}
                             {next && nextLabel && (
@@ -552,18 +629,64 @@ export function KitchenDisplay({
                     })}
                   </ul>
 
-                  {/* Tombol Aksi Utama Tiket */}
-                  {plan && (
-                    <div className="p-12 border-t border-border bg-surface">
+                  {/* Tombol Aksi Tiket: Item Terpilih vs Aksi Utama */}
+                  {selectedTicketItemIds.length > 0 ? (
+                    <div className="p-12 border-t border-border bg-surface space-y-6">
+                      <div className="grid grid-cols-2 gap-6">
+                        <button
+                          type="button"
+                          className="cg-btn cg-btn--primary cg-btn--sm flex items-center justify-center gap-4"
+                          disabled={ticketBusy}
+                          onClick={async () => {
+                            const bulk = resolveBulkNextStatus(t.items, selectedTicketItemIds);
+                            await changeStatus(selectedTicketItemIds, bulk.nextStatus);
+                            setSelectedItems((prev) => clearTicketSelection(prev, t.orderId));
+                          }}
+                        >
+                          <span>
+                            {resolveBulkNextStatus(t.items, selectedTicketItemIds).label} ({selectedTicketItemIds.length})
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="cg-btn cg-btn--secondary cg-btn--sm flex items-center justify-center gap-4"
+                          disabled={ticketBusy}
+                          onClick={async () => {
+                            await changeStatus(selectedTicketItemIds, 'ready');
+                            setSelectedItems((prev) => clearTicketSelection(prev, t.orderId));
+                          }}
+                          title="Tandai langsung semua item terpilih siap saji"
+                        >
+                          <span>Tandai siap</span>
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        className="cg-btn cg-btn--primary cg-btn--block"
+                        className="cg-btn cg-btn--ghost cg-btn--sm w-full flex items-center justify-center gap-4 text-xs"
                         disabled={ticketBusy}
-                        onClick={() => void changeStatus(plan.itemIds, plan.nextStatus)}
+                        onClick={async () => {
+                          await changeStatus(selectedTicketItemIds, 'new');
+                          setSelectedItems((prev) => clearTicketSelection(prev, t.orderId));
+                        }}
+                        title="Kembalikan item terpilih ke status antrean baru (kirim ulang)"
                       >
-                        {plan.label} ({plan.itemIds.length} item)
+                        <RotateCcw className="cg-icon cg-icon--xs" aria-hidden />
+                        <span>Kirim ulang / Baru ({selectedTicketItemIds.length})</span>
                       </button>
                     </div>
+                  ) : (
+                    plan && (
+                      <div className="p-12 border-t border-border bg-surface">
+                        <button
+                          type="button"
+                          className="cg-btn cg-btn--primary cg-btn--block"
+                          disabled={ticketBusy}
+                          onClick={() => void changeStatus(plan.itemIds, plan.nextStatus)}
+                        >
+                          {plan.label} ({plan.itemIds.length} item)
+                        </button>
+                      </div>
+                    )
                   )}
                 </article>
               );
