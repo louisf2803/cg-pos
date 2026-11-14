@@ -273,12 +273,17 @@ export const MODUL: NavModule[] = [
           { href: '/karyawan/absensi', label: 'Absensi karyawan', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/jadwal', label: 'Jadwal kerja', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/catatan', label: 'Catatan harian', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/radius-absensi', label: 'Radius absensi & lokasi', screen: 'S43', tier: 2, built: true },
         ],
       },
       {
-        label: 'Organisasi',
+        label: 'Organisasi & Struktur',
         icon: Briefcase,
         items: [
+          { href: '/karyawan/jabatan', label: 'Tingkat jabatan', screen: 'S43', tier: 2, built: true },
+          { href: '/karyawan/organisasi', label: 'Organisasi karyawan', screen: 'S43', tier: 2, built: true },
+          { href: '/karyawan/tipe', label: 'Tipe karyawan', screen: 'S43', tier: 2, built: true },
+          { href: '/karyawan/notifikasi', label: 'Kirim notifikasi', screen: 'S43', tier: 2, built: true },
           { href: '/karyawan/tim', label: 'Struktur tim', screen: 'S43', tier: 3 },
           { href: '/karyawan/master', label: 'Pengaturan master karyawan', screen: 'S43', tier: 3 },
           { href: '/persetujuan', label: 'Alur persetujuan', screen: 'S43', tier: 2, built: true },
