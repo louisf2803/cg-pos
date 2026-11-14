@@ -97,6 +97,8 @@ export function toProduct(r: Row): Product {
     ...(r.photo_path ? { photoUrl: String(r.photo_path) } : {}),
     ...(r.print_station_id ? { printStationId: String(r.print_station_id) } : {}),
     ...(r.allow_price_override && num(r.max_price_override_pct) > 0 ? { priceOverridePct: num(r.max_price_override_pct) } : {}),
+    ...(r.service_duration_min !== null && r.service_duration_min !== undefined ? { serviceDurationMin: num(r.service_duration_min) } : {}),
+    ...(r.service_staff_ids ? { serviceStaffIds: Array.isArray(r.service_staff_ids) ? (r.service_staff_ids as string[]) : [] } : {}),
   };
 }
 

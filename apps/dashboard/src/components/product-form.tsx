@@ -41,6 +41,7 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const data = useData();
   const router = useRouter();
   const cats = useAsync(() => data.listCategories(), [data]);
+  const employees = useAsync(() => data.listEmployees(), [data]);
   const [kind, setKind] = useState<'goods' | 'service'>(initial?.kind ?? 'goods');
   const [name, setName] = useState(initial?.name ?? '');
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
@@ -50,6 +51,8 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
   const [rows, setRows] = useState<Row[]>(initial?.variants.map((v) => newRow({ id: v.id, label: v.label, price: String(v.price), sku: v.sku ?? '', isActive: v.isActive })) ?? []);
   const [trackStock, setTrackStock] = useState(initial?.trackStock ?? false);
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [serviceDurationMin, setServiceDurationMin] = useState(initial?.serviceDurationMin !== undefined ? String(initial.serviceDurationMin) : '');
+  const [serviceStaffIds, setServiceStaffIds] = useState<string[]>(initial?.serviceStaffIds ?? []);
   const [overridePct, setOverridePct] = useState(initial?.priceOverridePct ? String(initial.priceOverridePct) : '');
   const [taxOption, setTaxOption] = useState<'outlet' | 'exempt' | 'custom'>(
     initial?.taxRate === 0 ? 'exempt' : typeof initial?.taxRate === 'number' && initial.taxRate > 0 ? 'custom' : 'outlet'
@@ -156,10 +159,13 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
 
     setSaving(true);
     try {
+      const dur = serviceDurationMin.trim() ? Math.max(0, parseInt(serviceDurationMin, 10)) : undefined;
       const saved = await data.saveCatalogProduct({
         id: savedId.current, name, categoryId: categoryId || null, price: hasVariants ? 0 : parseRp(price), sku: hasVariants ? undefined : sku.trim() || undefined,
         trackStock: kind === 'service' ? false : trackStock, isActive, isFavorite: initial?.isFavorite, kind, variants,
         taxRate: resolvedTaxRate,
+        serviceDurationMin: kind === 'service' ? dur : undefined,
+        serviceStaffIds: kind === 'service' ? serviceStaffIds : undefined,
       });
       if (pct > 0 || initial?.priceOverridePct) await data.setPriceOverride(saved.variants.length ? saved.variants.map((v) => v.id) : [saved.id], pct);
       savedId.current = saved.id;      // bila foto gagal, simpan ulang memperbarui produk yang sama, bukan membuat ganda
@@ -209,6 +215,56 @@ export function ProductForm({ initial }: { initial?: CatalogProduct }) {
             </button>
           </div>
         </div>
+
+        {kind === 'service' && (
+          <fieldset className="grid gap-12 border border-border rounded-lg p-16 bg-surface-raised/30">
+            <legend className="px-8 font-semibold text-sm">Pengaturan Jasa / Layanan</legend>
+            <div className="cg-field">
+              <label className="cg-label" htmlFor="durasi">Durasi layanan (menit, opsional)</label>
+              <input
+                id="durasi"
+                type="number"
+                min={0}
+                className="cg-input cg-num"
+                style={{ maxWidth: 160 }}
+                placeholder="Mis. 30, 60"
+                value={serviceDurationMin}
+                onChange={(e) => setServiceDurationMin(e.target.value)}
+              />
+              <p className="text-sm text-text-muted">Estimasi durasi pengerjaan untuk antrean reservasi atau pemesanan.</p>
+            </div>
+
+            <div className="cg-field">
+              <span className="cg-label">Staf pelaksana</span>
+              <p className="text-sm text-text-muted mb-8">Pilih staf yang melayani jasa ini (kosong = semua staf):</p>
+              {employees.status === 'loading' && <p className="text-sm text-text-muted">Memuat karyawan…</p>}
+              {employees.status === 'ready' && employees.data.length === 0 && (
+                <p className="text-sm text-text-muted">Belum ada karyawan terdaftar.</p>
+              )}
+              {employees.status === 'ready' && employees.data.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-h-[160px] overflow-y-auto border border-border rounded p-8 bg-surface">
+                  {employees.data.map((emp) => {
+                    const checked = serviceStaffIds.includes(emp.id);
+                    return (
+                      <label key={emp.id} className="flex items-center gap-8 text-sm cursor-pointer hover:bg-surface-raised p-4 rounded">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) setServiceStaffIds((prev) => [...prev, emp.id]);
+                            else setServiceStaffIds((prev) => prev.filter((id) => id !== emp.id));
+                          }}
+                        />
+                        <span>{emp.name}</span>
+                        {emp.role && <span className="cg-badge text-xs">{emp.role}</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </fieldset>
+        )}
 
         <div className="cg-field">
           <label className="cg-label" htmlFor="kategori">Kategori</label>
