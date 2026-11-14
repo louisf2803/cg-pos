@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Lock, Monitor, Tag, UserCheck, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star, LayoutGrid, Package, Wallet } from 'lucide-react';
-import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newApplied, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { CHANNELS, CHANNEL_LABEL, type Channel, checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newApplied, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
-import { lineOrderName, useCart, type CartLine, type CartPricingRules } from '../lib/cart';
+import { lineOrderName, resolveEffectivePrice, useCart, type CartLine, type CartPricingRules } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { ApproverFields, useApprover } from '../lib/approver';
@@ -107,6 +107,9 @@ export function Register({
   const promos = useAsync<Promotion[]>(() => data.listPromotions({ activeOnly: true }).catch(() => []), [data]);
   const schedulesRes = useAsync(() => data.listPriceSchedules().catch(() => []), [data]);
   const tieredPricesRes = useAsync(() => data.listTieredPrices().catch(() => []), [data]);
+  // harga kanal ojek online dan harga berdasarkan hari/jam (A135); gagal memuat = harga normal
+  const channelPricesRes = useAsync(() => data.listChannelPrices().catch(() => []), [data]);
+  const timePricesRes = useAsync(() => data.listTimePrices().catch(() => []), [data]);
   const groupMembersRes = useAsync(() => data.listCustomerGroupMembers().catch(() => []), [data]);
 
   const groupMemberMap = useMemo(() => {
@@ -122,7 +125,10 @@ export function Register({
   const pricingRules = useMemo<CartPricingRules>(() => ({
     schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
     tieredPrices: tieredPricesRes.status === 'ready' ? tieredPricesRes.data : undefined,
-  }), [schedulesRes, tieredPricesRes]);
+    channelPrices: channelPricesRes.status === 'ready' ? channelPricesRes.data : undefined,
+    timePrices: timePricesRes.status === 'ready' ? timePricesRes.data : undefined,
+    timezone: ctx.timezone,
+  }), [schedulesRes, tieredPricesRes, channelPricesRes, timePricesRes, ctx.timezone]);
 
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [priceForId, setPriceForId] = useState<string | null>(null);
@@ -131,8 +137,11 @@ export function Register({
   const activePricing = useMemo<CartPricingRules>(() => ({
     schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
     tieredPrices: tieredPricesRes.status === 'ready' ? tieredPricesRes.data : undefined,
+    channelPrices: channelPricesRes.status === 'ready' ? channelPricesRes.data : undefined,
+    timePrices: timePricesRes.status === 'ready' ? timePricesRes.data : undefined,
+    timezone: ctx.timezone,
     customerGroupId: cart.state.customerId ? groupMemberMap.get(cart.state.customerId) : undefined,
-  }), [schedulesRes, tieredPricesRes, cart.state.customerId, groupMemberMap]);
+  }), [schedulesRes, tieredPricesRes, channelPricesRes, timePricesRes, ctx.timezone, cart.state.customerId, groupMemberMap]);
   const [discOpen, setDiscOpen] = useState(false);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
@@ -195,11 +204,11 @@ export function Register({
   // Mode tampilan Meja & Jasa mengarahkan jenis order awal jika keranjang masih kosong
   useEffect(() => {
     if (viewMode === 'service' && cart.state.lines.length === 0 && cart.state.type !== 'service') {
-      cart.dispatch({ t: 'type', type: 'service' });
+      cart.dispatch({ t: 'type', type: 'service', pricing: activePricing });
     } else if (viewMode === 'table' && cart.state.lines.length === 0 && cart.state.type !== 'dine_in') {
-      cart.dispatch({ t: 'type', type: 'dine_in' });
+      cart.dispatch({ t: 'type', type: 'dine_in', pricing: activePricing });
     }
-  }, [viewMode, cart.state.lines.length, cart]);
+  }, [viewMode, cart.state.lines.length, cart, activePricing]);
 
   const visible = useMemo(() => {
     if (prods.status !== 'ready') return [];
@@ -258,7 +267,7 @@ export function Register({
   async function persist(): Promise<Order> {
     const o = await data.saveOrder({
       id: cart.state.orderId ?? newId(), type: cart.state.type,
-      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, orderDiscount: cart.discounts.total || undefined, discounts: cart.discounts.entries.length ? cart.discounts.entries : undefined, label: cart.state.label?.trim() || undefined,
+      tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, orderDiscount: cart.discounts.total || undefined, discounts: cart.discounts.entries.length ? cart.discounts.entries : undefined, label: cart.state.label?.trim() || (cart.state.type === 'delivery' && cart.state.channel ? CHANNEL_LABEL[cart.state.channel] : undefined),
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
       items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, ...(l.unitId ? { unitId: l.unitId } : {}), name: lineOrderName(l), qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined })),
     }, session.employee.id);
@@ -686,7 +695,7 @@ export function Register({
               <select
                 className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface"
                 value={cart.state.type}
-                onChange={(e) => cart.dispatch({ t: 'type', type: e.target.value as OrderType })}
+                onChange={(e) => cart.dispatch({ t: 'type', type: e.target.value as OrderType, pricing: activePricing })}
                 aria-label="Jenis pesanan"
               >
                 {TYPES.map((t) => (
@@ -695,6 +704,18 @@ export function Register({
                   </option>
                 ))}
               </select>
+              {cart.state.type === 'delivery' && (
+                <select
+                  className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface mt-4"
+                  value={cart.state.channel ?? ''}
+                  onChange={(e) => cart.dispatch({ t: 'channel', channel: (e.target.value || undefined) as Channel | undefined, pricing: activePricing })}
+                  aria-label="Kanal pesanan"
+                  data-testid="order-channel"
+                >
+                  <option value="">Antar langsung</option>
+                  {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
+                </select>
+              )}
             </div>
 
             {/* Kolom 2: Tombol Pelanggan */}
@@ -1137,7 +1158,7 @@ export function Register({
           onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras, pricing: activePricing }); setExtraFor(null); }} />
       )}
       {detailFor && (
-        <ProductDetailDialog product={detailFor} groups={extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, detailFor) : []} onClose={() => setDetailFor(null)}
+        <ProductDetailDialog product={detailFor} basePrice={resolveEffectivePrice(detailFor.id, detailFor.price, 1, { ...activePricing, channel: cart.state.type === 'delivery' ? cart.state.channel ?? null : null })} groups={extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, detailFor) : []} onClose={() => setDetailFor(null)}
           onSave={(r) => {
             const conv = r.unitId ? detailFor.sellUnits?.find((u) => u.id === r.unitId)?.conversion ?? 1 : 1;
             const lim = optionLimit(detailFor, r.qty * conv);

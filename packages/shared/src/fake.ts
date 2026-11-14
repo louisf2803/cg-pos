@@ -3144,5 +3144,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     getOrder: (id) => self.getOrder(id), saveOrder: (d, c) => self.saveOrder(d, c),
     voidUnpaidOrder: (id, r, by) => self.voidUnpaidOrder(id, r, by), listTableStatus: () => self.listTableStatus(),
   });
+  // contoh harga untuk demo kasir: Latte lebih mahal di GoFood dan GrabFood (harga kanal), Teh tarik happy hour hari kerja 15.00-17.00 (harga waktu)
+  if (opts.seed !== false) {
+    void priceRules.saveChannelPrice('p3', 'gofood', 27000);
+    void priceRules.saveChannelPrice('p3', 'grabfood', 28000);
+    void priceRules.saveTimePrice({ id: 'tp-demo-1', productId: 'p5', days: [1, 2, 3, 4, 5], startTime: '15:00', endTime: '17:00', price: 12000, isActive: true });
+  }
   return self;
 }

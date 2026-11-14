@@ -13,8 +13,8 @@ const NOTE_MAX = 100;
  * lalu Simpan memasukkan ke keranjang. Ekstra wajib yang belum dipilih menahan Simpan. Aturan dan pemilih ekstra memakai ExtraPicker yang sama seperti sebelumnya.
  * `onSave` mengembalikan pesan galat (mis. stok tidak cukup) atau null bila berhasil.
  */
-export function ProductDetailDialog({ product, groups, onClose, onSave }: {
-  product: Product; groups: ExtraGroup[]; onClose: () => void; onSave: (r: ProductDetailResult) => string | null;
+export function ProductDetailDialog({ product, groups, basePrice, onClose, onSave }: {
+  product: Product; groups: ExtraGroup[]; /** harga satuan dasar yang berlaku sekarang (kanal, jam, jadwal, grup); kosong = harga daftar */ basePrice?: number; onClose: () => void; onSave: (r: ProductDetailResult) => string | null;
 }) {
   const [qty, setQty] = useState(1);
   const [unitId, setUnitId] = useState('');
@@ -24,7 +24,7 @@ export function ProductDetailDialog({ product, groups, onClose, onSave }: {
   const [error, setError] = useState('');
 
   const alt = unitId ? product.sellUnits?.find((u) => u.id === unitId) : undefined;
-  const unitPrice = alt ? alt.price : product.price;
+  const unitPrice = alt ? alt.price : basePrice ?? product.price;
   const lineTotal = Math.round(qty * (unitPrice + extrasPerUnit(extras)));
   const optionTotal = groups.reduce((n, g) => n + g.options.length, 0);
   const chosenIds = extras.map((e) => e.optionId);

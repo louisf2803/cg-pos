@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer } from 'react';
 import {
   appliedFromEntries,
   computeOrder,
+  effectiveTimedPrice,
   extrasKey,
   extrasLineTotal,
   newId,
@@ -11,6 +12,9 @@ import {
   resolveTieredPrice,
   type AppliedDiscount,
   type CalcResult,
+  type Channel,
+  type ChannelPrice,
+  type TimePrice,
   type GroupProductTieredPricing,
   type ItemExtra,
   type Order,
@@ -27,6 +31,21 @@ export interface CartPricingRules {
   schedules?: readonly PriceSchedule[];
   tieredPrices?: readonly GroupProductTieredPricing[];
   customerGroupId?: string | null;
+  /** kanal ojek online yang dipilih kasir (hanya jenis order Antar) dan harga per kanal */
+  channel?: Channel | null;
+  channelPrices?: readonly ChannelPrice[];
+  /** harga berdasarkan hari dan jam (zona waktu outlet); `now` bisa diisi untuk tes */
+  timePrices?: readonly TimePrice[];
+  timezone?: string;
+  now?: Date;
+}
+
+const DAY_NUM: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+/** Hari (1 = Senin sampai 7 = Minggu) dan jam HH:MM pada zona waktu outlet. */
+export function localDayTime(now: Date, tz: string): { day: number; time: string } {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return { day: DAY_NUM[get('weekday')] ?? 1, time: `${get('hour')}:${get('minute')}` };
 }
 
 export interface CartLine {
@@ -58,6 +77,8 @@ export const lineOrderName = (l: Pick<CartLine, 'name' | 'unitName'>) => (l.unit
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
 export interface CartState {
   type: OrderType;
+  /** kanal ojek online (jenis order Antar); kosong = pesan langsung */
+  channel?: Channel;
   lines: CartLine[];
   orderId?: string;
   tableId?: string;
@@ -77,7 +98,8 @@ export type Action =
   | { t: 'note'; lineId: string; note: string }
   | { t: 'unit'; lineId: string; unitId?: string; pricing?: CartPricingRules }
   | { t: 'price'; lineId: string; unitPrice: number; reason?: string }
-  | { t: 'type'; type: OrderType }
+  | { t: 'type'; type: OrderType; pricing?: CartPricingRules }
+  | { t: 'channel'; channel?: Channel; pricing?: CartPricingRules }
   | { t: 'table'; tableId?: string; tableName?: string }
   | { t: 'meta'; label?: string; guestCount?: number }
   | { t: 'customer'; customerId?: string; customerName?: string; customerGroupId?: string; pricing?: CartPricingRules }
@@ -95,9 +117,19 @@ export function resolveEffectivePrice(
   rules?: CartPricingRules,
 ): number {
   if (!rules) return basePrice;
+  // urutan: harga kanal ojek online > harga berdasarkan waktu > jadwal harga dan harga bertingkat grup
+  if (rules.channel && rules.channelPrices) {
+    const cp = rules.channelPrices.find((c) => c.productId === productId && c.channel === rules.channel);
+    if (cp) return cp.price;
+  }
   let price = basePrice;
+  if (rules.timePrices && rules.timePrices.length > 0) {
+    const { day, time } = localDayTime(rules.now ?? new Date(), rules.timezone ?? 'Asia/Jakarta');
+    const timed = effectiveTimedPrice(rules.timePrices as TimePrice[], productId, day, time);
+    if (timed !== null) price = timed;
+  }
   if (rules.schedules && rules.schedules.length > 0) {
-    const sched = resolveScheduledPrice(rules.schedules, productId, basePrice);
+    const sched = resolveScheduledPrice(rules.schedules, productId, price);
     price = sched.effectivePrice;
   }
   if (rules.customerGroupId && rules.tieredPrices && rules.tieredPrices.length > 0) {
@@ -114,6 +146,14 @@ export function resolveEffectivePrice(
 
 const initial: CartState = { type: 'takeaway', lines: [], discounts: [] };
 
+/** Aturan harga untuk keranjang ini: aturan dari luar + grup pelanggan + kanal (hanya bila jenis order Antar). */
+const rulesFor = (s: CartState, p?: CartPricingRules): CartPricingRules => ({ ...(p ?? {}), customerGroupId: p?.customerGroupId ?? s.customerGroupId, channel: s.type === 'delivery' ? s.channel ?? null : null });
+/** Harga satuan dasar hasil aturan. Harga yang berasal dari aturan (bukan diubah kasir) dicatat juga sebagai harga dasar, supaya tidak dianggap perubahan harga oleh server. */
+const repriced = (l: CartLine, qty: number, rules: CartPricingRules): { unitPrice: number; basePrice: number } => {
+  const price = resolveEffectivePrice(l.productId, l.listPrice ?? l.basePrice ?? l.unitPrice, qty, rules);
+  return { unitPrice: price, basePrice: price };
+};
+
 export function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {
@@ -124,19 +164,14 @@ export function reduce(s: CartState, a: Action): CartState {
       const ex = s.lines.find((l) => l.productId === a.product.id && (l.unitId ?? '') === (alt?.id ?? '') && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && !addNote && !l.manualPrice);
       if (ex) {
         const nextQty = ex.qty + addQty;
-        const unitPrice = ex.unitId ? ex.unitPrice : resolveEffectivePrice(
-          ex.productId,
-          ex.basePrice ?? ex.unitPrice,
-          nextQty,
-          a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined),
-        );
-        return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: nextQty, unitPrice } : l)) };
+        const np = ex.unitId ? {} : repriced(ex, nextQty, rulesFor(s, a.pricing));
+        return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: nextQty, ...np } : l)) };
       }
       const initialPrice = alt ? alt.price : resolveEffectivePrice(
         a.product.id,
         a.product.price,
         addQty,
-        a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined),
+        rulesFor(s, a.pricing),
       );
       return {
         ...s,
@@ -148,7 +183,7 @@ export function reduce(s: CartState, a: Action): CartState {
             name: a.product.name,
             qty: addQty,
             unitPrice: initialPrice,
-            basePrice: alt ? alt.price : a.product.price,
+            basePrice: initialPrice,
             listPrice: a.product.price,
             ...(alt ? { unitId: alt.id, unitName: alt.name } : {}),
             ...(addNote ? { note: addNote } : {}),
@@ -175,15 +210,8 @@ export function reduce(s: CartState, a: Action): CartState {
         ...s,
         lines: s.lines.map((l) => {
           if (l.id !== a.lineId) return l;
-          const unitPrice = l.manualPrice || l.unitId
-            ? l.unitPrice
-            : resolveEffectivePrice(
-                l.productId,
-                l.basePrice ?? l.unitPrice,
-                a.qty,
-                a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined),
-              );
-          return { ...l, qty: a.qty, unitPrice };
+          const np = l.manualPrice || l.unitId ? {} : repriced(l, a.qty, rulesFor(s, a.pricing));
+          return { ...l, qty: a.qty, ...np };
         }),
       };
     }
@@ -195,10 +223,8 @@ export function reduce(s: CartState, a: Action): CartState {
           const alt = a.unitId ? l.sellUnits?.find((u) => u.id === a.unitId) : undefined;
           if (alt) return { ...l, unitId: alt.id, unitName: alt.name, unitPrice: alt.price, basePrice: alt.price, manualPrice: false };
           // kembali ke satuan dasar: harga daftar + aturan harga bertingkat/jadwal seperti saat ditambahkan
-          const list = l.listPrice ?? l.unitPrice;
-          const unitPrice = resolveEffectivePrice(l.productId, list, l.qty, a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined));
           const { unitId: _u, unitName: _n, ...rest } = l;
-          return { ...rest, unitPrice, basePrice: list, manualPrice: false };
+          return { ...rest, ...repriced({ ...rest, listPrice: l.listPrice ?? l.unitPrice }, l.qty, rulesFor(s, a.pricing)), manualPrice: false };
         }),
       };
     }
@@ -214,8 +240,16 @@ export function reduce(s: CartState, a: Action): CartState {
           ...(a.reason ? { note: (l.note ? `${l.note} (${a.reason})` : a.reason).slice(0, 120) } : {}),
         } : l)),
       };
-    case 'type':
-      return a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
+    case 'type': {
+      const base = a.type === 'dine_in' ? { ...s, type: a.type } : { ...s, type: a.type, tableId: undefined, tableName: undefined, guestCount: undefined };
+      const next: CartState = a.type === 'delivery' ? base : { ...base, channel: undefined };
+      // jenis order berubah: harga kanal ikut berlaku atau lepas
+      return { ...next, lines: next.lines.map((l) => (l.manualPrice || l.unitId ? l : { ...l, ...repriced(l, l.qty, rulesFor(next, a.pricing)) })) };
+    }
+    case 'channel': {
+      const next: CartState = { ...s, channel: a.channel };
+      return { ...next, lines: next.lines.map((l) => (l.manualPrice || l.unitId ? l : { ...l, ...repriced(l, l.qty, rulesFor(next, a.pricing)) })) };
+    }
     case 'table':
       return { ...s, tableId: a.tableId, tableName: a.tableName };
     case 'meta':
@@ -235,13 +269,7 @@ export function reduce(s: CartState, a: Action): CartState {
         discounts: a.customerId === s.customerId ? s.discounts : s.discounts.filter((d) => d.source !== 'points'),
         lines: s.lines.map((l) => {
           if (l.manualPrice || l.unitId) return l;
-          const unitPrice = resolveEffectivePrice(
-            l.productId,
-            l.basePrice ?? l.unitPrice,
-            l.qty,
-            pricingOpts,
-          );
-          return { ...l, unitPrice };
+          return { ...l, ...repriced(l, l.qty, rulesFor(s, pricingOpts)) };
         }),
       };
     }
@@ -255,13 +283,7 @@ export function reduce(s: CartState, a: Action): CartState {
         customerGroupId: effectivePricing.customerGroupId ?? undefined,
         lines: s.lines.map((l) => {
           if (l.manualPrice || l.unitId) return l;
-          const unitPrice = resolveEffectivePrice(
-            l.productId,
-            l.basePrice ?? l.unitPrice,
-            l.qty,
-            effectivePricing,
-          );
-          return { ...l, unitPrice };
+          return { ...l, ...repriced(l, l.qty, rulesFor(s, effectivePricing)) };
         }),
       };
     }
@@ -292,7 +314,8 @@ export function reduce(s: CartState, a: Action): CartState {
           qty: i.qty,
           unitPrice: i.unitPrice,
           ...overridePricingForProduct(prod),
-          ...(prod?.sellUnits?.length ? { sellUnits: prod.sellUnits, baseUnitName: prod.baseUnitName, listPrice: prod.price } : {}),
+          ...(prod ? { listPrice: prod.price } : {}),
+          ...(prod?.sellUnits?.length ? { sellUnits: prod.sellUnits, baseUnitName: prod.baseUnitName } : {}),
           ...(alt ? { unitId: alt.id, unitName: alt.name, basePrice: alt.price } : {}),
           ...(i.extras?.length ? { extras: i.extras } : {}),
           ...(i.note ? { note: i.note } : {}),
@@ -320,7 +343,7 @@ export function useCart(
     if (pricing) {
       dispatch({ t: 'sync-pricing', pricing });
     }
-  }, [pricing?.customerGroupId, pricing?.schedules, pricing?.tieredPrices]);
+  }, [pricing?.customerGroupId, pricing?.schedules, pricing?.tieredPrices, pricing?.channelPrices, pricing?.timePrices]);
 
   const discounts: ResolvedDiscounts = useMemo(
     () => resolveDiscounts(state.discounts, promos, {
