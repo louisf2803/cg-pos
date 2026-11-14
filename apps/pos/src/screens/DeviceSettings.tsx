@@ -1,5 +1,16 @@
 import { useState } from 'react';
-import { Monitor, Printer } from 'lucide-react';
+import {
+  Activity,
+  CheckCircle2,
+  HardDrive,
+  Monitor,
+  Printer,
+  RefreshCw,
+  Server,
+  Wifi,
+  WifiOff,
+  XCircle,
+} from 'lucide-react';
 import {
   accessFor,
   IDLE_LOCK_CHOICES,
@@ -8,9 +19,15 @@ import {
   ROLE_LABEL,
   type Access,
 } from '@cgpos/shared';
-import { useData } from '../lib/app-data';
+import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow } from '../lib/customer-display';
-import { APP_MODES, devicePrefs, useDevicePrefs, VIEW_MODES } from '../lib/device-prefs';
+import {
+  APP_MODES,
+  devicePrefs,
+  LOCAL_SERVER_ROLES,
+  useDevicePrefs,
+  VIEW_MODES,
+} from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
@@ -21,6 +38,7 @@ const ACCESS_TEXT: Record<Access, string> = { allow: 'Boleh', approve: 'Perlu PI
 /** Pengaturan perangkat ini dan ringkasan hak akses peran yang sedang bertugas. */
 export function DeviceSettings({ onClose }: { onClose: () => void }) {
   const data = useData();
+  const pend = usePending();
   const { session } = useSession();
   const prefs = useDevicePrefs();
   const stations = useAsync(() => data.listPrintStations(), [data]);
@@ -29,6 +47,67 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
   const [devicesOpen, setDevicesOpen] = useState(false);
   const ctxState = useAsync(() => data.getContext(), [data]);
   const activeStations = stations.status === 'ready' ? stations.data.filter((s) => s.isActive) : [];
+
+  // State untuk uji koneksi dan sync pull
+  const [testingPing, setTestingPing] = useState(false);
+  const [pingResult, setPingResult] = useState<{ ok: boolean; latencyMs: number; message: string } | null>(null);
+  const [pulling, setPulling] = useState(false);
+  const [pullResult, setPullResult] = useState<{ ok: boolean; items: number; message: string } | null>(null);
+  const [syncHistory, setSyncHistory] = useState(() => pend.getSyncHistory());
+
+  async function handleTestConnection() {
+    setTestingPing(true);
+    setPingResult(null);
+    const start = Date.now();
+    try {
+      await data.getContext();
+      const ms = Date.now() - start;
+      setPingResult({
+        ok: true,
+        latencyMs: ms,
+        message: ms < 300 ? `Koneksi stabil (${ms} ms)` : `Koneksi terhubung (${ms} ms)`,
+      });
+    } catch {
+      const ms = Date.now() - start;
+      setPingResult({
+        ok: false,
+        latencyMs: ms,
+        message: 'Koneksi terputus atau server tidak merespons (Offline)',
+      });
+    } finally {
+      setTestingPing(false);
+    }
+  }
+
+  async function handleSyncPull() {
+    setPulling(true);
+    setPullResult(null);
+    try {
+      const res = await pend.syncPull();
+      setSyncHistory(pend.getSyncHistory());
+      if (res.status === 'success') {
+        setPullResult({
+          ok: true,
+          items: res.itemsPulled,
+          message: `Berhasil menyinkronkan ${res.itemsPulled} data ke penyimpanan lokal (${res.durationMs} ms).`,
+        });
+      } else {
+        setPullResult({
+          ok: false,
+          items: 0,
+          message: res.error ?? 'Gagal menarik data dari server.',
+        });
+      }
+    } catch (err) {
+      setPullResult({
+        ok: false,
+        items: 0,
+        message: err instanceof Error ? err.message : 'Gagal menarik data dari server.',
+      });
+    } finally {
+      setPulling(false);
+    }
+  }
 
   return (
     <Modal title="Pengaturan perangkat" onClose={onClose} labelledBy="dev-title">
@@ -106,6 +185,154 @@ export function DeviceSettings({ onClose }: { onClose: () => void }) {
             </label>
           ))}
         </fieldset>
+
+        {/* Bagian Mode Server Lokal, Tes Koneksi & Sinkronisasi */}
+        <section aria-labelledby="koneksi-offline-set" className="p-12 border border-border rounded grid gap-12 bg-surface">
+          <div className="min-w-0">
+            <h3 id="koneksi-offline-set" className="text-base font-semibold flex items-center gap-6">
+              <Server className="cg-icon cg-icon--sm" aria-hidden /> Jaringan Outlet & Server Lokal
+            </h3>
+            <p className="text-sm text-text-muted mt-2">
+              Atur peran perangkat di outlet (cloud langsung, server master, atau klien) dan sinkronkan data untuk berjualan tanpa internet.
+            </p>
+          </div>
+
+          <fieldset className="grid gap-8 border-0 p-0 m-0" disabled={!canEdit}>
+            <legend className="cg-label">Peran server perangkat ini</legend>
+            {LOCAL_SERVER_ROLES.map((roleOpt) => (
+              <label key={roleOpt.id} className="flex items-start gap-8 p-8 border border-border rounded cursor-pointer">
+                <input
+                  type="radio"
+                  name="local-server-role"
+                  className="mt-4"
+                  checked={prefs.localServerRole === roleOpt.id}
+                  onChange={() => devicePrefs.set({ localServerRole: roleOpt.id })}
+                />
+                <span>
+                  <strong className="block">{roleOpt.label}</strong>
+                  <span className="text-sm text-text-muted">{roleOpt.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          {prefs.localServerRole === 'client' && (
+            <div className="cg-field">
+              <label className="cg-label" htmlFor="local-server-host">Alamat IP / Host Server Master</label>
+              <input
+                id="local-server-host"
+                className="cg-input"
+                type="text"
+                placeholder="Contoh: http://192.168.1.100:3000"
+                value={prefs.localServerHost}
+                disabled={!canEdit}
+                onChange={(e) => devicePrefs.set({ localServerHost: e.target.value })}
+              />
+              <p className="text-sm text-text-muted">
+                Masukkan URL server master di jaringan Wi-Fi outlet yang sama.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-8 items-center pt-4 border-t border-border">
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm"
+              disabled={testingPing}
+              onClick={handleTestConnection}
+            >
+              <Activity className="cg-icon cg-icon--sm" aria-hidden />
+              {testingPing ? 'Menguji koneksi…' : 'Uji Koneksi'}
+            </button>
+
+            <button
+              type="button"
+              className="cg-btn cg-btn--secondary cg-btn--sm"
+              disabled={pulling}
+              onClick={handleSyncPull}
+            >
+              <RefreshCw className={`cg-icon cg-icon--sm ${pulling ? 'animate-spin' : ''}`} aria-hidden />
+              {pulling ? 'Menarik data…' : 'Tarik Data Terbaru (Sync Pull)'}
+            </button>
+          </div>
+
+          {pingResult && (
+            <div
+              className={`p-8 rounded text-sm flex items-center gap-6 ${
+                pingResult.ok ? 'bg-accent/10 text-accent-strong' : 'bg-danger/10 text-danger-strong'
+              }`}
+            >
+              {pingResult.ok ? (
+                <Wifi className="cg-icon cg-icon--sm shrink-0" aria-hidden />
+              ) : (
+                <WifiOff className="cg-icon cg-icon--sm shrink-0" aria-hidden />
+              )}
+              <span>{pingResult.message}</span>
+            </div>
+          )}
+
+          {pullResult && (
+            <div
+              className={`p-8 rounded text-sm flex items-center gap-6 ${
+                pullResult.ok ? 'bg-accent/10 text-accent-strong' : 'bg-danger/10 text-danger-strong'
+              }`}
+            >
+              {pullResult.ok ? (
+                <CheckCircle2 className="cg-icon cg-icon--sm shrink-0" aria-hidden />
+              ) : (
+                <XCircle className="cg-icon cg-icon--sm shrink-0" aria-hidden />
+              )}
+              <span>{pullResult.message}</span>
+            </div>
+          )}
+
+          {/* Riwayat Sinkronisasi */}
+          <div className="pt-8 border-t border-border">
+            <h4 className="text-sm font-semibold mb-6 flex items-center gap-6">
+              <HardDrive className="cg-icon cg-icon--xs" aria-hidden /> Riwayat Sinkronisasi Terakhir
+            </h4>
+            {syncHistory.length === 0 ? (
+              <p className="text-xs text-text-muted">Belum ada riwayat sinkronisasi.</p>
+            ) : (
+              <div className="overflow-x-auto min-w-0">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-text-muted text-left">
+                      <th className="py-4">Waktu</th>
+                      <th className="py-4">Status</th>
+                      <th className="py-4 text-right">Item</th>
+                      <th className="py-4 text-right">Durasi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {syncHistory.slice(0, 5).map((entry) => (
+                      <tr key={entry.id} className="border-b border-border/50">
+                        <td className="py-4">
+                          {new Date(entry.timestamp).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-4">
+                          <span
+                            className={`cg-badge cg-badge--sm ${
+                              entry.status === 'success' ? 'cg-badge--accent' : 'cg-badge--danger'
+                            }`}
+                          >
+                            {entry.status === 'success' ? 'Sukses' : 'Gagal'}
+                          </span>
+                        </td>
+                        <td className="py-4 text-right cg-num">{entry.itemsPulled}</td>
+                        <td className="py-4 text-right cg-num">{entry.durationMs} ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
 
         <section aria-labelledby="layar-pelanggan-set" className="p-12 border border-border rounded grid gap-8 bg-surface">
           <div className="flex flex-wrap items-center justify-between gap-8">

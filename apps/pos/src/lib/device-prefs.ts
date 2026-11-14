@@ -23,11 +23,22 @@ export const normalizeViewMode = (v: unknown): ViewMode => {
   if (v === 'list' || v === 'table' || v === 'service') return v;
   return 'grid';
 };
+
+export type LocalServerRole = 'cloud' | 'master' | 'client';
+export const LOCAL_SERVER_ROLES: { id: LocalServerRole; label: string; hint: string }[] = [
+  { id: 'cloud', label: 'Cloud Langsung', hint: 'Perangkat terhubung langsung ke server pusat (Supabase) via internet.' },
+  { id: 'master', label: 'Master Server Lokal', hint: 'Perangkat ini bertindak sebagai server utama di outlet untuk melayani kasir/KDS lain saat internet offline.' },
+  { id: 'client', label: 'Klien Server Lokal', hint: 'Perangkat ini terhubung ke kasir master di outlet via jaringan lokal (Wi-Fi/LAN).' },
+];
+export const normalizeLocalServerRole = (v: unknown): LocalServerRole => (v === 'master' || v === 'client' ? v : 'cloud');
+
 export interface DevicePrefs {
   idleLockMinutes: number;
   viewMode: ViewMode;
   appMode: PosAppMode;
   kitchenStationId: string;
+  localServerRole: LocalServerRole;
+  localServerHost: string;
 }
 
 const KEY = 'cgpos.device';
@@ -40,6 +51,8 @@ const read = (): DevicePrefs => {
       viewMode: normalizeViewMode(v.viewMode),
       appMode: normalizePosAppMode(v.appMode),
       kitchenStationId: normalizeStation(v.kitchenStationId),
+      localServerRole: normalizeLocalServerRole(v.localServerRole),
+      localServerHost: typeof v.localServerHost === 'string' ? v.localServerHost : '',
     };
   } catch {
     return {
@@ -47,6 +60,8 @@ const read = (): DevicePrefs => {
       viewMode: 'grid',
       appMode: 'register',
       kitchenStationId: 'all',
+      localServerRole: 'cloud',
+      localServerHost: '',
     };
   }
 };
@@ -64,6 +79,8 @@ export const devicePrefs = {
       viewMode: normalizeViewMode(patch.viewMode ?? state.viewMode),
       appMode: normalizePosAppMode(patch.appMode ?? state.appMode),
       kitchenStationId: normalizeStation(patch.kitchenStationId ?? state.kitchenStationId),
+      localServerRole: normalizeLocalServerRole(patch.localServerRole ?? state.localServerRole),
+      localServerHost: typeof (patch.localServerHost ?? state.localServerHost) === 'string' ? (patch.localServerHost ?? state.localServerHost).trim() : '',
     };
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* penyimpanan boleh gagal */ }
     for (const l of listeners) l();

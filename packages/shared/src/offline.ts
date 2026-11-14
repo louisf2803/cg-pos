@@ -1,21 +1,37 @@
 import type { DataLayer } from './data';
 import { DataError } from './types';
-import type { Order, OrderDraft, OutletContext, PaymentInput } from './types';
+import type { Order, OrderDraft, OutletContext, PaymentInput, Refund, Shift, ShiftReport } from './types';
 import { computeOrder } from './order-calc';
 import { extrasLineTotal } from './extras';
-import { roundToStep } from './money';
+import { formatRp, roundToStep } from './money';
 import { newId } from './id';
+import { hashPin } from './hash';
 
 /** Penyimpanan kunci-nilai sinkron (localStorage di peramban, Map di tes). */
 export interface KV { get(key: string): string | null; set(key: string, value: string): void }
 export const memoryKV = (): KV => { const m = new Map<string, string>(); return { get: (k) => m.get(k) ?? null, set: (k, v) => void m.set(k, v) }; };
 
+export type PendingKind = 'order' | 'payment' | 'void' | 'refund' | 'shift_open' | 'shift_close';
+
 export interface PendingEntry {
-  id: string; kind: 'order' | 'payment'; orderId: string;
+  id: string; kind: PendingKind; orderId: string;
   /** teks singkat untuk daftar: nomor sementara + ringkasan */
   label: string; amount: number; createdAt: string;
   status: 'waiting' | 'failed'; error?: string; attempts: number;
   draft?: OrderDraft; cashierId?: string; payment?: PaymentInput;
+  reason?: string; authMethod?: 'pin' | 'code';
+  refundInput?: Parameters<DataLayer['refundOrder']>[0];
+  shiftOpenInput?: Parameters<DataLayer['openShift']>[0];
+  shiftCloseInput?: Parameters<DataLayer['closeShift']>[0];
+}
+
+export interface SyncHistoryEntry {
+  id: string;
+  timestamp: string;
+  status: 'success' | 'failed';
+  durationMs: number;
+  itemsPulled: number;
+  error?: string;
 }
 
 export interface PendingApi {
@@ -27,6 +43,10 @@ export interface PendingApi {
   retry(id: string): Promise<void>;
   /** Buang entri (dan entri turunannya). Pemanggil wajib sudah meminta PIN manajer. */
   discard(id: string): void;
+  /** Sinkronisasi lengkap semua data katalog/outlet dari server ke cache lokal. */
+  syncPull(): Promise<SyncHistoryEntry>;
+  /** Riwayat sinkronisasi lokal. */
+  getSyncHistory(): SyncHistoryEntry[];
 }
 export type OfflineData = DataLayer & { pending: PendingApi };
 
@@ -58,7 +78,7 @@ export function createOfflineData(inner: DataLayer, opts: Options): OfflineData 
   const kv = opts.storage;
   const isOnline = opts.isOnline ?? (() => ((globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine ?? true));
   const now = opts.now ?? (() => new Date());
-  const K = { queue: 'cgpos.offline.queue', orders: 'cgpos.offline.orders', seq: 'cgpos.offline.seq' };
+  const K = { queue: 'cgpos.offline.queue', orders: 'cgpos.offline.orders', seq: 'cgpos.offline.seq', shift: 'cgpos.offline.shift', sync: 'cgpos.offline.sync_history' };
   const load = <T,>(k: string, d: T): T => { try { const v = kv.get(k); return v ? (JSON.parse(v) as T) : d; } catch { return d; } };
   const save = (k: string, v: unknown) => { try { kv.set(k, JSON.stringify(v)); } catch { /* penyimpanan penuh/diblokir: antrean tetap di memori */ } };
 
@@ -117,7 +137,11 @@ export function createOfflineData(inner: DataLayer, opts: Options): OfflineData 
     e.attempts += 1;
     try {
       if (e.kind === 'order') await inner.saveOrder(e.draft!, e.cashierId!);
-      else await inner.addPayment(e.orderId, e.payment!);
+      else if (e.kind === 'payment') await inner.addPayment(e.orderId, e.payment!);
+      else if (e.kind === 'void') await inner.voidUnpaidOrder(e.orderId, e.reason ?? 'Batal offline', e.cashierId ?? '', e.authMethod);
+      else if (e.kind === 'refund') await inner.refundOrder(e.refundInput!);
+      else if (e.kind === 'shift_open') await inner.openShift(e.shiftOpenInput!);
+      else if (e.kind === 'shift_close') await inner.closeShift(e.shiftCloseInput!);
       return 'sent';
     } catch (err) {
       if (isNetworkError(err)) return 'offline';
@@ -207,25 +231,281 @@ export function createOfflineData(inner: DataLayer, opts: Options): OfflineData 
     const ids = new Set(mine.map((o) => o.id));
     return [...mine.map((o) => clone(o)), ...remote.filter((o) => !ids.has(o.id))].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
   };
+  api.verifyPin = async (employeeId: string, pin: string): Promise<boolean> => {
+    if (isOnline()) {
+      try {
+        const ok = await inner.verifyPin(employeeId, pin);
+        if (ok) {
+          const hash = await hashPin(employeeId, pin);
+          kv.set(`cgpos.offline.pin_hash.${employeeId}`, hash);
+        }
+        return ok;
+      } catch (err) {
+        if (!isNetworkError(err)) throw err;
+      }
+    }
+    const cachedHash = kv.get(`cgpos.offline.pin_hash.${employeeId}`);
+    if (!cachedHash) {
+      throw new DataError(
+        'forbidden',
+        'PIN belum pernah diverifikasi di perangkat ini saat online. Masuk pertama kali membutuhkan koneksi internet.',
+      );
+    }
+    const computed = await hashPin(employeeId, pin);
+    return computed === cachedHash;
+  };
+
   api.voidUnpaidOrder = async (orderId: string, reason: string, by: string, authMethod?: 'pin' | 'code') => {
-    if (local[orderId] || hasPending(orderId)) {
-      if (isOnline()) await flush();
-      if (local[orderId] || hasPending(orderId)) throw new DataError('network', 'Pesanan ini belum terkirim ke server. Sinkronkan dulu atau hapus dari daftar tertunda.');
+    if (local[orderId]) {
+      const o = local[orderId]!;
+      o.status = 'void';
+      o.closedAt = now().toISOString();
+      delete local[orderId];
+      queue = queue.filter((x) => x.orderId !== orderId);
+      persist();
+      return o;
     }
-    return inner.voidUnpaidOrder(orderId, reason, by, authMethod);
-  };
-  api.closeShift = async (input: Parameters<DataLayer['closeShift']>[0]) => {
-    if (queue.length > 0) {
-      await flush();
-      if (queue.length > 0) throw new DataError('invalid', `Masih ada ${queue.length} transaksi tertunda. Sinkronkan atau selesaikan dulu sebelum tutup kasir.`);
+    if (isOnline() && queue.length === 0) {
+      try {
+        return await inner.voidUnpaidOrder(orderId, reason, by, authMethod);
+      } catch (e) {
+        if (!isNetworkError(e)) throw e;
+      }
     }
-    return inner.closeShift(input);
+    const at = now().toISOString();
+    enqueue({
+      orderId,
+      kind: 'void',
+      label: `Batal pesanan ${orderId} (${reason})`,
+      amount: 0,
+      reason,
+      cashierId: by,
+      authMethod,
+    });
+    persist();
+    void flush();
+    return {
+      id: orderId,
+      number: orderId,
+      status: 'void',
+      openedAt: at,
+      closedAt: at,
+      cashierId: by,
+      items: [],
+      subtotal: 0,
+      discountTotal: 0,
+      taxTotal: 0,
+      serviceFeeTotal: 0,
+      rounding: 0,
+      total: 0,
+      paidTotal: 0,
+      payments: [],
+      notes: reason,
+    } as unknown as Order;
   };
+
+  api.refundOrder = async (input: Parameters<DataLayer['refundOrder']>[0]): Promise<Refund> => {
+    if (isOnline() && queue.length === 0) {
+      try {
+        return await inner.refundOrder(input);
+      } catch (e) {
+        if (!isNetworkError(e)) throw e;
+      }
+    }
+    const at = now().toISOString();
+    const ref: Refund = {
+      id: input.id || newId(),
+      number: `REF-OFF-${Date.now().toString().slice(-4)}`,
+      orderId: input.orderId,
+      total: input.items.reduce((sum, it) => sum + (it.qty * 10000), 0),
+      reason: input.reason,
+      note: input.note,
+      methodName: 'Tunai',
+      createdAt: at,
+      items: input.items.map((it) => ({ orderItemId: it.orderItemId, qty: it.qty, amount: 0 })),
+    };
+    enqueue({
+      orderId: input.orderId,
+      kind: 'refund',
+      label: `Pengembalian dana ${input.orderId} · ${input.reason}`,
+      amount: ref.total,
+      refundInput: input,
+      cashierId: input.authorizedBy,
+    });
+    persist();
+    void flush();
+    return ref;
+  };
+
+  api.openShift = async (input: Parameters<DataLayer['openShift']>[0]): Promise<Shift> => {
+    if (isOnline() && queue.length === 0) {
+      try {
+        const s = await inner.openShift(input);
+        save(K.shift, s);
+        return s;
+      } catch (e) {
+        if (!isNetworkError(e)) throw e;
+      }
+    }
+    const at = now().toISOString();
+    const shift: Shift = {
+      id: input.id,
+      cashierId: input.cashierId,
+      openedAt: at,
+      openingCash: input.openingCash,
+      status: 'open',
+    };
+    save(K.shift, shift);
+    enqueue({
+      orderId: shift.id,
+      kind: 'shift_open',
+      label: `Buka shift offline (${formatRp(input.openingCash)})`,
+      amount: input.openingCash,
+      shiftOpenInput: input,
+      cashierId: input.cashierId,
+    });
+    persist();
+    void flush();
+    return shift;
+  };
+
+  api.currentShift = async (): Promise<Shift | null> => {
+    const localShift = load<Shift | null>(K.shift, null);
+    if (localShift) return localShift;
+    return cachedRead('currentShift', []);
+  };
+
+  api.closeShift = async (input: Parameters<DataLayer['closeShift']>[0]): Promise<ShiftReport> => {
+    if (queue.some((e) => e.kind === 'order' || e.kind === 'payment')) {
+      throw new DataError(
+        'order_locked',
+        'Masih ada transaksi tertunda. Sambungkan internet atau buang transaksi dengan persetujuan manajer sebelum menutup kasir.',
+      );
+    }
+    if (isOnline()) {
+      try {
+        const res = await inner.closeShift(input);
+        save(K.shift, null);
+        return res;
+      } catch (e) {
+        if (!isNetworkError(e)) throw e;
+      }
+    }
+    const cur = load<Shift | null>(K.shift, null);
+    const at = now().toISOString();
+    save(K.shift, null);
+    enqueue({
+      orderId: input.shiftId,
+      kind: 'shift_close',
+      label: `Tutup shift offline (${formatRp(input.counted)})`,
+      amount: input.counted,
+      shiftCloseInput: input,
+      cashierId: input.closedBy,
+    });
+    persist();
+    void flush();
+    const closedShift: Shift = cur ?? {
+      id: input.shiftId,
+      cashierId: input.closedBy,
+      openedAt: at,
+      openingCash: 0,
+      status: 'closed',
+      closedAt: at,
+      counted: input.counted,
+      expectedCash: input.counted,
+      variance: 0,
+    };
+    return {
+      shift: { ...closedShift, status: 'closed', closedAt: at, counted: input.counted, expectedCash: input.counted, variance: 0 },
+      expectedCash: input.counted,
+      counted: input.counted,
+      variance: 0,
+      cashSales: 0,
+      otherSales: 0,
+      cashIn: 0,
+      cashOut: 0,
+      orderCount: 0,
+      byMethod: [],
+      cashRefunds: 0,
+      productsSold: [],
+    };
+  };
+
+  async function syncPull(): Promise<SyncHistoryEntry> {
+    const start = Date.now();
+    const at = now().toISOString();
+    if (!isOnline()) {
+      const failedEntry: SyncHistoryEntry = {
+        id: newId(),
+        timestamp: at,
+        status: 'failed',
+        durationMs: Date.now() - start,
+        itemsPulled: 0,
+        error: 'Tidak ada koneksi internet',
+      };
+      const hist = load<SyncHistoryEntry[]>(K.sync, []);
+      save(K.sync, [failedEntry, ...hist].slice(0, 20));
+      return failedEntry;
+    }
+
+    try {
+      const names = [
+        'getContext',
+        'listCategories',
+        'listDepartments',
+        'listProducts',
+        'listEmployees',
+        'listPaymentMethods',
+        'listFloors',
+        'listTables',
+        'listTableStatus',
+        'listPromotions',
+        'getLoyaltyRules',
+        'listPrintStations',
+        'listNotePresets',
+      ];
+      const pulls = await Promise.all(names.map((name) => call(name, [])));
+      let count = 0;
+      pulls.forEach((res, i) => {
+        save(cacheKey(names[i]!, []), res);
+        count += Array.isArray(res) ? res.length : 1;
+      });
+
+      const successEntry: SyncHistoryEntry = {
+        id: newId(),
+        timestamp: at,
+        status: 'success',
+        durationMs: Date.now() - start,
+        itemsPulled: count,
+      };
+      const hist = load<SyncHistoryEntry[]>(K.sync, []);
+      save(K.sync, [successEntry, ...hist].slice(0, 20));
+      return successEntry;
+    } catch (e) {
+      const errEntry: SyncHistoryEntry = {
+        id: newId(),
+        timestamp: at,
+        status: 'failed',
+        durationMs: Date.now() - start,
+        itemsPulled: 0,
+        error: e instanceof Error ? e.message : 'Gagal sinkronisasi data',
+      };
+      const hist = load<SyncHistoryEntry[]>(K.sync, []);
+      save(K.sync, [errEntry, ...hist].slice(0, 20));
+      return errEntry;
+    }
+  }
+
+  function getSyncHistory(): SyncHistoryEntry[] {
+    return load<SyncHistoryEntry[]>(K.sync, []);
+  }
 
   const pending: PendingApi = {
     list: () => clone(queue),
     subscribe: (fn) => { subs.add(fn); return () => void subs.delete(fn); },
     flush,
+    syncPull,
+    getSyncHistory,
     async retry(id) {
       const e = queue.find((x) => x.id === id);
       if (e) { e.status = 'waiting'; e.error = undefined; }
