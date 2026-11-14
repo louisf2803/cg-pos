@@ -14,7 +14,7 @@ import { useOnline } from '../lib/online';
 import { DiscountLines, Modal, ProductPhoto } from '../ui';
 import { Orders } from './Orders';
 import { TablePicker } from './TablePicker';
-import { DeviceSettings } from './DeviceSettings';
+import { Settings as SettingsScreen } from './settings/Settings';
 import { ShiftSummary } from './ShiftSummary';
 import { Payment } from './Payment';
 import { CustomerPicker } from './CustomerPicker';
@@ -22,7 +22,7 @@ import { DiscountDialog } from './DiscountDialog';
 import { SideDrawer } from './SideDrawer';
 import { Sales } from './Sales';
 import { Reports } from './Reports';
-import { HelpDialog } from './HelpDialog';
+import { playChime } from '../lib/sound';
 import { SplitBillDialog } from './SplitBillDialog';
 
 const TYPES: { v: OrderType; label: string }[] = [
@@ -90,7 +90,6 @@ export function Register({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
   const [showReports, setShowReports] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const pend = usePending();
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
@@ -322,6 +321,7 @@ export function Register({
       }}
       onBack={() => { if (keepCart) { setKeepCart(false); setNotice(`Pesanan pisah ${paying.number} belum dibayar; ada di Daftar Order.`); } setPaying(null); }}
       onDone={() => {
+        playChime();
         if (keepCart) { setKeepCart(false); setPanelOpen(true); setNotice(`Bagian pisah ${paying.number} lunas. Sisa pesanan masih terbuka di keranjang.`); }
         else if (!fromList) { cart.dispatch({ t: 'clear' }); setPanelOpen(false); setShowOrders(false); }
         setPaying(null); prods.reload(); waitingOrders.reload();
@@ -332,6 +332,9 @@ export function Register({
   }
   if (showReports) {
     return <Reports ctx={ctx} onClose={() => setShowReports(false)} />;
+  }
+  if (settings) {
+    return <SettingsScreen ctx={ctx} onClose={() => setSettings(false)} />;
   }
   if (showOrders) {
     return <Orders ctx={ctx} canResume={cart.state.lines.length === 0} initialTab={ordersTab}
@@ -1060,7 +1063,6 @@ export function Register({
         <button type="button" className="cg-btn cg-btn--secondary reg__show flex-1" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
       </footer>
       {shiftOpen && <ShiftSummary onClose={() => setShiftOpen(false)} onCloseShift={() => { setShiftOpen(false); onCloseShift(); }} />}
-      {settings && <DeviceSettings onClose={() => setSettings(false)} />}
       {discOpen && (
         <DiscountDialog applied={cart.state.discounts} resolved={cart.discounts} promos={promos.status === 'ready' ? promos.data : NO_PROMOS}
           cart={{ orderType: cart.state.type, lines: cart.state.lines.map((l) => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, extrasTotal: extrasLineTotal(l.qty, l.extras) })) }}
@@ -1204,8 +1206,6 @@ export function Register({
               setShowSales(true);
             } else if (view === 'reports') {
               setShowReports(true);
-            } else if (view === 'help') {
-              setShowHelp(true);
             } else if (view === 'logout') {
               logout();
             } else if (view === 'kitchen') {
@@ -1220,7 +1220,6 @@ export function Register({
           }}
         />
       )}
-      {showHelp && <HelpDialog ctx={ctx} onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

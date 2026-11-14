@@ -3,7 +3,6 @@ import {
   ChefHat,
   Copy,
   FileBarChart,
-  LifeBuoy,
   LogOut,
   Settings,
   Store,
@@ -13,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 
-export type DrawerView = 'register' | 'sales' | 'reports' | 'kitchen' | 'attendance' | 'settings' | 'help' | 'closeShift' | 'logout';
+export type DrawerView = 'register' | 'sales' | 'reports' | 'kitchen' | 'attendance' | 'settings' | 'closeShift' | 'logout';
 
 export interface SideDrawerProps {
   outletName: string;
@@ -31,7 +30,7 @@ const ITEM = 'w-full flex items-center gap-12 px-12 py-10 rounded-lg text-sm fon
 
 /**
  * Menu Samping (Side Drawer) Kasir.
- * Kartu profil (usaha, outlet, kasir, ID), lalu: Kasir, Penjualan, Laporan, Absensi, Pengaturan, Bantuan;
+ * Kartu profil (usaha, outlet, kasir, ID), lalu: Kasir, Penjualan, Laporan, Absensi, Pengaturan;
  * di dasar: Tutup Kasir dan Keluar Kasir. Penutupan dengan Escape, klik latar, dan kunci fokus keyboard (Tab).
  */
 export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOpenKitchen = false, onClose, onNavigate }: SideDrawerProps) {
@@ -106,8 +105,7 @@ export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOp
           {entry('attendance', 'Absensi', <UserCheck className="cg-icon cg-icon--sm" aria-hidden />)}
           {canOpenKitchen && entry('kitchen', 'Layar Dapur', <ChefHat className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('settings', 'Pengaturan', <Settings className="cg-icon cg-icon--sm" aria-hidden />)}
-          {entry('help', 'Bantuan', <LifeBuoy className="cg-icon cg-icon--sm" aria-hidden />)}
-          <hr className="border-border my-8" />
+                  <hr className="border-border my-8" />
           <button type="button" className={`${ITEM} text-danger hover:text-danger`} onClick={go('closeShift')}>
             <Wallet className="cg-icon cg-icon--sm shrink-0" aria-hidden />
             <span>Tutup Kasir</span>

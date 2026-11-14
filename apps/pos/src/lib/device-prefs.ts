@@ -39,6 +39,8 @@ export interface DevicePrefs {
   kitchenStationId: string;
   localServerRole: LocalServerRole;
   localServerHost: string;
+  /** bunyi saat ada pembayaran berhasil atau pesanan baru (pengaturan perangkat) */
+  soundEnabled: boolean;
 }
 
 const KEY = 'cgpos.device';
@@ -53,6 +55,7 @@ const read = (): DevicePrefs => {
       kitchenStationId: normalizeStation(v.kitchenStationId),
       localServerRole: normalizeLocalServerRole(v.localServerRole),
       localServerHost: typeof v.localServerHost === 'string' ? v.localServerHost : '',
+      soundEnabled: v.soundEnabled === true,
     };
   } catch {
     return {
@@ -62,6 +65,7 @@ const read = (): DevicePrefs => {
       kitchenStationId: 'all',
       localServerRole: 'cloud',
       localServerHost: '',
+      soundEnabled: false,
     };
   }
 };
@@ -81,6 +85,7 @@ export const devicePrefs = {
       kitchenStationId: normalizeStation(patch.kitchenStationId ?? state.kitchenStationId),
       localServerRole: normalizeLocalServerRole(patch.localServerRole ?? state.localServerRole),
       localServerHost: typeof (patch.localServerHost ?? state.localServerHost) === 'string' ? (patch.localServerHost ?? state.localServerHost).trim() : '',
+      soundEnabled: patch.soundEnabled ?? state.soundEnabled,
     };
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* penyimpanan boleh gagal */ }
     for (const l of listeners) l();
