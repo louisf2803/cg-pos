@@ -1115,7 +1115,7 @@ export default function DenahDanMeja() {
                               </span>
                             ) : colorInfo ? (
                               <span
-                                className="px-6 py-[2px] rounded text-[10px] font-semibold truncate"
+                                className="px-[6px] py-[2px] rounded text-[10px] font-semibold truncate"
                                 style={{
                                   backgroundColor: `color-mix(in srgb, ${colorInfo.hexColor} 18%, transparent)`,
                                   color: colorInfo.hexColor,
@@ -1279,7 +1279,7 @@ export default function DenahDanMeja() {
                           {!isInactive && colorInfo && (
                             <div className="min-w-0">
                               <span
-                                className="px-6 py-[2px] rounded text-[11px] font-semibold mb-[2px] block w-fit"
+                                className="px-[6px] py-[2px] rounded text-[11px] font-semibold mb-[2px] block w-fit"
                                 style={{
                                   backgroundColor: `color-mix(in srgb, ${colorInfo.hexColor} 18%, transparent)`,
                                   color: colorInfo.hexColor,
@@ -1466,7 +1466,7 @@ export default function DenahDanMeja() {
                       });
                       return (
                         <span
-                          className="px-8 py-[3px] rounded text-xs font-semibold flex items-center gap-6"
+                          className="px-8 py-[3px] rounded text-xs font-semibold flex items-center gap-[6px]"
                           style={{
                             backgroundColor: `color-mix(in srgb, ${c.hexColor} 18%, transparent)`,
                             color: c.hexColor,
