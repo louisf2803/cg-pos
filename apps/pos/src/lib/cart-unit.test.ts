@@ -53,4 +53,24 @@ describe('satuan ganda di keranjang', () => {
     expect(s.lines[0]).toMatchObject({ name: 'Air mineral', unitId: 'pu-dus', unitName: 'dus', unitPrice: 110000 });
     expect(lineOrderName(s.lines[0]!)).toBe('Air mineral (dus)');
   });
+  it('Detail Produk: jumlah, satuan, dan catatan masuk sekaligus saat ditambahkan', () => {
+    const s = reduce(empty, { t: 'add', product: air, qty: 3, unitId: 'pu-dus', note: '  tanpa es  ' });
+    expect(s.lines).toHaveLength(1);
+    expect(s.lines[0]).toMatchObject({ qty: 3, unitId: 'pu-dus', unitPrice: 110000, note: 'tanpa es' });
+  });
+
+  it('Detail Produk: jumlah tanpa catatan digabung ke baris yang sama, dengan catatan jadi baris baru', () => {
+    let s = reduce(empty, { t: 'add', product: air, qty: 2 });
+    s = reduce(s, { t: 'add', product: air, qty: 3 });
+    expect(s.lines).toHaveLength(1);
+    expect(s.lines[0]!.qty).toBe(5);
+    s = reduce(s, { t: 'add', product: air, qty: 1, note: 'dingin' });
+    expect(s.lines).toHaveLength(2);
+  });
+
+  it('jumlah kurang dari 1 dibulatkan jadi 1; catatan dipotong 100 karakter', () => {
+    const s = reduce(empty, { t: 'add', product: air, qty: 0, note: 'x'.repeat(150) });
+    expect(s.lines[0]!.qty).toBe(1);
+    expect(s.lines[0]!.note).toHaveLength(100);
+  });
 });

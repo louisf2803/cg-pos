@@ -71,7 +71,7 @@ export interface CartState {
 }
 
 export type Action =
-  | { t: 'add'; product: Product; extras?: ItemExtra[]; pricing?: CartPricingRules }
+  | { t: 'add'; product: Product; extras?: ItemExtra[]; pricing?: CartPricingRules; /** dari Detail Produk: jumlah, satuan lain, dan catatan */ qty?: number; unitId?: string; note?: string }
   | { t: 'custom'; productId: string; name: string; unitPrice: number; qty: number; note?: string }
   | { t: 'qty'; lineId: string; qty: number; pricing?: CartPricingRules }
   | { t: 'note'; lineId: string; note: string }
@@ -118,10 +118,13 @@ export function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {
       // baris yang sama = produk sama dan pilihan Ekstra sama persis
-      const ex = s.lines.find((l) => l.productId === a.product.id && !l.unitId && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && !l.manualPrice);
+      const addQty = Math.max(1, Math.floor(a.qty ?? 1));
+      const alt = a.unitId ? a.product.sellUnits?.find((u) => u.id === a.unitId) : undefined;
+      const addNote = a.note?.trim().slice(0, 100) || undefined;
+      const ex = s.lines.find((l) => l.productId === a.product.id && (l.unitId ?? '') === (alt?.id ?? '') && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && !addNote && !l.manualPrice);
       if (ex) {
-        const nextQty = ex.qty + 1;
-        const unitPrice = resolveEffectivePrice(
+        const nextQty = ex.qty + addQty;
+        const unitPrice = ex.unitId ? ex.unitPrice : resolveEffectivePrice(
           ex.productId,
           ex.basePrice ?? ex.unitPrice,
           nextQty,
@@ -129,10 +132,10 @@ export function reduce(s: CartState, a: Action): CartState {
         );
         return { ...s, lines: s.lines.map((l) => (l === ex ? { ...l, qty: nextQty, unitPrice } : l)) };
       }
-      const initialPrice = resolveEffectivePrice(
+      const initialPrice = alt ? alt.price : resolveEffectivePrice(
         a.product.id,
         a.product.price,
-        1,
+        addQty,
         a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined),
       );
       return {
@@ -143,10 +146,12 @@ export function reduce(s: CartState, a: Action): CartState {
             id: newId(),
             productId: a.product.id,
             name: a.product.name,
-            qty: 1,
+            qty: addQty,
             unitPrice: initialPrice,
-            basePrice: a.product.price,
+            basePrice: alt ? alt.price : a.product.price,
             listPrice: a.product.price,
+            ...(alt ? { unitId: alt.id, unitName: alt.name } : {}),
+            ...(addNote ? { note: addNote } : {}),
             ...(a.product.sellUnits?.length ? { sellUnits: a.product.sellUnits, baseUnitName: a.product.baseUnitName } : {}),
             ...(a.product.taxRate !== undefined ? { taxRate: a.product.taxRate } : {}),
             ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}),
@@ -198,7 +203,7 @@ export function reduce(s: CartState, a: Action): CartState {
       };
     }
     case 'note':
-      return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, note: a.note.slice(0, 120) || undefined } : l)) };
+      return { ...s, lines: s.lines.map((l) => (l.id === a.lineId ? { ...l, note: a.note.slice(0, 100) || undefined } : l)) };
     case 'price':
       return {
         ...s,
