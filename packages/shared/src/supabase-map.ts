@@ -86,7 +86,7 @@ export function toShift(r: Row): Shift {
   };
 }
 
-export function toProduct(r: Row): Product {
+export function toProduct(r: Row, unitNames?: Map<string, string>): Product {
   const units: Row[] = r.product_units ?? [];
   const base = units.find((u) => u.is_base && !u.deleted_at) ?? units[0];
   return {
@@ -94,6 +94,10 @@ export function toProduct(r: Row): Product {
     kind: r.kind === 'service' ? 'service' : r.kind === 'bundle' ? 'bundle' : 'goods', trackStock: !!r.track_stock, isActive: !!r.is_active,
     isFavorite: !!r.is_favorite, parentId: r.parent_id ?? null, isSellable: r.is_sellable === false ? false : undefined,
     ...(r.tax_rate !== null && r.tax_rate !== undefined ? { taxRate: num(r.tax_rate) } : {}),
+    ...(() => {
+      const alt = units.filter((u) => !u.is_base && !u.deleted_at && num(u.price) > 0).map((u) => ({ id: u.id as string, name: unitNames?.get(u.unit_id as string) ?? 'satuan', conversion: num(u.conversion), price: num(u.price) }));
+      return alt.length ? { sellUnits: alt, baseUnitName: (r.base_unit_id && unitNames?.get(r.base_unit_id as string)) || 'satuan dasar' } : {};
+    })(),
     ...(r.photo_path ? { photoUrl: String(r.photo_path) } : {}),
     ...(r.print_station_id ? { printStationId: String(r.print_station_id) } : {}),
     ...(r.allow_price_override && num(r.max_price_override_pct) > 0 ? { priceOverridePct: num(r.max_price_override_pct) } : {}),
@@ -107,7 +111,7 @@ export function toOrder(r: Row): Order {
     .filter((i) => !i.voided_at)
     .sort((a, b) => num(a.sort) - num(b.sort))
     .map((i) => ({
-      id: i.id, productId: i.product_id, name: i.name, qty: num(i.qty), unitPrice: num(i.unit_price),
+      id: i.id, productId: i.product_id, ...(i.product_unit_id ? { unitId: i.product_unit_id as string } : {}), name: i.name, qty: num(i.qty), unitPrice: num(i.unit_price),
       lineTotal: num(i.line_total), note: i.note ?? undefined,
       ...(((i.order_item_extras ?? []) as Row[]).length
         ? { extras: ((i.order_item_extras ?? []) as Row[]).map((e) => ({ optionId: e.option_id, name: e.name, price: num(e.price) })) }

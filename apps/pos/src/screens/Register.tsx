@@ -4,7 +4,7 @@ import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orde
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
-import { useCart, type CartLine, type CartPricingRules } from '../lib/cart';
+import { lineOrderName, useCart, type CartLine, type CartPricingRules } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { ApproverFields, useApprover } from '../lib/approver';
@@ -250,7 +250,7 @@ export function Register({
       id: cart.state.orderId ?? newId(), type: cart.state.type,
       tableId: cart.state.type === 'dine_in' ? cart.state.tableId : undefined, customerId: cart.state.customerId, orderDiscount: cart.discounts.total || undefined, discounts: cart.discounts.entries.length ? cart.discounts.entries : undefined, label: cart.state.label?.trim() || undefined,
       guestCount: cart.state.type === 'dine_in' ? cart.state.guestCount : undefined,
-      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined })),
+      items: cart.state.lines.map((l) => ({ id: l.id, productId: l.productId, ...(l.unitId ? { unitId: l.unitId } : {}), name: lineOrderName(l), qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined })),
     }, session.employee.id);
     cart.dispatch({ t: 'saved', orderId: o.id });
     waitingOrders.reload();
@@ -261,7 +261,7 @@ export function Register({
   async function splitPay(picks: Record<string, number>) {
     const r = splitByItem(cart.state.lines, picks, newId);
     if (r.problem) throw new Error(r.problem);
-    const items = (ls: typeof r.paid) => ls.map((l) => ({ id: l.id, productId: l.productId, name: l.name, qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined }));
+    const items = (ls: typeof r.paid) => ls.map((l) => ({ id: l.id, productId: l.productId, ...(l.unitId ? { unitId: l.unitId } : {}), name: lineOrderName(l), qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined }));
     const where = cart.state.tableName ?? cart.state.label?.trim();
     // 1) simpan bagian yang dibayar lebih dulu: bila langkah 2 gagal, tidak ada item yang hilang
     const part = await data.saveOrder({
@@ -788,6 +788,20 @@ export function Register({
                       {/* Nama & Ekstra/Catatan */}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-text break-words leading-tight">{l.name}</p>
+                        {l.sellUnits?.length ? (
+                          <select
+                            className="cg-input h-[28px] text-xs px-6 mt-4 max-w-full"
+                            aria-label={`Satuan ${l.name}`}
+                            data-testid="line-unit"
+                            value={l.unitId ?? ''}
+                            onChange={(e) => cart.dispatch({ t: 'unit', lineId: l.id, unitId: e.target.value || undefined, pricing: activePricing })}
+                          >
+                            <option value="">{l.baseUnitName ?? 'Satuan dasar'}</option>
+                            {l.sellUnits.map((u) => (
+                              <option key={u.id} value={u.id}>{u.name} (isi {u.conversion}) · {formatRp(u.price)}</option>
+                            ))}
+                          </select>
+                        ) : null}
                         {l.extras?.length ? (
                           <p className="text-[11px] text-text-muted mt-2">{l.extras.map((e) => e.name).join(', ')}</p>
                         ) : null}

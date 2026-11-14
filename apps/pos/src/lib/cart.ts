@@ -20,6 +20,7 @@ import {
   type Product,
   type Promotion,
   type ResolvedDiscounts,
+  type SellUnit,
 } from '@cgpos/shared';
 
 export interface CartPricingRules {
@@ -42,7 +43,16 @@ export interface CartLine {
   manualPrice?: boolean;
   /** pajak khusus produk (persen); kosong = pakai pajak order */
   taxRate?: number | null;
+  /** satuan ganda: satuan lain yang sedang dipilih (kosong = satuan dasar), pilihan yang tersedia, dan harga satuan dasar */
+  unitId?: string;
+  unitName?: string;
+  sellUnits?: SellUnit[];
+  baseUnitName?: string;
+  listPrice?: number;
 }
+
+/** Nama baris untuk pesanan/struk: satuan lain dicantumkan di belakang nama, mis. "Air mineral (dus)". */
+export const lineOrderName = (l: Pick<CartLine, 'name' | 'unitName'>) => (l.unitName ? `${l.name} (${l.unitName})` : l.name);
 
 
 /** orderId terisi setelah pesanan pernah disimpan ke server: simpan berikutnya memperbarui pesanan yang sama, tidak membuat ganda. */
@@ -65,6 +75,7 @@ export type Action =
   | { t: 'custom'; productId: string; name: string; unitPrice: number; qty: number; note?: string }
   | { t: 'qty'; lineId: string; qty: number; pricing?: CartPricingRules }
   | { t: 'note'; lineId: string; note: string }
+  | { t: 'unit'; lineId: string; unitId?: string; pricing?: CartPricingRules }
   | { t: 'price'; lineId: string; unitPrice: number; reason?: string }
   | { t: 'type'; type: OrderType }
   | { t: 'table'; tableId?: string; tableName?: string }
@@ -103,11 +114,11 @@ export function resolveEffectivePrice(
 
 const initial: CartState = { type: 'takeaway', lines: [], discounts: [] };
 
-function reduce(s: CartState, a: Action): CartState {
+export function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {
       // baris yang sama = produk sama dan pilihan Ekstra sama persis
-      const ex = s.lines.find((l) => l.productId === a.product.id && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && !l.manualPrice);
+      const ex = s.lines.find((l) => l.productId === a.product.id && !l.unitId && extrasKey(l.extras) === extrasKey(a.extras) && !l.note && !l.manualPrice);
       if (ex) {
         const nextQty = ex.qty + 1;
         const unitPrice = resolveEffectivePrice(
@@ -135,6 +146,8 @@ function reduce(s: CartState, a: Action): CartState {
             qty: 1,
             unitPrice: initialPrice,
             basePrice: a.product.price,
+            listPrice: a.product.price,
+            ...(a.product.sellUnits?.length ? { sellUnits: a.product.sellUnits, baseUnitName: a.product.baseUnitName } : {}),
             ...(a.product.taxRate !== undefined ? { taxRate: a.product.taxRate } : {}),
             ...(a.product.priceOverridePct ? { overridePct: a.product.priceOverridePct } : {}),
             ...(a.extras?.length ? { extras: a.extras } : {}),
@@ -157,7 +170,7 @@ function reduce(s: CartState, a: Action): CartState {
         ...s,
         lines: s.lines.map((l) => {
           if (l.id !== a.lineId) return l;
-          const unitPrice = l.manualPrice
+          const unitPrice = l.manualPrice || l.unitId
             ? l.unitPrice
             : resolveEffectivePrice(
                 l.productId,
@@ -166,6 +179,21 @@ function reduce(s: CartState, a: Action): CartState {
                 a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined),
               );
           return { ...l, qty: a.qty, unitPrice };
+        }),
+      };
+    }
+    case 'unit': {
+      return {
+        ...s,
+        lines: s.lines.map((l) => {
+          if (l.id !== a.lineId) return l;
+          const alt = a.unitId ? l.sellUnits?.find((u) => u.id === a.unitId) : undefined;
+          if (alt) return { ...l, unitId: alt.id, unitName: alt.name, unitPrice: alt.price, basePrice: alt.price, manualPrice: false };
+          // kembali ke satuan dasar: harga daftar + aturan harga bertingkat/jadwal seperti saat ditambahkan
+          const list = l.listPrice ?? l.unitPrice;
+          const unitPrice = resolveEffectivePrice(l.productId, list, l.qty, a.pricing ?? (s.customerGroupId ? { customerGroupId: s.customerGroupId } : undefined));
+          const { unitId: _u, unitName: _n, ...rest } = l;
+          return { ...rest, unitPrice, basePrice: list, manualPrice: false };
         }),
       };
     }
@@ -201,7 +229,7 @@ function reduce(s: CartState, a: Action): CartState {
         customerGroupId: gId,
         discounts: a.customerId === s.customerId ? s.discounts : s.discounts.filter((d) => d.source !== 'points'),
         lines: s.lines.map((l) => {
-          if (l.manualPrice) return l;
+          if (l.manualPrice || l.unitId) return l;
           const unitPrice = resolveEffectivePrice(
             l.productId,
             l.basePrice ?? l.unitPrice,
@@ -221,7 +249,7 @@ function reduce(s: CartState, a: Action): CartState {
         ...s,
         customerGroupId: effectivePricing.customerGroupId ?? undefined,
         lines: s.lines.map((l) => {
-          if (l.manualPrice) return l;
+          if (l.manualPrice || l.unitId) return l;
           const unitPrice = resolveEffectivePrice(
             l.productId,
             l.basePrice ?? l.unitPrice,
@@ -248,17 +276,24 @@ function reduce(s: CartState, a: Action): CartState {
         tableName: a.tableName,
         label: a.order.label,
         guestCount: a.order.guestCount,
-        lines: a.order.items.map((i) => ({
+        lines: a.order.items.map((i) => {
+          const prod = byId.get(i.productId);
+          const alt = i.unitId ? prod?.sellUnits?.find((u) => u.id === i.unitId) : undefined;
+          const suffix = alt ? ` (${alt.name})` : '';
+          return {
           id: i.id,
           productId: i.productId,
-          name: i.name,
+          name: suffix && i.name.endsWith(suffix) ? i.name.slice(0, -suffix.length) : i.name,
           qty: i.qty,
           unitPrice: i.unitPrice,
-          ...overridePricingForProduct(byId.get(i.productId)),
+          ...overridePricingForProduct(prod),
+          ...(prod?.sellUnits?.length ? { sellUnits: prod.sellUnits, baseUnitName: prod.baseUnitName, listPrice: prod.price } : {}),
+          ...(alt ? { unitId: alt.id, unitName: alt.name, basePrice: alt.price } : {}),
           ...(i.extras?.length ? { extras: i.extras } : {}),
           ...(i.note ? { note: i.note } : {}),
           taxRate: byId.get(i.productId)?.taxRate,
-        })),
+          };
+        }),
       };
     }
     case 'saved':

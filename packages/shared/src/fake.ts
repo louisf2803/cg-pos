@@ -354,9 +354,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     'ing-kopi': [{ unitId: 'u-kg', name: 'kg', conversion: 1000, isBase: false, buyPrice: 320000 }],
     'ing-susu': [{ unitId: 'u-liter', name: 'liter', conversion: 1000, isBase: false, buyPrice: 18000 }],
     'ing-gula': [{ unitId: 'u-liter', name: 'liter', conversion: 1000, isBase: false, buyPrice: 40000 }],
+    // contoh satuan jual di kasir: air mineral per dus isi 24
+    p8: [{ unitId: 'u-dus', name: 'dus', conversion: 24, isBase: false, buyPrice: 100000, sellPrice: 110000 } as PurchaseUnit & { sellPrice: number }],
   };
   // satuan lain yang bisa diubah dari dashboard; bermula dari contoh di atas
-  type AltUnit = PurchaseUnit & { minPurchase: number };
+  type AltUnit = PurchaseUnit & { minPurchase: number; sellPrice?: number };
   let altUnits = new Map<string, AltUnit[]>();
   // transfer stok: outlet ini dan satu gudang tiruan yang stoknya terpisah
   const LOC_OUTLET = 'loc-outlet', LOC_GUDANG = 'loc-gudang';
@@ -1126,7 +1128,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return clone(products.filter((p) =>
         (q.includeInactive || p.isActive) &&
         (q.categoryId === undefined || q.categoryId === null || p.categoryId === q.categoryId) &&
-        (!s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s))));
+        (!s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s)))
+        .map((p) => {
+          const alt = (altUnits.get(p.id) ?? []).filter((u) => (u.sellPrice ?? 0) > 0).map((u) => ({ id: u.unitId, name: u.name, conversion: u.conversion, price: u.sellPrice! }));
+          return alt.length ? { ...p, sellUnits: alt, baseUnitName: 'pcs' } : p;
+        }));
     },
     async getProduct(id) { return clone(products.find((p) => p.id === id) ?? null); },
     async getCustomItemProductId() { return 'custom-item-fake'; },
@@ -1705,9 +1711,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const rows = await this.listProductUnits(input.productId);
       if (existing) {
         if (existing.conversion !== input.conversion && rows.find((r) => r.unitId === existing.unitId)?.inUse) throw new DataError('invalid', 'Satuan ini sudah dipakai, jadi isinya tidak bisa diubah.');
-        existing.conversion = input.conversion; existing.buyPrice = input.buyPrice ?? 0; existing.minPurchase = input.minPurchase ?? 1;
+        existing.conversion = input.conversion; existing.buyPrice = input.buyPrice ?? 0; existing.minPurchase = input.minPurchase ?? 1; existing.sellPrice = input.sellPrice ?? 0;
       } else {
-        list.push({ unitId: `u-${name.toLowerCase().replace(/\s+/g, '-')}-${list.length}`, name, conversion: input.conversion, isBase: false, buyPrice: input.buyPrice ?? 0, minPurchase: input.minPurchase ?? 1 });
+        list.push({ unitId: `u-${name.toLowerCase().replace(/\s+/g, '-')}-${list.length}`, name, conversion: input.conversion, isBase: false, buyPrice: input.buyPrice ?? 0, minPurchase: input.minPurchase ?? 1, sellPrice: input.sellPrice ?? 0 });
         altUnits.set(input.productId, list);
       }
     },

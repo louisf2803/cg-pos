@@ -95,7 +95,7 @@ export interface SupabaseDataOptions {
 }
 
 const PRODUCT_SELECT =
-  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,tax_rate,photo_path,allow_price_override,max_price_override_pct,product_units(id,price,sku,is_base,deleted_at)';
+  'id,name,category_id,kind,is_active,show_in_menu,is_favorite,track_stock,parent_id,is_sellable,tax_rate,photo_path,allow_price_override,max_price_override_pct,base_unit_id,product_units(id,price,sku,is_base,deleted_at,unit_id,conversion)';
 const ORDER_SELECT =
   'id,number,order_type,table_id,label,guest_count,shift_id,cashier_id,status,subtotal,discount_total,service_charge,tax_total,rounding,total,paid_total,version,opened_at,closed_at,' +
   'order_items(id,product_id,name,qty,unit_price,line_total,note,sort,voided_at,order_item_extras(option_id,name,price,qty)),' +
@@ -1077,7 +1077,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         return qb.order('name').order('id').range(f, t);
       });
       const s = q.search?.trim().toLowerCase();
-      return rows.map(toProduct).filter((p) => !s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s));
+      const unitNames = rows.some((r) => ((r.product_units ?? []) as Row[]).some((u) => !u.is_base && !u.deleted_at && Number(u.price) > 0))
+        ? new Map(((must(await db().from('units').select('id,name').is('deleted_at', null)) as Row[] | null) ?? []).map((u) => [u.id as string, u.name as string]))
+        : undefined;
+      return rows.map((r) => toProduct(r, unitNames)).filter((p) => !s || p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s));
     },
     async getCustomItemProductId() {
       const { orgId } = await resolve();
@@ -1146,7 +1149,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         if (q.categoryId) qb = qb.eq('category_id', q.categoryId);
         return qb.order('name').order('id').range(f, t);
       });
-      let list = assembleCatalog(rows.map(toProduct));
+      let list = assembleCatalog(rows.map((r) => toProduct(r)));
       if (!q.includeInactive) list = list.filter((p) => p.isActive);
       const s = q.search?.trim().toLowerCase();
       if (s) list = list.filter((p) => p.name.toLowerCase().includes(s) || (p.sku ?? '').toLowerCase().includes(s) || p.variants.some((v) => v.label.toLowerCase().includes(s) || (v.sku ?? '').toLowerCase().includes(s)));
@@ -1159,7 +1162,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (!parentId) return assembleCatalog([toProduct(row)])[0] ?? null;
       const head = parentId === row.id ? row : (must(await db().from('products').select(await productSelect()).eq('id', parentId).maybeSingle()) as Row | null);
       const kids = (must(await db().from('products').select(await productSelect()).eq('parent_id', parentId).is('deleted_at', null)) as Row[] | null) ?? [];
-      return assembleCatalog([...(head ? [toProduct(head)] : []), ...kids.map(toProduct)])[0] ?? null;
+      return assembleCatalog([...(head ? [toProduct(head)] : []), ...kids.map((k) => toProduct(k))])[0] ?? null;
     },
     async saveCatalogProduct(input: CatalogInput): Promise<CatalogProduct> {
       const name = input.name.trim();
@@ -1908,17 +1911,31 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
 
     async listProductUnits(productId) {
+      const sell = new Map<string, number>();
+      for (const u of (must(await db().from('product_units').select('unit_id,price').eq('product_id', productId).is('deleted_at', null)) as Row[] | null) ?? []) sell.set(u.unit_id as string, Number(u.price ?? 0));
       const { data, error } = await db().rpc('product_unit_list', { p_product: productId });
       if (error) {
         if (/product not found/i.test(error.message ?? '')) throw new DataError('not_found', 'Barang tidak ditemukan.');
         throw mapDbError(error);
       }
-      return ((data as Row[] | null) ?? []).map((r): ProductUnitRow => ({ unitId: r.unit_id as string, name: r.unit_name as string, conversion: Number(r.conversion), isBase: !!r.is_base, buyPrice: Number(r.buy_price ?? 0), minPurchase: Number(r.min_purchase ?? 1), inUse: !!r.in_use }));
+      return ((data as Row[] | null) ?? []).map((r): ProductUnitRow => ({ unitId: r.unit_id as string, name: r.unit_name as string, conversion: Number(r.conversion), isBase: !!r.is_base, buyPrice: Number(r.buy_price ?? 0), minPurchase: Number(r.min_purchase ?? 1), inUse: !!r.in_use, ...(r.is_base ? {} : { sellPrice: sell.get(r.unit_id as string) ?? 0 }) }));
     },
     async saveProductUnit(input: ProductUnitInput) {
       const problem = productUnitProblem(input);
       if (problem) throw new DataError('invalid', problem);
-      const { error } = await db().rpc('product_unit_save', { p_product: input.productId, p_unit_name: input.unitName.trim(), p_conversion: input.conversion, p_buy_price: input.buyPrice ?? 0, p_min_purchase: input.minPurchase ?? 1 });
+      const { data: savedId, error } = await db().rpc('product_unit_save', { p_product: input.productId, p_unit_name: input.unitName.trim(), p_conversion: input.conversion, p_buy_price: input.buyPrice ?? 0, p_min_purchase: input.minPurchase ?? 1 });
+      if (!error && input.sellPrice !== undefined) {
+        // harga jual disimpan lewat fungsi sendiri (migrasi 0139); satuan lain dicari dari baris product_units yang baru disimpan
+        const row = (must(await db().from('product_units').select('unit_id').eq('id', savedId as string).maybeSingle()) as Row | null);
+        if (row) {
+          const { error: e2 } = await db().rpc('product_unit_set_price', { p_product: input.productId, p_unit: row.unit_id as string, p_price: Math.round(input.sellPrice) });
+          if (e2) {
+            if (/not allowed|no access/i.test(e2.message ?? '')) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh mengubah satuan.');
+            if (/whole amount/i.test(e2.message ?? '')) throw new DataError('invalid', 'Harga jual harus bilangan bulat rupiah, nol atau lebih.');
+            throw mapDbError(e2);
+          }
+        }
+      }
       if (error) {
         const m = error.message ?? '';
         if (/not allowed|no access/i.test(m)) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh mengubah satuan.');
@@ -3071,6 +3088,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const productIds = [...new Set(draft.items.map((i) => i.productId))];
       const units = must(await db().from('product_units').select('id,product_id,sku').in('product_id', productIds).eq('is_base', true).is('deleted_at', null)) as Row[] | null;
       const unitOf = new Map((units ?? []).map((u) => [u.product_id as string, u]));
+      // satuan lain yang dipilih kasir (satuan ganda): harus milik produk barisnya; server memeriksa ulang
+      const pickedIds = [...new Set(draft.items.map((i) => i.unitId).filter((u): u is string => !!u))];
+      const picked = new Map<string, Row>();
+      if (pickedIds.length) for (const u of (must(await db().from('product_units').select('id,product_id,sku').in('id', pickedIds).is('deleted_at', null)) as Row[] | null) ?? []) picked.set(u.id as string, u);
       const missing = productIds.find((p) => !unitOf.has(p));
       if (missing) throw new DataError('not_found', 'Ada produk di pesanan yang sudah tidak tersedia');
 
@@ -3083,8 +3104,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         orderTaxes: r.ctx.taxes.map((t) => ({ taxId: t.id, name: t.name, rate: t.rate, orderTypes: t.orderTypes, orderTypeRates: t.orderTypeRates })),
       });
       const items = draft.items.map((i) => ({
-        id: i.id, productId: i.productId, productUnitId: unitOf.get(i.productId)!.id as string, name: i.name,
-        sku: (unitOf.get(i.productId)!.sku as string | null) ?? null, qty: i.qty, unitPrice: i.unitPrice, ...(i.basePrice != null ? { basePrice: i.basePrice } : {}), note: i.note ?? null, extras: i.extras,
+        id: i.id, productId: i.productId, productUnitId: (i.unitId && picked.get(i.unitId)?.product_id === i.productId ? i.unitId : unitOf.get(i.productId)!.id) as string, name: i.name,
+        sku: ((i.unitId && picked.get(i.unitId)?.product_id === i.productId ? picked.get(i.unitId)!.sku : unitOf.get(i.productId)!.sku) as string | null) ?? null, qty: i.qty, unitPrice: i.unitPrice, ...(i.basePrice != null ? { basePrice: i.basePrice } : {}), note: i.note ?? null, extras: i.extras,
       }));
 
       for (let attempt = 0; ; attempt++) {

@@ -2,7 +2,11 @@ import type { CalcSettings, OrderType } from './order-calc';
 
 export interface Department { id: string; name: string; sort: number }
 export interface Category { id: string; name: string; sort: number; departmentId?: string | null }
+/** Satuan lain yang boleh dijual di kasir (harga jual > 0). Satuan dasar tidak termasuk; harganya = harga produk. */
+export interface SellUnit { id: string; name: string; conversion: number; price: number }
 export interface Product {
+  /** satuan lain untuk penjualan + nama satuan dasar (untuk pemilih Satuan di kasir) */
+  sellUnits?: SellUnit[]; baseUnitName?: string;
   id: string; name: string; categoryId: string | null; price: number; sku?: string;
   kind: 'goods' | 'service' | 'bundle'; trackStock: boolean; stock?: number; isActive: boolean; isFavorite: boolean;
   /** persen pajak khusus produk (mode per_product); null/undefined = ikut aturan outlet, 0 = bebas pajak */
@@ -35,6 +39,7 @@ export interface CatalogProduct {
   price: number; sku?: string; variants: CatalogVariant[]; photoUrl?: string; priceOverridePct?: number; printStationId?: string;
   taxRate?: number | null;
   serviceDurationMin?: number; serviceStaffIds?: string[];
+  sellUnits?: SellUnit[]; baseUnitName?: string;
 }
 export interface CatalogInput {
   id?: string; name: string; categoryId: string | null; kind?: 'goods' | 'service'; trackStock?: boolean; isFavorite?: boolean; isActive?: boolean;
@@ -94,7 +99,7 @@ export interface ShiftReport {
 
 /** Satu pilihan Ekstra yang menempel pada baris pesanan; harganya per satu unit produk. */
 export interface ItemExtra { optionId: string; name: string; price: number }
-export interface OrderItem { id: string; productId: string; name: string; qty: number; unitPrice: number; /** harga daftar sebelum diubah kasir; hanya ada bila harga baris diubah */ basePrice?: number; lineTotal: number; note?: string; extras?: ItemExtra[] }
+export interface OrderItem { id: string; productId: string; /** id baris product_units yang dijual (satuan dasar atau lain) */ unitId?: string; name: string; qty: number; unitPrice: number; /** harga daftar sebelum diubah kasir; hanya ada bila harga baris diubah */ basePrice?: number; lineTotal: number; note?: string; extras?: ItemExtra[] }
 /** Satu baris pesanan yang harganya diubah kasir (dasar laporan Perubahan Harga Kasir). diff dan lineImpact negatif = harga diturunkan. */
 export interface PriceChange {
   orderId: string; orderNumber: string; orderStatus: Order['status']; itemId: string; itemName: string; qty: number;
@@ -141,7 +146,7 @@ export interface OrderDraft {
   id: string; type: OrderType; tableId?: string; customerId?: string; customerName?: string; label?: string; guestCount?: number;
   /** rincian potongan order; jumlahnya = orderDiscount. Tanpa rincian, potongan dicatat sebagai manual. */
   discounts?: DiscountEntry[];
-  items: { id: string; productId: string; name: string; qty: number; unitPrice: number; /** harga daftar sebelum diubah kasir; hanya diisi bila harga baris diubah */ basePrice?: number; note?: string; extras?: ItemExtra[] }[];
+  items: { id: string; productId: string; /** id product_units satuan yang dijual; kosong = satuan dasar */ unitId?: string; name: string; qty: number; unitPrice: number; /** harga daftar sebelum diubah kasir; hanya diisi bila harga baris diubah */ basePrice?: number; note?: string; extras?: ItemExtra[] }[];
   orderDiscount?: number;
 }
 export interface Floor { id: string; name: string; sort: number }
