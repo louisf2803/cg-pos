@@ -572,7 +572,7 @@ function ReceiptEditor({
                   </label>
                   
                   {/* Pilihan Logo Toko */}
-                  <div className="space-y-8 pt-6 border-t border-border/50">
+                  <div className="space-y-8 pt-[6px] border-t border-border/50">
                     <label className="flex items-center gap-8 text-sm cursor-pointer select-none font-medium">
                       <input
                         type="checkbox"
@@ -589,7 +589,7 @@ function ReceiptEditor({
                             <img
                               src={logoUrl}
                               alt="Logo Outlet"
-                              className="h-48 w-48 object-contain rounded border border-border bg-white p-2"
+                              className="h-48 w-48 object-contain rounded border border-border bg-white p-[2px]"
                             />
                           ) : (
                             <div className="h-48 w-48 rounded border border-dashed border-border flex items-center justify-center text-text-muted">
@@ -597,8 +597,8 @@ function ReceiptEditor({
                             </div>
                           )}
                           <div className="space-y-4 grow">
-                            <label className="cg-btn cg-btn--secondary cg-btn--sm inline-flex items-center gap-6 cursor-pointer">
-                              <ImageIcon className="w-14 h-14" aria-hidden />
+                            <label className="cg-btn cg-btn--secondary cg-btn--sm inline-flex items-center gap-[6px] cursor-pointer">
+                              <ImageIcon className="w-[14px] h-[14px]" aria-hidden />
                               <span>Pilih gambar logo</span>
                               <input
                                 type="file"
@@ -632,14 +632,14 @@ function ReceiptEditor({
                                 className="cg-btn cg-btn--ghost cg-btn--sm text-danger ml-8"
                                 onClick={() => setLogoUrl('')}
                               >
-                                <Trash2 className="w-14 h-14" aria-hidden />
+                                <Trash2 className="w-[14px] h-[14px]" aria-hidden />
                                 <span>Hapus</span>
                               </button>
                             )}
                           </div>
                         </div>
                         <div>
-                          <label className="text-xs text-text-muted block mb-2" htmlFor="struk-logo-url">
+                          <label className="text-xs text-text-muted block mb-[2px]" htmlFor="struk-logo-url">
                             Atau masukkan URL gambar logo:
                           </label>
                           <input
@@ -651,7 +651,7 @@ function ReceiptEditor({
                             onChange={(e) => setLogoUrl(e.target.value)}
                           />
                           {logoUrl.startsWith('data:') && (
-                            <p className="text-[11px] text-text-muted mt-2">Gambar logo terpasang dari berkas lokal.</p>
+                            <p className="text-[11px] text-text-muted mt-[2px]">Gambar logo terpasang dari berkas lokal.</p>
                           )}
                         </div>
                       </div>
@@ -800,7 +800,7 @@ function ReceiptEditor({
                           <label className="text-xs font-semibold text-text-muted block mb-4">
                             Tujuan Kode QR:
                           </label>
-                          <div className="grid gap-6">
+                          <div className="grid gap-[6px]">
                             {QR_CODE_TYPES.map((qt) => (
                               <label key={qt.id} className="flex items-start gap-8 text-xs cursor-pointer select-none">
                                 <input
@@ -809,7 +809,7 @@ function ReceiptEditor({
                                   value={qt.id}
                                   checked={qrCodeType === qt.id}
                                   onChange={() => setQrCodeType(qt.id)}
-                                  className="mt-1"
+                                  className="mt-[1px]"
                                 />
                                 <div>
                                   <span className="font-semibold text-text">{qt.label}</span>
