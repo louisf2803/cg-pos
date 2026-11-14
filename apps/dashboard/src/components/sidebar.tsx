@@ -92,7 +92,10 @@ export function Sidebar() {
   // Accordion state: ONE group open at a time
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  // Auto-open group matching active item when route or module changes
+  // Auto-open group matching active item when route or module changes.
+  // PENTING: filteredGroups dibuat ulang tiap render, jadi dependency efek memakai kunci stabil (daftar nama grup);
+  // kalau tidak, efek berjalan setiap render dan membatalkan klik pada grup.
+  const groupsKey = filteredGroups.map((g) => g.label).join('|');
   useEffect(() => {
     const matchingGroup = filteredGroups.find((g) =>
       g.items.some((i) => i.href === activeItem)
@@ -103,7 +106,8 @@ export function Sidebar() {
     } else if (filteredGroups.length > 0 && filteredGroups[0]) {
       setOpenGroup(filteredGroups[0].label);
     }
-  }, [filteredGroups, activeItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupsKey, activeItem]);
 
   const toggleGroup = (label: string) => {
     setOpenGroup((prev) => (prev === label ? null : label));
