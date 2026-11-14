@@ -1130,3 +1130,4 @@ Layar `/appointment` terhubung penuh ke DataLayer (`listAppointments`, `saveAppo
 - A145 (metode bayar di server): migrasi 0109 memakai `pos.touch_updated_at`, tes jadi `19_payment_method_settings` dengan pengguna sendiri dan pemulihan data.
 - A123 (info outlet): konflik diselesaikan, tes pgTAP diganti tes biasa `19_outlet_business_bank_group`.
 - Semua ini BELUM diterapkan ke produksi: migrasi 0099, 0101, 0103, 0107, 0109, 0123, 0127 menunggu persetujuan Louis.
+- 14 Nov 2026: migrasi 0099, 0101, 0103, 0107, 0109, 0123, 0127 DITERAPKAN ke produksi (disetujui Louis di chat: "Terapkan semua"); diverifikasi: 8 fungsi, 6 tabel, kolom outlet, 3 pemicu, penegakan stok minus di `_apply_op` dan `stock_post`.
