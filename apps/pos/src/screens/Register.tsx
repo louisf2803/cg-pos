@@ -22,6 +22,7 @@ import { DiscountDialog } from './DiscountDialog';
 import { SideDrawer } from './SideDrawer';
 import { Sales } from './Sales';
 import { Reports } from './Reports';
+import { Inventory } from './inventory/Inventory';
 import { playChime } from '../lib/sound';
 import { SplitBillDialog } from './SplitBillDialog';
 
@@ -90,6 +91,7 @@ export function Register({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
   const [showReports, setShowReports] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
   const pend = usePending();
   const [notice, setNotice] = useState('');
   const [tablePick, setTablePick] = useState(false);
@@ -332,6 +334,9 @@ export function Register({
   }
   if (showReports) {
     return <Reports ctx={ctx} onClose={() => setShowReports(false)} />;
+  }
+  if (showInventory) {
+    return <Inventory ctx={ctx} onClose={() => setShowInventory(false)} />;
   }
   if (settings) {
     return <SettingsScreen ctx={ctx} onClose={() => setSettings(false)} />;
@@ -1206,6 +1211,8 @@ export function Register({
               setShowSales(true);
             } else if (view === 'reports') {
               setShowReports(true);
+            } else if (view === 'inventory') {
+              setShowInventory(true);
             } else if (view === 'logout') {
               logout();
             } else if (view === 'kitchen') {

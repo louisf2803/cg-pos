@@ -3,6 +3,7 @@ import {
   ChefHat,
   Copy,
   FileBarChart,
+  Boxes,
   LogOut,
   Settings,
   Store,
@@ -12,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 
-export type DrawerView = 'register' | 'sales' | 'reports' | 'kitchen' | 'attendance' | 'settings' | 'closeShift' | 'logout';
+export type DrawerView = 'register' | 'sales' | 'reports' | 'inventory' | 'kitchen' | 'attendance' | 'settings' | 'closeShift' | 'logout';
 
 export interface SideDrawerProps {
   outletName: string;
@@ -102,6 +103,7 @@ export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOp
           {entry('register', 'Kasir', <Store className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('sales', 'Penjualan', <TrendingUp className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('reports', 'Laporan', <FileBarChart className="cg-icon cg-icon--sm" aria-hidden />)}
+          {entry('inventory', 'Inventori', <Boxes className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('attendance', 'Absensi', <UserCheck className="cg-icon cg-icon--sm" aria-hidden />)}
           {canOpenKitchen && entry('kitchen', 'Layar Dapur', <ChefHat className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('settings', 'Pengaturan', <Settings className="cg-icon cg-icon--sm" aria-hidden />)}
