@@ -110,4 +110,5 @@ export * from './device-registry';
 export * from './label-paper';
 export * from './kitchen-selection';
 export * from './hash';
+export * from './table-status-color';
 
