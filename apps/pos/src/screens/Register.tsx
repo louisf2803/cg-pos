@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Lock, Monitor, Tag, UserCheck, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star } from 'lucide-react';
+import { ClipboardList, Lock, Monitor, Tag, UserCheck, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star, LayoutGrid, Package, Wallet } from 'lucide-react';
 import { checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newApplied, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
@@ -474,11 +474,11 @@ export function Register({
       </header>
 
       <nav className="cg-shell__rail" aria-label="Kategori">
-        <button className="cg-rail-item" aria-current={cat === 'all'} onClick={() => setCat('all')}>Semua</button>
-        {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}>Favorit</button>}
-        {hasPromo && <button className="cg-rail-item" aria-current={cat === PROMO} onClick={() => setCat(PROMO)}>Promo</button>}
-        {hasBundle && <button className="cg-rail-item" aria-current={cat === BUNDLE} onClick={() => setCat(BUNDLE)}>Paket</button>}
-        {hasDeposit && <button className="cg-rail-item" aria-current={cat === DEPOSIT} onClick={() => setCat(DEPOSIT)}>Deposit</button>}
+        <button className="cg-rail-item" aria-current={cat === 'all'} onClick={() => setCat('all')}><LayoutGrid className="cg-icon cg-icon--xs" aria-hidden /> Semua</button>
+        {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}><Star className="cg-icon cg-icon--xs" aria-hidden /> Favorit</button>}
+        {hasPromo && <button className="cg-rail-item" aria-current={cat === PROMO} onClick={() => setCat(PROMO)}><Tag className="cg-icon cg-icon--xs" aria-hidden /> Promo</button>}
+        {hasBundle && <button className="cg-rail-item" aria-current={cat === BUNDLE} onClick={() => setCat(BUNDLE)}><Package className="cg-icon cg-icon--xs" aria-hidden /> Paket</button>}
+        {hasDeposit && <button className="cg-rail-item" aria-current={cat === DEPOSIT} onClick={() => setCat(DEPOSIT)}><Wallet className="cg-icon cg-icon--xs" aria-hidden /> Deposit</button>}
         {cats.status === 'ready' && cats.data.map((c) => (
           <button key={c.id} className="cg-rail-item" aria-current={cat === c.id} onClick={() => setCat(c.id)}>{c.name}</button>
         ))}
@@ -852,8 +852,9 @@ export function Register({
                             <input
                               className="cg-input h-[28px] text-xs px-6"
                               autoFocus
-                              maxLength={120}
+                              maxLength={100}
                               placeholder="Catatan..."
+                              aria-describedby={`note-count-${l.id}`}
                               value={l.note ?? ''}
                               onChange={(e) => cart.dispatch({ t: 'note', lineId: l.id, note: e.target.value })}
                               onBlur={() => setNoteFor(null)}
@@ -864,6 +865,9 @@ export function Register({
                                 }
                               }}
                             />
+                          ) : null}
+                          {noteFor === l.id ? (
+                            <span id={`note-count-${l.id}`} className="text-[10px] text-text-muted cg-num shrink-0">{(l.note ?? '').length}/100</span>
                           ) : (
                             <button
                               type="button"
