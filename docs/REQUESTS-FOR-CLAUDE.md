@@ -232,3 +232,12 @@ Penukaran poin saat ini sudah berjalan untuk potongan rupiah (`redeemValuePerPoi
 2. **DataLayer**: `listLoyaltyRewards(): Promise<LoyaltyReward[]>` dan `saveLoyaltyReward(input: LoyaltyRewardInput): Promise<LoyaltyReward>`.
 3. **Validasi Kasir / Sinkronisasi (`sync_push`)**: Izinkan penukaran produk gratis di kasir dengan mencatat baris pesanan berharga Rp 0 dan memotong saldo poin pelanggan sebesar `points_cost`.
 
+
+## Cek di Majoo: Jadikan Invoice dan stok (15 Nov 2026, untuk Louis)
+Konteks: invoice dari kasir sudah berjalan di server (0147) tetapi stok tidak dikurangi. Mohon dicek langsung di aplikasi Majoo (akun trial), lalu isi jawabannya di bawah:
+1. Di layar Pembayaran, tombol/menu untuk jadikan invoice namanya apa, dan apa syaratnya (wajib pelanggan? wajib PIN manajer? hanya peran tertentu)?
+2. Setelah invoice dibuat: pesanan di Daftar Order jadi apa (hilang, status "Invoice", atau lunas)? Nomornya sama dengan nomor pesanan atau nomor faktur baru?
+3. Cek stok sebuah produk berstok sebelum dan sesudah membuat invoice: stok BERKURANG saat invoice dibuat, atau baru saat dikirim/dilunasi?
+4. Apakah invoice terlihat di laporan penjualan (dan hari mana: hari dibuat atau hari dilunasi)?
+5. Apakah termin (hari jatuh tempo) bisa diisi di kasir, atau hanya di dashboard?
+Jawaban: (isi di sini)
