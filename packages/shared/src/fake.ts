@@ -867,6 +867,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   const self: DataLayer & { reset(): void } = {
     reset,
     ...salesInvoices,
+    async createOrderInvoice(_orderId, input) { return { number: (await salesInvoices.createSalesInvoice(input)).number }; },
     ...paymentAccounts,
     ...salesDocuments,
     ...campaigns,

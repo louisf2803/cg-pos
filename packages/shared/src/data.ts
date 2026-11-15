@@ -509,6 +509,8 @@ export interface DataLayer {
   listSalesInvoices(): Promise<SalesInvoice[]>;
   /** Buat faktur (idempoten menurut id). Uang muka dicatat sebagai pembayaran pertama; jurnal piutang, penjualan, pajak dibukukan. */
   createSalesInvoice(input: SalesInvoiceInput): Promise<SalesInvoice>;
+  /** Jadikan invoice dari kasir (migrasi 0147): semua anggota boleh, hanya untuk pesanan terbuka berpelanggan, total harus sama dengan pesanan. Mengembalikan nomor faktur. */
+  createOrderInvoice(orderId: string, input: SalesInvoiceInput): Promise<{ number: string }>;
   /** Terima pembayaran faktur (sebagian atau lunas). Idempoten menurut id pembayaran. */
   paySalesInvoice(input: SalesInvoicePayInput): Promise<SalesInvoice>;
 

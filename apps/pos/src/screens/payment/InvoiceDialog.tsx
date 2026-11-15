@@ -27,7 +27,7 @@ export function InvoiceDialog({ order, authorizedBy, onClose, onDone }: { order:
     let number = created;
     try {
       if (!number) {
-        const inv = await data.createSalesInvoice(orderToInvoiceInput(order, { id: attempt, termDays: days, note }));
+        const inv = await data.createOrderInvoice(order.id, orderToInvoiceInput(order, { id: attempt, termDays: days, note }));
         number = inv.number;
         setCreated(number);
       }

@@ -3649,6 +3649,22 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       if (error) throw salesInvoiceError(error);
       return (await self.listSalesInvoices()).find((i) => i.id === input.id)!;
     },
+    async createOrderInvoice(orderId, input) {
+      const problem = salesInvoiceProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { data, error } = await db().rpc('order_invoice_create', {
+        p_id: input.id, p_order: orderId, p_term: input.termDays, p_discount: input.discount, p_tax: input.taxAmount, p_note: input.note?.trim() || null,
+        p_lines: input.lines.map((l) => ({ product_id: l.productId ?? null, name: l.name.trim(), qty: l.qty, unit_price: l.unitPrice })),
+      });
+      if (error) {
+        const m = error.message ?? '';
+        if (/does not match/i.test(m)) throw new DataError('invalid', 'Total invoice tidak sama dengan total pesanan. Muat ulang pesanan lalu coba lagi.');
+        if (/no customer/i.test(m)) throw new DataError('invalid', 'Pilih pelanggan pada pesanan dulu.');
+        if (/not open/i.test(m)) throw new DataError('order_locked', 'Pesanan sudah tidak terbuka atau sudah ada pembayaran.');
+        throw salesInvoiceError(error);
+      }
+      return { number: String((data as { number?: string } | null)?.number ?? '') };
+    },
     async paySalesInvoice(input) {
       const { error } = await db().rpc('sales_invoice_pay', {
         p_id: input.id, p_invoice: input.invoiceId, p_account: input.accountId, p_date: input.date ?? null, p_amount: input.amount, p_note: input.note?.trim() || null,
