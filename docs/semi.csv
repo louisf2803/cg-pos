@@ -72,3 +72,5 @@ Tipe karyawan,ada,layar dashboard memakai server (EmployeeType)
 Radius absensi (batas lokasi absen),ada,pengaturan radius tersimpan di server; kasir mengirim GPS saat absen dan server memutuskan
 Master resep dan kategori catatan,ada,"resep: A135 (Resep dan HPP, jadwal berlaku); kategori catatan: A96"
 Kirim notifikasi ke karyawan (majoo Teams),ada,dashboard kirim ke satu karyawan atau semua; kasir melihat di menu samping Pesan dengan penanda belum dibaca (0145). Belum: popup otomatis saat pesan masuk (dimuat saat kasir dibuka)
+Akun piutang gateway dan biaya transaksi gateway,ada,akun gateway_clearing per metode (payment-accounts) dan biaya persen + tetap per metode bayar (computePaymentFee) di Pengaturan metode bayar
+Pengaturan akses absensi,ada,pengaturan per outlet (lokasi, radius, wajib foto) di Radius Absensi dan hak akses absensi di peran; belum diuji ke Majoo asli
