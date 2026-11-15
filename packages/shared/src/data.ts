@@ -30,6 +30,7 @@ import type { PrintStation, PrintStationInput, SentLine } from './station';
 import type { NotePreset, NotePresetInput } from './notes';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
+import type { TableLayoutDoc } from './table-layout-sync';
 import type { RecipeIngredient, RecipeLine, RecipeProduct, RecipeSchedule, RecipeScheduleInput } from './recipe';
 import type { DiscountUse } from './promo-report';
 import type { StockLocation, StockTransfer, StockTransferInput } from './stock-transfer';
@@ -102,6 +103,10 @@ export interface DataLayer {
   deleteTable(id: string): Promise<void>;
   /** Semua meja dengan pesanan yang sedang memakainya, untuk denah di kasir. */
   listTableStatus(): Promise<TableStatus[]>;
+  /** Denah meja kustom outlet ini (posisi, bentuk, dekor, pengaturan meja, meja nonaktif); null bila belum pernah disimpan. Dibaca semua anggota. */
+  getTableLayout(): Promise<TableLayoutDoc | null>;
+  /** Simpan seluruh dokumen denah (pemilik/admin/manajer); terakhir menyimpan menang. */
+  saveTableLayout(doc: TableLayoutDoc): Promise<void>;
   /** Pindahkan pesanan yang belum dibayar ke meja kosong lain. */
   moveOrderTable(orderId: string, toTableId: string): Promise<Order>;
   /** Satukan item pesanan `fromId` ke pesanan `intoId` (keduanya meja, belum dibayar); pesanan sumber dibatalkan dengan catatan. */

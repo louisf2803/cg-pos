@@ -95,6 +95,7 @@ export * from './deposit-report';
 export * from './customer-export';
 export * from './cashier-report';
 export * from './table-group';
+export * from './table-layout-sync';
 export * from './stock-import';
 export * from './sales-invoice';
 export * from './outlet-compare';

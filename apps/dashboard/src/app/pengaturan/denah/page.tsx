@@ -23,6 +23,8 @@ import {
   TABLE_COLOR_CONFIG,
   clampTablePosition,
   createDecorElement,
+  createTableLayoutSync,
+  hydrateTableLayout,
   defaultGridPositions,
   formatRp,
   newId,
@@ -99,10 +101,14 @@ function readJsonStorage<T>(key: string, fallback: T): T {
   }
 }
 
+/** Penyinkron denah ke server (diisi saat halaman tampil). Setiap tulisan ke localStorage ikut dikirim setelah jeda singkat. */
+let layoutSync: ReturnType<typeof createTableLayoutSync> | null = null;
+
 function writeJsonStorage<T>(key: string, value: T) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    layoutSync?.push();
   } catch {
     // Ignore storage quota error
   }
@@ -180,6 +186,7 @@ function saveInactiveTableIds(set: Set<string>) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(INACTIVE_STORAGE_KEY, JSON.stringify(Array.from(set)));
+    layoutSync?.push();
   } catch {
     // Ignore storage quota error
   }
@@ -199,7 +206,27 @@ function fmtOrderTime(isoString?: string): string {
   }
 }
 
-export default function DenahDanMeja() {
+/** Gerbang: ambil denah dari server (atau kirim data lama perangkat ini sebagai dokumen pertama) sebelum layar membaca localStorage. */
+export default function DenahDanMejaPage() {
+  const data = useData();
+  const [sync, setSync] = useState<'saving' | 'saved' | 'error' | null>(null);
+  const hyd = useAsync(async () => {
+    layoutSync = createTableLayoutSync(data, localStorage, { onState: setSync });
+    return hydrateTableLayout(data, localStorage, true);
+  }, [data]);
+  useEffect(() => () => { void layoutSync?.flush(); layoutSync = null; }, []);
+  if (hyd.status === 'loading') return <div className="grid gap-8" aria-busy="true" aria-label="Memuat denah">{[0, 1, 2].map((i) => <div key={i} className="cg-skeleton" style={{ height: 64 }} />)}</div>;
+  return (
+    <>
+      <p role="status" aria-live="polite" className="text-xs text-text-muted mb-8" data-testid="layout-sync">
+        {hyd.status === 'ready' && hyd.data === 'offline' ? 'Server tidak terjangkau: denah memakai salinan di perangkat ini dan belum dibagi ke kasir.' : sync === 'saving' ? 'Menyimpan denah ke server…' : sync === 'error' ? 'Denah belum tersimpan ke server (hanya pengelola yang boleh menyimpan, atau koneksi bermasalah).' : 'Denah dibagi ke semua perangkat kasir lewat server.'}
+      </p>
+      <DenahDanMeja />
+    </>
+  );
+}
+
+function DenahDanMeja() {
   const data = useData();
   const { selectedOutlet } = useShell();
   const outletKey = selectedOutlet || 'semua';

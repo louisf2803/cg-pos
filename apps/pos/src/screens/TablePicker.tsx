@@ -12,6 +12,7 @@ import {
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
+import { hydrateTableLayout } from '@cgpos/shared';
 
 const SEATED_STORAGE_KEY = 'cgpos_pos_seated_tables';
 const BILL_PRINTED_STORAGE_KEY = 'cgpos_pos_bill_printed_tables';
@@ -47,7 +48,17 @@ function loadTableSettings(): Record<string, TableSettings> {
 }
 
 /** Pilih meja dengan status 6-warna Majoo: Kosong, Tamu Duduk, Terisi, Tagihan Dicetak, Waktu Menipis, Waktu Habis. */
-export function TablePicker({
+type TablePickerProps = Parameters<typeof TablePickerInner>[0];
+
+/** Ambil denah dan pengaturan meja dari server dulu (disimpan pengelola di dashboard), baru tampilkan pemilih meja. Gagal terhubung = salinan terakhir di perangkat ini. */
+export function TablePicker(props: TablePickerProps) {
+  const data = useData();
+  const hyd = useAsync(() => hydrateTableLayout(data, localStorage, false), [data]);
+  if (hyd.status === 'loading') return <Modal title="Pilih meja" onClose={props.onClose}><div className="cg-skeleton" style={{ height: 96 }} aria-busy="true" /></Modal>;
+  return <TablePickerInner {...props} />;
+}
+
+function TablePickerInner({
   currentTableId,
   canResume,
   onPick,

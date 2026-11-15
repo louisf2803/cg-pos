@@ -17,6 +17,7 @@ import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, Tie
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { PriceSchedule } from './price-schedule';
+
 import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct, type RecipeSchedule } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
@@ -291,6 +292,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let orders: Order[] = [];
   let shifts: Shift[] = [];
   let cashMoves: CashMovement[] = [];
+  /** denah meja kustom (mode demo): satu dokumen di memori */
+  let tableLayoutDoc: Record<string, unknown> | null = null;
   /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
   const recipeSchedules: RecipeSchedule[] = [];
   function applyDueRecipeSchedules() {
@@ -1040,6 +1043,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     },
     moveOrderTable: (orderId, toTableId) => tableOps.moveOrderTable(orderId, toTableId),
     mergeOrders: (input) => tableOps.mergeOrders(input),
+    async getTableLayout() { return tableLayoutDoc ? clone(tableLayoutDoc) : null; },
+    async saveTableLayout(doc) { tableLayoutDoc = clone(doc); },
     async listTableStatus(): Promise<TableStatus[]> {
       const live = orders.filter((o) => o.tableId && (o.status === 'open' || o.status === 'partially_paid'));
       return clone([...tables].sort((a, b) => a.sort - b.sort).map((t): TableStatus => {

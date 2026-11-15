@@ -63,6 +63,7 @@ const CASH_PHOTO_BUCKET = 'cash-photos';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
+import type { TableLayoutDoc } from './table-layout-sync';
 import { paymentRefProblem } from './payment-rules';
 import { mergePaymentMethodConfigs, type PaymentMethodConfig, type PaymentChannelKind } from './payment-methods';
 import { buildShiftReport, type ShiftInputs, type ShiftReportRow } from './shift-report';
@@ -900,6 +901,20 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     moveOrderTable: (orderId, toTableId) => tableOps.moveOrderTable(orderId, toTableId),
     mergeOrders: (input) => tableOps.mergeOrders(input),
+    async getTableLayout() {
+      const { ctx } = await resolve();
+      const row = must(await db().from('table_layouts').select('data').eq('outlet_id', ctx.outletId).maybeSingle()) as Row | null;
+      return row ? (row.data as TableLayoutDoc) : null;
+    },
+    async saveTableLayout(doc) {
+      const { ctx } = await resolve();
+      const { error } = await db().rpc('table_layout_save', { p_outlet: ctx.outletId, p_data: doc });
+      if (error) {
+        if (/not allowed|no access/i.test(error.message ?? '')) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh menyimpan denah meja.');
+        if (/too large/i.test(error.message ?? '')) throw new DataError('invalid', 'Denah terlalu besar untuk disimpan.');
+        throw mapDbError(error);
+      }
+    },
     async listTableStatus() {
       const tables = await self.listTables();
       const rows = must(await db().from('orders').select('id,number,table_id,label,guest_count,total,opened_at').not('table_id', 'is', null).in('status', ['open', 'partially_paid']).order('opened_at')) as Row[] | null;
