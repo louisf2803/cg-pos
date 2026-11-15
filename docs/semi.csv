@@ -29,7 +29,7 @@ Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai,ada,A134: pilih aku
 "Filter kategori khusus: semua, favorit, paket, promo, deposit",ada,"A113: Favorit, Paket, Promo, Deposit tampil di rel kategori kasir sesuai data"
 Mode meja dengan denah dan status berwarna,sebagian,grid per lantai ada; denah gambar/seret masih pratinjau (A114)
 "Gabung meja dengan tagihan, pisah item, grup meja",sebagian,gabung ada; pisah item/grup belum (A115)
-Denah meja kustom dengan drag posisi,sebagian,pratinjau localStorage
+Denah meja kustom dengan drag posisi,ada,"A114: posisi, bentuk, dekor, pengaturan meja disimpan di server (0143) dan dibaca kasir; gambar latar lantai masih di perangkat"
 "Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo",sebagian,pisah item ada; grosir/promo belum dihitung ulang (A116)
 "Pengaturan tampilan struk (logo, teks)",ada,"A118/A150: logo, QR, media sosial, kendali bagian struk"
 Produk layanan (jasa),ada,"A121: durasi dan staf (0121)"
