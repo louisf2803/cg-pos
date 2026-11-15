@@ -4,7 +4,6 @@ import {
   Copy,
   FileBarChart,
   Boxes,
-  LogOut,
   Settings,
   Store,
   TrendingUp,
@@ -35,7 +34,7 @@ const ITEM = 'w-full flex items-center gap-12 px-12 py-10 rounded-lg text-sm fon
 /**
  * Menu Samping (Side Drawer) Kasir.
  * Kartu profil (usaha, outlet, kasir, ID), lalu: Kasir, Penjualan, Laporan, Absensi, Pengaturan;
- * di dasar: Tutup Kasir dan Keluar Kasir. Penutupan dengan Escape, klik latar, dan kunci fokus keyboard (Tab).
+ * di dasar: Tutup Kasir (satu-satunya jalan keluar; sesi berlanjut sampai kasir ditutup). Penutupan dengan Escape, klik latar, dan kunci fokus keyboard (Tab).
  */
 export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOpenKitchen = false, unreadMessages = 0, onClose, onNavigate }: SideDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -122,12 +121,6 @@ export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOp
           </button>
         </nav>
 
-        <div className="p-12 border-t border-border bg-surface mt-auto">
-          <button type="button" className={ITEM} onClick={go('logout')}>
-            <LogOut className="cg-icon cg-icon--sm shrink-0" aria-hidden />
-            <span>Keluar Kasir</span>
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   canSwitchPosAppMode,
   createIdleCustomerDisplaySnapshot,
@@ -42,6 +42,19 @@ function Shell() {
   const [lock, setLock] = useState<null | 'manual' | 'idle'>(null);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const prefs = useDevicePrefs();
+  // Login = buka kasir: sesi tidak berakhir sampai Tutup Kasir. Bila shift masih terbuka (mis. halaman dimuat ulang), sesi kasirnya dipulihkan.
+  const restored = useAsync(async () => {
+    const shift = await data.currentShift();
+    if (!shift || shift.status !== 'open') return null;
+    const employee = (await data.listEmployees()).find((e) => e.id === shift.cashierId);
+    return employee ? { employee, shift } : null;
+  }, [data]);
+  const restoredOnce = useRef(false);
+  useEffect(() => {
+    if (restoredOnce.current || restored.status !== 'ready') return;
+    restoredOnce.current = true;
+    if (restored.data) { const r = restored.data; setSession((s) => s ?? r); }
+  }, [restored]);
 
   const login = useCallback(
     async (employee: Employee, requestedMode?: PosAppMode) => {
@@ -85,6 +98,7 @@ function Shell() {
   );
 
   if (isCustomerScreen) return <CustomerDisplay ctx={ctx.data} />;
+  if (restored.status === 'loading' && !session) return <div className="min-h-full grid place-items-center" aria-busy="true"><div className="cg-skeleton" style={{ width: 220, height: 24 }} /></div>;
 
   // data nyata tetapi akun belum punya perangkat kasir: PIN tidak bisa diperiksa tanpa perangkat
   if (ctx.data.deviceCode === '-') return <NoDevice outletName={ctx.data.outletName} />;
@@ -115,14 +129,6 @@ function Shell() {
             onOpenAttendance={() => setAttendanceOpen(true)}
             onLock={lockNow}
           />
-        ) : !session.shift ? (
-          <OpenShift
-            employee={session.employee}
-            onOpened={setShift}
-            onLogout={logout}
-            onOpenAttendance={() => setAttendanceOpen(true)}
-            defaultCash={ctx.data.settings.defaultOpeningCash}
-          />
         ) : (
           <Register
             ctx={ctx.data}
@@ -131,6 +137,15 @@ function Shell() {
             onOpenAttendance={() => setAttendanceOpen(true)}
             onCloseShift={() => setView('close')}
             onLock={lockNow}
+          />
+        )}
+        {view === 'register' && !session.shift && !lock && (
+          <OpenShift
+            employee={session.employee}
+            onOpened={setShift}
+            onLogout={logout}
+            onOpenAttendance={() => setAttendanceOpen(true)}
+            defaultCash={ctx.data.settings.defaultOpeningCash}
           />
         )}
         {view === 'register' && session.shift && <AutoCloseWatcher shift={session.shift} timezone={ctx.data.timezone} onClose={() => setView('close')} />}

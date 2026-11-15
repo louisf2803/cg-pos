@@ -28,7 +28,7 @@ export function LockScreen({ onUnlock, onSwitch, reason }: { onUnlock: () => voi
           {!online && <p className="cg-banner cg-banner--warning" role="status">Tidak ada koneksi, jadi PIN belum bisa diperiksa. Sambungkan internet lalu coba lagi.</p>}
           {!confirmSwitch ? (
             <>
-              <PinPad verify={verify} onSuccess={onUnlock} onBack={() => setConfirmSwitch(true)} backLabel="Ganti kasir" />
+              <PinPad verify={verify} onSuccess={onUnlock} {...(session.shift ? {} : { onBack: () => setConfirmSwitch(true), backLabel: 'Ganti kasir' })} />
             </>
           ) : (
             <div className="grid gap-16">

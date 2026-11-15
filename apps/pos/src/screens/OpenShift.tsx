@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { DataError, formatRp, newId, parseRp, type Employee, type Shift } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
+import { Modal } from '../ui';
 
 const PRESETS = [0, 100_000, 200_000, 500_000];
 
@@ -19,15 +20,12 @@ export function OpenShift({ employee, onOpened, onLogout, onOpenAttendance, defa
   }
 
   return (
-    <main className="min-h-full grid place-items-center p-16">
-      <form onSubmit={submit} noValidate className="w-full max-w-[440px] grid gap-16">
-        <header>
-          <h1 className="text-xl">Buka kasir</h1>
-          <p className="text-text-muted">Halo, {employee.name}. Hitung uang di laci, lalu isi sebagai modal awal.</p>
-        </header>
+    <Modal title="Buka kasir" labelledBy="buka-kasir-title">
+      <form onSubmit={submit} noValidate className="grid gap-16">
+        <p className="text-text-muted">Halo, {employee.name}. Hitung uang di laci, lalu isi sebagai modal awal.</p>
         <div className="cg-field">
           <label className="cg-label" htmlFor="modal">Modal awal (Rp)</label>
-          <input id="modal" className="cg-input" inputMode="numeric" autoFocus value={raw} onChange={(e) => { setRaw(e.target.value); setErr(''); }} aria-invalid={!!err} aria-describedby={err ? 'e-modal' : undefined} />
+          <input id="modal" className="cg-input" inputMode="numeric" data-autofocus value={raw} onChange={(e) => { setRaw(e.target.value); setErr(''); }} aria-invalid={!!err} aria-describedby={err ? 'e-modal' : undefined} />
           {defaultCash != null && <p className="text-text-muted text-sm">Terisi dari pengaturan outlet ({formatRp(defaultCash)}). Hitung laci, ubah bila berbeda.</p>}
           {err && <p id="e-modal" className="cg-error" role="alert">{err}</p>}
         </div>
@@ -42,6 +40,6 @@ export function OpenShift({ employee, onOpened, onLogout, onOpenAttendance, defa
         )}
         <button type="button" className="cg-btn cg-btn--ghost cg-btn--block" onClick={onLogout}>Bukan saya, ganti karyawan</button>
       </form>
-    </main>
+    </Modal>
   );
 }
