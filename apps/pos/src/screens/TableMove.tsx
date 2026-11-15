@@ -1,8 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   createTableGroup,
   formatRp,
   formatTableGroupLabel,
+  createTableLayoutSync,
+  hydrateTableLayout,
+  type DataLayer,
   newId,
   splitByItem,
   type Order,
@@ -681,6 +684,15 @@ export function SplitOrderDialog({
 }
 
 const TABLE_GROUP_STORAGE_KEY = 'cgpos_pos_table_groups';
+const TABLE_GROUP_DOC = 'pos-table-groups';
+
+/** Grup meja gabungan dibagi ke semua perangkat lewat dokumen organisasi 'pos-table-groups' (migrasi 0144/0146). Server menang; server kosong = isi perangkat ini dikirim. */
+let groupSync: ReturnType<typeof createTableLayoutSync> | null = null;
+export async function hydrateTableGroups(data: DataLayer): Promise<void> {
+  const store = { getTableLayout: () => data.getOrgDoc(TABLE_GROUP_DOC), saveTableLayout: (doc: Record<string, unknown>) => data.saveOrgDoc(TABLE_GROUP_DOC, doc) };
+  groupSync = createTableLayoutSync(store, localStorage, { keys: [TABLE_GROUP_STORAGE_KEY], delayMs: 400 });
+  await hydrateTableLayout(store, localStorage, true, [TABLE_GROUP_STORAGE_KEY]);
+}
 
 export function loadTableGroups(): TableGroup[] {
   try {
@@ -695,6 +707,7 @@ export function loadTableGroups(): TableGroup[] {
 export function saveTableGroups(groups: TableGroup[]) {
   try {
     localStorage.setItem(TABLE_GROUP_STORAGE_KEY, JSON.stringify(groups));
+    groupSync?.push();
   } catch {
     // Ignore storage quota
   }
@@ -710,7 +723,9 @@ export function TableGroupDialog({
   onClose: () => void;
   onDone: (groups: TableGroup[]) => void;
 }) {
+  const data = useData();
   const [groups, setGroups] = useState<TableGroup[]>(() => loadTableGroups());
+  useEffect(() => { let off = false; void hydrateTableGroups(data).then(() => { if (!off) setGroups(loadTableGroups()); }).catch(() => undefined); return () => { off = true; }; }, [data]);
   const [name, setName] = useState('');
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
   const [error, setError] = useState('');

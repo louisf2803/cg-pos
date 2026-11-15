@@ -1154,7 +1154,7 @@ export function Register({
         />
       )}
       {tablePick && (
-        <TablePicker currentTableId={cart.state.tableId} canResume={cart.state.lines.length === 0}
+        <TablePicker currentTableId={cart.state.tableId} outletId={ctx.outletId} canResume={cart.state.lines.length === 0}
           onClose={() => setTablePick(false)}
           onPick={(t) => { cart.dispatch({ t: 'table', tableId: t.id, tableName: t.name }); setTablePick(false); }}
           onResume={async (t) => {

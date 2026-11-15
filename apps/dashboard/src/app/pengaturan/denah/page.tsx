@@ -394,13 +394,25 @@ function DenahDanMeja() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setFloorBackgrounds((prev) => {
-        const next = { ...prev, [activeFloorId]: dataUrl };
-        writeJsonStorage(FLOOR_BG_STORAGE_KEY, next);
-        return next;
-      });
-      setPositionStatusMsg('Gambar denah latar berhasil diunggah.');
+      // kecilkan dulu: gambar ikut disimpan di server bersama denah (maks 256 KB untuk semua lantai)
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 900 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * scale)); c.height = Math.max(1, Math.round(img.height * scale));
+        c.getContext('2d')?.drawImage(img, 0, 0, c.width, c.height);
+        let q = 0.7; let dataUrl = c.toDataURL('image/jpeg', q);
+        while (dataUrl.length > 90_000 && q > 0.3) { q -= 0.1; dataUrl = c.toDataURL('image/jpeg', q); }
+        if (dataUrl.length > 90_000) { setPositionStatusMsg('Gambar terlalu detail. Pakai gambar yang lebih sederhana atau lebih kecil.'); return; }
+        setFloorBackgrounds((prev) => {
+          const next = { ...prev, [activeFloorId]: dataUrl };
+          writeJsonStorage(FLOOR_BG_STORAGE_KEY, next);
+          return next;
+        });
+        setPositionStatusMsg('Gambar denah latar berhasil diunggah dan tersimpan di server.');
+      };
+      img.onerror = () => setPositionStatusMsg('Berkas bukan gambar yang bisa dibaca.');
+      img.src = reader.result as string;
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -471,7 +483,7 @@ function DenahDanMeja() {
     writeJsonStorage(TABLE_POSITIONS_STORAGE_KEY, nextPositions);
     writeJsonStorage(DECOR_ELEMENTS_STORAGE_KEY, decorElements);
     setHasUnsavedPositions(false);
-    setPositionStatusMsg('Posisi meja dan elemen dekoratif tersimpan secara lokal (Pratinjau).');
+    setPositionStatusMsg('Posisi meja dan elemen dekoratif tersimpan di server dan tampil di kasir.');
   };
 
   const displayedDecor = useMemo(() => {

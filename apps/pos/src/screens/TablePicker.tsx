@@ -12,7 +12,9 @@ import {
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
+import { FloorMap, loadFloorLayout } from './FloorMap';
 import { hydrateTableLayout } from '@cgpos/shared';
+import { hydrateTableGroups } from './TableMove';
 
 const SEATED_STORAGE_KEY = 'cgpos_pos_seated_tables';
 const BILL_PRINTED_STORAGE_KEY = 'cgpos_pos_bill_printed_tables';
@@ -53,19 +55,24 @@ type TablePickerProps = Parameters<typeof TablePickerInner>[0];
 /** Ambil denah dan pengaturan meja dari server dulu (disimpan pengelola di dashboard), baru tampilkan pemilih meja. Gagal terhubung = salinan terakhir di perangkat ini. */
 export function TablePicker(props: TablePickerProps) {
   const data = useData();
-  const hyd = useAsync(() => hydrateTableLayout(data, localStorage, false), [data]);
+  const hyd = useAsync(async () => { await hydrateGroupsSafe(data); return hydrateTableLayout(data, localStorage, false); }, [data]);
   if (hyd.status === 'loading') return <Modal title="Pilih meja" onClose={props.onClose}><div className="cg-skeleton" style={{ height: 96 }} aria-busy="true" /></Modal>;
   return <TablePickerInner {...props} />;
 }
 
+async function hydrateGroupsSafe(data: ReturnType<typeof useData>) { try { await hydrateTableGroups(data); } catch { /* pakai salinan perangkat */ } }
+
 function TablePickerInner({
   currentTableId,
   canResume,
+  outletId,
   onPick,
   onResume,
   onClose,
 }: {
   currentTableId?: string;
+  /** dipakai memilih denah kustom outlet ini */
+  outletId?: string;
   canResume: boolean;
   onPick: (t: TableStatus) => void;
   onResume: (t: TableStatus) => void;
@@ -81,6 +88,8 @@ function TablePickerInner({
   );
   const [floor, setFloor] = useState<string | null>(null);
   const [hint, setHint] = useState('');
+  const layout = useMemo(() => loadFloorLayout(outletId ?? ''), [outletId]);
+  const [asMap, setAsMap] = useState(layout.mode === 'custom');
   const [groups] = useState<TableGroup[]>(() => {
     try {
       const raw = localStorage.getItem('cgpos_pos_table_groups');
@@ -204,8 +213,27 @@ function TablePickerInner({
             ))}
           </div>
 
+          <div className="flex justify-end mb-8">
+            <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" aria-pressed={asMap} onClick={() => setAsMap((v) => !v)}>{asMap ? 'Tampilkan daftar' : 'Tampilkan denah'}</button>
+          </div>
           {shown.length === 0 ? (
             <p className="text-text-muted">Belum ada meja di lantai ini.</p>
+          ) : asMap && active ? (
+            <FloorMap
+              floorId={active}
+              tables={shown}
+              layout={layout}
+              mineId={currentTableId}
+              color={(t) => resolveTableColorStatus({ table: t, settings: settingsMap[t.id], isSeated: !t.order && seatedIds.has(t.id), isBillPrinted: !!t.order && billPrintedIds.has(t.id) })}
+              label={(t) => (t.order ? `Meja ${t.name}, pesanan ${t.order.number}, ${formatRp(t.order.total)}` : `Meja ${t.name}, kosong`)}
+              onTable={(t) => {
+                const busy = !!t.order; const mine = t.id === currentTableId;
+                if (!busy) return onPick(t);
+                if (mine) return onClose();
+                if (canResume) return onResume(t);
+                setHint(`Meja ${t.name} sedang dipakai. Simpan atau kosongkan pesanan yang sedang dibuat dulu untuk membukanya.`);
+              }}
+            />
           ) : (
             <ul
               className="grid gap-8"

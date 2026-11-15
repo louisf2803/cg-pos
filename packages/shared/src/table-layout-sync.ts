@@ -10,6 +10,7 @@ export const TABLE_LAYOUT_KEYS = [
   'cgpos_table_settings',
   'cgpos_custom_table_shapes',
   'cgpos_custom_decor_elements',
+  'cgpos_floor_backgrounds',
 ] as const;
 
 /** Preferensi bisnis dashboard yang sebelumnya hanya di localStorage satu peramban (grup komisi, metadata fasilitas, tingkat loyalti, aturan ulang tahun, kolom kustom pelanggan, dll.). Disimpan sebagai dokumen organisasi 'dashboard-prefs' (migrasi 0144). */

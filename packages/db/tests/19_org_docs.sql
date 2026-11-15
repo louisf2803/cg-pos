@@ -29,6 +29,8 @@ begin
   set local role authenticated;
   perform pg_temp.ok_od((select count(*) from pos.org_docs where org_id = o1) = 1, 'kasir membaca');
   perform pg_temp.ok_od(pg_temp.fails_od(format('select pos.org_doc_save(%L, ''dashboard-prefs'', ''{}''::jsonb)', o1)), 'kasir tidak boleh menyimpan');
+  perform pos.org_doc_save(o1, 'pos-table-groups', '{"k":[1]}'::jsonb);
+  perform pg_temp.ok_od((select count(*) from pos.org_docs where org_id = o1 and name = 'pos-table-groups') = 1, 'kasir boleh menyimpan dokumen pos-');
   begin update pos.org_docs set data = '{}'::jsonb where org_id = o1; ok := (select data ? 'x' from pos.org_docs where org_id = o1 and name = 'dashboard-prefs'); exception when others then ok := true; end;
   perform pg_temp.ok_od(ok, 'kasir tidak boleh mengubah langsung');
   reset role;
@@ -38,6 +40,7 @@ begin
     set local role authenticated;
     perform pg_temp.ok_od((select count(*) from pos.org_docs where org_id = o1) = 0, 'org lain tidak membaca');
     perform pg_temp.ok_od(pg_temp.fails_od(format('select pos.org_doc_save(%L, ''dashboard-prefs'', ''{}''::jsonb)', o1)), 'org lain tidak boleh menyimpan');
+    perform pg_temp.ok_od(pg_temp.fails_od(format('select pos.org_doc_save(%L, ''pos-table-groups'', ''{}''::jsonb)', o1)), 'org lain tidak boleh menyimpan dokumen pos-');
     reset role;
   end if;
   set local role anon;

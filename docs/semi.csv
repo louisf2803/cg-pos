@@ -27,8 +27,8 @@ Kirim pesanan dine-in ke dapur per item yang dicentang,ada,diteruskan otomatis k
 "Pilih mode tampilan kasir (grid, SKU, meja, reservasi, jasa, buku menu)",ada,kartu/daftar; SKU dan buku menu dibuang; reservasi tidak dikerjakan
 Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai,ada,A134: pilih akun per metode bayar (migrasi 0134 di produksi) dan alur jurnal kasir dijelaskan
 "Filter kategori khusus: semua, favorit, paket, promo, deposit",ada,"A113: Favorit, Paket, Promo, Deposit tampil di rel kategori kasir sesuai data"
-Mode meja dengan denah dan status berwarna,sebagian,grid per lantai ada; denah gambar/seret masih pratinjau (A114)
-"Gabung meja dengan tagihan, pisah item, grup meja",sebagian,gabung ada; pisah item/grup belum (A115)
+Mode meja dengan denah dan status berwarna,ada,kasir menampilkan denah kustom (posisi, bentuk, dekorasi, gambar latar) atau daftar; ASUMSI: perilaku Majoo ditebak atas keputusan Louis 15 Nov 2026
+"Gabung meja dengan tagihan, pisah item, grup meja",ada,gabung, pisah item, dan grup meja; grup meja kini dibagi ke semua perangkat (pos-table-groups, 0146)
 Denah meja kustom dengan drag posisi,ada,"A114: posisi, bentuk, dekor, pengaturan meja disimpan di server (0143) dan dibaca kasir; gambar latar lantai masih di perangkat"
 "Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo",ada,A116: pisah bayar di kasir menghitung ulang harga grosir/jadwal/waktu/kanal tiap bagian; bila ada promo/diskon order pisah diblokir dengan pesan jelas (semua promo adalah diskon order di keranjang); pisah dari Daftar Order belum menghitung ulang
 "Pengaturan tampilan struk (logo, teks)",ada,"A118/A150: logo, QR, media sosial, kendali bagian struk"
@@ -52,7 +52,7 @@ Grup pelanggan dan harga spesial,ada,A139 + migrasi 0097/0098
 Tukar poin loyalty (potongan atau produk gratis),ada,"A140: potongan dan produk gratis (0099)"
 Reservasi dan appointment dengan kalender,ada,"A143: tersimpan di server (migrasi 0105 di produksi), bentrok jadwal dijaga server"
 "Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order",ada,"A141: tarif per produk dan per jenis order tersimpan di server, kasir menghitung per baris"
-Denah meja dari gambar (grid meja) di dashboard,belum,A114
+Denah meja dari gambar (grid meja) di dashboard,ada,unggah gambar denah per lantai (dikecilkan, tersimpan di server) lalu letakkan meja di atasnya; tampil di kasir. ASUMSI: ditebak atas keputusan Louis
 Faktur penjualan dengan termin dan status bayar,ada,"A129: migrasi 0129 di produksi, jurnal piutang/penjualan/pajak, uang muka, pembayaran bertahap"
 "Penawaran, pesanan penjualan, pengiriman, penerimaan penjualan (alur B2B)",ada,A130: migrasi 0130 di produksi; penawaran > pesanan > pengiriman > penerimaan > faktur
 Perbandingan laporan antar outlet,ada,"A131: migrasi 0131 di produksi, /laporan/outlet"
@@ -61,7 +61,7 @@ Laporan reservasi dan utilisasi (jasa dan ruangan),ada,"A136: dari data reservas
 Produksi stok (konversi bahan jadi) dengan acuan produksi,ada,"A137: migrasi 0137 di produksi; bahan keluar, barang jadi masuk dengan biaya rata-rata. Urutan langkah Majoo belum dicek"
 Beli kampanye marketing,ada,"A132: halaman informasi (tanpa kirim pesan, keputusan Louis)"
 Laporan uang muka (Penjualan > Laporan Penjualan),ada,A129: /laporan/uang-muka dari faktur penjualan
-Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi manual,sebagian,A128: pengaturan tersimpan; tutup kasir belum menjalankan rekonsiliasi otomatis
+Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi manual,ada,sakelar auto_reconcile_noncash: tutup kasir langsung merekonsiliasi metode non-tunai ke bank utama tanpa biaya; gateway tetap lewat settlement; manual lewat dashboard Rekonsiliasi
 Daftar harga ojek online,ada,"A135: harga kanal dipakai kasir (pemilih Kanal pada jenis order Antar); 0135 dan 0140 di produksi"
 "Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",ada,"A135/A139: harga waktu dan kanal dipakai kasir; jadwal resep (0142, pg_cron)"
 Buat faktur penjualan dari layar pembayaran (Jadikan Invoice),sebagian,"A129/A146: tombol Jadikan invoice di layar Pembayaran (diuji mode demo: faktur dibuat, pesanan ditutup tanpa bayar). Di server butuh peran pengelola; stok tidak dikurangi otomatis; belum diuji di server asli"
