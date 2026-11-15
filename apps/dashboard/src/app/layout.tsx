@@ -6,6 +6,7 @@ import { ShellProvider } from '@/components/shell-context';
 import { Topbar } from '@/components/topbar';
 import { Sidebar } from '@/components/sidebar';
 import { RouteGuard } from '@/components/route-guard';
+import { PrefsGate } from '@/components/prefs-gate';
 
 export const metadata: Metadata = {
   title: { default: 'CG POS Dashboard', template: '%s · CG POS' },
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div className="flex flex-1 min-w-0 relative items-start">
               <Sidebar />
               <main id="isi" className="flex-1 min-w-0 p-16 desktop:p-24 overflow-x-hidden">
-                <RouteGuard>{children}</RouteGuard>
+                <RouteGuard><PrefsGate>{children}</PrefsGate></RouteGuard>
               </main>
             </div>
           </ShellProvider>

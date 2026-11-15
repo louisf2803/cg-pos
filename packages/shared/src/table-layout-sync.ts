@@ -12,6 +12,15 @@ export const TABLE_LAYOUT_KEYS = [
   'cgpos_custom_decor_elements',
 ] as const;
 
+/** Preferensi bisnis dashboard yang sebelumnya hanya di localStorage satu peramban (grup komisi, metadata fasilitas, tingkat loyalti, aturan ulang tahun, kolom kustom pelanggan, dll.). Disimpan sebagai dokumen organisasi 'dashboard-prefs' (migrasi 0144). */
+export const DASHBOARD_PREF_KEYS = [
+  'cgpos_commission_groups',
+  'cg-a58-facility-meta-v1', 'cg-a58-loyalty-tiers-v1', 'cg-a58-birthday-rule-v1', 'cg-a58-birthday-grants-v1',
+  'cg-a59-payment-overrides-v1', 'cg-a59-payment-custom-v1', 'cg-a59-online-channels-v1',
+  'cg-a60-customer-fields-v1', 'cg-a60-customer-policy-v1', 'cg-a60-satisfaction-followup-v1', 'cg-a60-warehouse-prepared-v1',
+] as const;
+export const DASHBOARD_PREFS_DOC = 'dashboard-prefs';
+
 export type TableLayoutDoc = Record<string, unknown>;
 export interface StorageLike { getItem(key: string): string | null; setItem(key: string, value: string): void }
 export interface TableLayoutStore {
@@ -25,9 +34,9 @@ declare function clearTimeout(id: unknown): void;
 const hasValue = (v: unknown) => (Array.isArray(v) ? v.length > 0 : v !== null && typeof v === 'object' ? Object.keys(v as object).length > 0 : v !== undefined && v !== null);
 
 /** Isi localStorage untuk kunci denah sebagai dokumen (kunci kosong dilewati). */
-export function collectTableLayout(storage: StorageLike): TableLayoutDoc {
+export function collectTableLayout(storage: StorageLike, keys: readonly string[] = TABLE_LAYOUT_KEYS): TableLayoutDoc {
   const doc: TableLayoutDoc = {};
-  for (const k of TABLE_LAYOUT_KEYS) {
+  for (const k of keys) {
     try {
       const raw = storage.getItem(k);
       if (!raw) continue;
@@ -39,9 +48,11 @@ export function collectTableLayout(storage: StorageLike): TableLayoutDoc {
 }
 
 /** Tulis dokumen ke localStorage; kunci yang tidak ada di dokumen dikosongkan (server menang). */
-export function applyTableLayout(doc: TableLayoutDoc, storage: StorageLike): void {
-  for (const k of TABLE_LAYOUT_KEYS) {
-    try { storage.setItem(k, JSON.stringify(k in doc ? doc[k] : k === 'cgpos_custom_decor_elements' || k === 'cgpos_inactive_tables' ? [] : {})); } catch { /* penyimpanan boleh gagal */ }
+export function applyTableLayout(doc: TableLayoutDoc, storage: StorageLike, keys: readonly string[] = TABLE_LAYOUT_KEYS): void {
+  for (const k of keys) {
+    // kunci yang tidak ada di dokumen dikosongkan: kunci denah ke nilai kosong sesuai jenisnya, kunci lain ke teks kosong (pembacanya memakai nilai bawaan)
+    const empty = k === 'cgpos_custom_decor_elements' || k === 'cgpos_inactive_tables' ? '[]' : (TABLE_LAYOUT_KEYS as readonly string[]).includes(k) ? '{}' : '';
+    try { storage.setItem(k, k in doc ? JSON.stringify(doc[k]) : empty); } catch { /* penyimpanan boleh gagal */ }
   }
 }
 
@@ -58,24 +69,24 @@ export type HydrateResult = 'server' | 'pushed' | 'empty' | 'offline';
  * Gagal terhubung = pakai isi lokal apa adanya ('offline'), tidak pernah menghapus data lokal.
  * `canPush`: hanya pengelola boleh mengirim data lokal lama sebagai dokumen pertama.
  */
-export async function hydrateTableLayout(store: TableLayoutStore, storage: StorageLike, canPush = false): Promise<HydrateResult> {
+export async function hydrateTableLayout(store: TableLayoutStore, storage: StorageLike, canPush = false, keys: readonly string[] = TABLE_LAYOUT_KEYS): Promise<HydrateResult> {
   let server: TableLayoutDoc | null;
   try { server = await store.getTableLayout(); } catch { return 'offline'; }
-  if (server && Object.keys(server).length > 0) { applyTableLayout(server, storage); return 'server'; }
-  const local = collectTableLayout(storage);
+  if (server && Object.keys(server).length > 0) { applyTableLayout(server, storage, keys); return 'server'; }
+  const local = collectTableLayout(storage, keys);
   if (Object.keys(local).length === 0) return 'empty';
   if (!canPush) return 'empty';
   try { await store.saveTableLayout(local); return 'pushed'; } catch { return 'offline'; }
 }
 
 /** Kirim isi localStorage ke server setelah jeda (digabung bila banyak perubahan beruntun). Mengembalikan fungsi `push` dan `flush`. */
-export function createTableLayoutSync(store: TableLayoutStore, storage: StorageLike, opts: { delayMs?: number; onState?: (s: 'saving' | 'saved' | 'error') => void } = {}) {
+export function createTableLayoutSync(store: TableLayoutStore, storage: StorageLike, opts: { delayMs?: number; keys?: readonly string[]; onState?: (s: 'saving' | 'saved' | 'error') => void } = {}) {
   const delay = opts.delayMs ?? 800;
   let timer: unknown = null;
   let last: TableLayoutDoc | null = null;
   async function run() {
     timer = null;
-    const doc = collectTableLayout(storage);
+    const doc = collectTableLayout(storage, opts.keys ?? TABLE_LAYOUT_KEYS);
     if (last && sameLayout(last, doc)) return;
     opts.onState?.('saving');
     try { await store.saveTableLayout(doc); last = doc; opts.onState?.('saved'); } catch { opts.onState?.('error'); }

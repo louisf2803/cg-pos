@@ -152,9 +152,9 @@ export default function GrupKomisiPage() {
         role="status"
       >
         <span>
-          <strong>Pratinjau — aturan belum tersimpan di server.</strong> Grup komisi disimpan di peramban (`localStorage`) dan langsung dipakai menghitung komisi di Laporan Karyawan dari data pesanan nyata.
+          <strong>Grup komisi tersimpan di server</strong> dan dibagi ke semua pengelola dan perangkat. Dipakai menghitung komisi di Laporan Karyawan dari data pesanan nyata (hitungan di laporan, belum membukukan jurnal komisi).
         </span>
-        <span className="cg-badge text-[11px] font-semibold">Pratinjau</span>
+        <span className="cg-badge text-[11px] font-semibold">Tersimpan di server</span>
       </div>
 
       {st.status === 'error' && <ErrorBox message={st.message} onRetry={st.reload} />}

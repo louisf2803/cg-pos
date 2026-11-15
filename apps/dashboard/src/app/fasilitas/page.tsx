@@ -459,9 +459,9 @@ export default function FasilitasPage() {
 
       <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8">
         <p className="text-sm">
-          <strong>Pratinjau:</strong> produk fasilitas disimpan ke katalog server agar dapat ditagih di kasir. Kapasitas orang, satuan sewa, dan catatan sementara tersimpan di peramban.
+          Produk fasilitas disimpan ke katalog server agar dapat ditagih di kasir. Kapasitas orang, satuan sewa, dan catatan disimpan sebagai pengaturan organisasi di server.
         </p>
-        <span className="cg-badge cg-badge--info whitespace-nowrap">Penyimpanan lokal</span>
+        <span className="cg-badge cg-badge--info whitespace-nowrap">Tersimpan di server</span>
       </div>
 
       {notice && (

@@ -1,5 +1,7 @@
 'use client';
 
+import { notifyPrefsChanged } from './prefs-sync';
+
 import {
   DEFAULT_BIRTHDAY_RULE,
   DEFAULT_LOYALTY_TIERS,
@@ -28,6 +30,7 @@ function writeJson(key: string, value: unknown): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    notifyPrefsChanged();
   } catch {
     // Abaikan bila penyimpanan lokal dinonaktifkan di peramban.
   }

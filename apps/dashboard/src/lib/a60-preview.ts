@@ -1,5 +1,7 @@
 'use client';
 
+import { notifyPrefsChanged } from './prefs-sync';
+
 import {
   DEFAULT_CUSTOMER_CUSTOM_FIELDS,
   DEFAULT_CUSTOMER_POLICY,
@@ -27,6 +29,7 @@ function writeJson(key: string, value: unknown): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    notifyPrefsChanged();
   } catch {
     // Abaikan bila penyimpanan lokal dinonaktifkan di peramban.
   }

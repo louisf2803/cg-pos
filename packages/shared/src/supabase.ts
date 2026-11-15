@@ -906,6 +906,20 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const row = must(await db().from('table_layouts').select('data').eq('outlet_id', ctx.outletId).maybeSingle()) as Row | null;
       return row ? (row.data as TableLayoutDoc) : null;
     },
+    async getOrgDoc(name) {
+      const { orgId } = await resolve();
+      const row = must(await db().from('org_docs').select('data').eq('org_id', orgId).eq('name', name).maybeSingle()) as Row | null;
+      return row ? (row.data as TableLayoutDoc) : null;
+    },
+    async saveOrgDoc(name, doc) {
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('org_doc_save', { p_org: orgId, p_name: name, p_data: doc });
+      if (error) {
+        if (/not allowed|no access/i.test(error.message ?? '')) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh menyimpan pengaturan ini.');
+        if (/too large/i.test(error.message ?? '')) throw new DataError('invalid', 'Pengaturan terlalu besar untuk disimpan.');
+        throw mapDbError(error);
+      }
+    },
     async saveTableLayout(doc) {
       const { ctx } = await resolve();
       const { error } = await db().rpc('table_layout_save', { p_outlet: ctx.outletId, p_data: doc });

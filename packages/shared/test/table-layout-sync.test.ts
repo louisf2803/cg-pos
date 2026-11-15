@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyTableLayout, collectTableLayout, createFakeData, createTableLayoutSync, hydrateTableLayout, sameLayout, TABLE_LAYOUT_KEYS, type StorageLike } from '../src';
+import { DASHBOARD_PREF_KEYS, DASHBOARD_PREFS_DOC, applyTableLayout, collectTableLayout, createFakeData, createTableLayoutSync, hydrateTableLayout, sameLayout, TABLE_LAYOUT_KEYS, type StorageLike } from '../src';
 
 function memStorage(init: Record<string, string> = {}): StorageLike & { data: Record<string, string> } {
   const data = { ...init };
@@ -62,5 +62,18 @@ describe('sinkronisasi denah meja', () => {
   it('sameLayout mengabaikan urutan kunci', () => {
     expect(sameLayout({ a: { x: 1, y: 2 } }, { a: { y: 2, x: 1 } })).toBe(true);
     expect(sameLayout({ a: 1 }, { a: 2 })).toBe(false);
+  });
+
+  it('dokumen organisasi: kunci preferensi dashboard disinkronkan lewat getOrgDoc/saveOrgDoc, kunci kosong jadi teks kosong', async () => {
+    const d = createFakeData();
+    const store = { getTableLayout: () => d.getOrgDoc(DASHBOARD_PREFS_DOC), saveTableLayout: (doc: Record<string, unknown>) => d.saveOrgDoc(DASHBOARD_PREFS_DOC, doc) };
+    const a = memStorage({ cgpos_commission_groups: JSON.stringify([{ id: 'g1', name: 'Barista' }]), 'cg-a60-customer-fields-v1': JSON.stringify([{ id: 'f1' }]) });
+    expect(await hydrateTableLayout(store, a, true, DASHBOARD_PREF_KEYS)).toBe('pushed');
+    expect(await d.getOrgDoc(DASHBOARD_PREFS_DOC)).toEqual({ cgpos_commission_groups: [{ id: 'g1', name: 'Barista' }], 'cg-a60-customer-fields-v1': [{ id: 'f1' }] });
+    const b = memStorage({ 'cg-a58-loyalty-tiers-v1': '[1]' });
+    expect(await hydrateTableLayout(store, b, false, DASHBOARD_PREF_KEYS)).toBe('server');
+    expect(JSON.parse(b.data.cgpos_commission_groups!)).toEqual([{ id: 'g1', name: 'Barista' }]);
+    expect(b.data['cg-a58-loyalty-tiers-v1']).toBe(''); // server menang: kunci yang tak ada di dokumen dikosongkan
+    await expect(d.saveOrgDoc('Nama Salah', {})).rejects.toThrow();
   });
 });

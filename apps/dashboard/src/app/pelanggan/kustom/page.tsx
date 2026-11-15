@@ -257,9 +257,9 @@ export default function KustomDataPelangganPage() {
 
       <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8">
         <p className="text-sm">
-          <strong>Pratinjau:</strong> definisi kolom kustom tersimpan di peramban sambil menunggu dukungan kolom JSON kustom pelanggan di server (docs/REQUESTS-FOR-CLAUDE.md). Kolom bernuansa PIN atau kata sandi dilarang otomatis demi keamanan.
+          Definisi kolom kustom tersimpan sebagai pengaturan organisasi di server. Isian kolom per pelanggan belum disimpan di data pelanggan (menunggu kolom JSON kustom pelanggan di server). Kolom bernuansa PIN atau kata sandi dilarang otomatis demi keamanan.
         </p>
-        <span className="cg-badge cg-badge--info whitespace-nowrap">Pratinjau · Skema formulir</span>
+        <span className="cg-badge cg-badge--info whitespace-nowrap">Skema formulir tersimpan</span>
       </div>
 
       {notice && (

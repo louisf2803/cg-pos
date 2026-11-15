@@ -719,9 +719,9 @@ export default function LoyaltyPage() {
         <section aria-label="Grup keanggotaan loyalti" className="space-y-16 min-w-0">
           <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8">
             <p className="text-sm">
-              <strong>Pratinjau:</strong> batas poin dan pengali poin per grup tersimpan di peramban sambil menunggu dukungan grup loyalti di server. Jumlah anggota dihitung langsung dari saldo poin pelanggan saat ini.
+              Batas poin dan pengali poin per grup tersimpan sebagai pengaturan organisasi di server. Pengali ini belum dipakai server saat menghitung poin transaksi (poin tetap mengikuti aturan loyalti dasar). Jumlah anggota dihitung langsung dari saldo poin pelanggan saat ini.
             </p>
-            <span className="cg-badge cg-badge--info whitespace-nowrap">Hitungan langsung</span>
+            <span className="cg-badge cg-badge--info whitespace-nowrap">Pengaturan tersimpan</span>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-8">

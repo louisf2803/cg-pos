@@ -4,6 +4,8 @@ import {
   type Product,
 } from '@cgpos/shared';
 
+import { notifyPrefsChanged } from './prefs-sync';
+
 export const COMMISSION_GROUPS_STORAGE_KEY = 'cgpos_commission_groups';
 
 export function loadCommissionGroups(): CommissionGroup[] {
@@ -33,6 +35,7 @@ export function saveCommissionGroups(groups: CommissionGroup[]) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(COMMISSION_GROUPS_STORAGE_KEY, JSON.stringify(groups));
+    notifyPrefsChanged();
   } catch {
     // Ignore storage quota errors
   }

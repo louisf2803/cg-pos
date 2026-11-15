@@ -402,7 +402,7 @@ export default function StaffReportPage() {
         <div className="space-y-16 min-w-0">
           <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-8" role="status">
             <span>
-              <strong>Pratinjau — menghitung dari data pesanan nyata</strong> menggunakan aturan grup komisi yang tersimpan di peramban ini.
+              <strong>Dihitung dari data pesanan nyata</strong> menggunakan aturan grup komisi yang tersimpan di server.
             </span>
             <Link href="/komisi" className="text-xs font-semibold underline shrink-0">
               Kelola Grup Komisi

@@ -107,6 +107,10 @@ export interface DataLayer {
   getTableLayout(): Promise<TableLayoutDoc | null>;
   /** Simpan seluruh dokumen denah (pemilik/admin/manajer); terakhir menyimpan menang. */
   saveTableLayout(doc: TableLayoutDoc): Promise<void>;
+  /** Dokumen pengaturan organisasi bernama (migrasi 0144), mis. 'dashboard-prefs'; null bila belum pernah disimpan. Dibaca semua anggota. */
+  getOrgDoc(name: string): Promise<TableLayoutDoc | null>;
+  /** Simpan dokumen organisasi (pemilik/admin/manajer); terakhir menyimpan menang. */
+  saveOrgDoc(name: string, doc: TableLayoutDoc): Promise<void>;
   /** Pindahkan pesanan yang belum dibayar ke meja kosong lain. */
   moveOrderTable(orderId: string, toTableId: string): Promise<Order>;
   /** Satukan item pesanan `fromId` ke pesanan `intoId` (keduanya meja, belum dibayar); pesanan sumber dibatalkan dengan catatan. */

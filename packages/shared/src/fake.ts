@@ -294,6 +294,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let cashMoves: CashMovement[] = [];
   /** denah meja kustom (mode demo): satu dokumen di memori */
   let tableLayoutDoc: Record<string, unknown> | null = null;
+  const orgDocs = new Map<string, Record<string, unknown>>();
   /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
   const recipeSchedules: RecipeSchedule[] = [];
   function applyDueRecipeSchedules() {
@@ -1045,6 +1046,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     mergeOrders: (input) => tableOps.mergeOrders(input),
     async getTableLayout() { return tableLayoutDoc ? clone(tableLayoutDoc) : null; },
     async saveTableLayout(doc) { tableLayoutDoc = clone(doc); },
+    async getOrgDoc(name) { const d = orgDocs.get(name); return d ? clone(d) : null; },
+    async saveOrgDoc(name, doc) {
+      if (!/^[a-z0-9_-]{1,40}$/.test(name)) throw new DataError('invalid', 'Nama dokumen tidak valid.');
+      orgDocs.set(name, clone(doc));
+    },
     async listTableStatus(): Promise<TableStatus[]> {
       const live = orders.filter((o) => o.tableId && (o.status === 'open' || o.status === 'partially_paid'));
       return clone([...tables].sort((a, b) => a.sort - b.sort).map((t): TableStatus => {
