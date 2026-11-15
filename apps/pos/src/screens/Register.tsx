@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Lock, Monitor, Tag, UserCheck, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star, LayoutGrid, Package, Wallet } from 'lucide-react';
 import { CHANNELS, CHANNEL_LABEL, type Channel, checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newApplied, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
@@ -22,6 +22,8 @@ import { Payment } from './Payment';
 import { CustomerPicker } from './CustomerPicker';
 import { DiscountDialog } from './DiscountDialog';
 import { SideDrawer } from './SideDrawer';
+import { NotificationsDialog } from './NotificationsDialog';
+import { notificationsFor, readSeenAt, unreadCount, writeSeenAt } from '../lib/notifications';
 import { Sales } from './Sales';
 import { Reports } from './Reports';
 import { Inventory } from './inventory/Inventory';
@@ -143,6 +145,11 @@ export function Register({
     customerGroupId: cart.state.customerId ? groupMemberMap.get(cart.state.customerId) : undefined,
   }), [schedulesRes, tieredPricesRes, channelPricesRes, timePricesRes, ctx.timezone, cart.state.customerId, groupMemberMap]);
   const [discOpen, setDiscOpen] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
+  const [seenAt, setSeenAt] = useState<string | null>(() => readSeenAt(session.employee.id));
+  const notifsRes = useAsync(() => data.listNotifications().catch(() => []), [data]);
+  const myNotifs = useMemo(() => notificationsFor(notifsRes.status === 'ready' ? notifsRes.data : [], session.employee.id), [notifsRes, session.employee.id]);
+  const markSeen = useCallback((at: string) => { writeSeenAt(session.employee.id, at); setSeenAt(at); }, [session.employee.id]);
   // isi cadangan offline selagi online: metode bayar dan denah dipakai layar Bayar dan Pilih meja
   useEffect(() => { void Promise.allSettled([data.listPaymentMethods(), data.listFloors(), data.listTables(), data.listTableStatus(), data.currentShift()]); }, [data]);
 
@@ -1236,6 +1243,7 @@ export function Register({
           <div className="cg-modal__actions"><button className="cg-btn cg-btn--ghost" onClick={() => { setPicking(null); setPickErr(''); }}>Batal</button></div>
         </Modal>
       )}
+      {msgOpen && <NotificationsDialog items={myNotifs} timezone={ctx.timezone} onSeen={markSeen} onClose={() => setMsgOpen(false)} />}
       {drawerOpen && (
         <SideDrawer
           outletName={ctx.outletName}
@@ -1243,6 +1251,7 @@ export function Register({
           outletCode={ctx.outletCode}
           cashierName={session.employee.name}
           canOpenKitchen={canOpenKitchen}
+          unreadMessages={unreadCount(myNotifs, seenAt)}
           onClose={() => setDrawerOpen(false)}
           onNavigate={(view) => {
             setDrawerOpen(false);
@@ -1260,6 +1269,8 @@ export function Register({
               onOpenKitchen?.();
             } else if (view === 'attendance') {
               onOpenAttendance?.();
+            } else if (view === 'notifications') {
+              setMsgOpen(true);
             } else if (view === 'settings') {
               setSettings(true);
             } else if (view === 'closeShift') {

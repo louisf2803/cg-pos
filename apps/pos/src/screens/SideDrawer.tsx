@@ -8,12 +8,13 @@ import {
   Settings,
   Store,
   TrendingUp,
+  Bell,
   UserCheck,
   Wallet,
   X,
 } from 'lucide-react';
 
-export type DrawerView = 'register' | 'sales' | 'reports' | 'inventory' | 'kitchen' | 'attendance' | 'settings' | 'closeShift' | 'logout';
+export type DrawerView = 'register' | 'sales' | 'reports' | 'inventory' | 'kitchen' | 'attendance' | 'notifications' | 'settings' | 'closeShift' | 'logout';
 
 export interface SideDrawerProps {
   outletName: string;
@@ -23,6 +24,8 @@ export interface SideDrawerProps {
   outletCode?: string;
   cashierName: string;
   canOpenKitchen?: boolean;
+  /** jumlah pesan pengelola yang belum dibaca */
+  unreadMessages?: number;
   onClose: () => void;
   onNavigate: (view: DrawerView) => void;
 }
@@ -34,7 +37,7 @@ const ITEM = 'w-full flex items-center gap-12 px-12 py-10 rounded-lg text-sm fon
  * Kartu profil (usaha, outlet, kasir, ID), lalu: Kasir, Penjualan, Laporan, Absensi, Pengaturan;
  * di dasar: Tutup Kasir dan Keluar Kasir. Penutupan dengan Escape, klik latar, dan kunci fokus keyboard (Tab).
  */
-export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOpenKitchen = false, onClose, onNavigate }: SideDrawerProps) {
+export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOpenKitchen = false, unreadMessages = 0, onClose, onNavigate }: SideDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -105,6 +108,11 @@ export function SideDrawer({ outletName, orgName, outletCode, cashierName, canOp
           {entry('reports', 'Laporan', <FileBarChart className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('inventory', 'Inventori', <Boxes className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('attendance', 'Absensi', <UserCheck className="cg-icon cg-icon--sm" aria-hidden />)}
+          <button type="button" className={ITEM} onClick={go('notifications')}>
+            <span className="text-accent shrink-0"><Bell className="cg-icon cg-icon--sm" aria-hidden /></span>
+            <span>Pesan</span>
+            {unreadMessages > 0 && <span className="cg-badge cg-badge--accent ml-auto" aria-label={`${unreadMessages} pesan belum dibaca`}>{unreadMessages}</span>}
+          </button>
           {canOpenKitchen && entry('kitchen', 'Layar Dapur', <ChefHat className="cg-icon cg-icon--sm" aria-hidden />)}
           {entry('settings', 'Pengaturan', <Settings className="cg-icon cg-icon--sm" aria-hidden />)}
                   <hr className="border-border my-8" />

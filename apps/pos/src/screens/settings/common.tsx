@@ -19,7 +19,9 @@ export function SettingRow({ label, hint, children, onClick }: { label: string; 
     </>
   );
   const cls = 'w-full flex items-center justify-between gap-12 px-16 py-12 border-b border-border';
-  return onClick ? <button type="button" className={`${cls} hover:bg-surface`} onClick={onClick}>{body}</button> : <div className={cls}>{body}</div>;
+  return onClick ? (
+    <div role="button" tabIndex={0} className={`${cls} hover:bg-surface cursor-pointer`} onClick={onClick} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(); } }}>{body}</div>
+  ) : <div className={cls}>{body}</div>;
 }
 
 export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {

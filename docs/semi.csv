@@ -71,4 +71,4 @@ Organisasi karyawan,ada,layar dashboard memakai server (OrgUnit)
 Tipe karyawan,ada,layar dashboard memakai server (EmployeeType)
 Radius absensi (batas lokasi absen),ada,pengaturan radius tersimpan di server; kasir mengirim GPS saat absen dan server memutuskan
 Master resep dan kategori catatan,ada,"resep: A135 (Resep dan HPP, jadwal berlaku); kategori catatan: A96"
-Kirim notifikasi ke karyawan (majoo Teams),sebagian,kirim dan riwayat ada; lonceng/popup di kasir belum
+Kirim notifikasi ke karyawan (majoo Teams),ada,dashboard kirim ke satu karyawan atau semua; kasir melihat di menu samping Pesan dengan penanda belum dibaca (0145). Belum: popup otomatis saat pesan masuk (dimuat saat kasir dibuka)

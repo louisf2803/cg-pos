@@ -50,7 +50,7 @@ begin
   -- kasir dan perangkat: tidak melihat dan tidak menulis
   perform set_config('request.jwt.claim.sub', cash::text, true);
   set local role authenticated;
-  perform pg_temp.ok38((select count(*) from pos.org_units) = 0 and (select count(*) from pos.employee_notifications) = 0 and (select count(*) from pos.attendance_settings) = 0, 'kasir tidak melihat struktur SDM');
+  perform pg_temp.ok38((select count(*) from pos.org_units) = 0 and (select count(*) from pos.attendance_settings) = 0, 'kasir tidak melihat struktur SDM');
   perform pg_temp.ok38(pg_temp.fails38(format('insert into pos.job_levels(org_id, name) values (%L, ''Peretas'')', o1)), 'kasir tidak boleh menulis jabatan');
   reset role;
   perform set_config('request.jwt.claim.sub', ud::text, true);
