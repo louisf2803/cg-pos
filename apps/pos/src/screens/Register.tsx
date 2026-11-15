@@ -4,7 +4,7 @@ import { CHANNELS, CHANNEL_LABEL, type Channel, checkStockLimit, declaredBasePri
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
-import { lineOrderName, resolveEffectivePrice, useCart, type CartLine, type CartPricingRules } from '../lib/cart';
+import { lineOrderName, repriceLines, resolveEffectivePrice, useCart, type CartLine, type CartPricingRules } from '../lib/cart';
 import { useDevicePrefs } from '../lib/device-prefs';
 import { useSession } from '../lib/session';
 import { ApproverFields, useApprover } from '../lib/approver';
@@ -277,9 +277,12 @@ export function Register({
   }
 
   /** Pisah bayar per item: bagian terpilih disimpan sebagai pesanan baru lalu dibayar; sisanya tetap di keranjang. */
+  const splitReprice = (ls: CartLine[]) => repriceLines(ls, { ...activePricing, channel: cart.state.type === 'delivery' ? cart.state.channel ?? null : null });
+
   async function splitPay(picks: Record<string, number>) {
-    const r = splitByItem(cart.state.lines, picks, newId);
+    const r = splitByItem(cart.state.lines, picks, newId, { hasOrderDiscount: (cart.state.discounts?.length ?? 0) > 0 });
     if (r.problem) throw new Error(r.problem);
+    r.paid = splitReprice(r.paid); r.remain = splitReprice(r.remain);
     const items = (ls: typeof r.paid) => ls.map((l) => ({ id: l.id, productId: l.productId, ...(l.unitId ? { unitId: l.unitId } : {}), name: lineOrderName(l), qty: l.qty, unitPrice: l.unitPrice, ...declaredBasePrice(l), extras: l.extras, note: l.note?.trim() || undefined }));
     const where = cart.state.tableName ?? cart.state.label?.trim();
     // 1) simpan bagian yang dibayar lebih dulu: bila langkah 2 gagal, tidak ada item yang hilang
@@ -1174,6 +1177,7 @@ export function Register({
           ctx={ctx}
           orderType={cart.state.type}
           hasOrderDiscount={(cart.state.discounts?.length ?? 0) > 0}
+          reprice={splitReprice}
           onClose={() => setSplitOpen(false)}
           onConfirm={splitPay}
         />

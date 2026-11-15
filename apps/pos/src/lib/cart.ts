@@ -154,6 +154,11 @@ const repriced = (l: CartLine, qty: number, rules: CartPricingRules): { unitPric
   return { unitPrice: price, basePrice: price };
 };
 
+/** Hitung ulang harga tiap baris menurut jumlahnya sekarang (harga grosir/bertingkat, jadwal, waktu, kanal). Baris berharga manual atau berbeda satuan tidak disentuh. Dipakai setelah pisah tagihan: jumlah berubah, jadi tingkat harga bisa berubah. */
+export function repriceLines<T extends CartLine>(lines: T[], rules: CartPricingRules): T[] {
+  return lines.map((l) => (l.manualPrice || l.unitId ? l : { ...l, ...repriced(l, l.qty, rules) }));
+}
+
 export function reduce(s: CartState, a: Action): CartState {
   switch (a.t) {
     case 'add': {

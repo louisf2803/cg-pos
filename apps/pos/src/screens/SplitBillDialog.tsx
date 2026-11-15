@@ -35,6 +35,7 @@ export function SplitBillDialog({
   orderType,
   hasOrderDiscount,
   tieredRules,
+  reprice,
   onClose,
   onConfirm,
 }: {
@@ -43,6 +44,8 @@ export function SplitBillDialog({
   orderType: OrderType;
   hasOrderDiscount?: boolean;
   tieredRules?: Record<string, TieredPriceRule[]>;
+  /** hitung ulang harga tiap bagian menurut jumlahnya (harga grosir, jadwal, waktu, kanal) */
+  reprice?: (lines: CartLine[]) => CartLine[];
   onClose: () => void;
   onConfirm: (picks: Record<string, number>) => Promise<void>;
 }) {
@@ -58,10 +61,10 @@ export function SplitBillDialog({
     if (r.problem) return { problem: r.problem, paid: null, remain: null };
     return {
       problem: null,
-      paid: toCalc(ctx, orderType, r.paid),
-      remain: toCalc(ctx, orderType, r.remain),
+      paid: toCalc(ctx, orderType, reprice ? reprice(r.paid) : r.paid),
+      remain: toCalc(ctx, orderType, reprice ? reprice(r.remain) : r.remain),
     };
-  }, [lines, picks, ctx, orderType, hasOrderDiscount, tieredRules]);
+  }, [lines, picks, ctx, orderType, hasOrderDiscount, tieredRules, reprice]);
   const any = Object.values(picks).some((v) => v > 0);
 
   async function submit() {
