@@ -26,30 +26,30 @@ Daftar transaksi tertunda (gagal sinkron): kirim ulang atau hapus dengan PIN,ada
 Kirim pesanan dine-in ke dapur per item yang dicentang,ada,diteruskan otomatis ke stasiun; layar kelola stasiun A97
 "Pilih mode tampilan kasir (grid, SKU, meja, reservasi, jasa, buku menu)",ada,kartu/daftar; SKU dan buku menu dibuang; reservasi tidak dikerjakan
 Akun perantara untuk buka/tutup kasir dan kas/bank non-tunai,ada,A134: pilih akun per metode bayar (migrasi 0134 di produksi) dan alur jurnal kasir dijelaskan
-"Filter kategori khusus: semua, favorit, paket, promo, deposit",sebagian,Favorit/Paket/Promo ada; Deposit belum (A113)
+"Filter kategori khusus: semua, favorit, paket, promo, deposit",ada,"A113: Favorit, Paket, Promo, Deposit tampil di rel kategori kasir sesuai data"
 Mode meja dengan denah dan status berwarna,sebagian,grid per lantai ada; denah gambar/seret masih pratinjau (A114)
 "Gabung meja dengan tagihan, pisah item, grup meja",sebagian,gabung ada; pisah item/grup belum (A115)
 Denah meja kustom dengan drag posisi,sebagian,pratinjau localStorage
 "Split bill per produk dengan hitung ulang pajak, biaya layanan, harga grosir, promo",sebagian,pisah item ada; grosir/promo belum dihitung ulang (A116)
-"Pengaturan tampilan struk (logo, teks)",sebagian,templat ada; logo/QR/media sosial belum
-Produk layanan (jasa),sebagian,jenis jasa ada; durasi/staf dan mode jasa belum
+"Pengaturan tampilan struk (logo, teks)",ada,"A118/A150: logo, QR, media sosial, kendali bagian struk"
+Produk layanan (jasa),ada,"A121: durasi dan staf (0121)"
 "Outlet: informasi bisnis, rekening, grup outlet",ada,"A123: email, NPWP, jenis usaha, grup, logo (URL), rekening"
 "Stok per outlet dan gudang, daftar stok produk dan bahan baku dengan filter",ada,A125: pemilih lokasi/gudang + impor xlsx/csv lewat postStock (nama berkas templat masih pakai tanggal UTC; minor)
 "Pemesanan stok (PO) dengan referensi permintaan atau tanpa referensi, diskon, pajak, biaya lain, uang muka",ada,A126: referensi permintaan stok dan uang muka; migrasi 0126 di produksi
-"Faktur pembelian: termin, penerimaan sebagian, lampiran",sebagian,lampiran dan pembatalan belum
-Batasi penjualan dan mutasi saat stok habis,sebagian,penegakan server (sync_push) belum
+"Faktur pembelian: termin, penerimaan sebagian, lampiran",ada,"A126: lampiran, uang muka, pembatalan (0126)"
+Batasi penjualan dan mutasi saat stok habis,ada,"A127: penegakan di server (0127; _apply_op dan stock_post), satuan memakai isi satuan (0139)"
 Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsiliasi),ada,"A128: simpan ke server lewat pos.reconcile (jurnal bank/piutang/biaya/selisih), tes SQL 19_noncash_reconciliation"
 "CRM: loyalty, grup loyalty, loyalty ulang tahun, kampanye",ada,"A132: kampanye (sasaran, penerima, ditandai dihubungi; tanpa kirim pesan) migrasi 0132 di produksi"
-"Paket deposit (beli saldo, pakai di POS)",sebagian,kerangka ada; skema server belum
+"Paket deposit (beli saldo, pakai di POS)",ada,"A144: skema server 0107, beli paket, saldo, laporan"
 "Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti",sebagian,Deposit masih pratinjau (A94)
-"Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas",sebagian,tutup kasir otomatis dan foto bukti kas belum
+"Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas",ada,"A138: foto bukti kas (0141), pengingat tutup kasir otomatis per perangkat, batas kas keluar, kas awal; penutupan otomatis server sengaja tidak dibuat"
 "Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",sebagian,PIN pindah/reset meja belum
-"Karyawan, peran, dan hak akses",sebagian,A86 ada; penegakan izin per fitur di layar/RLS belum
+"Karyawan, peran, dan hak akses",ada,"A86/A142: izin granular ditegakkan di server (0103)"
 "Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",ada,"A145: tersimpan di server (nama, kanal, MDR persen dan tetap, rekening)"
 Harga grosir bertingkat (sampai 5 tingkat),ada,A139 + migrasi 0097/0098 (diterapkan 13 Nov)
 Penjadwalan harga,ada,A139 + migrasi 0097/0098
 Grup pelanggan dan harga spesial,ada,A139 + migrasi 0097/0098
-Tukar poin loyalty (potongan atau produk gratis),sebagian,potongan ada; produk gratis belum
+Tukar poin loyalty (potongan atau produk gratis),ada,"A140: potongan dan produk gratis (0099)"
 Reservasi dan appointment dengan kalender,ada,"A143: tersimpan di server (migrasi 0105 di produksi), bentrok jadwal dijaga server"
 "Pajak per outlet: sebelum diskon, sesudah diskon, atau harga termasuk pajak; per transaksi atau per produk; per jenis order",ada,"A141: tarif per produk dan per jenis order tersimpan di server, kasir menghitung per baris"
 Denah meja dari gambar (grid meja) di dashboard,belum,A114
@@ -62,6 +62,6 @@ Produksi stok (konversi bahan jadi) dengan acuan produksi,ada,"A137: migrasi 013
 Beli kampanye marketing,ada,"A132: halaman informasi (tanpa kirim pesan, keputusan Louis)"
 Laporan uang muka (Penjualan > Laporan Penjualan),ada,A129: /laporan/uang-muka dari faktur penjualan
 Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi manual,sebagian,A128: pengaturan tersimpan; tutup kasir belum menjalankan rekonsiliasi otomatis
-Daftar harga ojek online,sebagian,A135: harga per kanal tersimpan di server (migrasi 0135); kasir belum memakainya
-"Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",sebagian,A135: harga berdasarkan waktu tersimpan (0135) dan jadwal harga A139; kasir belum memakai harga waktu; jadwal resep ada (A135, 0142)
+Daftar harga ojek online,ada,"A135: harga kanal dipakai kasir (pemilih Kanal pada jenis order Antar); 0135 dan 0140 di produksi"
+"Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",ada,"A135/A139: harga waktu dan kanal dipakai kasir; jadwal resep (0142, pg_cron)"
 Buat faktur penjualan dari layar pembayaran (Jadikan Invoice),sebagian,"A129/A146: tombol Jadikan invoice di layar Pembayaran (diuji mode demo: faktur dibuat, pesanan ditutup tanpa bayar). Di server butuh peran pengelola; stok tidak dikurangi otomatis; belum diuji di server asli"
