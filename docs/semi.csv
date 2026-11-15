@@ -43,7 +43,7 @@ Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsilia
 "Paket deposit (beli saldo, pakai di POS)",ada,"A144: skema server 0107, beli paket, saldo, laporan"
 "Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti",ada,Deposit memakai data nyata (daftar penjualan/refund/saldo deposit); Fasilitas: rincian slot jadwal reservasi belum
 "Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas",ada,"A138: foto bukti kas (0141), pengingat tutup kasir otomatis per perangkat, batas kas keluar, kas awal; penutupan otomatis server sengaja tidak dibuat"
-"Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",sebagian,PIN pindah/reset meja belum
+"Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",ada,Gabung banyak pesanan, pindah meja, dan reset meja meminta PIN manajer (TableMove.tsx, dipasang di Orders.tsx)
 "Karyawan, peran, dan hak akses",ada,"A86/A142: izin granular ditegakkan di server (0103)"
 "Pengaturan metode pembayaran (aktifkan/nonaktifkan metode, simulasi biaya MDR)",ada,"A145: tersimpan di server (nama, kanal, MDR persen dan tetap, rekening)"
 Harga grosir bertingkat (sampai 5 tingkat),ada,A139 + migrasi 0097/0098 (diterapkan 13 Nov)
