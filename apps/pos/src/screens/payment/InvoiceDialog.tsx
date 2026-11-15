@@ -45,7 +45,7 @@ export function InvoiceDialog({ order, authorizedBy, onClose, onDone }: { order:
       <form onSubmit={(e) => void submit(e)} className="grid gap-12" noValidate>
         {problem ? <p role="alert" className="cg-banner cg-banner--warning">{problem}</p> : (
           <>
-            <p className="text-text-muted">Pesanan <strong>{order.number}</strong> untuk <strong>{order.customerName ?? 'pelanggan'}</strong> senilai <strong className="cg-num">{formatRp(order.total)}</strong> dicatat sebagai tagihan, lalu pesanan ditutup tanpa pembayaran. Stok tidak dikurangi otomatis.</p>
+            <p className="text-text-muted">Pesanan <strong>{order.number}</strong> untuk <strong>{order.customerName ?? 'pelanggan'}</strong> senilai <strong className="cg-num">{formatRp(order.total)}</strong> dicatat sebagai tagihan, lalu pesanan ditutup tanpa pembayaran. Stok baru berkurang setelah invoice lunas dibayar.</p>
             <div className="cg-field">
               <label className="cg-label" htmlFor="inv-termin">Termin pembayaran (hari)</label>
               <input id="inv-termin" className="cg-input cg-num" inputMode="numeric" data-autofocus value={term} onChange={(e) => { setTerm(e.target.value.replace(/\D/g, '')); setErr(''); }} disabled={busy || !!created} />

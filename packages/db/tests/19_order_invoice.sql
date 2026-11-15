@@ -43,3 +43,41 @@ begin
   delete from pos.orders where id in (ord, ord2);
   delete from pos.customers where id = cust;
 end $$;
+
+-- Stok keluar HANYA setelah faktur dari pesanan kasir lunas (migrasi 0148); belum dibayar tidak memotong stok.
+do $$
+declare
+  o1 uuid := ctx('o1'); cash uuid := gen_random_uuid(); adm uuid := gen_random_uuid(); cust uuid := gen_random_uuid(); ord uuid := gen_random_uuid();
+  inv uuid := gen_random_uuid(); acct uuid; air uuid := ctx('air');
+  lines jsonb;
+begin
+  lines := jsonb_build_array(jsonb_build_object('product_id', air, 'name', 'Air', 'qty', 2, 'unit_price', 5000));
+  insert into auth.users(id, email) values (cash, 'cash-oi2@x'), (adm, 'adm-oi2@x');
+  insert into org_members(org_id, user_id, role) values (o1, cash, 'cashier'), (o1, adm, 'admin');
+  select id into acct from accounts where org_id = o1 and category = 'cash_bank' and kind = 'detail' and is_active limit 1;
+  insert into customers(id, org_id, name) values (cust, o1, 'PT Stok Faktur');
+  insert into orders(id, org_id, outlet_id, device_id, cashier_id, number, order_type, subtotal, total, customer_id, opened_at)
+  values (ord, o1, ctx('out1'), ctx('dev'), ctx('emp'), 'OI-3', 'takeaway', 10000, 10000, cust, now());
+
+  perform set_config('request.jwt.claim.sub', cash::text, true);
+  set local role authenticated;
+  perform pos.order_invoice_create(inv, ord, 7, 0, 0, null, lines);
+  reset role;
+  perform pg_temp.ok47((select count(*) from pos.stock_movements where ref_type = 'sales_invoice' and ref_id = inv) = 0, 'faktur belum dibayar tidak memotong stok');
+  perform pg_temp.ok47((select outlet_id from pos.sales_invoices where id = inv) = ctx('out1'), 'faktur mencatat outlet pesanan');
+
+  perform set_config('request.jwt.claim.sub', adm::text, true);
+  set local role authenticated;
+  perform pos.sales_invoice_pay(gen_random_uuid(), inv, acct, null, 4000, null);
+  reset role;
+  perform pg_temp.ok47((select count(*) from pos.stock_movements where ref_type = 'sales_invoice' and ref_id = inv) = 0, 'bayar sebagian belum memotong stok');
+  set local role authenticated;
+  perform pos.sales_invoice_pay(gen_random_uuid(), inv, acct, null, 6000, null);
+  reset role;
+  perform pg_temp.ok47((select coalesce(sum(qty_delta), 0) from pos.stock_movements where ref_type = 'sales_invoice' and ref_id = inv) = -2, 'lunas memotong stok 2');
+  perform pg_temp.ok47((select stock_out_at is not null from pos.sales_invoices where id = inv), 'stok keluar tercatat sekali');
+  perform pg_temp.ok47((select count(*) from pos.journal_entries where source_type = 'sales_invoice_stock' and source_id = inv) = 1, 'jurnal HPP faktur');
+
+  -- bersihkan
+  update pos.sales_invoices set status = status where id = inv;
+end $$;

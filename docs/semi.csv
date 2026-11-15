@@ -64,7 +64,7 @@ Laporan uang muka (Penjualan > Laporan Penjualan),ada,A129: /laporan/uang-muka d
 Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi manual,ada,sakelar auto_reconcile_noncash: tutup kasir langsung merekonsiliasi metode non-tunai ke bank utama tanpa biaya; gateway tetap lewat settlement; manual lewat dashboard Rekonsiliasi
 Daftar harga ojek online,ada,"A135: harga kanal dipakai kasir (pemilih Kanal pada jenis order Antar); 0135 dan 0140 di produksi"
 "Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",ada,"A135/A139: harga waktu dan kanal dipakai kasir; jadwal resep (0142, pg_cron)"
-Buat faktur penjualan dari layar pembayaran (Jadikan Invoice),ada,tombol di layar Pembayaran memakai RPC order_invoice_create (0147): kasir boleh (sebelumnya ditolak server karena hanya pengelola), total harus sama dengan pesanan, idempoten; stok TIDAK dikurangi (keputusan Louis menunggu)
+Buat faktur penjualan dari layar pembayaran (Jadikan Invoice),ada,tombol di layar Pembayaran memakai RPC order_invoice_create (0147): kasir boleh (sebelumnya ditolak server karena hanya pengelola), total harus sama dengan pesanan, idempoten; stok keluar + HPP saat faktur LUNAS (0148, keputusan Louis 15 Nov 2026: stok hanya berkurang setelah dibayar)
 Hak kasir mengubah harga jual,ada,"izin price_override per peran + batas persen (priceOverrideProblem), harga diubah tercatat di laporan Perubahan Harga"
 Tingkat jabatan karyawan,ada,layar dashboard memakai server (listJobLevels/saveJobLevel/deleteJobLevel)
 Organisasi karyawan,ada,layar dashboard memakai server (OrgUnit)
