@@ -58,6 +58,8 @@ const PHOTO_BUCKET = 'menu-images';
 /** Bucket PRIVAT untuk selfie absensi (migrasi 0036): tampilan lewat tautan bertanda tangan, bukan URL publik. */
 const ATTENDANCE_BUCKET = 'attendance-photos';
 const ATTENDANCE_URL_TTL = 600;
+/** Bucket PRIVAT untuk foto bukti kas masuk/keluar (migrasi 0141). */
+const CASH_PHOTO_BUCKET = 'cash-photos';
 const PROMO_COLUMNS = 'id,name,kind,value,min_spend,product_ids,free_product_id,order_types,starts_at,ends_at,is_active';
 const COUPON_COLUMNS = 'id,promotion_id,code,usage_limit,valid_from,valid_to,is_active';
 const CUSTOMER_COLUMNS = 'id,code,name,phone,email,gender,birth_date,city,address,note,points_balance,created_at';
@@ -3034,22 +3036,40 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const reason = input.reason.trim();
       if (reason.length < 3) throw new DataError('invalid', 'Alasan wajib diisi (minimal 3 huruf)');
       const occurredAt = now().toISOString();
+      // foto bukti: unggah dulu ke bucket privat; jalurnya ikut dikirim sebagai photo_path (nama berdasarkan id gerakan, jadi kirim ulang tidak menggandakan)
+      let photoPath: string | null = null;
+      if (input.photo) {
+        const pp = photoProblem(input.photo);
+        if (pp) throw new DataError('invalid', pp);
+        const { orgId } = await resolve();
+        photoPath = `${orgId}/${input.shiftId}/${input.id}.${photoExt(input.photo.contentType)}`;
+        const up = await client.storage.from(CASH_PHOTO_BUCKET).upload(photoPath, input.photo.data, { contentType: input.photo.contentType, upsert: false });
+        // kirim ulang (jaringan putus lalu coba lagi) memakai jalur yang sama: objek yang sudah ada dianggap berhasil
+        if (up.error && !/already exists|duplicate/i.test(up.error.message)) throw new DataError('invalid', `Foto bukti kas gagal diunggah: ${up.error.message}`);
+      }
       try {
         await pushOps(deviceId, [{
           type: 'cash.move', entityId: input.id,
-          payload: { id: input.id, shift_id: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), employee_id: input.employeeId ?? null, occurred_at: occurredAt },
+          payload: { id: input.id, shift_id: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), employee_id: input.employeeId ?? null, occurred_at: occurredAt, ...(photoPath ? { photo_path: photoPath } : {}) },
         }]);
       } catch (e) {
         const m = e instanceof Error ? e.message : '';
         if (/daily cash-out limit/i.test(m)) throw new DataError('invalid', 'Batas kas keluar harian terlampaui.');
-        if (/needs a photo/i.test(m)) throw new DataError('invalid', 'Outlet ini mewajibkan foto bukti kas; belum didukung di layar ini.');
+        if (/needs a photo/i.test(m)) throw new DataError('invalid', 'Outlet ini mewajibkan foto bukti kas. Ambil foto dulu.');
         throw e;
       }
-      return { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt };
+      return { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt, ...(photoPath ? { hasPhoto: true } : {}) };
     },
     async listCashMovements(shiftId) {
-      const rows = must(await db().from('cash_movements').select('id,shift_id,kind,amount,reason,occurred_at').eq('shift_id', shiftId).order('occurred_at')) as Row[] | null;
-      return (rows ?? []).map((r): CashMovement => ({ id: r.id as string, shiftId: r.shift_id as string, kind: r.kind as 'in' | 'out', amount: Number(r.amount), reason: r.reason as string, occurredAt: r.occurred_at as string }));
+      const rows = must(await db().from('cash_movements').select('id,shift_id,kind,amount,reason,occurred_at,photo_path').eq('shift_id', shiftId).order('occurred_at')) as Row[] | null;
+      // tautan bertanda tangan: hanya pengelola yang berhak melihat objeknya; selain itu cukup penanda `hasPhoto`
+      const paths = (rows ?? []).map((r) => r.photo_path as string | null).filter((p): p is string => !!p);
+      const urls = new Map<string, string>();
+      if (paths.length > 0) {
+        const signed = await client.storage.from(CASH_PHOTO_BUCKET).createSignedUrls(paths, ATTENDANCE_URL_TTL).catch(() => ({ data: null }));
+        for (const s of signed.data ?? []) if (s.path && s.signedUrl) urls.set(s.path, s.signedUrl);
+      }
+      return (rows ?? []).map((r): CashMovement => ({ id: r.id as string, shiftId: r.shift_id as string, kind: r.kind as 'in' | 'out', amount: Number(r.amount), reason: r.reason as string, occurredAt: r.occurred_at as string, ...(r.photo_path ? { hasPhoto: true, ...(urls.has(r.photo_path as string) ? { photoUrl: urls.get(r.photo_path as string)! } : {}) } : {}) }));
     },
     async shiftSummary(shiftId) {
       return buildShiftReport(await gatherShiftInputs(shiftId));

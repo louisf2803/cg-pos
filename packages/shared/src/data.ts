@@ -372,7 +372,7 @@ export interface DataLayer {
   /** Ringkasan shift tanpa menutupnya: penerimaan per metode, kas, produk terjual. Bisa dipanggil berulang. */
   shiftSummary(shiftId: string): Promise<ShiftReport>;
   /** Catat kas masuk/keluar di laci pada shift yang terbuka. Jumlah > 0 dan alasan wajib; batas kas keluar harian dijaga server. */
-  addCashMovement(input: { id: string; shiftId: string; kind: 'in' | 'out'; amount: number; reason: string; employeeId?: string }): Promise<CashMovement>;
+  addCashMovement(input: { id: string; shiftId: string; kind: 'in' | 'out'; amount: number; reason: string; employeeId?: string; /** foto bukti kas (JPG/PNG/WebP, maks 1 MB); wajib bila outlet mengaktifkannya */ photo?: ProductPhotoInput }): Promise<CashMovement>;
   listCashMovements(shiftId: string): Promise<CashMovement[]>;
   /** Semua shift outlet ini yang dibuka pada rentang (paling banyak 100, terbaru dulu), lengkap dengan laporannya. Untuk dashboard. */
   listShiftReports(range: SalesRange): Promise<ShiftReportRow[]>;

@@ -291,6 +291,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let orders: Order[] = [];
   let shifts: Shift[] = [];
   let cashMoves: CashMovement[] = [];
+  /** pengaturan outlet: wajib foto bukti untuk kas masuk/keluar (mode demo menyimpan di memori) */
+  let requireCashPhotoFake = false;
   const seqByDay = new Map<string, number>();
 
   const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -881,7 +883,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         },
         options: { serviceChargePct: st.serviceChargePct, serviceChargeTaxable: st.serviceChargeTaxable, serviceChargeOrderTypes: st.serviceChargeOrderTypes,
           roundingCashStep: st.roundingCashStep, roundingNoncashStep: st.roundingNoncashStep, requireOpenShift: st.requireOpenShift, allowNegativeStock: st.allowNegativeStock, receiptFooter: outlet.receiptFooter,
-          cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: false, defaultOpeningCash: st.defaultOpeningCash ?? null,
+          cashOutDailyLimit: st.cashOutDailyLimit ?? null, requireCashPhoto: requireCashPhotoFake, defaultOpeningCash: st.defaultOpeningCash ?? null,
           receiptHeader: CTX.receiptHeader ?? '', receiptShowCashier: CTX.receiptShowCashier !== false, receiptShowCustomer: CTX.receiptShowCustomer !== false, receiptTemplate: clone(CTX.receiptTemplate ?? {}),
           autoReconcileNoncash: !!st.autoReconcileNoncash },
       });
@@ -981,6 +983,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     async saveOutletOptions(input) {
       const problem = outletOptionsProblem(input);
       if (problem) throw new DataError('invalid', problem);
+      if (input.requireCashPhoto !== undefined) requireCashPhotoFake = !!input.requireCashPhoto;
       const { receiptFooter, requireCashPhoto: _p, receiptHeader, receiptShowCashier, receiptShowCustomer, receiptTemplate, ...rest } = input;
       if (receiptTemplate !== undefined) CTX.receiptTemplate = sanitizeReceiptTemplate(receiptTemplate);
       if (receiptHeader !== undefined) CTX.receiptHeader = receiptHeader.trim() || undefined;
@@ -2674,13 +2677,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (reason.length < 3) throw new DataError('invalid', 'Alasan wajib diisi (minimal 3 huruf)');
       const existing = cashMoves.find((m) => m.id === input.id);
       if (existing) return clone(existing);
+      if (input.photo) { const pp = photoProblem(input.photo); if (pp) throw new DataError('invalid', pp); }
+      if (requireCashPhotoFake && !input.photo) throw new DataError('invalid', 'Outlet ini mewajibkan foto bukti kas. Ambil foto dulu.');
       const limit = CTX.settings.cashOutDailyLimit;
       if (input.kind === 'out' && limit != null) {
         const day = now().toISOString().slice(0, 10);
         const used = cashMoves.filter((m) => m.kind === 'out' && m.occurredAt.slice(0, 10) === day).reduce((n, m) => n + m.amount, 0);
         if (used + Math.round(input.amount) > limit) throw new DataError('invalid', 'Batas kas keluar harian terlampaui.');
       }
-      const m: CashMovement = { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt: now().toISOString() };
+      const m: CashMovement = { id: input.id, shiftId: input.shiftId, kind: input.kind, amount: Math.round(input.amount), reason: reason.slice(0, 120), occurredAt: now().toISOString(), ...(input.photo ? { hasPhoto: true, photoUrl: bytesToDataUri(input.photo) } : {}) };
       cashMoves.push(m); return clone(m);
     },
     async listCashMovements(shiftId) { return clone(cashMoves.filter((m) => m.shiftId === shiftId)); },

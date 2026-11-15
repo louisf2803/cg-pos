@@ -56,9 +56,22 @@ export function CashierPanel({ canEdit }: { canEdit: boolean }) {
         <input className="cg-input cg-num text-right w-[140px]" inputMode="numeric" aria-label="Kas awal bawaan" disabled={!canEdit} value={opening} onChange={(e) => setOpening(e.target.value.replace(/[^\d]/g, ''))} placeholder="Tidak ada" />
       </SettingRow>
 
+      <SettingRow label="Tutup kasir otomatis (perangkat ini)" hint="Pada jam yang diatur, kasir diminta menghitung uang di laci dan menutup kasir. Nominal kas akhir tetap diisi kasir.">
+        <Switch checked={prefs.autoCloseEnabled} label="Tutup kasir otomatis" onChange={(v) => devicePrefs.set({ autoCloseEnabled: v })} />
+      </SettingRow>
+      {prefs.autoCloseEnabled && (
+        <SettingRow label="Jam tutup kasir">
+          <input type="time" className="cg-input cg-num" aria-label="Jam tutup kasir otomatis" value={prefs.autoCloseTime} onChange={(e) => devicePrefs.set({ autoCloseTime: e.target.value })} />
+        </SettingRow>
+      )}
+
       <SectionTitle>Kas keluar</SectionTitle>
       <SettingRow label="Batas pengeluaran kas per hari" hint={limit ? `Maksimal ${formatRp(Number(limit))} per hari; dijaga server.` : 'Kosong = tanpa batas.'}>
         <input className="cg-input cg-num text-right w-[140px]" inputMode="numeric" aria-label="Batas pengeluaran kas per hari" disabled={!canEdit} value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^\d]/g, ''))} placeholder="Tanpa batas" />
+      </SettingRow>
+
+      <SettingRow label="Wajib foto bukti kas" hint="Setiap kas masuk atau keluar harus dilampiri foto (nota, struk belanja). Dijaga server.">
+        <Switch checked={!!opts.requireCashPhoto} label="Wajib foto bukti kas" disabled={!canEdit} onChange={(v) => setOpts({ ...opts, requireCashPhoto: v })} />
       </SettingRow>
 
       <SectionTitle>Stok</SectionTitle>

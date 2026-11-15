@@ -22,6 +22,7 @@ import { Register } from './screens/Register';
 import { KitchenDisplay } from './screens/KitchenDisplay';
 import { CustomerDisplay } from './screens/CustomerDisplay';
 import { CloseShift } from './screens/CloseShift';
+import { AutoCloseWatcher } from './screens/AutoCloseWatcher';
 import { LockScreen } from './screens/LockScreen';
 import { useDevicePrefs } from './lib/device-prefs';
 import { useIdleLock } from './lib/idle';
@@ -132,6 +133,7 @@ function Shell() {
             onLock={lockNow}
           />
         )}
+        {view === 'register' && session.shift && <AutoCloseWatcher shift={session.shift} timezone={ctx.data.timezone} onClose={() => setView('close')} />}
         {attendanceOpen && <Attendance ctx={ctx.data} onClose={() => setAttendanceOpen(false)} />}
       </div>
       {lock && <LockScreen reason={lock} onUnlock={() => setLock(null)} onSwitch={logout} />}

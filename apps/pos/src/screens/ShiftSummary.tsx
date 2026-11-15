@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { accessFor, formatRp, newId } from '@cgpos/shared';
+import { accessFor, formatRp, newId, type ProductPhotoInput } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { useSession } from '../lib/session';
 import { Modal } from '../ui';
+import { PhotoCapture } from './PhotoCapture';
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
@@ -70,7 +71,7 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
                   </div>
                 </div>
                 {moves.length === 0 ? <p className="text-text-muted">Belum ada kas masuk atau keluar.</p> : (
-                  <ul className="grid gap-4" data-testid="cash-list">{moves.map((m) => <li key={m.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{hhmm(m.occurredAt)} · {m.reason}</span><span className="cg-num">{m.kind === 'out' ? '-' : '+'}{formatRp(m.amount)}</span></li>)}</ul>
+                  <ul className="grid gap-4" data-testid="cash-list">{moves.map((m) => <li key={m.id} className="flex justify-between gap-12"><span className="break-words min-w-0">{hhmm(m.occurredAt)} · {m.reason}{m.hasPhoto && (m.photoUrl ? <> · <a className="text-accent underline" href={m.photoUrl} target="_blank" rel="noreferrer">Foto</a></> : <span className="text-text-muted"> · ada foto</span>)}</span><span className="cg-num">{m.kind === 'out' ? '-' : '+'}{formatRp(m.amount)}</span></li>)}</ul>
                 )}
               </section>
               <section aria-labelledby="sh-produk">
@@ -89,8 +90,8 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
           <button className="cg-btn cg-btn--primary" data-autofocus onClick={onClose}>Selesai</button>
         </div>
       </div>
-      {cashDlg && <CashDialog kind={cashDlg} onClose={() => setCashDlg(null)} onSave={async (amount, reason) => {
-        await data.addCashMovement({ id: newId(), shiftId: shift.id, kind: cashDlg, amount, reason, employeeId: session.employee.id });
+      {cashDlg && <CashDialog kind={cashDlg} onClose={() => setCashDlg(null)} onSave={async (amount, reason, photo) => {
+        await data.addCashMovement({ id: newId(), shiftId: shift.id, kind: cashDlg, amount, reason, employeeId: session.employee.id, ...(photo ? { photo } : {}) });
         setCashDlg(null); sum.reload();
       }} />}
     </Modal>
@@ -98,7 +99,12 @@ export function ShiftSummary({ onClose, onCloseShift }: { onClose: () => void; o
 }
 
 /** Catat uang yang masuk atau keluar dari laci di luar penjualan (mis. beli es batu, tambah uang kembalian). */
-function CashDialog({ kind, onClose, onSave }: { kind: 'in' | 'out'; onClose: () => void; onSave: (amount: number, reason: string) => Promise<void> }) {
+function CashDialog({ kind, onClose, onSave }: { kind: 'in' | 'out'; onClose: () => void; onSave: (amount: number, reason: string, photo: ProductPhotoInput | null) => Promise<void> }) {
+  const data = useData();
+  // pengaturan outlet: foto bukti kas wajib (dijaga server juga)
+  const opts = useAsync(() => data.getOutletSettings().then((s) => s.options).catch(() => null), [data]);
+  const photoRequired = opts.status === 'ready' && !!opts.data?.requireCashPhoto;
+  const [photo, setPhoto] = useState<ProductPhotoInput | null>(null);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
@@ -108,8 +114,9 @@ function CashDialog({ kind, onClose, onSave }: { kind: 'in' | 'out'; onClose: ()
     const a = Number(amount.replace(/[^\d]/g, ''));
     if (!Number.isFinite(a) || a <= 0) { setErr('Jumlah harus lebih dari 0.'); return; }
     if (reason.trim().length < 3) { setErr('Alasan wajib diisi (minimal 3 huruf).'); return; }
+    if (photoRequired && !photo) { setErr('Outlet ini mewajibkan foto bukti kas. Ambil foto dulu.'); return; }
     setBusy(true); setErr('');
-    try { await onSave(a, reason); }
+    try { await onSave(a, reason, photo); }
     catch (x) { setErr(x instanceof Error ? x.message : 'Gagal mencatat kas.'); setBusy(false); }
   }
   return (
@@ -119,6 +126,7 @@ function CashDialog({ kind, onClose, onSave }: { kind: 'in' | 'out'; onClose: ()
           <input className="cg-input" inputMode="numeric" data-autofocus data-testid="cash-amount" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
         <label className="grid gap-4"><span className="text-sm">Alasan</span>
           <input className="cg-input" data-testid="cash-reason" value={reason} maxLength={120} onChange={(e) => setReason(e.target.value)} placeholder={kind === 'in' ? 'Mis. tambah uang kembalian' : 'Mis. beli es batu'} /></label>
+        <PhotoCapture value={photo} onChange={setPhoto} required={photoRequired} label="Foto bukti kas" />
         {err && <p role="alert" className="text-sm text-danger-strong" data-testid="cash-err">{err}</p>}
         <div className="cg-modal__actions">
           <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose}>Batal</button>

@@ -196,7 +196,7 @@ function ReportBody({ cat, d, fmtTime }: { cat: Category; d: ReportData; fmtTime
         <div className="grid grid-cols-2 laptop:grid-cols-3 gap-8"><Kpi label="Pemasukan" value={formatRp(kasIn)} /><Kpi label="Pengeluaran" value={formatRp(kasOut)} /><Kpi label="Selisih kas" value={formatRp(kasIn - kasOut)} /></div>
         {d.cash.length === 0 ? <Empty title="Belum ada kas masuk atau keluar" hint="Tambah lewat tombol Shift di layar kasir." /> : (
           <div className="cg-data-wrap"><table className="cg-data"><thead><tr><th>Waktu</th><th>Jenis</th><th>Keterangan</th><th className="text-right">Jumlah</th></tr></thead>
-            <tbody>{d.cash.map((c) => <tr key={c.id}><td>{fmtTime(c.occurredAt)}</td><td>{c.kind === 'in' ? 'Uang masuk' : 'Uang keluar'}</td><td>{c.reason}</td><td className="text-right cg-num">{formatRp(c.amount)}</td></tr>)}</tbody></table></div>
+            <tbody>{d.cash.map((c) => <tr key={c.id}><td>{fmtTime(c.occurredAt)}</td><td>{c.kind === 'in' ? 'Uang masuk' : 'Uang keluar'}</td><td>{c.reason}{c.hasPhoto && (c.photoUrl ? <> · <a className="text-accent underline" href={c.photoUrl} target="_blank" rel="noreferrer">Foto</a></> : <span className="text-text-muted"> · ada foto</span>)}</td><td className="text-right cg-num">{formatRp(c.amount)}</td></tr>)}</tbody></table></div>
         )}
       </div>
     );

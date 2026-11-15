@@ -41,7 +41,12 @@ export interface DevicePrefs {
   localServerHost: string;
   /** bunyi saat ada pembayaran berhasil atau pesanan baru (pengaturan perangkat) */
   soundEnabled: boolean;
+  /** pengingat tutup kasir otomatis: pada jam ini kasir diminta menghitung uang dan menutup kasir (perangkat ini) */
+  autoCloseEnabled: boolean;
+  autoCloseTime: string;
 }
+
+const normalizeTime = (v: unknown): string => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : '23:59');
 
 const KEY = 'cgpos.device';
 const normalizeStation = (v: unknown): string => (typeof v === 'string' && v.trim() ? v.trim() : 'all');
@@ -56,6 +61,8 @@ const read = (): DevicePrefs => {
       localServerRole: normalizeLocalServerRole(v.localServerRole),
       localServerHost: typeof v.localServerHost === 'string' ? v.localServerHost : '',
       soundEnabled: v.soundEnabled === true,
+      autoCloseEnabled: v.autoCloseEnabled === true,
+      autoCloseTime: normalizeTime(v.autoCloseTime),
     };
   } catch {
     return {
@@ -66,6 +73,8 @@ const read = (): DevicePrefs => {
       localServerRole: 'cloud',
       localServerHost: '',
       soundEnabled: false,
+      autoCloseEnabled: false,
+      autoCloseTime: '23:59',
     };
   }
 };
@@ -86,6 +95,8 @@ export const devicePrefs = {
       localServerRole: normalizeLocalServerRole(patch.localServerRole ?? state.localServerRole),
       localServerHost: typeof (patch.localServerHost ?? state.localServerHost) === 'string' ? (patch.localServerHost ?? state.localServerHost).trim() : '',
       soundEnabled: patch.soundEnabled ?? state.soundEnabled,
+      autoCloseEnabled: patch.autoCloseEnabled ?? state.autoCloseEnabled,
+      autoCloseTime: normalizeTime(patch.autoCloseTime ?? state.autoCloseTime),
     };
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* penyimpanan boleh gagal */ }
     for (const l of listeners) l();
