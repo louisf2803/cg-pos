@@ -65,3 +65,10 @@ Pengaturan per outlet: pencatatan non-tunai otomatis atau lewat rekonsiliasi man
 Daftar harga ojek online,ada,"A135: harga kanal dipakai kasir (pemilih Kanal pada jenis order Antar); 0135 dan 0140 di produksi"
 "Penjadwalan perubahan harga dan resep, harga berdasarkan waktu",ada,"A135/A139: harga waktu dan kanal dipakai kasir; jadwal resep (0142, pg_cron)"
 Buat faktur penjualan dari layar pembayaran (Jadikan Invoice),sebagian,"A129/A146: tombol Jadikan invoice di layar Pembayaran (diuji mode demo: faktur dibuat, pesanan ditutup tanpa bayar). Di server butuh peran pengelola; stok tidak dikurangi otomatis; belum diuji di server asli"
+Hak kasir mengubah harga jual,ada,"izin price_override per peran + batas persen (priceOverrideProblem), harga diubah tercatat di laporan Perubahan Harga"
+Tingkat jabatan karyawan,ada,layar dashboard memakai server (listJobLevels/saveJobLevel/deleteJobLevel)
+Organisasi karyawan,ada,layar dashboard memakai server (OrgUnit)
+Tipe karyawan,ada,layar dashboard memakai server (EmployeeType)
+Radius absensi (batas lokasi absen),ada,pengaturan radius tersimpan di server; kasir mengirim GPS saat absen dan server memutuskan
+Master resep dan kategori catatan,ada,"resep: A135 (Resep dan HPP, jadwal berlaku); kategori catatan: A96"
+Kirim notifikasi ke karyawan (majoo Teams),sebagian,kirim dan riwayat ada; lonceng/popup di kasir belum
