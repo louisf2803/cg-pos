@@ -30,7 +30,7 @@ import type { PrintStation, PrintStationInput, SentLine } from './station';
 import type { NotePreset, NotePresetInput } from './notes';
 import type { AuthCodePermission, AuthCodeRow, IssuedAuthCode } from './auth-code';
 import type { ActivityQuery, ActivityRow } from './activity';
-import type { RecipeIngredient, RecipeLine, RecipeProduct } from './recipe';
+import type { RecipeIngredient, RecipeLine, RecipeProduct, RecipeSchedule, RecipeScheduleInput } from './recipe';
 import type { DiscountUse } from './promo-report';
 import type { StockLocation, StockTransfer, StockTransferInput } from './stock-transfer';
 import type { ProductUnitInput, ProductUnitRow } from './product-unit';
@@ -441,6 +441,12 @@ export interface DataLayer {
   listRecipes(): Promise<RecipeProduct[]>;
   /** Ganti seluruh resep satu produk secara atomik (pemilik/admin/manajer). Mengembalikan jumlah baris tersimpan. */
   saveRecipe(productId: string, lines: RecipeLine[]): Promise<number>;
+  /** Jadwal perubahan resep (terbaru dulu): menunggu, sudah berlaku, dibatalkan, atau gagal. Pengelola saja. */
+  listRecipeSchedules(): Promise<RecipeSchedule[]>;
+  /** Jadwalkan resep baru satu produk pada waktu di masa depan; resep lama berlaku sampai saat itu. Penerapan dilakukan penjadwal server tiap menit. */
+  saveRecipeSchedule(input: RecipeScheduleInput): Promise<string>;
+  /** Batalkan jadwal yang masih menunggu. Mengembalikan false bila tidak ada yang dibatalkan. */
+  cancelRecipeSchedule(id: string): Promise<boolean>;
 
   // ---------- satuan ganda ----------
   /** Satuan satu barang (dasar dulu), beserta penanda sudah dipakai. */

@@ -17,7 +17,7 @@ import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, Tie
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { PriceSchedule } from './price-schedule';
-import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
+import { recipeProblem, type RecipeIngredient, type RecipeLine, type RecipeProduct, type RecipeSchedule } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { AUTH_CODE_LENGTH, normalizeAuthCode, type AuthCodePermission, type AuthCodeRow, type IssuedAuthCode } from './auth-code';
 import { DataError } from './types';
@@ -291,6 +291,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let orders: Order[] = [];
   let shifts: Shift[] = [];
   let cashMoves: CashMovement[] = [];
+  /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
+  const recipeSchedules: RecipeSchedule[] = [];
+  function applyDueRecipeSchedules() {
+    for (const s of recipeSchedules) {
+      if (s.status !== 'pending' || Date.parse(s.effectiveAt) > now().getTime()) continue;
+      if (s.lines.length) recipes.set(s.productId, clone(s.lines)); else recipes.delete(s.productId);
+      s.status = 'applied'; s.appliedAt = now().toISOString();
+    }
+  }
   /** pengaturan outlet: wajib foto bukti untuk kas masuk/keluar (mode demo menyimpan di memori) */
   let requireCashPhotoFake = false;
   const seqByDay = new Map<string, number>();
@@ -1681,6 +1690,27 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     },
     async listRecipes() {
       return products.filter((p) => p.kind === 'goods' && p.isSellable !== false).map((p): RecipeProduct => ({ id: p.id, name: p.name, price: p.price, isActive: p.isActive, lines: clone(recipes.get(p.id) ?? []) }));
+    },
+    async listRecipeSchedules() {
+      applyDueRecipeSchedules();
+      return clone([...recipeSchedules].sort((a, b) => b.effectiveAt.localeCompare(a.effectiveAt)));
+    },
+    async saveRecipeSchedule(input) {
+      const p = products.find((x) => x.id === input.productId);
+      if (!p) throw new DataError('not_found', 'Produk tidak ditemukan.');
+      if (!(Date.parse(input.effectiveAt) > now().getTime())) throw new DataError('invalid', 'Waktu berlaku harus di masa depan.');
+      const ings = await this.listRecipeIngredients();
+      const problem = recipeProblem(input.lines, new Map(ings.map((i) => [i.id, i])));
+      if (problem) throw new DataError('invalid', problem);
+      const id = newId();
+      recipeSchedules.push({ id, productId: input.productId, productName: p.name, effectiveAt: input.effectiveAt, lines: clone(input.lines), ...(input.note?.trim() ? { note: input.note.trim().slice(0, 200) } : {}), status: 'pending' });
+      return id;
+    },
+    async cancelRecipeSchedule(id) {
+      const s = recipeSchedules.find((x) => x.id === id);
+      if (!s || s.status !== 'pending') return false;
+      s.status = 'cancelled';
+      return true;
     },
     async saveRecipe(productId, lines) {
       const p = products.find((x) => x.id === productId);

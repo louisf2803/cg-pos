@@ -3,7 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   formatRp, ingredientFactor, marginPct, recipeCost, recipeFilterMatches, recipeLineCost, recipeProblem, recipeRows, RECIPE_FILTER_LABEL, RECIPE_MAX_LINES, THIN_MARGIN_PCT,
-  type RecipeFilter, type RecipeIngredient, type RecipeLine, type RecipeRow,
+  RECIPE_SCHEDULE_STATUS_LABEL, type RecipeFilter, type RecipeIngredient, type RecipeLine, type RecipeRow, type RecipeSchedule,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
@@ -16,7 +16,7 @@ const rp = (n: number) => formatRp(Math.round(n));
 
 export default function RecipesPage() {
   const data = useData();
-  const state = useAsync(async () => { const [ingredients, recipes] = await Promise.all([data.listRecipeIngredients(), data.listRecipes()]); return { ingredients, recipes }; }, [data]);
+  const state = useAsync(async () => { const [ingredients, recipes, schedules] = await Promise.all([data.listRecipeIngredients(), data.listRecipes(), data.listRecipeSchedules().catch(() => [] as RecipeSchedule[])]); return { ingredients, recipes, schedules }; }, [data]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<RecipeFilter>('all');
   const [shown, setShown] = useState(PAGE);
@@ -50,6 +50,7 @@ export default function RecipesPage() {
               <select id="rs-filter" className="cg-input" value={filter} onChange={(e) => { setFilter(e.target.value as RecipeFilter); setShown(PAGE); }}>
                 {(Object.keys(RECIPE_FILTER_LABEL) as RecipeFilter[]).map((f) => <option key={f} value={f}>{RECIPE_FILTER_LABEL[f]}</option>)}</select></div>
           </div>
+          <ScheduleList schedules={state.data.schedules} onChanged={(m) => { setNotice(m); state.reload(); }} />
           {state.data.ingredients.some((i) => i.costSource === 'none') && (
             <p className="text-sm text-text-muted mb-12">Sebagian bahan belum punya harga beli atau stok bercatatan, jadi HPP produk yang memakainya masih kurang. Isi lewat Inventori &gt; Daftar stok (Masuk dengan harga beli).</p>
           )}
@@ -90,6 +91,41 @@ export default function RecipesPage() {
   );
 }
 
+const fmtWhen = (iso: string) => new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/** Perubahan resep terjadwal: yang menunggu bisa dibatalkan; yang sudah berlaku atau gagal tampil sebagai riwayat singkat. */
+function ScheduleList({ schedules, onChanged }: { schedules: RecipeSchedule[]; onChanged: (msg: string) => void }) {
+  const data = useData();
+  const [err, setErr] = useState('');
+  const pending = schedules.filter((x) => x.status === 'pending').sort((a, b) => a.effectiveAt.localeCompare(b.effectiveAt));
+  const history = schedules.filter((x) => x.status !== 'pending').slice(0, 5);
+  if (pending.length === 0 && history.length === 0) return null;
+  async function cancel(x: RecipeSchedule) {
+    setErr('');
+    try { const ok = await data.cancelRecipeSchedule(x.id); onChanged(ok ? `Jadwal resep ${x.productName} dibatalkan.` : 'Jadwal itu sudah tidak menunggu.'); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Gagal membatalkan jadwal.'); }
+  }
+  return (
+    <section className="mb-16 grid gap-8" aria-label="Perubahan resep terjadwal">
+      <h2 className="text-base">Perubahan resep terjadwal</h2>
+      {err && <p role="alert" className="cg-banner cg-banner--danger">{err}</p>}
+      <ul className="grid gap-8">
+        {pending.map((x) => (
+          <li key={x.id} className="border border-border rounded-lg bg-surface-raised p-12 flex flex-wrap items-center justify-between gap-8 min-w-0">
+            <span className="min-w-0"><strong className="break-words">{x.productName}</strong><span className="block text-sm text-text-muted">Berlaku {fmtWhen(x.effectiveAt)} · {x.lines.length} bahan{x.note ? ` · ${x.note}` : ''}</span></span>
+            <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => cancel(x)} aria-label={`Batalkan jadwal resep ${x.productName}`}>Batalkan</button>
+          </li>
+        ))}
+        {history.map((x) => (
+          <li key={x.id} className="border border-border rounded-lg p-12 min-w-0 text-sm">
+            <strong className="break-words">{x.productName}</strong> · {RECIPE_SCHEDULE_STATUS_LABEL[x.status]} · {fmtWhen(x.appliedAt ?? x.effectiveAt)}{x.status === 'failed' && x.error ? <span className="block text-danger-strong">Resep lama tetap dipakai. Penyebab: {x.error}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return <div className="border border-border rounded-lg bg-surface-raised p-12"><span className="block text-sm text-text-muted">{label}</span><strong className="cg-num">{value}</strong></div>;
 }
@@ -104,6 +140,9 @@ function RecipeDialog({ row, ingredients, onClose, onSaved }: { row: RecipeRow; 
   const [lines, setLines] = useState<DraftLine[]>(() => row.product.lines.map((l, k) => ({ key: k, ingredientId: l.ingredientId, qty: String(l.qty), unitId: l.unitId })));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  /** kosong = berlaku langsung; terisi = dijadwalkan (waktu setempat) */
+  const [when, setWhen] = useState('');
+  const [note, setNote] = useState('');
   const parsed: RecipeLine[] = lines.map((l) => ({ ingredientId: l.ingredientId, qty: Number(l.qty.replace(',', '.')), unitId: l.unitId }));
   const cost = recipeCost(parsed.filter((l) => by.has(l.ingredientId)), by);
   const set = (key: number, p: Partial<DraftLine>) => { setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l))); setErr(''); };
@@ -118,7 +157,15 @@ function RecipeDialog({ row, ingredients, onClose, onSaved }: { row: RecipeRow; 
     const problem = recipeProblem(parsed, by);
     if (problem) return setErr(problem);
     setBusy(true); setErr('');
-    try { const n = await data.saveRecipe(row.product.id, parsed); onSaved(n ? `Resep ${row.product.name} disimpan (${n} bahan).` : `Resep ${row.product.name} dikosongkan.`); }
+    try {
+      if (when) {
+        const t = new Date(when);
+        if (Number.isNaN(t.getTime()) || t.getTime() <= Date.now()) { setBusy(false); return setErr('Waktu berlaku harus di masa depan.'); }
+        await data.saveRecipeSchedule({ productId: row.product.id, effectiveAt: t.toISOString(), lines: parsed, note: note.trim() || undefined });
+        return onSaved(`Resep ${row.product.name} dijadwalkan berlaku ${fmtWhen(t.toISOString())}. Sebelum itu resep lama tetap dipakai.`);
+      }
+      const n = await data.saveRecipe(row.product.id, parsed); onSaved(n ? `Resep ${row.product.name} disimpan (${n} bahan).` : `Resep ${row.product.name} dikosongkan.`);
+    }
     catch (x) { setErr(x instanceof Error ? x.message : 'Resep gagal disimpan.'); setBusy(false); }
   }
   const m = marginPct(row.product.price, cost.total);
@@ -159,9 +206,14 @@ function RecipeDialog({ row, ingredients, onClose, onSaved }: { row: RecipeRow; 
           <div><span className="block text-text-muted">Margin</span><strong className="block cg-num">{lines.length ? pct(m) : '—'}</strong></div>
         </div>
         {cost.unknownLines > 0 && <p className="text-sm text-text-muted">* {cost.unknownLines} bahan belum punya biaya, jadi HPP masih kurang.</p>}
+        <div className="cg-field"><label className="cg-label" htmlFor="rs-berlaku">Berlaku mulai (opsional)</label>
+          <input id="rs-berlaku" type="datetime-local" className="cg-input" value={when} onChange={(e) => { setWhen(e.target.value); setErr(''); }} />
+          <p className="text-sm text-text-muted mt-4">{when ? 'Resep ini baru berlaku pada waktu itu. Penjualan sebelum itu memakai resep lama.' : 'Kosongkan agar resep berlaku langsung.'}</p></div>
+        {when && <div className="cg-field"><label className="cg-label" htmlFor="rs-catatan">Catatan jadwal (opsional)</label>
+          <input id="rs-catatan" className="cg-input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Mis. resep baru musim hujan" /></div>}
         {err && <p role="alert" className="text-danger-strong">{err}</p>}
         <div className="cg-modal__actions"><button type="button" className="cg-btn cg-btn--ghost" onClick={() => d.ref.current?.close()}>Batal</button>
-          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy} aria-busy={busy}>{busy ? 'Menyimpan…' : 'Simpan resep'}</button></div>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy} aria-busy={busy}>{busy ? 'Menyimpan…' : when ? 'Jadwalkan resep' : 'Simpan resep'}</button></div>
       </form>
     </dialog>
   );

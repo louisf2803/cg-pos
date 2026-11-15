@@ -46,7 +46,7 @@ import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, Tie
 import type { CustomerDepositBalance, CustomerDepositEntry } from './deposit-report';
 import type { NonCashReconciliationRecord, SaveReconciliationInput } from './reconcile';
 import type { PriceSchedule } from './price-schedule';
-import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct } from './recipe';
+import { recipeProblem, type CostSource, type RecipeIngredient, type RecipeLine, type RecipeProduct, type RecipeSchedule } from './recipe';
 import { parseChanges, type ActivityQuery, type ActivityRow } from './activity';
 import { normalizeAuthCode, type AuthCodePermission, type AuthCodeRow } from './auth-code';
 import {
@@ -1894,6 +1894,37 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const by = new Map<string, RecipeLine[]>();
       for (const l of lines) { const k = l.product_id as string; (by.get(k) ?? by.set(k, []).get(k)!).push({ ingredientId: l.ingredient_id as string, qty: Number(l.qty), unitId: l.unit_id as string }); }
       return prods.filter((p) => p.kind === 'goods' && p.isSellable !== false).map((p): RecipeProduct => ({ id: p.id, name: p.name, price: p.price, isActive: p.isActive, lines: by.get(p.id) ?? [] }));
+    },
+    async listRecipeSchedules() {
+      const rows = (must(await db().from('recipe_schedules').select('id,product_id,effective_at,lines,note,status,error,applied_at,products(name)').order('effective_at', { ascending: false }).limit(200)) as Row[] | null) ?? [];
+      return rows.map((r): RecipeSchedule => ({
+        id: r.id as string, productId: r.product_id as string, productName: ((r.products as Row | null)?.name as string) ?? '(produk dihapus)', effectiveAt: r.effective_at as string,
+        lines: ((r.lines as Row[] | null) ?? []).map((l): RecipeLine => ({ ingredientId: l.ingredient_id as string, qty: Number(l.qty), unitId: l.unit_id as string })),
+        ...(r.note ? { note: r.note as string } : {}), status: r.status as RecipeSchedule['status'], ...(r.error ? { error: r.error as string } : {}), ...(r.applied_at ? { appliedAt: r.applied_at as string } : {}),
+      }));
+    },
+    async saveRecipeSchedule(input) {
+      const ings = await self.listRecipeIngredients();
+      const problem = recipeProblem(input.lines, new Map(ings.map((i) => [i.id, i])));
+      if (problem) throw new DataError('invalid', problem);
+      const { data, error } = await db().rpc('recipe_schedule_save', { p_product: input.productId, p_effective_at: input.effectiveAt, p_lines: input.lines.map((l) => ({ ingredient_id: l.ingredientId, qty: l.qty, unit_id: l.unitId })), p_note: input.note?.trim() || null });
+      if (error) {
+        const m = error.message ?? '';
+        if (/not allowed|no access/i.test(m)) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh menjadwalkan resep.');
+        if (/product not found/i.test(m)) throw new DataError('not_found', 'Produk tidak ditemukan.');
+        if (/future/i.test(m)) throw new DataError('invalid', 'Waktu berlaku harus di masa depan.');
+        if (/recipe |duplicate ingredient|lines must|too many/i.test(m)) throw new DataError('invalid', 'Resep ditolak server. Periksa bahan, satuan, dan jumlah.');
+        throw mapDbError(error);
+      }
+      return data as string;
+    },
+    async cancelRecipeSchedule(id) {
+      const { data, error } = await db().rpc('recipe_schedule_cancel', { p_id: id });
+      if (error) {
+        if (/not allowed|no access/i.test(error.message ?? '')) throw new DataError('forbidden', 'Hanya pemilik, admin, dan manajer yang boleh membatalkan jadwal.');
+        throw mapDbError(error);
+      }
+      return data === true;
     },
     async saveRecipe(productId, lines) {
       const ings = await self.listRecipeIngredients();

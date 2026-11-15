@@ -12,6 +12,12 @@ export interface RecipeIngredient {
   costSource: CostSource;
 }
 export interface RecipeLine { ingredientId: string; qty: number; unitId: string }
+/** Perubahan resep yang dijadwalkan: resep baru berlaku pada `effectiveAt`. failed = gagal saat diterapkan (resep lama tetap utuh). */
+export type RecipeScheduleStatus = 'pending' | 'applied' | 'cancelled' | 'failed';
+export const RECIPE_SCHEDULE_STATUS_LABEL: Record<RecipeScheduleStatus, string> = { pending: 'Menunggu', applied: 'Sudah berlaku', cancelled: 'Dibatalkan', failed: 'Gagal diterapkan' };
+export interface RecipeSchedule { id: string; productId: string; productName: string; effectiveAt: string; lines: RecipeLine[]; note?: string; status: RecipeScheduleStatus; error?: string; appliedAt?: string }
+export interface RecipeScheduleInput { productId: string; /** ISO UTC; harus di masa depan */ effectiveAt: string; lines: RecipeLine[]; note?: string }
+
 export interface RecipeProduct { id: string; name: string; price: number; isActive: boolean; lines: RecipeLine[] }
 
 export type RecipeFilter = 'all' | 'none' | 'incomplete' | 'thin';
