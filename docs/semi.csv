@@ -41,7 +41,7 @@ Batasi penjualan dan mutasi saat stok habis,ada,"A127: penegakan di server (0127
 Rekonsiliasi penerimaan non-tunai per shift dan metode bayar (belum/terekonsiliasi),ada,"A128: simpan ke server lewat pos.reconcile (jurnal bank/piutang/biaya/selisih), tes SQL 19_noncash_reconciliation"
 "CRM: loyalty, grup loyalty, loyalty ulang tahun, kampanye",ada,"A132: kampanye (sasaran, penerima, ditandai dihubungi; tanpa kirim pesan) migrasi 0132 di produksi"
 "Paket deposit (beli saldo, pakai di POS)",ada,"A144: skema server 0107, beli paket, saldo, laporan"
-"Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti",sebagian,Deposit masih pratinjau (A94)
+"Laporan Dapur, Meja, Jasa, Fasilitas, Pajak, Persediaan, Pelanggan, Karyawan, Deposit, Promo dan Loyalti",ada,Deposit memakai data nyata (daftar penjualan/refund/saldo deposit); Fasilitas: rincian slot jadwal reservasi belum
 "Pengaturan per kasir: kas awal otomatis, tutup kasir otomatis, batas kas keluar, foto bukti kas",ada,"A138: foto bukti kas (0141), pengingat tutup kasir otomatis per perangkat, batas kas keluar, kas awal; penutupan otomatis server sengaja tidak dibuat"
 "Gabung sisa pesanan jadi satu transaksi, wajib PIN gabung/reset/pindah meja",sebagian,PIN pindah/reset meja belum
 "Karyawan, peran, dan hak akses",ada,"A86/A142: izin granular ditegakkan di server (0103)"
