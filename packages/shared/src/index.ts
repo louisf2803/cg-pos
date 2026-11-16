@@ -113,3 +113,4 @@ export * from './kitchen-selection';
 export * from './hash';
 export * from './table-status-color';
 
+export * from './feature-search';

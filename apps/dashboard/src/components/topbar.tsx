@@ -36,6 +36,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { todayKey } from '@/components/fin-common';
 import { useShell } from './shell-context';
+import { FeatureSearch } from './feature-search';
 
 export function Topbar() {
   const router = useRouter();
@@ -392,6 +393,7 @@ export function Topbar() {
 
         {/* Right: Notifications, Business name, User profile, Menu ⋮ (Always visible at 1280px & 1440px) */}
         <div className="flex items-center gap-12 shrink-0">
+          <FeatureSearch />
           {/* Notification bell with interactive stock alerts popover */}
           <div className="relative shrink-0" ref={notifRef}>
             <button
