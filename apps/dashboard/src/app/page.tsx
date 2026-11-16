@@ -1,5 +1,5 @@
 'use client';
-import { useState, useId } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft,
@@ -63,7 +63,8 @@ function formatYLabel(val: number): string {
 }
 
 /** Menghasilkan kurva cubic bezier mulus (spline) untuk data grafik */
-function createSmoothPath(points: { x: number; y: number }[]): string {
+function createSmoothPath(points: { x: number; y: number }[], bounds?: { min: number; max: number }): string {
+  const clampY = (y: number) => (bounds ? Math.min(bounds.max, Math.max(bounds.min, y)) : y);
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0]!.x} ${points[0]!.y}`;
 
@@ -75,9 +76,9 @@ function createSmoothPath(points: { x: number; y: number }[]): string {
     const p3 = points[i + 2] || p2;
 
     const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6);
     const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6);
 
     d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
@@ -93,9 +94,7 @@ export default function Beranda() {
   const [currentDateKey, setCurrentDateKey] = useState<string>(() => {
     return new Date().toISOString().slice(0, 10);
   });
-  const [hoveredHour, setHoveredHour] = useState<number | null>(null);
-
-  const gradientId = useId();
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   // Ambil data context outlet, orders periode ini, orders periode lalu, dan data pendukung
   const state = useAsync(async () => {
@@ -153,6 +152,7 @@ export default function Beranda() {
       employees,
       refunds,
       stockItems,
+      prevOpenOrders,
     ] = await Promise.all([
       data.listOrders({ status: 'paid', from: curUtc.from, to: curUtc.to, by: 'closed', all: true }),
       data.listOrders({ status: 'paid', from: prevUtc.from, to: prevUtc.to, by: 'closed', all: true }),
@@ -164,6 +164,7 @@ export default function Beranda() {
       data.listManagedEmployees(),
       data.listRefundsBetween(curUtc),
       data.listStock(),
+      data.listOrders({ status: 'open', from: prevUtc.from, to: prevUtc.to, all: true }),
     ]);
 
     // Filter outlet bila bukan "semua"
@@ -178,6 +179,7 @@ export default function Beranda() {
     const activeCurPaid = filterByOutlet(curPaidOrders);
     const activePrevPaid = filterByOutlet(prevPaidOrders);
     const activeOpen = filterByOutlet(openOrders);
+    const prevUnpaidTotal = filterByOutlet(prevOpenOrders).reduce((sum, o) => sum + o.total, 0);
     const activeMtdPaid = filterByOutlet(mtdPaidOrders);
     const activeVoid = filterByOutlet(voidOrders);
 
@@ -221,7 +223,7 @@ export default function Beranda() {
 
     // Format waktu pembaruan
     const now = new Date();
-    const updatedTimeStr = `${formatDisplayDate(todayKey)}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`;
+    const updatedTimeStr = `${formatDisplayDate(todayKey)}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
     return {
       ctx,
@@ -232,6 +234,7 @@ export default function Beranda() {
       curReport,
       prevReport,
       activeOpen,
+      prevUnpaidTotal,
       curItemsSold,
       prevItemsSold,
       curProdPerOrder,
@@ -303,11 +306,12 @@ export default function Beranda() {
     curReport,
     prevReport,
     activeOpen,
+    prevUnpaidTotal,
+    prevRange,
     curItemsSold,
     prevItemsSold,
     curProdPerOrder,
     prevProdPerOrder,
-    mtdTotal,
     projectedTotal,
     lowStock,
     updatedTimeStr,
@@ -344,484 +348,237 @@ export default function Beranda() {
   // Apakah tombol majunya melebihi tanggal hari ini?
   const isFutureDisabled = toKey >= todayKey;
 
-  // Persiapan data grafik per jam
-  const curHourly = curReport.summary.byHour; // 24 jam
-  const prevHourly = prevReport.summary.byHour; // 24 jam
-
-  const maxHourlyVal = Math.max(
-    ...curHourly.map((h) => h.total),
-    ...prevHourly.map((h) => h.total),
-    100_000
+  // Persen perubahan dua angka (dua desimal); periode sebelumnya 0 dan sekarang ada = 100
+  const pct = (cur: number, prev: number) => (prev === 0 ? (cur === 0 ? 0 : 100) : Math.round(((cur - prev) / prev) * 10000) / 100);
+  const money2 = (n: number) => `Rp ${n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const Delta = ({ v }: { v: number }) => (
+    <span className={`ml-4 inline-flex items-center gap-2 text-xs font-semibold whitespace-nowrap ${v >= 0 ? 'text-trend-up' : 'text-trend-down'}`}>
+      <span aria-hidden>{v >= 0 ? '↗' : '↘'}</span>
+      <span>{Math.abs(v)}%</span>
+      <span className="sr-only">{v >= 0 ? 'naik' : 'turun'}</span>
+    </span>
   );
 
-  // Skala sumbu Y: 4 penanda grid
-  const ySteps = [0, maxHourlyVal * 0.33, maxHourlyVal * 0.66, maxHourlyVal];
+  const unpaidDiff = pct(unpaidTotal, prevUnpaidTotal);
+  const paidDiff = pct(curTotal, prevTotal);
 
-  // Koordinat grafik SVG
+  // Data grafik: Harian = per jam; Mingguan dan Bulan = per tanggal. Periode sebelumnya disejajarkan menurut urutan.
+  const dayKeys = (from: string, to: string) => { const out: string[] = []; for (let k = from; k <= to && out.length < 400; k = shiftDateDays(k, 1)) out.push(k); return out; };
+  const shortDM = (k: string) => { const [, m, d] = k.split('-').map(Number); return `${String(d).padStart(2, '0')} ${INDO_MONTHS_SHORT[(m ?? 1) - 1] ?? ''}`; };
+  let labels: string[];
+  let curSeries: number[];
+  let prevSeries: number[];
+  let xTicks: number[];
+  if (periodType === 'daily') {
+    labels = curReport.summary.byHour.map((h) => `${String(h.hour).padStart(2, '0')}:00`);
+    curSeries = curReport.summary.byHour.map((h) => h.total);
+    prevSeries = prevReport.summary.byHour.map((h) => h.total);
+    xTicks = [0, 4, 8, 12, 16, 20, 23];
+  } else {
+    const ck = dayKeys(fromKey, toKey);
+    const pk = dayKeys(prevRange.from, prevRange.to);
+    const cm = new Map(curReport.byDay.map((r) => [r.key, r.amount]));
+    const pm = new Map(prevReport.byDay.map((r) => [r.key, r.amount]));
+    labels = ck.map(shortDM);
+    curSeries = ck.map((k) => cm.get(k) ?? 0);
+    prevSeries = ck.map((_, i) => pm.get(pk[i] ?? '') ?? 0);
+    const every = ck.length > 10 ? 3 : 1;
+    xTicks = ck.map((_, i) => i).filter((i) => i % every === 0 || i === ck.length - 1);
+  }
+  const nPts = Math.max(curSeries.length, 1);
+
+  // Skala sumbu Y dibulatkan ke angka rapi: 4 selang sama besar
+  const rawMax = Math.max(...curSeries, ...prevSeries, 100_000);
+  const rawStep = rawMax / 4;
+  const mag = 10 ** Math.floor(Math.log10(rawStep));
+  const step = ([1, 2, 2.5, 5, 10].find((m) => m * mag >= rawStep) ?? 10) * mag;
+  const ySteps = [0, 1, 2, 3, 4].map((i) => i * step);
+  const yMax = step * 4;
+  const formatYLabel2 = (v: number) => (v === 0 ? '0,00' : v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2).replace('.', ',')} jt` : `${(v / 1_000).toFixed(2).replace('.', ',')} rb`);
+
   const svgW = 800;
-  const svgH = 220;
-  const padLeft = 60;
-  const padRight = 30;
-  const padTop = 20;
+  const svgH = 260;
+  const padLeft = 64;
+  const padRight = 16;
+  const padTop = 16;
   const padBottom = 30;
   const plotW = svgW - padLeft - padRight;
   const plotH = svgH - padTop - padBottom;
+  const getX = (i: number) => padLeft + (nPts === 1 ? plotW / 2 : (i / (nPts - 1)) * plotW);
+  const getY = (val: number) => padTop + plotH - (val / yMax) * plotH;
+  const curPath = createSmoothPath(curSeries.map((v, i) => ({ x: getX(i), y: getY(v) })), { min: padTop, max: padTop + plotH });
+  const prevPath = createSmoothPath(prevSeries.map((v, i) => ({ x: getX(i), y: getY(v) })), { min: padTop, max: padTop + plotH });
 
-  const getX = (hour: number) => padLeft + (hour / 23) * plotW;
-  const getY = (val: number) => padTop + plotH - (val / maxHourlyVal) * plotH;
-  const getYPrev = (val: number) => {
-    const baseY = getY(val);
-    // Bila 0, angkat 2px agar garis putus-putus abu terlihat jelas di atas garis sumbu dasar
-    return val === 0 ? baseY - 2 : baseY;
-  };
-
-  const curPoints = curHourly.map((h) => ({ x: getX(h.hour), y: getY(h.total) }));
-  const prevPoints = prevHourly.map((h) => ({ x: getX(h.hour), y: getYPrev(h.total) }));
-
-  const curPath = createSmoothPath(curPoints);
-  const prevPath = createSmoothPath(prevPoints);
-
-  // Area kurva hijau dengan gradien
-  const areaPath = curPoints.length > 0
-    ? `${curPath} L ${curPoints[curPoints.length - 1]!.x} ${padTop + plotH} L ${curPoints[0]!.x} ${padTop + plotH} Z`
-    : '';
+  const rangeText = periodType === 'daily' ? formatDisplayDate(currentDateKey) : `${formatDisplayDate(fromKey)} - ${formatDisplayDate(toKey)}`;
+  const navText = periodType === 'daily' ? formatShortDate(currentDateKey).replace(/ (\d{4})$/, (_, y: string) => ` ${y.slice(2)}`) : `${shortDM(fromKey)} ${fromKey.slice(2, 4)} - ${shortDM(toKey)} ${toKey.slice(2, 4)}`;
+  const periodNoun = periodType === 'daily' ? 'hari ini' : periodType === 'weekly' ? 'minggu ini' : 'bulan ini';
+  const gain = curTotal - prevTotal;
 
   return (
     <div className="space-y-24 max-w-full">
-      {/* 1. Header: Judul + Ikon Bantuan + Bintang + Diperbarui */}
-      <PageHeader
-        title="Ringkasan penjualan"
-        subtitle={`${ctx.outletName}${selectedOutlet !== 'semua' ? ' (Terfilter)' : ' (Semua outlet)'}`}
-        updatedAt={updatedTimeStr}
-      />
-
-      {/* Kontrol Periode: Segmented Control Rapat 36px & Pemilih Tanggal */}
-      <div className="flex flex-wrap items-center gap-12 mb-8">
-        {/* Segmented Control Rapat 36px */}
-        <div
-          role="tablist"
-          aria-label="Pilihan periode ringkasan penjualan"
-          className="inline-flex items-center h-[36px] p-2 rounded-full bg-surface-raised border border-border shrink-0"
-          onKeyDown={(e) => {
-            const periods: PeriodType[] = ['daily', 'weekly', 'monthly'];
-            const currentIndex = periods.indexOf(periodType);
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-              e.preventDefault();
-              const next = periods[(currentIndex + 1) % periods.length];
-              if (next) {
-                setPeriodType(next);
-                document.getElementById(`period-tab-${next}`)?.focus();
-              }
-            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              const prev = periods[(currentIndex - 1 + periods.length) % periods.length];
-              if (prev) {
-                setPeriodType(prev);
-                document.getElementById(`period-tab-${prev}`)?.focus();
-              }
-            }
-          }}
-        >
-          {(['daily', 'weekly', 'monthly'] as const).map((t) => {
-            const label = t === 'daily' ? 'Harian' : t === 'weekly' ? 'Mingguan' : 'Bulan';
-            const isActive = periodType === t;
-            return (
-              <button
-                key={t}
-                id={`period-tab-${t}`}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                tabIndex={isActive ? 0 : -1}
-                className={`h-[30px] px-12 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center justify-center ${
-                  isActive
-                    ? 'bg-accent text-on-accent shadow-sm'
-                    : 'text-text-muted hover:text-text'
-                }`}
-                onClick={() => setPeriodType(t)}
-              >
-                {label}
-              </button>
-            );
-          })}
+      <section className="rounded-xl bg-surface-raised border border-border cg-card overflow-hidden" aria-label="Dashboard penjualan">
+        {/* Judul, bantuan, bintang, waktu pembaruan */}
+        <div className="px-20 pt-20 pb-4 border-b border-border">
+          <PageHeader title="Dashboard Penjualan" updatedAt={updatedTimeStr} />
         </div>
 
-        {/* Pemilih Tanggal Bergeser dengan Panah ‹ › di Sebelahnya */}
-        <div className="inline-flex items-center gap-6 h-[36px] shrink-0">
-          <button
-            type="button"
-            onClick={() => handleShiftDate(-1)}
-            className="h-[36px] w-[36px] flex items-center justify-center rounded-lg bg-surface-raised border border-border text-text-muted hover:text-text hover:bg-surface transition-colors shrink-0"
-            title="Geser periode sebelumnya"
-            aria-label="Geser periode sebelumnya"
-          >
-            <ChevronLeft className="cg-icon cg-icon--sm" aria-hidden />
-          </button>
-
-          <div className="flex items-center gap-6 px-12 h-[36px] rounded-lg bg-surface-raised border border-border text-xs font-medium whitespace-nowrap shrink-0">
-            <Calendar className="cg-icon cg-icon--xs text-accent" aria-hidden />
-            <span>{activePeriodLabel}</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleShiftDate(1)}
-            disabled={isFutureDisabled}
-            className={`h-[36px] w-[36px] flex items-center justify-center rounded-lg bg-surface-raised border border-border transition-colors shrink-0 ${
-              isFutureDisabled
-                ? 'text-text-muted/40 cursor-not-allowed'
-                : 'text-text-muted hover:text-text hover:bg-surface'
-            }`}
-            title={isFutureDisabled ? 'Periode telah mencapai hari ini' : 'Geser periode berikutnya'}
-            aria-label="Geser periode berikutnya"
-          >
-            <ChevronRight className="cg-icon cg-icon--sm" aria-hidden />
-          </button>
-
-          {/* Quick date picker jump */}
-          <input
-            type="date"
-            max={todayKey}
-            value={currentDateKey}
-            onChange={(e) => {
-              if (e.target.value) setCurrentDateKey(e.target.value);
+        {/* Periode: Harian | Mingguan | Bulan, lalu geser rentang */}
+        <div className="px-20 py-12 border-b border-border flex flex-wrap items-center gap-12">
+          <div
+            role="tablist"
+            aria-label="Pilihan periode ringkasan penjualan"
+            className="inline-flex items-stretch h-[36px] rounded-md border border-border overflow-hidden shrink-0"
+            onKeyDown={(e) => {
+              const periods: PeriodType[] = ['daily', 'weekly', 'monthly'];
+              const i = periods.indexOf(periodType);
+              const move = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+              if (!move) return;
+              e.preventDefault();
+              const next = periods[(i + move + periods.length) % periods.length];
+              if (next) { setPeriodType(next); document.getElementById(`period-tab-${next}`)?.focus(); }
             }}
-            className="cg-input px-8 h-[36px] text-xs w-auto bg-surface-raised"
-            aria-label="Pilih tanggal tertentu"
-          />
-        </div>
-      </div>
-
-      {/* 2. Kartu KPI: Kiri (Hero Total), Tengah (Status Bayar), Kanan (Grid 2x2) */}
-      <div className="grid grid-cols-1 laptop:grid-cols-12 gap-16">
-        {/* KIRI: Total Penjualan Besar + % + Akumulasi Awal Bulan + Proyeksi */}
-        <div className="laptop:col-span-5 p-20 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Total Penjualan
-            </span>
-            <div className="flex items-baseline gap-12 mt-6">
-              <span className="text-2xl tablet:text-3xl font-extrabold text-text tracking-tight">
-                {formatRp(curTotal)}
-              </span>
-              <span
-                className={`inline-flex items-center gap-2 px-8 py-2 rounded-full text-xs font-bold ${
-                  totalSalesDiff >= 0
-                    ? 'bg-trend-up/10 text-trend-up'
-                    : 'bg-trend-down/10 text-trend-down'
-                }`}
-                title={`Perubahan dibanding periode sebelumnya (${formatRp(prevTotal)})`}
-              >
-                {totalSalesDiff >= 0 ? (
-                  <TrendingUp className="w-12 h-12" aria-hidden />
-                ) : (
-                  <TrendingDown className="w-12 h-12" aria-hidden />
-                )}
-                <span>{totalSalesDiff >= 0 ? `+${totalSalesDiff}%` : `${totalSalesDiff}%`}</span>
-              </span>
-            </div>
-            <p className="text-xs text-text-muted mt-4">
-              Dibandingkan periode sebelumnya ({formatRp(prevTotal)})
-            </p>
-          </div>
-
-          <div className="mt-20 pt-16 border-t border-border grid grid-cols-2 gap-12">
-            <div>
-              <span className="text-[11px] font-medium text-text-muted uppercase tracking-wider">
-                Akumulasi Bulan Ini
-              </span>
-              <p className="text-sm font-bold text-text mt-2">
-                {formatRp(mtdTotal)}
-              </p>
-            </div>
-            <div>
-              <span className="text-[11px] font-medium text-text-muted uppercase tracking-wider">
-                Proyeksi Akhir Bulan
-              </span>
-              <p className="text-sm font-bold text-accent mt-2">
-                {formatRp(projectedTotal)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* TENGAH: Belum Dibayar & Terbayar */}
-        <div className="laptop:col-span-3 p-20 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between gap-16">
-          {/* Terbayar (Lunas) */}
-          <div className="flex items-start justify-between p-12 rounded-lg bg-surface border border-border">
-            <div>
-              <span className="text-xs font-medium text-text-muted">Terbayar (Lunas)</span>
-              <p className="text-base font-bold text-text mt-2">{formatRp(curTotal)}</p>
-              <p className="text-xs text-text-muted mt-2">{curOrdersCount} transaksi</p>
-            </div>
-            <div className="p-8 rounded-full bg-success/15 text-success shrink-0">
-              <CheckCircle2 className="w-18 h-18" aria-hidden />
-            </div>
-          </div>
-
-          {/* Belum Dibayar (Pending / Open) */}
-          <div className="flex items-start justify-between p-12 rounded-lg bg-surface border border-border">
-            <div>
-              <span className="text-xs font-medium text-text-muted">Belum Dibayar</span>
-              <p className="text-base font-bold text-warning mt-2">{formatRp(unpaidTotal)}</p>
-              <p className="text-xs text-text-muted mt-2">{unpaidCount} pesanan aktif</p>
-            </div>
-            <div className="p-8 rounded-full bg-warning/15 text-warning shrink-0">
-              <Clock className="w-18 h-18" aria-hidden />
-            </div>
-          </div>
-        </div>
-
-        {/* KANAN: Grid 2x2 Transaksi, Rata-rata per transaksi, Produk terjual, Produk per transaksi */}
-        <div className="laptop:col-span-4 p-16 rounded-xl bg-surface-raised border border-border cg-card grid grid-cols-2 gap-12">
-          {/* 1. Transaksi */}
-          <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted">Transaksi</span>
-            <div className="my-4">
-              <span className="text-lg font-bold text-text">{curOrdersCount}</span>
-            </div>
-            <span
-              className={`text-[11px] font-semibold flex items-center gap-2 ${
-                ordersCountDiff >= 0 ? 'text-trend-up' : 'text-trend-down'
-              }`}
-            >
-              {ordersCountDiff >= 0 ? '↗' : '↘'} {ordersCountDiff >= 0 ? `+${ordersCountDiff}%` : `${ordersCountDiff}%`}
-            </span>
-          </div>
-
-          {/* 2. Rata-rata per Transaksi */}
-          <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted leading-tight">Rata-rata per transaksi</span>
-            <div className="my-4">
-              <span className="text-lg font-bold text-text truncate">{formatRp(curAvgTicket)}</span>
-            </div>
-            <span
-              className={`text-[11px] font-semibold flex items-center gap-2 ${
-                avgTicketDiff >= 0 ? 'text-trend-up' : 'text-trend-down'
-              }`}
-            >
-              {avgTicketDiff >= 0 ? '↗' : '↘'} {avgTicketDiff >= 0 ? `+${avgTicketDiff}%` : `${avgTicketDiff}%`}
-            </span>
-          </div>
-
-          {/* 3. Produk Terjual */}
-          <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted leading-tight">Produk Terjual</span>
-            <div className="my-4">
-              <span className="text-lg font-bold text-text">{curItemsSold} item</span>
-            </div>
-            <span
-              className={`text-[11px] font-semibold flex items-center gap-2 ${
-                itemsSoldDiff >= 0 ? 'text-trend-up' : 'text-trend-down'
-              }`}
-            >
-              {itemsSoldDiff >= 0 ? '↗' : '↘'} {itemsSoldDiff >= 0 ? `+${itemsSoldDiff}%` : `${itemsSoldDiff}%`}
-            </span>
-          </div>
-
-          {/* 4. Produk per Transaksi */}
-          <div className="p-10 rounded-lg bg-surface border border-border flex flex-col justify-between">
-            <span className="text-xs text-text-muted leading-tight">Produk per transaksi</span>
-            <div className="my-4">
-              <span className="text-lg font-bold text-text">{curProdPerOrder} item</span>
-            </div>
-            <span
-              className={`text-[11px] font-semibold flex items-center gap-2 ${
-                prodPerOrderDiff >= 0 ? 'text-trend-up' : 'text-trend-down'
-              }`}
-            >
-              {prodPerOrderDiff >= 0 ? '↗' : '↘'} {prodPerOrderDiff >= 0 ? `+${prodPerOrderDiff}%` : `${prodPerOrderDiff}%`}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Grafik Garis Per Jam 00–23 (SVG Murni Halus Buatan Sendiri) */}
-      <div className="p-20 rounded-xl bg-surface-raised border border-border cg-card">
-        <div className="flex flex-wrap items-center justify-between gap-12 mb-16">
-          <div>
-            <h2 className="text-base font-bold text-text">Penjualan per Jam (00:00 – 23:00)</h2>
-            <p className="text-xs text-text-muted">Perbandingan pola transaksi per jam terhadap periode sebelumnya</p>
-          </div>
-
-          {/* Legenda Grafik */}
-          <div className="flex items-center gap-16 text-xs">
-            <div className="flex items-center gap-6">
-              <span className="w-16 h-3 rounded-full bg-accent" />
-              <span className="font-medium text-text">Periode Ini</span>
-            </div>
-            <div className="flex items-center gap-6">
-              <span className="w-16 h-0 border-t-2 border-dashed border-text-muted" />
-              <span className="text-text-muted font-medium">Periode Sebelumnya</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Area Grafik SVG Interaktif */}
-        <div className="relative w-full overflow-hidden" tabIndex={0} aria-label="Grafik garis penjualan per jam">
-          <svg
-            viewBox={`0 0 ${svgW} ${svgH}`}
-            className="w-full h-auto overflow-visible select-none"
-            role="img"
-            aria-label="Grafik perbandingan penjualan per jam"
           >
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-accent, #0E8044)" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="var(--color-accent, #0E8044)" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-
-            {/* Garis Grid Horizontal & Label Sumbu Y */}
-            {ySteps.map((val) => {
-              const y = getY(val);
+            {(['daily', 'weekly', 'monthly'] as const).map((t, idx) => {
+              const label = t === 'daily' ? 'Harian' : t === 'weekly' ? 'Mingguan' : 'Bulan';
+              const isActive = periodType === t;
               return (
-                <g key={val}>
-                  <line
-                    x1={padLeft}
-                    y1={y}
-                    x2={svgW - padRight}
-                    y2={y}
-                    stroke="var(--color-border, #E5E7EB)"
-                    strokeDasharray="4 4"
-                    strokeWidth="1"
-                  />
-                  <text
-                    x={padLeft - 10}
-                    y={y + 4}
-                    textAnchor="end"
-                    fontSize="10"
-                    fill="var(--color-text-muted, #6B7280)"
-                  >
-                    {formatYLabel(val)}
-                  </text>
-                </g>
+                <button
+                  key={t}
+                  id={`period-tab-${t}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                  className={`px-16 text-sm font-medium whitespace-nowrap transition-colors ${idx > 0 ? 'border-l border-border' : ''} ${isActive ? 'bg-accent text-on-accent' : 'bg-surface-raised text-text hover:bg-surface'}`}
+                  onClick={() => setPeriodType(t)}
+                >
+                  {label}
+                </button>
               );
             })}
+          </div>
 
-            {/* Label Sumbu X (Jam) */}
-            {[0, 4, 8, 12, 16, 20, 23].map((hr) => {
-              const x = getX(hr);
-              return (
-                <g key={hr}>
-                  <line
-                    x1={x}
-                    y1={padTop + plotH}
-                    x2={x}
-                    y2={padTop + plotH + 5}
-                    stroke="var(--color-border, #E5E7EB)"
-                    strokeWidth="1"
-                  />
-                  <text
-                    x={x}
-                    y={padTop + plotH + 18}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="var(--color-text-muted, #6B7280)"
-                  >
-                    {String(hr).padStart(2, '0')}:00
-                  </text>
-                </g>
-              );
-            })}
+          <div className="inline-flex items-stretch h-[36px] rounded-md border border-border overflow-hidden shrink-0">
+            <button type="button" onClick={() => handleShiftDate(-1)} className="w-[36px] flex items-center justify-center bg-surface-raised text-text-muted hover:text-text hover:bg-surface" title="Geser periode sebelumnya" aria-label="Geser periode sebelumnya">
+              <ChevronLeft className="cg-icon cg-icon--sm" aria-hidden />
+            </button>
+            <span className="px-16 flex items-center text-sm border-x border-border bg-surface-raised whitespace-nowrap" aria-live="polite">{navText}</span>
+            <button
+              type="button"
+              onClick={() => handleShiftDate(1)}
+              disabled={isFutureDisabled}
+              className={`w-[36px] flex items-center justify-center bg-surface-raised ${isFutureDisabled ? 'text-text-muted/40 cursor-not-allowed' : 'text-text-muted hover:text-text hover:bg-surface'}`}
+              title={isFutureDisabled ? 'Periode telah mencapai hari ini' : 'Geser periode berikutnya'}
+              aria-label="Geser periode berikutnya"
+            >
+              <ChevronRight className="cg-icon cg-icon--sm" aria-hidden />
+            </button>
+          </div>
+        </div>
 
-            {/* Area Fill Gradien Periode Ini */}
-            {areaPath && (
-              <path d={areaPath} fill={`url(#${gradientId})`} />
+        {/* Ringkasan angka */}
+        <div className="px-20 py-20 grid grid-cols-1 laptop:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1.5fr)] gap-24 items-center border-b border-border">
+          <div>
+            <span className="text-sm text-text-muted">Total Penjualan<Delta v={paidDiff} /></span>
+            <p className="text-2xl tablet:text-3xl font-bold text-text tracking-tight mt-2 break-words">{money2(curTotal)}</p>
+            <p className="text-xs text-text-muted mt-2">Proyeksi Bulan Ini {money2(projectedTotal)}</p>
+          </div>
+
+          <div className="grid gap-16">
+            <div>
+              <span className="text-sm text-text-muted">Penjualan Belum Dibayar<Delta v={unpaidDiff} /></span>
+              <p className="text-lg font-bold text-text mt-2 break-words">{money2(unpaidTotal)}</p>
+              <p className="text-xs text-text-muted">{unpaidCount} pesanan aktif</p>
+            </div>
+            <div>
+              <span className="text-sm text-text-muted">Penjualan Terbayar<Delta v={paidDiff} /></span>
+              <p className="text-lg font-bold text-text mt-2 break-words">{money2(curTotal)}</p>
+              <p className="text-xs text-text-muted">{curOrdersCount} transaksi</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-surface border border-border grid grid-cols-2 min-w-0">
+            <div className="p-16 border-b border-r border-border min-w-0">
+              <span className="text-sm text-text-muted">Transaksi<Delta v={pct(curOrdersCount, prevOrdersCount)} /></span>
+              <p className="text-base font-bold text-text mt-2">{curOrdersCount}</p>
+            </div>
+            <div className="p-16 border-b border-border min-w-0">
+              <span className="text-sm text-text-muted">Penjualan per Transaksi<Delta v={pct(curAvgTicket, prevAvgTicket)} /></span>
+              <p className="text-base font-bold text-text mt-2 break-words">{money2(curAvgTicket)}</p>
+            </div>
+            <div className="p-16 border-r border-border min-w-0">
+              <span className="text-sm text-text-muted">Produk Terjual<Delta v={pct(curItemsSold, prevItemsSold)} /></span>
+              <p className="text-base font-bold text-text mt-2">{curItemsSold.toLocaleString('id-ID')}</p>
+            </div>
+            <div className="p-16 min-w-0">
+              <span className="text-sm text-text-muted">Produk per Transaksi<Delta v={pct(curProdPerOrder, prevProdPerOrder)} /></span>
+              <p className="text-base font-bold text-text mt-2">{curProdPerOrder.toLocaleString('id-ID')}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Grafik penjualan */}
+        <div className="px-20 py-20">
+          <div className="flex flex-wrap items-center justify-between gap-12">
+            <h2 className="text-base font-bold text-text">Penjualan <span className="text-xs font-normal text-text-muted">{rangeText}</span></h2>
+            {gain > 0 && (
+              <p className="inline-flex items-center gap-8 px-12 py-6 rounded-full bg-surface border border-border text-sm m-0">
+                <TrendingUp className="cg-icon cg-icon--sm text-accent shrink-0" aria-hidden />
+                <span>Dengan pakai CG POS, penjualanmu {periodNoun} meningkat senilai <strong className="text-accent">{formatRp(gain)}</strong></span>
+              </p>
             )}
+          </div>
+          <div className="flex items-center justify-end gap-16 text-xs mt-12">
+            <span className="flex items-center gap-6"><span className="w-8 h-8 rounded-full bg-text-muted/50" aria-hidden /><span className="text-text-muted">Periode Sebelumnya</span></span>
+            <span className="flex items-center gap-6"><span className="w-8 h-8 rounded-full bg-accent" aria-hidden /><span className="text-text">Total Penjualan</span></span>
+          </div>
 
-            {/* Kurva Periode Sebelumnya (Garis Abu Putus-putus Kontras Tebal 2px) */}
-            {prevPath && (
-              <path
-                d={prevPath}
-                fill="none"
-                stroke="var(--color-text-muted, #64748B)"
-                strokeWidth="2"
-                strokeDasharray="5 4"
-                strokeLinecap="round"
-              />
-            )}
-
-            {/* Kurva Periode Ini (Garis Hijau Zamrud Halus) */}
-            {curPath && (
-              <path
-                d={curPath}
-                fill="none"
-                stroke="var(--color-accent, #0E8044)"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
-            )}
-
-            {/* Titik Interaktif Per Jam */}
-            {curPoints.map((pt, i) => {
-              const isHovered = hoveredHour === i;
-              return (
-                <g key={i}>
-                  <circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r={isHovered ? 6 : 3}
-                    fill="var(--color-accent, #0E8044)"
-                    stroke="var(--color-surface-raised, #FFFFFF)"
-                    strokeWidth={isHovered ? 2 : 1}
-                    className="transition-all cursor-pointer"
-                  />
-                  {/* Invisible broad hitbox for mouse & focus */}
-                  <rect
-                    x={pt.x - (plotW / 24) / 2}
-                    y={padTop}
-                    width={plotW / 23}
-                    height={plotH}
-                    fill="transparent"
-                    className="cursor-pointer focus:outline-none"
-                    tabIndex={0}
-                    aria-label={`Pukul ${String(i).padStart(2, '0')}:00, Penjualan ${formatRp(curHourly[i]?.total || 0)}`}
-                    onMouseEnter={() => setHoveredHour(i)}
-                    onMouseLeave={() => setHoveredHour(null)}
-                    onFocus={() => setHoveredHour(i)}
-                    onBlur={() => setHoveredHour(null)}
-                  />
-                </g>
-              );
-            })}
-          </svg>
-
-          {/* Tooltip Mengambang */}
-          {hoveredHour !== null && (
-            <div
-              className="absolute z-20 px-12 py-8 rounded-lg bg-neutral-900 text-white text-xs shadow-pop pointer-events-none transform -translate-x-1/2 -translate-y-full mb-8 animate-fadeIn"
-              style={{
-                left: `${(getX(hoveredHour) / svgW) * 100}%`,
-                top: `${(getY(curHourly[hoveredHour]?.total || 0) / svgH) * 100}%`,
+          <div className="relative w-full mt-8">
+            <svg
+              viewBox={`0 0 ${svgW} ${svgH}`}
+              className="w-full h-auto overflow-visible select-none"
+              role="img"
+              aria-label={`Grafik penjualan ${rangeText} dibandingkan periode sebelumnya`}
+              onMouseLeave={() => setHoverIdx(null)}
+              onMouseMove={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                const x = ((e.clientX - r.left) / r.width) * svgW;
+                const i = Math.round(((x - padLeft) / plotW) * (nPts - 1));
+                setHoverIdx(i >= 0 && i < nPts ? i : null);
               }}
             >
-              <p className="font-bold border-b border-white/20 pb-2 mb-4">
-                Pukul {String(hoveredHour).padStart(2, '0')}:00
-              </p>
-              <div className="flex justify-between gap-12">
-                <span className="text-white/70">Periode ini:</span>
-                <span className="font-bold text-accent-soft">
-                  {formatRp(curHourly[hoveredHour]?.total || 0)}
-                </span>
+              {ySteps.map((val) => (
+                <g key={val}>
+                  <line x1={padLeft} y1={getY(val)} x2={svgW - padRight} y2={getY(val)} stroke="var(--color-border)" strokeWidth="1" />
+                  <text x={padLeft - 8} y={getY(val) + 4} textAnchor="end" fontSize="11" fill="var(--color-text-muted)">{formatYLabel2(val)}</text>
+                </g>
+              ))}
+              {xTicks.map((i) => (
+                <text key={i} x={getX(i)} y={padTop + plotH + 20} textAnchor="middle" fontSize="11" fill="var(--color-text-muted)">{labels[i]}</text>
+              ))}
+              {prevPath && <path d={prevPath} fill="none" stroke="var(--color-text-muted)" strokeOpacity="0.5" strokeWidth="3" strokeLinecap="round" />}
+              {curPath && <path d={curPath} fill="none" stroke="var(--color-accent)" strokeWidth="3.5" strokeLinecap="round" />}
+              {hoverIdx !== null && (
+                <g>
+                  <line x1={getX(hoverIdx)} y1={padTop} x2={getX(hoverIdx)} y2={padTop + plotH} stroke="var(--color-border)" strokeWidth="1" />
+                  <circle cx={getX(hoverIdx)} cy={getY(curSeries[hoverIdx] ?? 0)} r="5" fill="var(--color-accent)" />
+                </g>
+              )}
+            </svg>
+            {hoverIdx !== null && (
+              <div
+                className="absolute top-0 px-10 py-6 rounded-md bg-surface-raised border border-border shadow-pop text-xs pointer-events-none"
+                style={{ left: `${Math.min(80, Math.max(0, (getX(hoverIdx) / svgW) * 100))}%` }}
+                role="status"
+              >
+                <strong className="block">{labels[hoverIdx]}</strong>
+                <span className="block text-accent">Total Penjualan: {formatRp(curSeries[hoverIdx] ?? 0)}</span>
+                <span className="block text-text-muted">Periode Sebelumnya: {formatRp(prevSeries[hoverIdx] ?? 0)}</span>
               </div>
-              <div className="flex justify-between gap-12">
-                <span className="text-white/70">Sebelumnya:</span>
-                <span>{formatRp(prevHourly[hoveredHour]?.total || 0)}</span>
-              </div>
-              <div className="flex justify-between gap-12 pt-2 border-t border-white/10 mt-2">
-                <span className="text-white/70">Perubahan:</span>
-                <span className="font-semibold">
-                  {percentChange(
-                    curHourly[hoveredHour]?.total || 0,
-                    prevHourly[hoveredHour]?.total || 0
-                  )}%
-                </span>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* 4. Grid 8 Widget (4 Kolom >=1280, 2 Kolom >=768, 1 Kolom Mobile) */}
       <div className="grid grid-cols-1 tablet:grid-cols-2 desktop:grid-cols-4 gap-16 items-start">
