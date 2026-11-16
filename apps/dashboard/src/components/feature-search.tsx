@@ -16,16 +16,19 @@ function writeRecent(list: string[]) { try { localStorage.setItem(RECENT_KEY, JS
 
 type Entry = FeatureEntry & { moduleId: string; locked: boolean };
 
-/** Cari fitur backoffice (nama menu, grup, modul) lalu lompat ke halamannya. Pintasan: Ctrl+K atau tombol Cari fitur. */
-export function FeatureSearch() {
+/**
+ * Sub-header pencarian fitur: baris tetap di paling atas, di atas tab modul (Penjualan, Order Online, dst.).
+ * Kolomnya selalu terlihat; hasil muncul sebagai daftar tepat di bawah kolom (bukan jendela melayang). Pintasan: Ctrl+K.
+ */
+export function FeatureSearchBar() {
   const router = useRouter();
   const { canAccess, setActiveModuleHint, setLockedFeature } = useShell();
-  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const entries = useMemo<Entry[]>(() => {
@@ -43,23 +46,30 @@ export function FeatureSearch() {
     return recent.map((h) => byHref.get(h)).filter((e): e is Entry => !!e);
   }, [allowed, q, recent]);
 
-  const close = useCallback(() => { setOpen(false); setQ(''); setActive(0); setTimeout(() => triggerRef.current?.focus(), 0); }, []);
-  const openIt = useCallback(() => { setRecent(readRecent()); setOpen(true); setActive(0); }, []);
+  const open = focused;
+  const close = useCallback(() => { setFocused(false); setQ(''); setActive(0); inputRef.current?.blur(); }, []);
 
+  // Ctrl+K memindahkan fokus ke kolom pencarian
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen((v) => { if (!v) { setRecent(readRecent()); setActive(0); } return !v; }); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); inputRef.current?.focus(); inputRef.current?.select(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 0); }, [open]);
+  // klik di luar menutup daftar
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) { setFocused(false); setActive(0); } };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
   useEffect(() => { setActive(0); }, [q]);
   useEffect(() => { listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [active, results]);
 
   const go = (e: Entry) => {
     writeRecent([e.href, ...readRecent().filter((h) => h !== e.href)]);
-    setOpen(false); setQ(''); setActive(0);
+    close();
     if (e.locked) { setLockedFeature(e.module); return; }
     setActiveModuleHint(e.moduleId);
     router.push(e.href);
@@ -73,47 +83,40 @@ export function FeatureSearch() {
   };
 
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        data-testid="feature-search-btn"
-        className="flex items-center gap-8 px-10 py-6 rounded-full border border-border text-text-muted hover:text-text hover:bg-surface text-sm shrink-0 cursor-pointer"
-        aria-label="Cari fitur (Ctrl+K)"
-        aria-haspopup="dialog"
-        title="Cari fitur (Ctrl+K)"
-        onClick={openIt}
-      >
-        <Search className="cg-icon cg-icon--sm" aria-hidden />
-        <span className="hidden desktop:inline">Cari fitur</span>
-        <kbd className="hidden desktop:inline text-[10px] px-4 rounded border border-border">Ctrl K</kbd>
-      </button>
+    <div className="sticky top-0 z-50 h-[44px] bg-surface border-b border-border flex items-center justify-center px-16 desktop:px-24" role="search" aria-label="Cari fitur">
+      <div ref={wrapRef} className="relative w-full max-w-[560px]">
+        <Search className="cg-icon cg-icon--sm text-text-muted absolute left-12 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden />
+        <input
+          ref={inputRef}
+          data-testid="feature-search-input"
+          className="cg-input w-full h-[32px] pl-36 pr-64 text-sm rounded-full bg-surface-raised"
+          type="text"
+          placeholder="Cari fitur, misalnya stok opname atau laporan"
+          aria-label="Cari fitur (Ctrl+K)"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="feature-search-list"
+          aria-autocomplete="list"
+          aria-activedescendant={open && results[active] ? `fs-${active}` : undefined}
+          value={q}
+          onFocus={() => { setRecent(readRecent()); setFocused(true); }}
+          onChange={(e) => { setQ(e.target.value); setFocused(true); }}
+          onKeyDown={onInputKey}
+          autoComplete="off"
+        />
+        {q ? (
+          <button type="button" className="absolute right-8 top-1/2 -translate-y-1/2 p-4 rounded-full text-text-muted hover:text-text" aria-label="Hapus kata kunci" onClick={() => { setQ(''); inputRef.current?.focus(); }}>
+            <X className="cg-icon cg-icon--xs" aria-hidden />
+          </button>
+        ) : (
+          <kbd className="hidden desktop:block absolute right-12 top-1/2 -translate-y-1/2 text-[10px] px-4 rounded border border-border text-text-muted pointer-events-none">Ctrl K</kbd>
+        )}
 
-      {open && (
-        <div className="cg-scrim" style={{ zIndex: 60, alignItems: 'start', paddingTop: '10vh' }} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-          <div role="dialog" aria-modal="true" aria-label="Cari fitur" className="cg-modal" style={{ width: 'min(560px, 100%)', padding: 'var(--space-16)' }}>
-            <div className="flex items-center gap-8">
-              <Search className="cg-icon text-text-muted shrink-0" aria-hidden />
-              <input
-                ref={inputRef}
-                className="cg-input flex-1 min-w-0"
-                type="search"
-                placeholder="Cari fitur, misalnya stok opname atau laporan"
-                aria-label="Kata kunci fitur"
-                role="combobox"
-                aria-expanded="true"
-                aria-controls="feature-search-list"
-                aria-activedescendant={results[active] ? `fs-${active}` : undefined}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={onInputKey}
-                autoComplete="off"
-              />
-              <button type="button" className="p-8 rounded-md text-text-muted hover:text-text hover:bg-surface" aria-label="Tutup pencarian" onClick={close}><X className="cg-icon cg-icon--sm" aria-hidden /></button>
-            </div>
-            {!q.trim() && results.length > 0 && <p className="text-xs text-text-muted m-0">Terakhir dibuka</p>}
+        {open && (
+          <div className="absolute left-0 right-0 top-full mt-4 bg-surface-raised border border-border rounded-xl shadow-pop p-8 max-h-[60vh] overflow-y-auto">
+            {!q.trim() && results.length > 0 && <p className="text-xs text-text-muted m-0 px-8 pb-4">Terakhir dibuka</p>}
             {results.length > 0 ? (
-              <ul id="feature-search-list" ref={listRef} role="listbox" aria-label="Hasil pencarian" className="grid gap-2 max-h-[50vh] overflow-y-auto m-0 p-0 list-none">
+              <ul id="feature-search-list" ref={listRef} role="listbox" aria-label="Hasil pencarian" className="grid gap-2 m-0 p-0 list-none">
                 {results.map((r, i) => (
                   <li key={r.href} id={`fs-${i}`} role="option" aria-selected={i === active}>
                     <button
@@ -121,6 +124,7 @@ export function FeatureSearch() {
                       tabIndex={-1}
                       className={`w-full flex items-center justify-between gap-12 px-12 py-8 rounded-lg text-left ${i === active ? 'bg-accent-soft' : 'hover:bg-surface'}`}
                       onMouseEnter={() => setActive(i)}
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => go(r)}
                     >
                       <span className="min-w-0">
@@ -133,13 +137,13 @@ export function FeatureSearch() {
                 ))}
               </ul>
             ) : (
-              <p className="cg-modal__body m-0" role="status">
-                {q.trim() ? 'Tidak ada fitur yang cocok. Coba kata lain, misalnya nama laporan atau menu.' : 'Ketik nama fitur untuk mulai mencari. Tekan Ctrl+K kapan saja untuk membuka pencarian ini.'}
+              <p className="text-sm text-text-muted m-0 px-8 py-4" role="status">
+                {q.trim() ? 'Tidak ada fitur yang cocok. Coba kata lain, misalnya nama laporan atau menu.' : 'Ketik nama fitur untuk mulai mencari.'}
               </p>
             )}
           </div>
-        </div>
-      )}
-    </>
+        )}
+      </div>
+    </div>
   );
 }
