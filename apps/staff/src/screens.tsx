@@ -6,7 +6,7 @@ import {
   type LeaveKind, type StaffMe, type StaffRequests, type StaffScheduleDay,
 } from '@cgpos/shared';
 import {
-  approveAdvance, cancelAdvance, cancelLeave, cancelSwap, createAdvance, createLeave, createSwap, decideLeave, loadNotices, loadPayslips, loadRequests, loadSchedule,
+  approveAdvance, cancelAdvance, cancelLeave, cancelSwap, createAdvance, createLeave, createSwap, decideLeave, loadNotices, loadOverview, loadPayslips, loadRequests, loadSchedule,
   managerDecide, partnerDecide, rejectAdvance, todayJakarta, type Notice, type Payslip,
 } from './api';
 import { Btn, c, s } from './ui';
@@ -300,6 +300,52 @@ export function Pesan({ me }: { me: StaffMe }) {
       <Text style={s.h1}>Pesan</Text>
       {q.data.length === 0 && <Text style={s.muted}>Belum ada pesan.</Text>}
       {q.data.map((n: Notice) => <Card key={n.id}><Text style={{ fontWeight: '700', color: c.ink }}>{n.title}</Text><Text style={s.muted}>{n.body}</Text><Text style={{ color: c.muted, fontSize: 11 }}>{n.createdAt.slice(0, 16).replace('T', ' ')}</Text></Card>)}
+    </ScrollView>
+  );
+}
+
+export function Pantau({ goDecide }: { goDecide: () => void }) {
+  const q = useAsync(loadOverview, []);
+  if (!q.data) return q.err ? <Text style={{ color: c.bad }}>{q.err}</Text> : <ActivityIndicator color={c.accent} />;
+  const o = q.data;
+  const total = o.outlets.reduce((a, x) => a + x.sales, 0);
+  const orders = o.outlets.reduce((a, x) => a + x.orders, 0);
+  const max = Math.max(1, ...o.series.map((x) => x.sales));
+  const waiting = o.pending.leave + o.pending.advances + o.pending.swaps;
+  return (
+    <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 24 }}>
+      <Text style={s.h1}>Pantau</Text>
+      <Card>
+        <Text style={s.muted}>Penjualan hari ini ({fmtDay(o.date)})</Text>
+        <Text style={{ fontSize: 28, fontWeight: '800', color: c.ink }}>{rp(total)}</Text>
+        <Text style={s.muted}>{orders} transaksi terbayar</Text>
+      </Card>
+      {waiting > 0 && (
+        <Pressable style={[s.card, { borderColor: c.warn }]} onPress={goDecide} accessibilityRole="button">
+          <Text style={s.h2}>{waiting} menunggu keputusan</Text>
+          <Text style={s.muted}>{o.pending.leave} izin · {o.pending.advances} kasbon · {o.pending.swaps} tukar shift (manajer)</Text>
+        </Pressable>
+      )}
+      <Card>
+        <Text style={s.h2}>7 hari terakhir</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 120 }}>
+          {o.series.map((x) => (
+            <View key={x.day} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+              <View accessibilityLabel={`${fmtDay(x.day)}: ${rp(x.sales)}`} style={{ width: '100%', height: Math.max(3, (x.sales / max) * 96), backgroundColor: x.day === o.date ? c.accent : c.line, borderRadius: 4 }} />
+              <Text style={{ fontSize: 10, color: c.muted, marginTop: 4 }}>{DAYS[dow(x.day)]}</Text>
+            </View>
+          ))}
+        </View>
+      </Card>
+      {o.outlets.map((x) => (
+        <Card key={x.id}>
+          <Text style={s.h2}>{x.name}</Text>
+          <Text style={{ color: c.ink }}>{rp(x.sales)} · {x.orders} transaksi</Text>
+          <Text style={s.muted}>Kasir buka: {x.openShifts.length ? x.openShifts.map((k) => k.cashier).join(', ') : 'tidak ada shift terbuka'}</Text>
+          <Text style={s.muted}>Sedang absen masuk: {x.clockedIn.length ? x.clockedIn.join(', ') : 'tidak ada'}</Text>
+          {x.tasks.length === 0 ? <Text style={s.muted}>Tugas hari ini: belum dibuka tim</Text> : x.tasks.map((t) => <Text key={t.phase} style={{ color: t.done === t.total ? c.ok : c.warn }}>Tugas {t.phase === 'opening' ? 'Opening' : 'Closing'}: {t.done}/{t.total}</Text>)}
+        </Card>
+      ))}
     </ScrollView>
   );
 }

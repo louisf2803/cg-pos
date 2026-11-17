@@ -4,13 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { TASK_PHASE_LABEL, staffAppRole, taskProgress, type StaffMe, type TaskItem, type TaskRun } from '@cgpos/shared';
 import { Btn, c, s } from './src/ui';
-import { Jadwal, Pengajuan, Pesan, Slip } from './src/screens';
+import { Jadwal, Pantau, Pengajuan, Pesan, Slip } from './src/screens';
 import { completeItem, configured, loadMe, loadToday, signIn, signOut, skipItem, supabase, todayJakarta, uploadTaskPhoto } from './src/api';
 
 const ROLE_NAME = { owner: 'Pemilik', manager: 'Manajer', employee: 'Karyawan' } as const;
 
-type Tab = 'beranda' | 'tugas' | 'pengajuan' | 'jadwal' | 'saya';
-const TAB_LABEL: Record<Tab, string> = { beranda: 'Beranda', tugas: 'Tugas', pengajuan: 'Pengajuan', jadwal: 'Jadwal', saya: 'Saya' };
+type Tab = 'beranda' | 'tugas' | 'pantau' | 'pengajuan' | 'jadwal' | 'saya';
+const TAB_LABEL: Record<Tab, string> = { beranda: 'Beranda', pantau: 'Pantau', tugas: 'Tugas', pengajuan: 'Pengajuan', jadwal: 'Jadwal', saya: 'Saya' };
 
 export default function App() {
   const [phase, setPhase] = useState<'boot' | 'login' | 'unlinked' | 'ready'>('boot');
@@ -40,12 +40,13 @@ export default function App() {
       <View style={s.body}>
         {tab === 'beranda' && <Beranda me={me} role={role} go={setTab} />}
         {tab === 'tugas' && <Tugas me={me} />}
+        {tab === 'pantau' && <Pantau goDecide={() => setTab('pengajuan')} />}
         {tab === 'pengajuan' && <Pengajuan me={me} />}
         {tab === 'jadwal' && <Jadwal />}
         {tab === 'saya' && <Saya me={me} role={role} onOut={async () => { await signOut(); await refresh(); }} />}
       </View>
       <View style={s.tabs}>
-        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+        {(Object.keys(TAB_LABEL) as Tab[]).filter((t) => t !== 'pantau' || role === 'owner').map((t) => (
           <Pressable key={t} accessibilityRole="tab" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} style={s.tab}>
             <Text style={[s.tabText, tab === t && { color: c.accent, fontWeight: '700' }]}>{TAB_LABEL[t]}</Text>
           </Pressable>

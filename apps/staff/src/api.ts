@@ -149,3 +149,22 @@ export async function loadNotices(employeeId: string): Promise<Notice[]> {
   if (error) throw new Error(error.message);
   return ((data as Row[] | null) ?? []).map((x) => ({ id: x.id as string, title: x.title as string, body: x.body as string, createdAt: x.created_at as string }));
 }
+
+export interface OutletOverview { id: string; name: string; orders: number; sales: number; openShifts: { cashier: string; openedAt: string }[]; clockedIn: string[]; tasks: { phase: 'opening' | 'closing'; done: number; total: number }[] }
+export interface OwnerOverview { date: string; outlets: OutletOverview[]; series: { day: string; sales: number; orders: number }[]; pending: { leave: number; advances: number; swaps: number } }
+/** Pantauan pemilik (hanya pemilik/admin): penjualan hari ini, kasir aktif, absen, tugas, tren 7 hari. */
+export async function loadOverview(): Promise<OwnerOverview> {
+  const j = await rpc<Row>('owner_overview');
+  const n = (v: unknown) => Number(v ?? 0);
+  const p = (j.pending as Row) ?? {};
+  return {
+    date: j.date as string,
+    outlets: ((j.outlets as Row[]) ?? []).map((o): OutletOverview => ({
+      id: o.id as string, name: o.name as string, orders: n(o.orders), sales: n(o.sales),
+      openShifts: ((o.open_shifts as Row[]) ?? []).map((x) => ({ cashier: x.cashier as string, openedAt: x.opened_at as string })),
+      clockedIn: ((o.clocked_in as string[]) ?? []), tasks: ((o.tasks as Row[]) ?? []).map((t) => ({ phase: t.phase as 'opening' | 'closing', done: n(t.done), total: n(t.total) })),
+    })),
+    series: ((j.series as Row[]) ?? []).map((x) => ({ day: x.day as string, sales: n(x.sales), orders: n(x.orders) })),
+    pending: { leave: n(p.leave), advances: n(p.advances), swaps: n(p.swaps) },
+  };
+}
