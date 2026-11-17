@@ -42,10 +42,24 @@ Prioritas tinggi (sering dibutuhkan): notifikasi dorong dan pengumuman; absen se
 Menengah: ambil shift kosong / tawarkan shift ke rekan; tugas harian (checklist buka dan tutup outlet dengan foto bukti); dokumen dan SOP wajib baca (kontrak, pelatihan) dengan tanda sudah dibaca; reimburse biaya (foto nota); chat ke manajer atau grup shift; ganti PIN dan data rekening (disetujui manajer).
 Nanti: penilaian kinerja dan umpan balik bulanan; insentif/target tim yang terlihat real-time (komisi sudah ada di dashboard); pengingat ulang tahun dan masa kerja; kalender tim.
 
-## Pertanyaan terbuka untuk Louis
-1. Tukar shift: apakah rekan harus setuju dulu (usulan) atau langsung ke manajer?
-2. Cuti: batas karyawan yang boleh cuti di hari yang sama? Perlu surat dokter untuk sakit berapa hari?
-3. Kasbon: batas maksimum per karyawan, dan apakah boleh dua kasbon aktif sekaligus?
-4. Login karyawan: email+sandi sendiri, atau PIN yang sama dengan di kasir?
-5. Absen: wajib selfie? Di luar radius diblokir (keputusan sebelumnya 12 Nov) atau hanya ditandai?
-6. Notifikasi: lewat aplikasi saja, atau juga WhatsApp?
+## Keputusan Louis (17 Nov 2026): mengalahkan usulan di atas bila berbeda
+1. **Absen hanya di tablet POS**, bukan HP. Aplikasi hanya menampilkan rekap (telat, absen). **Lupa absen tidak bisa diajukan**: dihitung telat atau tidak masuk; **manajer bisa membuat pengecualian** (dihitung hadir tepat waktu, berizin, atau libur) dengan alasan wajib, tercatat atas nama manajer, payroll ikut. Layar: Pengecualian absen (manajer).
+2. **Tukar shift**: rekan setuju dulu, baru manajer menyetujui.
+3. **Cuti paling lambat H-2** (tanggal paling awal yang bisa dipilih = hari ini + 2). Cuti bersama tetap dari kalender usaha.
+4. **Kasbon tanpa batas jumlah**, tetapi **tidak boleh dua kasbon aktif**: formulir terkunci selama masih ada kasbon berjalan. Disetujui wajib bukti transfer.
+5. **Login**: awal pakai email dan sandi sendiri; ke depan cukup PIN 6 digit yang sama dengan di kasir.
+6. **Notifikasi** lewat aplikasi dan juga WhatsApp (karyawan bisa mematikan salah satunya; nomor WA di profil). Pengiriman WA butuh penyedia (belum dipilih).
+7. **Tugas harian dengan foto bukti** (dikerjakan bersama mitra): satu tim shift (mis. 3 orang opening) mengerjakan satu daftar tugas; status sama dan otomatis untuk semua anggota tim; setiap foto tercatat atas nama pengunggahnya dan manajer melihat siapa yang mengunggah di Laporan tugas. **Tutup kasir di POS baru bisa dilakukan setelah semua tugas (Closing, dan Opening) selesai**; manajer dapat membuka paksa dengan PIN dan alasan (usulan saya; tercatat di laporan).
+
+Prototipe terbaru: 15 layar (Masuk, Beranda, Jadwal, Tugas tim, Tukar shift, Izin dan cuti, Slip gaji, Saya dan notifikasi, Rekap absensi, Kasbon, Persetujuan, Setujui kasbon + bukti TF, Pengecualian absen, Laporan tugas, POS tutup kasir terkunci).
+
+## Dampak ke CG POS (kerjaan lanjutan, belum dibangun)
+- Dashboard: pengelolaan daftar tugas per outlet dan shift; Laporan tugas (siapa mengunggah foto); pengaturan batas karyawan cuti per hari (opsional); penyedia WhatsApp.
+- POS: tutup kasir memeriksa status tugas ke server (usulan bila offline: tetap terkunci kecuali buka paksa manajer); absen tetap di layar Absensi POS yang sudah ada.
+- Server: tabel tugas (templat, instans per tim per hari, foto, pengunggah) dengan RLS per tim; gerbang di tutup kasir; tabel pengecualian absen yang dibaca payroll (pola EXCUSED yang sudah ada).
+
+## Pertanyaan yang masih terbuka
+1. Batas jumlah karyawan yang boleh cuti di hari yang sama? Surat dokter untuk sakit berapa hari?
+2. Tugas yang tidak selesai karena kendala (mis. mesin rusak): boleh ditandai tidak bisa dikerjakan dengan alasan, atau harus manajer yang buka paksa?
+3. Mitra tugas harian: bentuk kerja samanya seperti apa (daftar tugas dari mereka, atau hanya foto bukti)? Menentukan apakah daftar tugas diatur di dashboard sendiri.
+4. Penyedia WhatsApp: API resmi atau pihak ketiga?
