@@ -58,8 +58,12 @@ Prototipe terbaru: 15 layar (Masuk, Beranda, Jadwal, Tugas tim, Tukar shift, Izi
 - POS: tutup kasir memeriksa status tugas ke server (usulan bila offline: tetap terkunci kecuali buka paksa manajer); absen tetap di layar Absensi POS yang sudah ada.
 - Server: tabel tugas (templat, instans per tim per hari, foto, pengunggah) dengan RLS per tim; gerbang di tutup kasir; tabel pengecualian absen yang dibaca payroll (pola EXCUSED yang sudah ada).
 
+## Keputusan tambahan Louis (17 Nov 2026, sore)
+- Sakit **tidak perlu surat dokter** (formulir izin/cuti/sakit tanpa lampiran wajib).
+- Tugas yang tidak bisa dikerjakan **boleh ditandai "tidak bisa" dengan alasan**; dianggap selesai untuk gerbang Tutup kasir, dan alasannya terlihat di Laporan tugas.
+- **WhatsApp tidak jadi**: notifikasi hanya di aplikasi (notifikasi dorong di HP). Tidak perlu penyedia WA dan tidak perlu menyimpan nomor WA.
+- "Partner" pada tugas harian = **rekan satu tim shift**, bukan mitra bisnis luar. Jadi daftar tugas dan laporannya sepenuhnya di sistem kita (diatur manajer di dashboard).
+
 ## Pertanyaan yang masih terbuka
-1. Batas jumlah karyawan yang boleh cuti di hari yang sama? Surat dokter untuk sakit berapa hari?
-2. Tugas yang tidak selesai karena kendala (mis. mesin rusak): boleh ditandai tidak bisa dikerjakan dengan alasan, atau harus manajer yang buka paksa?
-3. Mitra tugas harian: bentuk kerja samanya seperti apa (daftar tugas dari mereka, atau hanya foto bukti)? Menentukan apakah daftar tugas diatur di dashboard sendiri.
-4. Penyedia WhatsApp: API resmi atau pihak ketiga?
+1. Batas jumlah karyawan yang boleh cuti di hari yang sama (opsional; tanpa batas bila tidak diisi).
+2. Siapa yang menyusun daftar tugas opening dan closing, dan apakah berbeda per hari atau per outlet?
