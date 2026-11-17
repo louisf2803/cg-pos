@@ -45,7 +45,7 @@ import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalReque
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
-import { taskTemplateProblem, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
+import { taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -318,6 +318,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     }
     return run.id;
   };
+  const staffAccounts = new Map<string, string>(); // karyawan -> email (demo)
   const unavailableIng = new Map<string, IngredientUnavailable>(); // kunci `${outletId}:${productId}`
   const employeeProfiles = new Map<string, EmployeeProfile>();
   /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
@@ -2338,6 +2339,14 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       employeeTypes.splice(i, 1);
       for (const h of employeeHr) if (h.employeeTypeId === id) delete h.employeeTypeId;
     },
+    async listStaffAccounts() { return clone([...staffAccounts.entries()].map(([employeeId, email]): StaffAccount => ({ employeeId, email }))); },
+    async linkStaffAccount(employeeId, email) {
+      const e = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+$/.test(e)) throw new DataError('invalid', 'Email tidak valid.');
+      if ([...staffAccounts.entries()].some(([id, m]) => m === e && id !== employeeId)) throw new DataError('invalid', 'Akun itu sudah ditautkan ke karyawan lain.');
+      staffAccounts.set(employeeId, e);
+    },
+    async unlinkStaffAccount(employeeId) { staffAccounts.delete(employeeId); },
     async listTaskTemplates(outletId) { return clone(taskTemplates.filter((t) => !outletId || t.outletId === outletId).sort((a, b) => a.outletId.localeCompare(b.outletId) || a.phase.localeCompare(b.phase) || a.sort - b.sort)); },
     async saveTaskTemplate(input) {
       const problem = taskTemplateProblem(input);

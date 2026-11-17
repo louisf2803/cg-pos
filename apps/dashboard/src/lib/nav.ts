@@ -245,6 +245,7 @@ export const MODUL: NavModule[] = [
         items: [
           { href: '/pengaturan/karyawan', label: 'Daftar karyawan', screen: 'S43', tier: 1, built: true },
           { href: '/karyawan/profil', label: 'Profil kepegawaian', screen: 'S43', tier: 2, built: true },
+          { href: '/karyawan/akun-aplikasi', label: 'Akun aplikasi karyawan', screen: 'S43', tier: 2, built: true },
           { href: '/pengaturan/log', label: 'Log aktivitas', screen: 'S43', tier: 2, built: true },
           { href: '/pengaturan/kode-otorisasi', label: 'Kode otorisasi', screen: 'S43', tier: 2, built: true },
         ],

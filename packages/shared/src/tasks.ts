@@ -44,6 +44,13 @@ export function groupGateByPhase(items: readonly TaskGateItem[]): { phase: TaskP
   return TASK_PHASES.map((phase) => ({ phase, items: items.filter((i) => i.phase === phase) })).filter((g) => g.items.length > 0);
 }
 
+/** Tautan akun login aplikasi karyawan ke karyawan (migrasi 0153). */
+export interface StaffAccount { employeeId: string; email: string }
+/** Identitas karyawan untuk akun yang sedang masuk di aplikasi HP (staff_me). */
+export interface StaffMe { employeeId: string; orgId: string; name: string; role: 'owner' | 'manager' | 'cashier' | 'kitchen' | 'warehouse'; memberRole: string | null; outlets: { id: string; name: string }[] }
+/** Peran di aplikasi HP: pemilik dan manajer melihat persetujuan; selain itu karyawan biasa. */
+export const staffAppRole = (r: StaffMe['role']): 'owner' | 'manager' | 'employee' => (r === 'owner' ? 'owner' : r === 'manager' ? 'manager' : 'employee');
+
 /** Jalur foto di penyimpanan: <org>/<outlet>/<tanggal>/<tugas>.jpg (folder pertama harus id organisasi). */
 export function taskPhotoPath(orgId: string, outletId: string, date: string, itemId: string, ext = 'jpg'): string {
   return `${orgId}/${outletId}/${date}/${itemId}.${ext.replace(/^\./, '')}`;

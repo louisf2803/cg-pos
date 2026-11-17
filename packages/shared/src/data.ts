@@ -19,6 +19,7 @@ import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion 
 import type { StockRequest, StockRequestInput, StockRequestStatus } from './stock-requests';
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
+import type { StaffAccount } from './tasks';
 import type { TaskGateItem, TaskPhase, TaskRun, TaskTemplate, TaskTemplateInput } from './tasks';
 import type { IngredientUnavailable, IngredientUnavailableInput, UnavailableProduct } from './availability';
 import type { CollectiveLeave, CollectiveLeaveInput, EmployeeProfile, EmployeeProfileInput } from './hr-profile';
@@ -303,6 +304,10 @@ export interface DataLayer {
   /** Pengaturan lokasi dan radius absensi per outlet (hanya outlet yang sudah diatur). */
   listAttendanceSettings(): Promise<AttendanceSettings[]>;
   saveAttendanceSettings(input: AttendanceSettingsInput): Promise<AttendanceSettings>;
+  /** Akun aplikasi karyawan (migrasi 0153): tautan akun Supabase yang sudah dibuat ke karyawan. Hanya pengelola. */
+  listStaffAccounts(): Promise<StaffAccount[]>;
+  linkStaffAccount(employeeId: string, email: string): Promise<void>;
+  unlinkStaffAccount(employeeId: string): Promise<void>;
   /** Tugas harian Opening/Closing (migrasi 0152). Templat per outlet: pengelola menulis, semua anggota membaca. */
   listTaskTemplates(outletId?: string): Promise<TaskTemplate[]>;
   saveTaskTemplate(input: TaskTemplateInput): Promise<TaskTemplate>;

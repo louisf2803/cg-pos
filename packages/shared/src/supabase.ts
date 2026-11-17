@@ -26,7 +26,7 @@ import { productionError, productionRunProblem, productionTemplateProblem, type 
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
-import { taskTemplateProblem, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
+import { taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2704,6 +2704,27 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteEmployeeType(id) {
       const { error } = await db().from('employee_types').delete().eq('id', id);
       if (error) throw mapHrError(error);
+    },
+    async listStaffAccounts() {
+      const { data, error } = await db().rpc('staff_account_list');
+      if (error) throw mapDbError(error);
+      return ((data as Row[] | null) ?? []).map((r): StaffAccount => ({ employeeId: r.employee_id as string, email: r.email as string }));
+    },
+    async linkStaffAccount(employeeId, email) {
+      const { error } = await db().rpc('staff_account_link', { p_employee: employeeId, p_email: email });
+      if (error) {
+        const m = error.message ?? '';
+        if (/user not found/i.test(m)) throw new DataError('invalid', 'Email itu belum punya akun. Buat dulu di Supabase (Authentication, Users), lalu tautkan di sini.');
+        if (/already linked/i.test(m)) throw new DataError('invalid', 'Akun itu sudah ditautkan ke karyawan lain.');
+        if (/device account/i.test(m)) throw new DataError('invalid', 'Itu akun perangkat kasir. Pakai akun lain untuk karyawan.');
+        if (/owner membership/i.test(m)) throw new DataError('invalid', 'Karyawan berperan pemilik hanya bisa ditautkan ke akun yang sudah menjadi pemilik organisasi ini.');
+        if (/not allowed/i.test(m)) throw new DataError('forbidden', 'Hanya manajer dan pemilik yang boleh menautkan akun.');
+        throw mapDbError(error);
+      }
+    },
+    async unlinkStaffAccount(employeeId) {
+      const { error } = await db().rpc('staff_account_unlink', { p_employee: employeeId });
+      if (error) throw mapDbError(error);
     },
     async listTaskTemplates(outletId) {
       const rows = await fetchAll<Row>((f, t) => {
