@@ -83,13 +83,13 @@ export function FeatureSearchBar() {
   };
 
   return (
-    <div className="sticky top-0 z-50 h-[44px] bg-surface border-b border-border flex items-center justify-center px-16 desktop:px-24" role="search" aria-label="Cari fitur">
-      <div ref={wrapRef} className="relative w-full max-w-[560px]">
+    <div className="sticky top-0 z-50 h-[48px] bg-surface-raised flex items-center px-16 desktop:px-24" role="search" aria-label="Cari fitur">
+      <div ref={wrapRef} className="relative w-full max-w-[720px]">
         <Search className="cg-icon cg-icon--sm text-text-muted absolute left-12 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden />
         <input
           ref={inputRef}
           data-testid="feature-search-input"
-          className="cg-input w-full h-[32px] pl-36 pr-64 text-sm rounded-full bg-surface-raised"
+          className="cg-input w-full h-[36px] text-left pl-[36px] pr-[64px] text-sm rounded-lg bg-surface border-transparent"
           type="text"
           placeholder="Cari fitur, misalnya stok opname atau laporan"
           aria-label="Cari fitur (Ctrl+K)"

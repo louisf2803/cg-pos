@@ -5,7 +5,7 @@ import {
   driversFor, filterDevices, isPrinter, papersFor, testPageBytes, type DeviceConnection, type DeviceEntry, type DeviceKind, type PaperSize,
 } from '@cgpos/shared';
 import { useDeviceRegistry, deviceRegistry } from '../../lib/device-registry';
-import { bluetoothSupported, printBytes, scanBluetoothName, usePrinter } from '../../lib/printer';
+import { bluetoothSupported, connectPrinter, printBytes, printerStore, scanBluetoothName, usePrinter } from '../../lib/printer';
 import { Modal } from '../../ui';
 
 type Step = 1 | 2 | 3;
@@ -112,7 +112,16 @@ export function DeviceListDialog({ outletName, onClose }: { outletName: string; 
 
   async function testPrint(d: DeviceEntry) {
     setBusy(d.id); setMsg('');
-    try { await printBytes(testPageBytes(d.paper === '80' ? '80' : '58', outletName)); setMsg(`Uji cetak terkirim ke ${d.deviceName}.`); }
+    try {
+      // pasangan di daftar ini hanya mencatat nama; sambungan sungguhan dibuat di sini (ketukan kasir diperlukan untuk dialog Bluetooth)
+      if (printerStore.get().status !== 'connected') {
+        await connectPrinter();
+        const st = printerStore.get();
+        if (st.status !== 'connected') throw new Error(st.error || 'Printer belum tersambung. Nyalakan printer dan dekatkan, lalu coba lagi.');
+      }
+      await printBytes(testPageBytes(d.paper === '80' ? '80' : '58', outletName));
+      setMsg(`Uji cetak terkirim ke ${printerStore.get().name || d.deviceName}. Bila kertas tidak keluar, cek kertas dan tipe kertas (58/80 mm).`);
+    }
     catch (e) { setMsg(e instanceof Error ? e.message : 'Uji cetak gagal.'); }
     finally { setBusy(null); }
   }
@@ -135,7 +144,7 @@ export function DeviceListDialog({ outletName, onClose }: { outletName: string; 
               <li key={d.id} className="flex flex-wrap items-center justify-between gap-8 p-8 border border-border rounded">
                 <span className="min-w-0"><strong className="block truncate">{d.deviceName}</strong><span className="text-sm text-text-muted">{DEVICE_KIND_LABEL[d.kind]} · {CONNECTION_LABEL[d.connection]}{d.paper ? ` · ${PAPER_LABEL[d.paper]}` : ''}{d.kind === 'cashier_printer' && printer.status === 'connected' && printer.name === d.deviceName ? ' · tersambung' : ''}</span></span>
                 <span className="flex gap-8">
-                  {d.kind === 'cashier_printer' && <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={busy === d.id || printer.status !== 'connected'} title={printer.status === 'connected' ? undefined : 'Sambungkan printer dulu dari dialog struk'} onClick={() => void testPrint(d)}>Uji cetak</button>}
+                  {d.kind === 'cashier_printer' && <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={busy === d.id || printer.status === 'unsupported'} title={printer.status === 'unsupported' ? 'Bluetooth tidak tersedia di peramban ini. Pakai Chrome atau Edge di alamat HTTPS.' : printer.status === 'connected' ? undefined : 'Akan meminta memilih printer Bluetooth dulu'} onClick={() => void testPrint(d)}>{busy === d.id ? 'Mencetak…' : 'Uji cetak'}</button>}
                   <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" aria-label={`Hapus ${d.deviceName}`} onClick={() => deviceRegistry.remove(d.id)}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
                 </span>
               </li>

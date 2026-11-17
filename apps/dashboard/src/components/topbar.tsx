@@ -316,7 +316,7 @@ export function Topbar() {
   return (
     <>
       <FeatureSearchBar />
-      <header className="sticky top-[44px] z-40 h-[60px] bg-surface-raised border-b border-border flex items-center justify-between px-16 desktop:px-24 select-none">
+      <header className="sticky top-[48px] z-40 h-[60px] bg-surface-raised border-b border-border flex items-center justify-between px-16 desktop:px-24 select-none">
         {/* Left: Logo & Mobile Hamburger */}
         <div className="flex items-center gap-12 shrink-0">
           <button
