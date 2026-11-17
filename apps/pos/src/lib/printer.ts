@@ -27,8 +27,17 @@ const SERVICES = [
   'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '00001101-0000-1000-8000-00805f9b34fb',
 ];
 
+/** Web Serial (Chrome/Edge di Windows, macOS, Linux, ChromeOS): printer Bluetooth KLASIK (SPP) yang sudah dipasangkan di sistem muncul sebagai port COM, begitu juga printer USB. */
+interface SerialPortLike { open: (o: { baudRate: number }) => Promise<void>; close: () => Promise<void>; writable: WritableStream<Uint8Array> | null; getInfo?: () => { usbVendorId?: number; usbProductId?: number }; addEventListener?: (t: string, l: () => void) => void }
+interface SerialApi { requestPort: () => Promise<SerialPortLike> }
+const serialApi = (): SerialApi | undefined => (globalThis as unknown as { navigator?: { serial?: SerialApi } }).navigator?.serial;
+export const serialSupported = () => !!serialApi();
+let serialPort: SerialPortLike | null = null;
+
 const bluetooth = (): BleApi | undefined => (globalThis as unknown as { navigator?: { bluetooth?: BleApi } }).navigator?.bluetooth;
 export const bluetoothSupported = () => !!bluetooth();
+/** Ada cara mengirim langsung ke printer (Bluetooth BLE atau port serial) */
+export const directPrintSupported = () => !!bluetooth() || !!serialApi();
 
 export type PrinterStatus = 'unsupported' | 'idle' | 'connecting' | 'connected' | 'error';
 export interface PrinterState { status: PrinterStatus; name: string; error: string; openDrawer: boolean }
@@ -41,7 +50,7 @@ const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify({ openD
 
 let device: BleDevice | null = null;
 let channel: BleChar | null = null;
-let state: PrinterState = { status: bluetoothSupported() ? 'idle' : 'unsupported', name: readPrefs().name, error: '', openDrawer: readPrefs().openDrawer };
+let state: PrinterState = { status: directPrintSupported() ? 'idle' : 'unsupported', name: readPrefs().name, error: '', openDrawer: readPrefs().openDrawer };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<PrinterState>) => { state = { ...state, ...patch }; for (const l of listeners) l(); };
 
@@ -100,8 +109,27 @@ export async function scanBluetoothName(): Promise<string> {
   } catch (e) { throw new Error(friendly(e)); }
 }
 
+/** Sambungkan printer lewat port serial: printer Bluetooth klasik yang sudah dipasangkan di Windows/macOS (muncul sebagai port COM) atau printer USB. Harus dipicu ketukan kasir. */
+export async function connectSerialPrinter(baudRate = 9600): Promise<void> {
+  const api = serialApi();
+  if (!api) { set({ status: 'unsupported', error: 'Peramban ini tidak punya Web Serial. Pakai Chrome atau Edge di komputer.' }); return; }
+  set({ status: 'connecting', error: '' });
+  try {
+    const port = await api.requestPort();
+    await port.open({ baudRate });
+    port.addEventListener?.('disconnect', () => { serialPort = null; set({ status: 'idle' }); });
+    serialPort = port; channel = null;
+    set({ status: 'connected', name: 'Printer (port serial)', error: '' });
+  } catch (e) {
+    const m = e instanceof Error ? e.message : String(e);
+    set({ status: serialPort ? 'connected' : 'error', error: /No port selected|cancel/i.test(m) ? 'Pemilihan port dibatalkan.' : /already open|busy/i.test(m) ? 'Port sedang dipakai program lain. Tutup program itu lalu coba lagi.' : m || 'Gagal membuka port printer.' });
+  }
+}
+
 export function disconnectPrinter() {
   try { device?.gatt?.disconnect(); } catch { /* sudah putus */ }
+  const p = serialPort; serialPort = null;
+  if (p) void p.close().catch(() => undefined);
   channel = null; set({ status: 'idle', error: '' });
 }
 
@@ -124,6 +152,14 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Kirim byte ke printer; menyambung ulang bila koneksi terputus sejak terakhir dipakai. */
 export async function printBytes(bytes: Uint8Array): Promise<void> {
+  if (serialPort) {
+    const w = serialPort.writable?.getWriter();
+    if (!w) { serialPort = null; set({ status: 'error', error: 'Port printer tertutup. Sambungkan ulang.' }); throw new Error('Port printer tertutup. Sambungkan ulang.'); }
+    try { await w.write(bytes); }
+    catch (e) { serialPort = null; set({ status: 'error', error: 'Pengiriman ke port printer gagal. Sambungkan ulang.' }); throw new Error(e instanceof Error ? e.message : 'Pengiriman ke port printer gagal.'); }
+    finally { w.releaseLock(); }
+    return;
+  }
   if (!bluetooth()) throw new Error('Peramban ini tidak mendukung Bluetooth langsung.');
   if (!device) throw new Error('Printer belum disambungkan.');
   if (!channel || !device.gatt?.connected) { set({ status: 'connecting' }); try { await open(device); set({ status: 'connected' }); } catch (e) { set({ status: 'error', error: friendly(e) }); throw new Error(friendly(e)); } }

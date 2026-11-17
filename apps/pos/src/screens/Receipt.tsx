@@ -14,7 +14,7 @@ import {
   type Order,
   type OutletContext,
 } from '@cgpos/shared';
-import { bluetoothSupported, connectPrinter, disconnectPrinter, printBytes, reconnectPrinter, setOpenDrawer, usePrinter } from '../lib/printer';
+import { bluetoothSupported, connectPrinter, connectSerialPrinter, directPrintSupported, disconnectPrinter, printBytes, reconnectPrinter, serialSupported, setOpenDrawer, usePrinter } from '../lib/printer';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
@@ -312,7 +312,7 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
       </div>
       <section aria-labelledby="h-bt" className="mt-12 grid gap-8">
         <h3 id="h-bt" className="text-base">Printer Bluetooth</h3>
-        {!bluetoothSupported() ? (
+        {!directPrintSupported() ? (
           <p className="text-text-muted text-sm">Peramban ini belum bisa mengirim langsung ke printer Bluetooth (butuh Chrome atau Edge di Android, Windows, atau Mac; iPhone/iPad belum bisa). Pakai tombol Cetak di bawah.</p>
         ) : (
           <>
@@ -320,7 +320,10 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
             <div className="flex flex-wrap gap-8">
               {pr.status === 'connected'
                 ? <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={disconnectPrinter}>Putuskan</button>
-                : <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => void connectPrinter()} disabled={pr.status === 'connecting'}><Bluetooth className="cg-icon cg-icon--sm" aria-hidden /> Hubungkan printer</button>}
+                : <>
+                    {bluetoothSupported() && <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => void connectPrinter()} disabled={pr.status === 'connecting'}><Bluetooth className="cg-icon cg-icon--sm" aria-hidden /> Hubungkan printer</button>}
+                    {serialSupported() && <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => void connectSerialPrinter()} disabled={pr.status === 'connecting'} title="Untuk printer Bluetooth klasik yang sudah dipasangkan di Windows/Mac, atau printer USB">Hubungkan via port (COM/USB)</button>}
+                  </>}
               <button className="cg-btn cg-btn--ghost cg-btn--sm" disabled={pr.status !== 'connected' || sending} onClick={() => void send(() => testPageBytes(paper, ctx.outletName, false))}>Tes cetak</button>
             </div>
             <label className="flex items-center gap-8 text-sm"><input type="checkbox" checked={pr.openDrawer} onChange={(e) => setOpenDrawer(e.target.checked)} /> Buka laci kas setelah mencetak struk</label>

@@ -5,7 +5,7 @@ import {
   driversFor, filterDevices, isPrinter, papersFor, testPageBytes, type DeviceConnection, type DeviceEntry, type DeviceKind, type PaperSize,
 } from '@cgpos/shared';
 import { useDeviceRegistry, deviceRegistry } from '../../lib/device-registry';
-import { bluetoothSupported, connectPrinter, printBytes, printerStore, scanBluetoothName, usePrinter } from '../../lib/printer';
+import { bluetoothSupported, connectPrinter, connectSerialPrinter, printBytes, printerStore, scanBluetoothName, serialSupported, usePrinter } from '../../lib/printer';
 import { Modal } from '../../ui';
 
 type Step = 1 | 2 | 3;
@@ -87,6 +87,7 @@ function AddDevice({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
               {!supported ? <p className="cg-banner cg-banner--warning" role="status">Bluetooth belum aktif atau tidak didukung peramban ini. Pakai Chrome atau Edge di alamat HTTPS dan nyalakan Bluetooth.</p>
                 : found ? <p className="p-8 border border-accent rounded">{found}</p>
                 : <p className="text-text-muted text-sm">Belum ada perangkat dipilih. Ketuk Pindai, lalu pilih perangkat dari daftar peramban.</p>}
+              <p className="text-text-muted text-xs mt-4">Printer tidak muncul di daftar? Banyak printer thermal murah memakai Bluetooth klasik (bukan BLE) sehingga tidak terlihat oleh peramban. Pasangkan dulu di Bluetooth Windows/Mac, simpan perangkat ini dengan nama bebas, lalu pakai tombol Uji cetak (COM/USB) di daftar perangkat.</p>
             </div>
           </>
         )}
@@ -110,12 +111,12 @@ export function DeviceListDialog({ outletName, onClose }: { outletName: string; 
   const [busy, setBusy] = useState<string | null>(null);
   const shown = filterDevices(devices, q);
 
-  async function testPrint(d: DeviceEntry) {
+  async function testPrint(d: DeviceEntry, via: 'ble' | 'serial' = 'ble') {
     setBusy(d.id); setMsg('');
     try {
       // pasangan di daftar ini hanya mencatat nama; sambungan sungguhan dibuat di sini (ketukan kasir diperlukan untuk dialog Bluetooth)
       if (printerStore.get().status !== 'connected') {
-        await connectPrinter();
+        await (via === 'serial' ? connectSerialPrinter() : connectPrinter());
         const st = printerStore.get();
         if (st.status !== 'connected') throw new Error(st.error || 'Printer belum tersambung. Nyalakan printer dan dekatkan, lalu coba lagi.');
       }
@@ -145,6 +146,7 @@ export function DeviceListDialog({ outletName, onClose }: { outletName: string; 
                 <span className="min-w-0"><strong className="block truncate">{d.deviceName}</strong><span className="text-sm text-text-muted">{DEVICE_KIND_LABEL[d.kind]} · {CONNECTION_LABEL[d.connection]}{d.paper ? ` · ${PAPER_LABEL[d.paper]}` : ''}{d.kind === 'cashier_printer' && printer.status === 'connected' && printer.name === d.deviceName ? ' · tersambung' : ''}</span></span>
                 <span className="flex gap-8">
                   {d.kind === 'cashier_printer' && <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={busy === d.id || printer.status === 'unsupported'} title={printer.status === 'unsupported' ? 'Bluetooth tidak tersedia di peramban ini. Pakai Chrome atau Edge di alamat HTTPS.' : printer.status === 'connected' ? undefined : 'Akan meminta memilih printer Bluetooth dulu'} onClick={() => void testPrint(d)}>{busy === d.id ? 'Mencetak…' : 'Uji cetak'}</button>}
+                  {d.kind === 'cashier_printer' && serialSupported() && <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm" disabled={busy === d.id} title="Untuk printer Bluetooth klasik yang sudah dipasangkan di Windows/Mac (port COM) atau printer USB" onClick={() => void testPrint(d, 'serial')}>Uji cetak (COM/USB)</button>}
                   <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" aria-label={`Hapus ${d.deviceName}`} onClick={() => deviceRegistry.remove(d.id)}><Trash2 className="cg-icon cg-icon--sm" aria-hidden /></button>
                 </span>
               </li>
