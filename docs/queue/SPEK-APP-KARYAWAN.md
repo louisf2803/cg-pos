@@ -100,9 +100,19 @@ Menengah:
 - Ganti outlet / lihat semua outlet; ekspor ringkasan.
 Nanti: perbandingan antar outlet dan antar kasir, ulasan pelanggan, persetujuan pembelian barang (PO), persetujuan perubahan harga produk, absensi dan kinerja per orang, catatan pelanggaran.
 
+## Jawaban Louis (17 Nov 2026, malam) - final
+1. **Tukar shift manajer cukup disetujui rekannya** (tidak perlu owner). Ini menggantikan usulan di tabel peran di atas.
+2. Batas peringatan (void, selisih kas) **tidak perlu diatur**: peringatan memakai aturan sederhana (setiap void atau selisih kas ditampilkan), tanpa layar pengaturan batas.
+3. **Owner hanya melihat dan menyetujui.** Hanya **manajer** yang mengubah sesuatu, terutama menandai stok habis.
+4. **Satu owner**: cukup satu akun owner yang menyetujui.
+5. **Daftar tugas berbeda per outlet** (layar dashboard sudah memilih outlet).
+
+## Fitur baru: bahan habis -> menu ikut nonaktif (manajer)
+- Manajer menandai bahan baku **Habis** (mis. matcha). Semua menu yang resepnya memuat bahan itu (termasuk pilihan ekstra yang memakai bahan itu) otomatis **tidak bisa dipesan**: di kasir tampil abu-abu berlabel "Habis" dengan keterangan bahan penyebabnya. Saat bahan ditandai tersedia (atau stok diisi), menu aktif lagi otomatis. Setiap perubahan tercatat di log aktivitas (siapa dan jam berapa).
+- Layar rancangan: nomor 21 (HP manajer) dan 22 (POS tablet). Juga dari dashboard (Inventori).
+- Bahan data yang sudah ada: tabel `product_outlets.is_available` (0002) per produk per outlet belum dipakai aplikasi; resep dan penguraian komponen sudah ada (`pos.sale_components`, A135). Rancangan: tambah penanda `unavailable` per bahan per outlet (manajer), lalu ketersediaan menu = aktif DAN tidak ada komponen resep yang habis; dihitung di DataLayer sehingga kasir, dashboard, dan antrean offline sama; server menolak penjualan item yang tidak tersedia (sinkron offline: tolak dengan pesan jelas, bukan membatalkan transaksi yang sudah terjadi).
+- Berbeda dari fitur "batasi penjualan saat stok habis" yang sudah ada (berdasarkan jumlah stok): ini tanda manual oleh manajer untuk situasi seperti barang tidak dikirim atau rusak.
+
 ## Pertanyaan yang masih terbuka
-1. Tukar shift manajer: disetujui owner (usulan saya) atau cukup rekannya yang setuju?
-2. Batas peringatan: void berapa rupiah dianggap besar, selisih kas berapa? (bisa diatur owner di dashboard)
-3. Apakah owner perlu bisa mengubah sesuatu dari HP (mis. nonaktifkan produk, ubah harga), atau hanya melihat dan menyetujui?
-4. Satu owner atau lebih (misalnya dua pemilik)? Jika lebih, cukup salah satu yang menyetujui?
-5. Daftar tugas sama di semua outlet atau berbeda per outlet?
+1. Bila bahan ditandai habis tetapi ada pesanan tersimpan (belum dibayar) berisi menu itu: tetap boleh dibayar (usulan) atau ditolak?
+2. Bahan habis berlaku per outlet (usulan) atau semua outlet?
