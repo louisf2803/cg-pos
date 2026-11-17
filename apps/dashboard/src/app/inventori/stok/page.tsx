@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, BookOpen, Download, Search, Upload, Warehouse } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, BanIcon, BookOpen, CircleCheck, Download, Search, Upload, Warehouse } from 'lucide-react';
 import {
   buildStockTemplateCsv,
   buildStockTemplateXlsx,
   formatRp,
+  menusUsingIngredient,
   newId,
   parseStockImportSpreadsheet,
   STOCK_KIND_LABEL,
@@ -31,7 +32,40 @@ const MODE_LABEL: Record<ManualStockKind, string> = { adjust_in: 'Stok masuk', a
 type Dlg =
   | { kind: 'post'; item: StockItem; mode: ManualStockKind }
   | { kind: 'card'; item: StockItem }
+  | { kind: 'habis'; item: StockItem; outletId?: string }
   | { kind: 'import' };
+
+/** Tandai bahan habis: stok di sistem ditampilkan (bisa berbeda dari kenyataan, stok tidak berubah), plus daftar menu yang ikut tidak bisa dipesan. */
+function HabisDialog({ item, outletId, onClose, onDone }: { item: StockItem; outletId?: string; onClose: () => void; onDone: (msg: string) => void }) {
+  const data = useData();
+  const dlg = useDialog(onClose);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const menus = useAsync(async () => menusUsingIngredient(await data.listRecipes(), item.productId), [data, item.productId]);
+  async function confirm() {
+    setBusy(true); setErr('');
+    try { await data.setIngredientUnavailable({ productId: item.productId, outletId, unavailable: true }); onDone(`${item.name} ditandai habis. Menu yang memakainya tidak bisa dipesan di kasir sampai stok diisi lagi.`); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Gagal menandai habis.'); setBusy(false); }
+  }
+  const list = menus.status === 'ready' ? menus.data : [];
+  return (
+    <dialog {...dlg.props} aria-labelledby="habis-title">
+      <h2 id="habis-title" className="cg-modal__title">Tandai {item.name} habis?</h2>
+      <p className="cg-modal__body">Stok di sistem saat ini <strong className="cg-num">{fmtQty(item.qty)} {item.unit}</strong>. Menandai habis <strong>tidak mengubah stok</strong>; ini hanya untuk saat stok di sistem dan kenyataan berbeda. Penanda hilang sendiri begitu stok diisi lagi.</p>
+      <div className="cg-field">
+        <p className="cg-label m-0">Menu yang ikut tidak bisa dipesan di outlet ini</p>
+        {menus.status === 'loading' ? <div className="cg-skeleton" style={{ height: 40 }} /> : list.length === 0
+          ? <p className="text-text-muted m-0">Tidak ada menu berisi bahan ini{item.kind === 'goods' ? ' selain barang itu sendiri' : ''}.</p>
+          : <ul className="m-0 pl-16" aria-label="Menu terdampak">{list.map((m) => <li key={m.id}>{m.name}</li>)}</ul>}
+      </div>
+      {err && <p role="alert" className="cg-error">{err}</p>}
+      <div className="cg-modal__actions">
+        <button type="button" className="cg-btn cg-btn--ghost" onClick={onClose} disabled={busy}>Batal</button>
+        <button type="button" className="cg-btn cg-btn--danger" onClick={() => void confirm()} disabled={busy}>{busy ? 'Menyimpan…' : 'Tandai habis'}</button>
+      </div>
+    </dialog>
+  );
+}
 
 function useDialog(onClose: () => void) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -49,11 +83,13 @@ export default function StockPage() {
 
   const locs = useAsync(() => data.listStockLocations(), [data]);
   const state = useAsync(async () => {
-    const [items, settings] = await Promise.all([
+    const [items, settings, flags, ctx] = await Promise.all([
       data.listStock({ locationId: selectedLocation || undefined }),
       data.getOutletSettings(),
+      data.listIngredientUnavailable().catch(() => []),
+      data.getContext(),
     ]);
-    return { items, allowNegativeStock: settings.options.allowNegativeStock };
+    return { items, allowNegativeStock: settings.options.allowNegativeStock, flagged: new Set(flags.map((f) => `${f.outletId}:${f.productId}`)), ctxOutletId: ctx.outletId };
   }, [data, selectedLocation]);
 
   useEffect(() => {
@@ -66,6 +102,20 @@ export default function StockPage() {
 
   const [dlg, setDlg] = useState<Dlg | null>(null);
   const [notice, setNotice] = useState('');
+  const [errMsg, setErrMsg] = useState('');
+  /** outlet milik baris stok: lokasi outlet -> outletnya; gudang -> tidak ada (tidak ada penanda habis di gudang) */
+  const outletOfRow = (i: StockItem): string | undefined | null => {
+    const loc = locs.status === 'ready' ? locs.data.find((l) => l.id === i.locationId) : undefined;
+    if (loc) return loc.kind === 'warehouse' ? null : (loc.outletId ?? (state.status === 'ready' ? state.data.ctxOutletId : undefined));
+    return state.status === 'ready' ? state.data.ctxOutletId : undefined;
+  };
+  const isFlagged = (i: StockItem) => { const o = outletOfRow(i); return !!o && state.status === 'ready' && state.data.flagged.has(`${o}:${i.productId}`); };
+  async function markAvailable(i: StockItem) {
+    const o = outletOfRow(i); if (!o) return;
+    setErrMsg('');
+    try { await data.setIngredientUnavailable({ productId: i.productId, outletId: o, unavailable: false }); setNotice(`${i.name} ditandai tersedia lagi. Menu yang memakainya aktif kembali.`); state.reload(); }
+    catch (e) { setErrMsg(e instanceof Error ? e.message : 'Gagal mengubah status.'); }
+  }
   const stockData = state.status === 'ready' ? state.data.items : null;
   const allowNegativeStock = state.status === 'ready' ? state.data.allowNegativeStock : true;
   const rows = useMemo(() => {
@@ -98,6 +148,7 @@ export default function StockPage() {
         }
       />
       {notice && <p role="status" className="cg-banner cg-banner--info mb-16">{notice}</p>}
+      {errMsg && <p role="alert" className="cg-banner cg-banner--danger mb-16">{errMsg}</p>}
       {state.status === 'error' && <ErrorBox message={state.message} onRetry={state.reload} />}
       {state.status === 'loading' && <div className="grid gap-8" aria-busy="true" aria-label="Memuat">{[0, 1, 2, 3].map((i) => <div key={i} className="cg-skeleton" style={{ height: 56 }} />)}</div>}
       {state.status === 'ready' && (
@@ -177,10 +228,13 @@ export default function StockPage() {
                       <td className="text-right cg-num whitespace-nowrap">{fmtQty(i.qty)} <span className="text-text-muted text-sm">{i.unit}</span></td>
                       <td className="text-right cg-num">{formatRp(i.avgCost)}</td>
                       <td className="text-right cg-num">{formatRp(i.value)}</td>
-                      <td><span className={`cg-badge ${BADGE[i.status]}`}>{STOCK_STATUS_LABEL[i.status]}</span></td>
+                      <td><span className={`cg-badge ${BADGE[i.status]}`}>{STOCK_STATUS_LABEL[i.status]}</span>{isFlagged(i) && <span className="cg-badge cg-badge--danger ml-4" title="Ditandai habis oleh manajer: menu yang memakainya tidak bisa dipesan di kasir">Habis (ditandai)</span>}</td>
                       <td className="text-right whitespace-nowrap">
                         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'post', item: i, mode: 'adjust_in' })} aria-label={`Stok masuk ${i.name}`}><ArrowDownToLine className="cg-icon cg-icon--sm" aria-hidden /> Masuk</button>
                         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'post', item: i, mode: 'adjust_out' })} aria-label={`Stok keluar ${i.name}`}><ArrowUpFromLine className="cg-icon cg-icon--sm" aria-hidden /> Keluar</button>
+                        {outletOfRow(i) !== null && (isFlagged(i)
+                          ? <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => void markAvailable(i)} aria-label={`Tandai ${i.name} tersedia lagi`}><CircleCheck className="cg-icon cg-icon--sm" aria-hidden /> Tersedia</button>
+                          : <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'habis', item: i, outletId: outletOfRow(i) ?? undefined })} aria-label={`Tandai ${i.name} habis`}><BanIcon className="cg-icon cg-icon--sm" aria-hidden /> Habis</button>)}
                         <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={() => setDlg({ kind: 'card', item: i })} aria-label={`Kartu stok ${i.name}`}><BookOpen className="cg-icon cg-icon--sm" aria-hidden /> Kartu</button>
                       </td>
                     </tr>
@@ -203,6 +257,14 @@ export default function StockPage() {
             setNotice(m);
             state.reload();
           }}
+        />
+      )}
+      {dlg?.kind === 'habis' && (
+        <HabisDialog
+          item={dlg.item}
+          outletId={dlg.outletId}
+          onClose={() => setDlg(null)}
+          onDone={(m) => { setDlg(null); setNotice(m); state.reload(); }}
         />
       )}
       {dlg?.kind === 'card' && <CardDialog item={dlg.item} onClose={() => { setDlg(null); }} onChanged={state.reload} />}

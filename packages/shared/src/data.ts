@@ -19,6 +19,7 @@ import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion 
 import type { StockRequest, StockRequestInput, StockRequestStatus } from './stock-requests';
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
+import type { IngredientUnavailable, IngredientUnavailableInput, UnavailableProduct } from './availability';
 import type { CollectiveLeave, CollectiveLeaveInput, EmployeeProfile, EmployeeProfileInput } from './hr-profile';
 import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
 import type { CashAdvance, CashAdvanceInput, EmployeeCompensation, EmployeeIncident, EmployeeIncidentInput, PayrollRecord, PayrollRecordInput, PayrollRules, WeeklySchedule } from './payroll';
@@ -301,6 +302,11 @@ export interface DataLayer {
   /** Pengaturan lokasi dan radius absensi per outlet (hanya outlet yang sudah diatur). */
   listAttendanceSettings(): Promise<AttendanceSettings[]>;
   saveAttendanceSettings(input: AttendanceSettingsInput): Promise<AttendanceSettings>;
+  /** Bahan habis (migrasi 0150): penanda manual per outlet. Semua anggota boleh membaca; hanya pengelola yang mengubah. */
+  listIngredientUnavailable(): Promise<IngredientUnavailable[]>;
+  setIngredientUnavailable(input: IngredientUnavailableInput): Promise<void>;
+  /** Menu yang tidak tersedia di satu outlet (bawaan: outlet perangkat ini) beserta bahan penyebabnya. */
+  listUnavailableProducts(outletId?: string): Promise<UnavailableProduct[]>;
   /** Cuti bersama (migrasi 0149): tanggal libur semua karyawan yang dipotongkan dari jatah tahunan. Hanya pengelola. */
   listCollectiveLeaves(): Promise<CollectiveLeave[]>;
   saveCollectiveLeave(input: CollectiveLeaveInput): Promise<CollectiveLeave>;

@@ -44,6 +44,7 @@ import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
+import type { IngredientUnavailable, UnavailableProduct } from './availability';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -297,6 +298,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let tableLayoutDoc: Record<string, unknown> | null = null;
   const orgDocs = new Map<string, Record<string, unknown>>();
   const collectiveLeaves: CollectiveLeave[] = [];
+  const unavailableIng = new Map<string, IngredientUnavailable>(); // kunci `${outletId}:${productId}`
   const employeeProfiles = new Map<string, EmployeeProfile>();
   /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
   const recipeSchedules: RecipeSchedule[] = [];
@@ -1380,6 +1382,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
           whQty.set(input.productId, currentQty + delta);
         } else {
           recordStock(input.productId, input.kind === 'adjust_in' ? input.qty : -input.qty, input.kind, { unitCost: input.kind === 'adjust_in' ? input.unitCost : undefined, reason: input.reason?.trim() || undefined, refType: 'manual' });
+          if (input.kind === 'adjust_in') unavailableIng.delete(`${CTX.outletId}:${input.productId}`); // stok diisi lagi: menyala otomatis
         }
       }
       return stockItem(input.productId, input.locationId);
@@ -1779,7 +1782,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         .flatMap((o) => (o.discounts ?? []).map((d): DiscountUse => ({ orderId: o.id, source: d.source, promotionId: d.promotionId, couponId: d.couponId, points: d.points ?? 0, amount: d.amount, authorizedBy: d.authorizedBy })));
     },
     async listStockLocations(): Promise<StockLocation[]> {
-      return [{ id: LOC_OUTLET, name: locNames[LOC_OUTLET]!, kind: 'outlet' }, { id: LOC_GUDANG, name: locNames[LOC_GUDANG]!, kind: 'warehouse' }];
+      return [{ id: LOC_OUTLET, name: locNames[LOC_OUTLET]!, kind: 'outlet', outletId: CTX.outletId }, { id: LOC_GUDANG, name: locNames[LOC_GUDANG]!, kind: 'warehouse' }];
     },
     async listStockTransfers() {
       return clone(transfers.map(({ lines, ...t }) => ({ ...t, lines: lines.map(({ cost: _c, ...l }) => l) })));
@@ -2314,6 +2317,27 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (i < 0) throw new DataError('not_found', 'Tipe karyawan tidak ditemukan');
       employeeTypes.splice(i, 1);
       for (const h of employeeHr) if (h.employeeTypeId === id) delete h.employeeTypeId;
+    },
+    async listIngredientUnavailable() { return clone([...unavailableIng.values()]); },
+    async setIngredientUnavailable(input) {
+      const outletId = input.outletId ?? CTX.outletId;
+      const key = `${outletId}:${input.productId}`;
+      if (input.unavailable) { if (!unavailableIng.has(key)) unavailableIng.set(key, { productId: input.productId, outletId, markedAt: now().toISOString() }); }
+      else unavailableIng.delete(key);
+    },
+    async listUnavailableProducts(outletId) {
+      const oid = outletId ?? CTX.outletId;
+      const flagged = new Set([...unavailableIng.values()].filter((u) => u.outletId === oid).map((u) => u.productId));
+      if (!flagged.size) return [];
+      const name = (id: string) => ingredients.find((i) => i.id === id)?.name ?? products.find((p) => p.id === id)?.name ?? id;
+      const out: UnavailableProduct[] = [];
+      for (const p of products) {
+        const ids = new Set<string>();
+        for (const l of recipes.get(p.id) ?? []) if (flagged.has(l.ingredientId)) ids.add(l.ingredientId);
+        if (flagged.has(p.id)) ids.add(p.id);
+        if (ids.size) out.push({ productId: p.id, ingredientIds: [...ids], ingredientNames: [...ids].map(name).sort((a, b) => a.localeCompare(b, 'id')) });
+      }
+      return clone(out);
     },
     async listCollectiveLeaves() { return clone([...collectiveLeaves].sort((a, b) => (a.date < b.date ? -1 : 1))); },
     async saveCollectiveLeave(input) {

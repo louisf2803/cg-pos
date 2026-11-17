@@ -1,6 +1,6 @@
 /** Transfer stok antar lokasi (outlet atau gudang). Aturan simpan dijaga database (migrasi 0024); di sini bentuk data dan pemeriksaan isian. */
 
-export interface StockLocation { id: string; name: string; kind: 'outlet' | 'warehouse' }
+export interface StockLocation { id: string; name: string; kind: 'outlet' | 'warehouse'; /** outlet pemilik lokasi (hanya untuk kind outlet) */ outletId?: string }
 export type TransferStatus = 'in_transit' | 'received' | 'cancelled';
 export const TRANSFER_STATUS_LABEL: Record<TransferStatus, string> = { in_transit: 'Dalam perjalanan', received: 'Sudah diterima', cancelled: 'Dibatalkan' };
 export interface StockTransferLine { productId: string; name: string; qty: number; receivedQty: number }

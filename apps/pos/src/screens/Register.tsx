@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardList, Lock, Monitor, Tag, UserCheck, UserRound, X, Minus, Settings, Plus, Save, Search, Trash2, Wifi, WifiOff, Menu, Bell, ScanBarcode, Split, Star, LayoutGrid, Package, Wallet } from 'lucide-react';
-import { CHANNELS, CHANNEL_LABEL, type Channel, checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newApplied, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
+import { unavailableLabel, unavailableMap, CHANNELS, CHANNEL_LABEL, type Channel, checkStockLimit, declaredBasePrice, groupNotePresets, noteHasText, orderTypeLabel, toggleNoteText, type NotePreset, promoProductIds, splitByItem, stockLimitMessage, extrasLineTotal, extrasPerUnit, formatRp, groupVariants, priceOverrideProblem, groupsForProduct, newApplied, newId, pickedExtras, selectionProblem, taxDisplay, type CatalogTile, type ExtraGroup, type Order, type OrderType, type OutletContext, type Product, type Promotion } from '@cgpos/shared';
 import { useData, usePending } from '../lib/app-data';
 import { openCustomerDisplayWindow, publishCustomerDisplay } from '../lib/customer-display';
 import { useAsync } from '../lib/use-async';
@@ -257,7 +257,19 @@ export function Register({
   const optionLimit = (p: Product, adding = 1) => checkStockLimit({ allowNegative: ctx.settings.allowNegativeStock, trackStock: !!p.trackStock, stock: p.stock ?? undefined, inCart: qtyOf(p), adding });
   /** Produk dengan grup Ekstra membuka pemilih dulu; selainnya langsung masuk pesanan. */
   /** Bila outlet melarang stok minus, tolak penambahan melebihi sisa stok (pesan di bilah status). */
+  // Bahan habis (ditandai manajer, migrasi 0150): menu berisi bahan itu tidak bisa ditambah ke pesanan; pesanan tersimpan tetap boleh dibayar.
+  const unavailRes = useAsync(() => data.listUnavailableProducts().catch(() => []), [data]);
+  const unavailList = unavailRes.status === 'ready' ? unavailRes.data : null;
+  const unavail = useMemo(() => unavailableMap(unavailList ?? []), [unavailList]);
+  const reloadUnavail = useRef(unavailRes.reload);
+  reloadUnavail.current = unavailRes.reload;
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === 'visible') reloadUnavail.current(); }, 60_000);
+    return () => clearInterval(t);
+  }, []);
   const stockOk = (p: Product, adding = 1): boolean => {
+    const ua = unavail.get(p.id);
+    if (ua) { setNotice(`${p.name} habis (${ua.ingredientNames.join(', ') || 'bahan habis'}). Menu ini belum bisa dipesan sampai stok diisi lagi.`); return false; }
     const r = optionLimit(p, adding);
     if (!r.ok) setNotice(stockLimitMessage(p.name, r.available));
     return r.ok;
@@ -587,6 +599,8 @@ export function Register({
             const isGroup = t.kind === 'group';
             const name = isGroup ? t.name : t.product.name;
             const limitExhausted = isGroup ? t.options.every((o) => !optionLimit(o.product).ok) : !optionLimit(t.product).ok;
+            const habisRef = isGroup ? (t.options.every((o) => unavail.has(o.product.id)) ? unavail.get(t.options[0]!.product.id) : undefined) : unavail.get(t.product.id);
+            const habis = !!habisRef;
             const out = (isGroup ? t.soldOut : t.product.trackStock && (t.product.stock ?? 0) <= 0) || limitExhausted;
             const price = isGroup ? (t.minPrice === t.maxPrice ? formatRp(t.minPrice) : `mulai ${formatRp(t.minPrice)}`) : formatRp(t.product.price);
             const photoUrl = isGroup ? t.options.find((o) => o.product.photoUrl)?.product.photoUrl : t.product.photoUrl;
@@ -601,8 +615,10 @@ export function Register({
             return (
               <button
                 key={t.key}
-                className="cg-tile relative group"
+                className={`cg-tile relative group${habis ? ' opacity-60' : ''}`}
+                title={habis ? unavailableLabel(habisRef) : undefined}
                 onClick={() => {
+                  if (isGroup && habis) { setNotice(`${name} habis (${habisRef!.ingredientNames.join(', ')}).`); return; }
                   if (isGroup) {
                     if (limitExhausted) {
                       setNotice(stockLimitMessage(t.name, 0));
@@ -612,7 +628,7 @@ export function Register({
                   else openDetail(t.product);
                 }}
                 aria-haspopup={isGroup ? 'dialog' : undefined}
-                aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}`}
+                aria-label={`${name}, ${price}${isGroup ? `, pilih ukuran (${t.options.length})` : ''}${n ? `, di pesanan ${n}` : ''}${out ? ', stok habis' : ''}${habis ? `, habis karena ${habisRef!.ingredientNames.join(', ')}` : ''}`}
               >
                 <span className="cg-tile__media relative overflow-hidden" aria-hidden>
                   {/* Lencana stok kecil di pojok kiri atas gambar jika melacak stok */}
@@ -655,7 +671,8 @@ export function Register({
                     </span>
                   )}
                   {isGroup && <span className="text-xs text-text-muted">{t.options.map((o) => o.label).join(' · ')}</span>}
-                  {out && <span className="cg-badge cg-badge--warning w-fit">Stok habis</span>}
+                  {habis && <span className="cg-badge cg-badge--danger w-fit">{unavailableLabel(habisRef)}</span>}
+                  {out && !habis && <span className="cg-badge cg-badge--warning w-fit">Stok habis</span>}
                 </span>
 
                 {/* Lapisan hijau semi-transparan dengan jumlah di tengah setelah ada di pesanan */}

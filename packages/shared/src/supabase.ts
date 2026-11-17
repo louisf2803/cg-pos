@@ -25,6 +25,7 @@ import { channelPriceProblem, priceRuleError, timePriceProblem, type Channel, ty
 import { productionError, productionRunProblem, productionTemplateProblem, type ProductionRun, type ProductionTemplate, type ProductionTemplateInput } from './production';
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
+import type { IngredientUnavailable, UnavailableProduct } from './availability';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2035,7 +2036,13 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async listStockLocations() {
       const { data, error } = await db().rpc('stock_location_list');
       if (error) throw mapDbError(error);
-      return ((data as Row[] | null) ?? []).map((r): StockLocation => ({ id: r.id as string, name: r.name as string, kind: r.kind === 'warehouse' ? 'warehouse' : 'outlet' }));
+      const rows = (data as Row[] | null) ?? [];
+      const outletOf = new Map<string, string>();
+      try {
+        const locs = await fetchAll<Row>((f, t) => db().from('locations').select('id,outlet_id').order('id').range(f, t));
+        for (const l of locs) if (l.outlet_id) outletOf.set(l.id as string, l.outlet_id as string);
+      } catch { /* tanpa pemetaan outlet: penanda habis memakai outlet perangkat */ }
+      return rows.map((r): StockLocation => ({ id: r.id as string, name: r.name as string, kind: r.kind === 'warehouse' ? 'warehouse' : 'outlet', ...(outletOf.has(r.id as string) ? { outletId: outletOf.get(r.id as string)! } : {}) }));
     },
     async listStockTransfers() {
       const { data, error } = await db().rpc('stock_transfer_list', { p_limit: 100 });
@@ -2696,6 +2703,24 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteEmployeeType(id) {
       const { error } = await db().from('employee_types').delete().eq('id', id);
       if (error) throw mapHrError(error);
+    },
+    async listIngredientUnavailable() {
+      const rows = await fetchAll<Row>((f, t) => db().from('ingredient_unavailable').select('product_id,outlet_id,marked_at').order('marked_at').range(f, t));
+      return rows.map((x): IngredientUnavailable => ({ productId: x.product_id as string, outletId: x.outlet_id as string, markedAt: x.marked_at as string }));
+    },
+    async setIngredientUnavailable(input) {
+      const { ctx } = await resolve();
+      const { error } = await db().rpc('ingredient_availability_set', { p_outlet: input.outletId ?? ctx.outletId, p_product: input.productId, p_unavailable: input.unavailable });
+      if (error) {
+        if (/not allowed/i.test(error.message ?? '')) throw new DataError('forbidden', 'Hanya manajer dan pemilik yang boleh menandai bahan habis.');
+        throw mapDbError(error);
+      }
+    },
+    async listUnavailableProducts(outletId) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('unavailable_products', { p_outlet: outletId ?? ctx.outletId });
+      if (error) throw mapDbError(error);
+      return ((data as Row[] | null) ?? []).map((r): UnavailableProduct => ({ productId: r.product_id as string, ingredientIds: (r.ingredient_ids as string[]) ?? [], ingredientNames: (r.ingredient_names as string[]) ?? [] }));
     },
     async listCollectiveLeaves() {
       const rows = await pageAll((from, to) => db().from('collective_leaves').select('id,leave_date,description').order('leave_date').range(from, to));
