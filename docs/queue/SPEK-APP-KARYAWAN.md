@@ -75,6 +75,34 @@ Prototipe terbaru: 15 layar (Masuk, Beranda, Jadwal, Tugas tim, Tukar shift, Izi
 - Gerbang Tutup kasir: fungsi `close_shift` (atau pemeriksaan di POS lewat RPC) menolak bila ada `task_items` wajib berstatus pending; `skipped` dengan alasan dianggap selesai; buka paksa manajer = catatan di log aktivitas.
 - Batas cuti per hari: kolom pengaturan org (leave_max_per_day, bawaan 2) diperiksa saat mengajukan dan saat menyetujui.
 
+## Tiga peran dan siapa memutuskan apa (Louis, 17 Nov 2026)
+| Pengajuan | Diputuskan oleh |
+|---|---|
+| Kasbon (wajib bukti transfer) | **Owner** |
+| Izin dan cuti | **Owner** (bukan manajer) |
+| Tukar shift karyawan | Rekan setuju dulu, lalu **manajer** |
+| Tukar shift manajer | Rekan setuju dulu, lalu **owner** (usulan; manajer juga boleh tukar shift) |
+| Pengecualian absen, daftar tugas, laporan tugas | **Manajer** (owner juga bisa melihat) |
+Manajer tetap melihat siapa saja yang cuti di jadwal tim (untuk batas 2 orang per hari), tetapi tidak menyetujuinya. Layar: Owner (Beranda pendapatan, Pendapatan, Persetujuan, Pantau).
+
+## Kebutuhan owner (usulan; layar 17-20)
+Prioritas tinggi:
+- **Pendapatan real-time**: hari ini sampai sekarang vs hari yang sama pekan lalu, per outlet, jumlah transaksi, rata-rata per transaksi, penjualan belum dibayar, proyeksi akhir bulan. Data dari laporan penjualan yang sudah ada di dashboard.
+- **Detail pendapatan**: hari/minggu/bulan, grafik, metode pembayaran, produk terlaris, jam ramai, diskon dan refund.
+- **Persetujuan**: kasbon (dengan bukti transfer) dan izin cuti; riwayat keputusan.
+- **Peringatan anti-curang** (dorong ke HP): void besar atau berulang, selisih kas saat tutup kasir, harga diubah kasir, diskon manual besar, refund, tutup kasir dibuka paksa, stok habis.
+- **Pantau tim hari ini**: hadir, telat, progres tugas opening/closing.
+Menengah:
+- **Biaya tenaga kerja**: perkiraan payroll bulan ini dan persentase dari penjualan, kasbon beredar per orang, denda dan bonus.
+- **Kas dan setoran**: kas di laci, setoran kemarin cocok atau tidak, rekonsiliasi non-tunai.
+- **Stok kritis** dan **laba kasar** (butuh HPP yang sudah ada).
+- **Laporan harian otomatis** (ringkasan malam hari) dan **target penjualan** bulanan dengan progres.
+- Ganti outlet / lihat semua outlet; ekspor ringkasan.
+Nanti: perbandingan antar outlet dan antar kasir, ulasan pelanggan, persetujuan pembelian barang (PO), persetujuan perubahan harga produk, absensi dan kinerja per orang, catatan pelanggaran.
+
 ## Pertanyaan yang masih terbuka
-1. Apakah daftar tugas sama untuk semua outlet, atau perlu berbeda per outlet? (rancangan memakai per outlet dengan opsi sama untuk semua)
-2. Opening dan closing dikerjakan oleh "tim shift" yang mana: semua karyawan yang terjadwal di shift itu, otomatis?
+1. Tukar shift manajer: disetujui owner (usulan saya) atau cukup rekannya yang setuju?
+2. Batas peringatan: void berapa rupiah dianggap besar, selisih kas berapa? (bisa diatur owner di dashboard)
+3. Apakah owner perlu bisa mengubah sesuatu dari HP (mis. nonaktifkan produk, ubah harga), atau hanya melihat dan menyetujui?
+4. Satu owner atau lebih (misalnya dua pemilik)? Jika lebih, cukup salah satu yang menyetujui?
+5. Daftar tugas sama di semua outlet atau berbeda per outlet?
