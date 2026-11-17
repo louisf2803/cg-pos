@@ -1,0 +1,27 @@
+{
+  "name": "@cgpos/staff",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "typecheck": "tsc --noEmit",
+    "export": "expo export --platform android"
+  },
+  "dependencies": {
+    "@cgpos/shared": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@supabase/supabase-js": "^2.119.0",
+    "expo": "~58.0.25",
+    "expo-image-picker": "~58.0.10",
+    "expo-status-bar": "~58.0.5",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-url-polyfill": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  }
+}

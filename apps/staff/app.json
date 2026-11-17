@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "CG Karyawan",
+    "slug": "cg-karyawan",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "id.cgpos.karyawan",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E8044",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      ["expo-image-picker", { "cameraPermission": "Aplikasi memakai kamera untuk foto bukti tugas harian." }]
+    ]
+  }
+}
