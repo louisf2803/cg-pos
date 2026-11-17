@@ -274,6 +274,8 @@ export const MODUL: NavModule[] = [
           { href: '/karyawan/jadwal', label: 'Jadwal kerja', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/catatan', label: 'Catatan harian', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/cuti-bersama', label: 'Cuti bersama', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/tugas', label: 'Tugas harian', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/laporan-tugas', label: 'Laporan tugas', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/radius-absensi', label: 'Radius absensi & lokasi', screen: 'S43', tier: 2, built: true },
         ],
       },

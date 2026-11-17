@@ -26,6 +26,7 @@ import { productionError, productionRunProblem, productionTemplateProblem, type 
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { taskTemplateProblem, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2703,6 +2704,87 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteEmployeeType(id) {
       const { error } = await db().from('employee_types').delete().eq('id', id);
       if (error) throw mapHrError(error);
+    },
+    async listTaskTemplates(outletId) {
+      const rows = await fetchAll<Row>((f, t) => {
+        let qb = db().from('task_templates').select('id,outlet_id,phase,title,kind,required,allow_skip,sort,is_active');
+        if (outletId) qb = qb.eq('outlet_id', outletId);
+        return qb.order('outlet_id').order('phase').order('sort').order('title').range(f, t);
+      });
+      return rows.map((x): TaskTemplate => ({ id: x.id as string, outletId: x.outlet_id as string, phase: x.phase as TaskTemplate['phase'], title: x.title as string, kind: x.kind as TaskTemplate['kind'], required: !!x.required, allowSkip: !!x.allow_skip, sort: Number(x.sort), isActive: !!x.is_active }));
+    },
+    async saveTaskTemplate(input) {
+      const problem = taskTemplateProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const row = { id: input.id ?? newId(), org_id: r.orgId, outlet_id: input.outletId, phase: input.phase, title: input.title.trim(), kind: input.kind, required: input.required ?? true, allow_skip: input.allowSkip ?? true, sort: input.sort ?? 0, is_active: input.isActive ?? true };
+      const { error } = await db().from('task_templates').upsert(row, { onConflict: 'id' });
+      if (error) throw mapHrError(error);
+      return { id: row.id, outletId: row.outlet_id, phase: row.phase, title: row.title, kind: row.kind, required: row.required, allowSkip: row.allow_skip, sort: row.sort, isActive: row.is_active };
+    },
+    async deleteTaskTemplate(id) {
+      const { error } = await db().from('task_templates').delete().eq('id', id);
+      if (error) throw mapHrError(error);
+    },
+    async ensureTaskRun(phase, outletId) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('task_run_ensure', { p_outlet: outletId ?? ctx.outletId, p_phase: phase });
+      if (error) throw mapDbError(error);
+      return String(data);
+    },
+    async listTaskRuns(q) {
+      const { ctx } = await resolve();
+      const outlet = q.outletId ?? ctx.outletId;
+      const runs = await fetchAll<Row>((f, t) => db().from('task_runs').select('id,outlet_id,run_date,phase').eq('outlet_id', outlet).gte('run_date', q.from).lte('run_date', q.to).order('run_date').order('phase').range(f, t));
+      if (!runs.length) return [];
+      const ids = runs.map((x) => x.id as string);
+      const items = await fetchAll<Row>((f, t) => db().from('task_items').select('id,run_id,title,kind,required,allow_skip,sort,status,photo_path,done_by_employee,done_at,skip_reason').in('run_id', ids).order('sort').order('title').range(f, t));
+      const names = await employeeNames().catch(() => new Map<string, string>());
+      const by = new Map<string, TaskItem[]>();
+      for (const x of items) {
+        const it: TaskItem = {
+          id: x.id as string, runId: x.run_id as string, title: x.title as string, kind: x.kind as TaskItem['kind'], required: !!x.required, allowSkip: !!x.allow_skip, sort: Number(x.sort), status: x.status as TaskItem['status'],
+          ...(x.photo_path ? { photoPath: x.photo_path as string } : {}), ...(x.done_at ? { doneAt: x.done_at as string } : {}), ...(x.skip_reason ? { skipReason: x.skip_reason as string } : {}),
+          ...(x.done_by_employee ? { doneByName: names.get(x.done_by_employee as string) ?? '(karyawan dihapus)' } : {}),
+        };
+        by.set(it.runId, [...(by.get(it.runId) ?? []), it]);
+      }
+      return runs.map((r): TaskRun => ({ id: r.id as string, outletId: r.outlet_id as string, date: r.run_date as string, phase: r.phase as TaskRun['phase'], items: by.get(r.id as string) ?? [] }));
+    },
+    async taskGate(outletId) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('task_close_gate', { p_outlet: outletId ?? ctx.outletId });
+      if (error) throw mapDbError(error);
+      return ((data as Row[] | null) ?? []).map((x): TaskGateItem => ({ itemId: x.item_id as string, phase: x.phase as TaskGateItem['phase'], title: x.title as string, kind: x.kind as TaskGateItem['kind'] }));
+    },
+    async completeTaskItem(input) {
+      const { error } = await db().rpc('task_item_complete', { p_item: input.itemId, p_photo_path: input.photoPath ?? null, p_employee: input.employeeId ?? null });
+      if (error) {
+        if (/photo required/i.test(error.message ?? '')) throw new DataError('invalid', 'Tugas ini wajib foto.');
+        throw mapDbError(error);
+      }
+    },
+    async skipTaskItem(input) {
+      const { error } = await db().rpc('task_item_skip', { p_item: input.itemId, p_reason: input.reason, p_employee: input.employeeId ?? null });
+      if (error) {
+        if (/skip not allowed/i.test(error.message ?? '')) throw new DataError('invalid', 'Tugas ini tidak boleh ditandai tidak bisa.');
+        if (/reason required/i.test(error.message ?? '')) throw new DataError('invalid', 'Alasan wajib diisi.');
+        throw mapDbError(error);
+      }
+    },
+    async reopenTaskItem(itemId) {
+      const { error } = await db().rpc('task_item_reopen', { p_item: itemId });
+      if (error) throw mapDbError(error);
+    },
+    async logTaskGateOverride(input) {
+      const { ctx } = await resolve();
+      const { error } = await db().rpc('task_gate_override_log', { p_outlet: input.outletId ?? ctx.outletId, p_authorized_by: input.authorizedBy, p_reason: input.reason, p_pending: input.pending });
+      if (error) throw mapDbError(error);
+    },
+    async taskPhotoUrl(path) {
+      const { data, error } = await client.storage.from('task-photos').createSignedUrl(path, 3600);
+      if (error || !data?.signedUrl) return null;
+      return data.signedUrl;
     },
     async listIngredientUnavailable() {
       const rows = await fetchAll<Row>((f, t) => db().from('ingredient_unavailable').select('product_id,outlet_id,marked_at').order('marked_at').range(f, t));

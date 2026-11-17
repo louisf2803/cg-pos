@@ -45,6 +45,7 @@ import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalReque
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { taskTemplateProblem, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -298,6 +299,25 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let tableLayoutDoc: Record<string, unknown> | null = null;
   const orgDocs = new Map<string, Record<string, unknown>>();
   const collectiveLeaves: CollectiveLeave[] = [];
+  // Tugas harian (demo): templat bawaan untuk outlet demo; baris hari ini dibuat saat dibutuhkan
+  const taskTemplates: TaskTemplate[] = [
+    { id: 'tt-o1', outletId: 'outlet-1', phase: 'opening', title: 'Pintu belakang dibuka', kind: 'check', required: true, allowSkip: true, sort: 1, isActive: true },
+    { id: 'tt-o2', outletId: 'outlet-1', phase: 'opening', title: 'Mesin espresso bersih', kind: 'photo', required: true, allowSkip: true, sort: 2, isActive: true },
+    { id: 'tt-o3', outletId: 'outlet-1', phase: 'opening', title: 'Kas awal di laci', kind: 'photo', required: true, allowSkip: false, sort: 3, isActive: true },
+    { id: 'tt-c1', outletId: 'outlet-1', phase: 'closing', title: 'Laci kas dikunci', kind: 'check', required: true, allowSkip: false, sort: 1, isActive: true },
+    { id: 'tt-c2', outletId: 'outlet-1', phase: 'closing', title: 'Freezer dan kulkas tertutup', kind: 'photo', required: true, allowSkip: true, sort: 2, isActive: true },
+    { id: 'tt-c3', outletId: 'outlet-1', phase: 'closing', title: 'Lampu dimatikan', kind: 'check', required: true, allowSkip: true, sort: 3, isActive: true },
+  ];
+  const taskRuns: { id: string; outletId: string; date: string; phase: TaskRun['phase']; items: (TaskItem & { templateId?: string })[] }[] = [];
+  const ensureFakeTaskRun = (phase: TaskRun['phase'], oid: string): string => {
+    const date = localDateKey(now(), CTX.timezone);
+    let run = taskRuns.find((r) => r.outletId === oid && r.date === date && r.phase === phase);
+    if (!run) { run = { id: newId(), outletId: oid, date, phase, items: [] }; taskRuns.push(run); }
+    for (const t of taskTemplates.filter((x) => x.outletId === oid && x.phase === phase && x.isActive)) {
+      if (!run.items.some((i) => i.templateId === t.id)) run.items.push({ id: newId(), runId: run.id, templateId: t.id, title: t.title, kind: t.kind, required: t.required, allowSkip: t.allowSkip, sort: t.sort, status: 'pending' });
+    }
+    return run.id;
+  };
   const unavailableIng = new Map<string, IngredientUnavailable>(); // kunci `${outletId}:${productId}`
   const employeeProfiles = new Map<string, EmployeeProfile>();
   /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
@@ -2318,6 +2338,53 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       employeeTypes.splice(i, 1);
       for (const h of employeeHr) if (h.employeeTypeId === id) delete h.employeeTypeId;
     },
+    async listTaskTemplates(outletId) { return clone(taskTemplates.filter((t) => !outletId || t.outletId === outletId).sort((a, b) => a.outletId.localeCompare(b.outletId) || a.phase.localeCompare(b.phase) || a.sort - b.sort)); },
+    async saveTaskTemplate(input) {
+      const problem = taskTemplateProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const row: TaskTemplate = { id: input.id ?? newId(), outletId: input.outletId, phase: input.phase, title: input.title.trim(), kind: input.kind, required: input.required ?? true, allowSkip: input.allowSkip ?? true, sort: input.sort ?? 0, isActive: input.isActive ?? true };
+      const i = taskTemplates.findIndex((t) => t.id === row.id);
+      if (i >= 0) taskTemplates[i] = row; else taskTemplates.push(row);
+      return clone(row);
+    },
+    async deleteTaskTemplate(id) { const i = taskTemplates.findIndex((t) => t.id === id); if (i >= 0) taskTemplates.splice(i, 1); },
+    async ensureTaskRun(phase, outletId) { return ensureFakeTaskRun(phase, outletId ?? CTX.outletId); },
+    async listTaskRuns(q) {
+      const oid = q.outletId ?? CTX.outletId;
+      return clone(taskRuns.filter((r) => r.outletId === oid && r.date >= q.from && r.date <= q.to).sort((a, b) => a.date.localeCompare(b.date) || a.phase.localeCompare(b.phase))
+        .map((r): TaskRun => ({ id: r.id, outletId: r.outletId, date: r.date, phase: r.phase, items: r.items.map(({ templateId: _t, ...i }) => i).sort((a, b) => a.sort - b.sort) })));
+    },
+    async taskGate(outletId) {
+      const oid = outletId ?? CTX.outletId; const date = localDateKey(now(), CTX.timezone);
+      for (const ph of ['opening', 'closing'] as const) if (taskTemplates.some((t) => t.outletId === oid && t.phase === ph && t.isActive)) ensureFakeTaskRun(ph, oid);
+      const out: TaskGateItem[] = [];
+      for (const r of taskRuns.filter((x) => x.outletId === oid && x.date === date).sort((a, b) => (a.phase === 'opening' ? -1 : 1) - (b.phase === 'opening' ? -1 : 1))) {
+        for (const i of [...r.items].sort((a, b) => a.sort - b.sort)) if (i.required && i.status === 'pending') out.push({ itemId: i.id, phase: r.phase, title: i.title, kind: i.kind });
+      }
+      return clone(out);
+    },
+    async completeTaskItem(input) {
+      const it = taskRuns.flatMap((r) => r.items).find((i) => i.id === input.itemId);
+      if (!it) throw new DataError('not_found', 'Tugas tidak ditemukan.');
+      if (it.status === 'done') return;
+      if (it.kind === 'photo' && !input.photoPath?.trim()) throw new DataError('invalid', 'Tugas ini wajib foto.');
+      const emp = input.employeeId ? employees.find((e) => e.id === input.employeeId) : undefined;
+      Object.assign(it, { status: 'done', skipReason: undefined, photoPath: it.kind === 'photo' ? input.photoPath : undefined, doneAt: now().toISOString(), doneByName: emp?.name });
+    },
+    async skipTaskItem(input) {
+      const it = taskRuns.flatMap((r) => r.items).find((i) => i.id === input.itemId);
+      if (!it) throw new DataError('not_found', 'Tugas tidak ditemukan.');
+      if (!it.allowSkip) throw new DataError('invalid', 'Tugas ini tidak boleh ditandai tidak bisa.');
+      if (!input.reason.trim()) throw new DataError('invalid', 'Alasan wajib diisi.');
+      const emp = input.employeeId ? employees.find((e) => e.id === input.employeeId) : undefined;
+      Object.assign(it, { status: 'skipped', skipReason: input.reason.trim().slice(0, 200), photoPath: undefined, doneAt: now().toISOString(), doneByName: emp?.name });
+    },
+    async reopenTaskItem(itemId) {
+      const it = taskRuns.flatMap((r) => r.items).find((i) => i.id === itemId);
+      if (it) Object.assign(it, { status: 'pending', skipReason: undefined, photoPath: undefined, doneAt: undefined, doneByName: undefined });
+    },
+    async logTaskGateOverride(input) { if (!input.reason.trim()) throw new DataError('invalid', 'Alasan wajib diisi.'); },
+    async taskPhotoUrl() { return null; },
     async listIngredientUnavailable() { return clone([...unavailableIng.values()]); },
     async setIngredientUnavailable(input) {
       const outletId = input.outletId ?? CTX.outletId;

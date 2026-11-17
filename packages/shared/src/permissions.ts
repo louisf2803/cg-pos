@@ -8,7 +8,7 @@ import type { Employee } from './types';
  * Ini aturan tampilan dan alur di aplikasi kasir; penjaga sebenarnya tetap di database (RLS dan fungsi server).
  */
 export type Role = Employee['role'];
-export type Permission = 'sell' | 'move_table' | 'close_shift' | 'void_order' | 'refund' | 'merge_tables' | 'discard_pending' | 'device_settings' | 'see_expected_cash' | 'manual_discount' | 'complimentary' | 'price_override';
+export type Permission = 'sell' | 'move_table' | 'close_shift' | 'void_order' | 'refund' | 'merge_tables' | 'discard_pending' | 'device_settings' | 'see_expected_cash' | 'manual_discount' | 'complimentary' | 'price_override' | 'force_close_tasks';
 export type Access = 'allow' | 'approve' | 'deny';
 
 export const PERMISSIONS: { id: Permission; label: string }[] = [
@@ -22,6 +22,7 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'void_order', label: 'Membatalkan pesanan yang belum dibayar' },
   { id: 'refund', label: 'Refund pesanan yang sudah lunas' },
   { id: 'discard_pending', label: 'Menghapus transaksi tertunda dari perangkat' },
+  { id: 'force_close_tasks', label: 'Menutup kasir walau tugas harian belum selesai' },
   { id: 'see_expected_cash', label: 'Melihat uang yang seharusnya ada di laci sebelum menghitung' },
   { id: 'device_settings', label: 'Mengubah pengaturan perangkat kasir (kunci layar)' },
 ];
@@ -31,7 +32,7 @@ const ALL_ALLOW = Object.fromEntries(PERMISSIONS.map((p) => [p.id, 'allow'])) as
 export const ROLE_ACCESS: Record<Role, Record<Permission, Access>> = {
   owner: ALL_ALLOW,
   manager: ALL_ALLOW,
-  cashier: { ...ALL_ALLOW, price_override: 'approve', manual_discount: 'approve', complimentary: 'approve', merge_tables: 'approve', void_order: 'approve', refund: 'approve', discard_pending: 'approve', device_settings: 'deny', see_expected_cash: 'deny' },
+  cashier: { ...ALL_ALLOW, price_override: 'approve', manual_discount: 'approve', complimentary: 'approve', merge_tables: 'approve', void_order: 'approve', refund: 'approve', discard_pending: 'approve', force_close_tasks: 'approve', device_settings: 'deny', see_expected_cash: 'deny' },
 };
 
 export const accessFor = (role: Role, permission: Permission): Access => ROLE_ACCESS[role][permission];

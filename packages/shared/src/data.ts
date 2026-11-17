@@ -19,6 +19,7 @@ import type { PurchasePriceInput, PurchasePriceMapping, PurchasePriceSuggestion 
 import type { StockRequest, StockRequestInput, StockRequestStatus } from './stock-requests';
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
+import type { TaskGateItem, TaskPhase, TaskRun, TaskTemplate, TaskTemplateInput } from './tasks';
 import type { IngredientUnavailable, IngredientUnavailableInput, UnavailableProduct } from './availability';
 import type { CollectiveLeave, CollectiveLeaveInput, EmployeeProfile, EmployeeProfileInput } from './hr-profile';
 import type { AttendanceSettings, AttendanceSettingsInput, EmployeeHr, EmployeeHrInput, EmployeeNotification, EmployeeNotificationInput, EmployeeType, EmployeeTypeInput, JobLevel, JobLevelInput, OrgUnit, OrgUnitInput } from './hr';
@@ -302,6 +303,26 @@ export interface DataLayer {
   /** Pengaturan lokasi dan radius absensi per outlet (hanya outlet yang sudah diatur). */
   listAttendanceSettings(): Promise<AttendanceSettings[]>;
   saveAttendanceSettings(input: AttendanceSettingsInput): Promise<AttendanceSettings>;
+  /** Tugas harian Opening/Closing (migrasi 0152). Templat per outlet: pengelola menulis, semua anggota membaca. */
+  listTaskTemplates(outletId?: string): Promise<TaskTemplate[]>;
+  saveTaskTemplate(input: TaskTemplateInput): Promise<TaskTemplate>;
+  deleteTaskTemplate(id: string): Promise<void>;
+  /** Pastikan baris tugas hari ini ada untuk satu fase (tugas aktif tersalin); mengembalikan id baris. */
+  ensureTaskRun(phase: TaskPhase, outletId?: string): Promise<string>;
+  /** Tugas hari ini beserta status dan siapa yang mengerjakan, rentang tanggal lokal 'yyyy-mm-dd'. */
+  listTaskRuns(q: { from: string; to: string; outletId?: string }): Promise<TaskRun[]>;
+  /** Tugas WAJIB yang belum selesai hari ini (opening dan closing): dasar penguncian Tutup kasir. */
+  taskGate(outletId?: string): Promise<TaskGateItem[]>;
+  /** Selesaikan tugas: centang, atau foto (photoPath = jalur di bucket task-photos). employeeId = karyawan yang mengerjakan (opsional). */
+  completeTaskItem(input: { itemId: string; photoPath?: string; employeeId?: string }): Promise<void>;
+  /** Tandai tidak bisa dikerjakan dengan alasan (dianggap selesai). */
+  skipTaskItem(input: { itemId: string; reason: string; employeeId?: string }): Promise<void>;
+  /** Buka lagi tugas yang salah ditandai (pengelola). */
+  reopenTaskItem(itemId: string): Promise<void>;
+  /** Catat Tutup kasir yang dibuka paksa oleh manajer walau tugas belum selesai. */
+  logTaskGateOverride(input: { authorizedBy: string; reason: string; pending: number; outletId?: string }): Promise<void>;
+  /** Tautan sementara untuk melihat foto tugas; null bila tidak ada. */
+  taskPhotoUrl(path: string): Promise<string | null>;
   /** Bahan habis (migrasi 0150): penanda manual per outlet. Semua anggota boleh membaca; hanya pengelola yang mengubah. */
   listIngredientUnavailable(): Promise<IngredientUnavailable[]>;
   setIngredientUnavailable(input: IngredientUnavailableInput): Promise<void>;
