@@ -64,6 +64,17 @@ Prototipe terbaru: 15 layar (Masuk, Beranda, Jadwal, Tugas tim, Tukar shift, Izi
 - **WhatsApp tidak jadi**: notifikasi hanya di aplikasi (notifikasi dorong di HP). Tidak perlu penyedia WA dan tidak perlu menyimpan nomor WA.
 - "Partner" pada tugas harian = **rekan satu tim shift**, bukan mitra bisnis luar. Jadi daftar tugas dan laporannya sepenuhnya di sistem kita (diatur manajer di dashboard).
 
+## Keputusan tambahan Louis (17 Nov 2026, malam)
+- **Daftar tugas Opening dan Closing diatur di backend (dashboard)** oleh manajer. Tiap tugas punya jenis: **Centang saja** (karyawan menandai sudah, atau silang/tidak bisa dengan alasan) atau **Wajib foto**. Tugas juga punya urutan, status wajib, dan aktif/nonaktif. Layar rancangan: Dashboard, Daftar tugas harian (nomor 16).
+- **Batas cuti: maksimal 2 karyawan di hari yang sama.** Tanggal yang sudah terisi dua orang tidak bisa dipilih di aplikasi (tertulis "Penuh 2 dari 2"); manajer melihat jumlah terisi saat menyetujui. Batas bisa diatur di dashboard (bawaan 2).
+- "Partner" = rekan satu tim; tidak ada pihak luar.
+
+## Sketsa data tugas harian (untuk dibangun nanti)
+- `task_templates` (org_id, outlet_id opsional, phase opening|closing, title, kind check|photo, required, allow_skip, sort, active)
+- `task_runs` (outlet_id, shift/hari, phase) dibuat otomatis saat tim mulai; `task_items` (run_id, template_id, status pending|done|skipped, photo_path, done_by, done_at, skip_reason) dengan realtime supaya status sama untuk satu tim
+- Gerbang Tutup kasir: fungsi `close_shift` (atau pemeriksaan di POS lewat RPC) menolak bila ada `task_items` wajib berstatus pending; `skipped` dengan alasan dianggap selesai; buka paksa manajer = catatan di log aktivitas.
+- Batas cuti per hari: kolom pengaturan org (leave_max_per_day, bawaan 2) diperiksa saat mengajukan dan saat menyetujui.
+
 ## Pertanyaan yang masih terbuka
-1. Batas jumlah karyawan yang boleh cuti di hari yang sama (opsional; tanpa batas bila tidak diisi).
-2. Siapa yang menyusun daftar tugas opening dan closing, dan apakah berbeda per hari atau per outlet?
+1. Apakah daftar tugas sama untuk semua outlet, atau perlu berbeda per outlet? (rancangan memakai per outlet dengan opsi sama untuk semua)
+2. Opening dan closing dikerjakan oleh "tim shift" yang mana: semua karyawan yang terjadwal di shift itu, otomatis?
