@@ -117,3 +117,4 @@ export * from './feature-search';
 export * from './hr-profile';
 export * from './availability';
 export * from './tasks';
+export * from './staff-requests';

@@ -1,7 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import { taskPhotoPath, type StaffMe, type TaskRun } from '@cgpos/shared';
+import { requestErrorMessage, taskPhotoPath, type AdvanceRequestRow, type LeaveKind, type LeaveRequestRow, type StaffScheduleDay, type StaffMe, type StaffRequests, type SwapRequestRow, type TaskRun } from '@cgpos/shared';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -86,3 +86,66 @@ export async function uploadTaskPhoto(me: StaffMe, outletId: string, date: strin
 
 /** Tanggal hari ini menurut Asia/Jakarta (YYYY-MM-DD). */
 export const todayJakarta = (): string => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+
+// ===== Fase 2: pengajuan, jadwal, slip, pesan =====
+
+async function rpc<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) throw new Error(requestErrorMessage(error.message));
+  return data as T;
+}
+
+export async function loadRequests(): Promise<StaffRequests> {
+  const j = (await rpc<Row | null>('staff_requests')) ?? { leave: [], advances: [], swaps: [], teammates: [] };
+  const list = (k: string) => ((j[k] as Row[] | null) ?? []);
+  return {
+    leave: list('leave').map((x): LeaveRequestRow => ({ id: x.id as string, employeeId: x.employee_id as string, employeeName: x.employee_name as string, kind: x.kind as LeaveKind, startDate: x.start_date as string, endDate: x.end_date as string, reason: x.reason as string, status: x.status as LeaveRequestRow['status'], ...(x.note ? { note: x.note as string } : {}), createdAt: x.created_at as string })),
+    advances: list('advances').map((x): AdvanceRequestRow => ({ id: x.id as string, employeeId: x.employee_id as string, employeeName: x.employee_name as string, amount: Number(x.amount), reason: x.reason as string, status: x.status as AdvanceRequestRow['status'], ...(x.proof_path ? { proofPath: x.proof_path as string } : {}), ...(x.note ? { note: x.note as string } : {}), createdAt: x.created_at as string })),
+    swaps: list('swaps').map((x): SwapRequestRow => ({ id: x.id as string, requesterId: x.requester_id as string, requesterName: x.requester_name as string, partnerId: x.partner_id as string, partnerName: x.partner_name as string, requesterDate: x.requester_date as string, partnerDate: x.partner_date as string, ...(x.reason ? { reason: x.reason as string } : {}), status: x.status as SwapRequestRow['status'], ...(x.note ? { note: x.note as string } : {}), createdAt: x.created_at as string })),
+    teammates: list('teammates').map((x) => ({ id: x.id as string, name: x.name as string })),
+  };
+}
+
+export const createLeave = (kind: LeaveKind, start: string, end: string, reason: string) => rpc('leave_request_create', { p_kind: kind, p_start: start, p_end: end, p_reason: reason });
+export const decideLeave = (id: string, approve: boolean, note?: string) => rpc('leave_request_decide', { p_id: id, p_approve: approve, p_note: note ?? null });
+export const cancelLeave = (id: string) => rpc('leave_request_cancel', { p_id: id });
+export const createAdvance = (amount: number, reason: string) => rpc('advance_request_create', { p_amount: amount, p_reason: reason });
+export const cancelAdvance = (id: string) => rpc('advance_request_cancel', { p_id: id });
+export const createSwap = (partnerId: string, requesterDate: string, partnerDate: string, reason?: string) => rpc('swap_request_create', { p_partner: partnerId, p_requester_date: requesterDate, p_partner_date: partnerDate, p_reason: reason ?? null });
+export const partnerDecide = (id: string, approve: boolean) => rpc('swap_partner_decide', { p_id: id, p_approve: approve });
+export const managerDecide = (id: string, approve: boolean, note?: string) => rpc('swap_manager_decide', { p_id: id, p_approve: approve, p_note: note ?? null });
+export const cancelSwap = (id: string) => rpc('swap_request_cancel', { p_id: id });
+
+/** Pemilik menyetujui kasbon: bukti transfer (foto) diunggah dulu ke kasbon-proof, lalu keputusan dicatat. */
+export async function approveAdvance(me: StaffMe, req: AdvanceRequestRow, localUri: string, note?: string): Promise<void> {
+  const path = `${me.orgId}/${req.employeeId}/${req.id}.jpg`;
+  const body = await (await (await fetch(localUri)).blob()).arrayBuffer();
+  const { error } = await supabase.storage.from('kasbon-proof').upload(path, body, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw new Error(`Bukti transfer gagal diunggah: ${error.message}`);
+  await rpc('advance_request_decide', { p_id: req.id, p_approve: true, p_note: note ?? null, p_proof_path: path });
+}
+export const rejectAdvance = (id: string, note?: string) => rpc('advance_request_decide', { p_id: id, p_approve: false, p_note: note ?? null, p_proof_path: null });
+
+export async function loadSchedule(from: string, to: string): Promise<StaffScheduleDay[]> {
+  const rows = (await rpc<Row[] | null>('staff_schedule', { p_from: from, p_to: to })) ?? [];
+  return rows.map((r) => ({ date: r.work_date as string, startTime: r.start_time ? String(r.start_time).slice(0, 5) : null, swapped: !!r.swapped }));
+}
+
+export interface Payslip { month: number; year: number; basic: number; meal: number; bpjs: number; bonus: number; penalty: number; advance: number; commission: number; net: number }
+export async function loadPayslips(): Promise<Payslip[]> {
+  const rows = (await rpc<Row[] | null>('staff_payslips')) ?? [];
+  const n = (v: unknown) => Number(v ?? 0);
+  return rows.map((r) => ({
+    month: n(r.period_month), year: n(r.period_year), basic: n(r.basic_salary), meal: n(r.meal_allowance), bpjs: n(r.bpjs_allowance),
+    bonus: n(r.lateness_bonus) + n(r.stockan_incentive) + n(r.deep_cleaning_incentive),
+    penalty: n(r.lateness_penalty) + n(r.absence_penalty) + n(r.operational_mistakes_penalty) + n(r.stock_opname_penalty),
+    advance: n(r.cash_advance_deduction), commission: n(r.commission), net: n(r.net_salary),
+  }));
+}
+
+export interface Notice { id: string; title: string; body: string; createdAt: string }
+export async function loadNotices(employeeId: string): Promise<Notice[]> {
+  const { data, error } = await supabase.from('employee_notifications').select('id,title,body,created_at,employee_id').or(`employee_id.eq.${employeeId},employee_id.is.null`).order('created_at', { ascending: false }).limit(40);
+  if (error) throw new Error(error.message);
+  return ((data as Row[] | null) ?? []).map((x) => ({ id: x.id as string, title: x.title as string, body: x.body as string, createdAt: x.created_at as string }));
+}

@@ -3,12 +3,14 @@ import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, StyleSheet
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { TASK_PHASE_LABEL, staffAppRole, taskProgress, type StaffMe, type TaskItem, type TaskRun } from '@cgpos/shared';
+import { Btn, c, s } from './src/ui';
+import { Jadwal, Pengajuan, Pesan, Slip } from './src/screens';
 import { completeItem, configured, loadMe, loadToday, signIn, signOut, skipItem, supabase, todayJakarta, uploadTaskPhoto } from './src/api';
 
-const c = { bg: '#faf7f2', card: '#ffffff', ink: '#2b2118', muted: '#7a6a5b', line: '#e6ddd0', accent: '#8a4b1f', ok: '#2f7d4f', warn: '#b7791f', bad: '#b3261e' };
 const ROLE_NAME = { owner: 'Pemilik', manager: 'Manajer', employee: 'Karyawan' } as const;
 
-type Tab = 'beranda' | 'tugas' | 'saya';
+type Tab = 'beranda' | 'tugas' | 'pengajuan' | 'jadwal' | 'saya';
+const TAB_LABEL: Record<Tab, string> = { beranda: 'Beranda', tugas: 'Tugas', pengajuan: 'Pengajuan', jadwal: 'Jadwal', saya: 'Saya' };
 
 export default function App() {
   const [phase, setPhase] = useState<'boot' | 'login' | 'unlinked' | 'ready'>('boot');
@@ -38,12 +40,14 @@ export default function App() {
       <View style={s.body}>
         {tab === 'beranda' && <Beranda me={me} role={role} go={setTab} />}
         {tab === 'tugas' && <Tugas me={me} />}
+        {tab === 'pengajuan' && <Pengajuan me={me} />}
+        {tab === 'jadwal' && <Jadwal />}
         {tab === 'saya' && <Saya me={me} role={role} onOut={async () => { await signOut(); await refresh(); }} />}
       </View>
       <View style={s.tabs}>
-        {(['beranda', 'tugas', 'saya'] as Tab[]).map((t) => (
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
           <Pressable key={t} accessibilityRole="tab" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} style={s.tab}>
-            <Text style={[s.tabText, tab === t && { color: c.accent, fontWeight: '700' }]}>{t === 'beranda' ? 'Beranda' : t === 'tugas' ? 'Tugas tim' : 'Saya'}</Text>
+            <Text style={[s.tabText, tab === t && { color: c.accent, fontWeight: '700' }]}>{TAB_LABEL[t]}</Text>
           </Pressable>
         ))}
       </View>
@@ -88,8 +92,8 @@ function Beranda({ me, role, go }: { me: StaffMe; role: 'owner' | 'manager' | 'e
         <Text style={s.muted}>Centang tugas Opening dan Closing, unggah foto bukti.</Text>
       </Pressable>
       <View style={s.card}>
-        <Text style={s.h2}>Segera hadir</Text>
-        <Text style={s.muted}>Jadwal, slip gaji, pengajuan cuti, tukar shift dan kasbon{role !== 'employee' ? ', serta persetujuan' : ''}{role === 'owner' ? ' dan pantauan pendapatan' : ''}.</Text>
+        <Text style={s.h2}>Pengajuan</Text>
+        <Text style={s.muted}>Cuti, izin, kasbon, dan tukar shift{role !== 'employee' ? '; keputusan menunggu ada di tab Pengajuan' : ''}.</Text>
       </View>
     </View>
   );
@@ -190,10 +194,14 @@ function Tugas({ me }: { me: StaffMe }) {
 }
 
 function Saya({ me, role, onOut }: { me: StaffMe; role: 'owner' | 'manager' | 'employee'; onOut: () => void }) {
+  const [sub, setSub] = useState<'menu' | 'slip' | 'pesan'>('menu');
+  if (sub !== 'menu') return <View style={{ flex: 1, gap: 8 }}><Btn small ghost label='‹ Kembali' onPress={() => setSub('menu')} />{sub === 'slip' ? <Slip /> : <Pesan me={me} />}</View>;
   return (
     <View style={{ gap: 12 }}>
       <Text style={s.h1}>Saya</Text>
       <View style={s.card}><Text style={s.h2}>{me.name}</Text><Text style={s.muted}>{ROLE_NAME[role]}</Text></View>
+      <Btn label="Slip gaji" ghost onPress={() => setSub('slip')} />
+      <Btn label="Pesan" ghost onPress={() => setSub('pesan')} />
       <Btn label="Keluar" ghost onPress={onOut} />
     </View>
   );
@@ -202,27 +210,3 @@ function Saya({ me, role, onOut }: { me: StaffMe; role: 'owner' | 'manager' | 'e
 function Center({ children }: { children: React.ReactNode }) {
   return <SafeAreaView style={[s.root, { justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 }]}>{children}</SafeAreaView>;
 }
-
-function Btn({ label, onPress, disabled, ghost, small }: { label: string; onPress: () => void; disabled?: boolean; ghost?: boolean; small?: boolean }) {
-  return (
-    <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled} style={[s.btn, small && { paddingVertical: 8, paddingHorizontal: 12 }, ghost && { backgroundColor: 'transparent', borderWidth: 1, borderColor: c.line }, disabled && { opacity: 0.5 }]}>
-      <Text style={{ color: ghost ? c.ink : '#fff', fontWeight: '700' }}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: c.bg },
-  body: { flex: 1, padding: 16 },
-  h1: { fontSize: 24, fontWeight: '800', color: c.ink },
-  h2: { fontSize: 16, fontWeight: '700', color: c.ink, marginBottom: 4 },
-  muted: { color: c.muted },
-  card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.line, padding: 14, gap: 6 },
-  input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: 10, padding: 12, fontSize: 16 },
-  btn: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
-  chip: { borderRadius: 999, borderWidth: 1, borderColor: c.line, paddingVertical: 6, paddingHorizontal: 12, backgroundColor: c.card },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.line },
-  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: c.line, backgroundColor: c.card },
-  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabText: { color: c.muted },
-});
