@@ -37,7 +37,15 @@ let serialPort: SerialPortLike | null = null;
 const bluetooth = (): BleApi | undefined => (globalThis as unknown as { navigator?: { bluetooth?: BleApi } }).navigator?.bluetooth;
 export const bluetoothSupported = () => !!bluetooth();
 /** Ada cara mengirim langsung ke printer (Bluetooth BLE atau port serial) */
-export const directPrintSupported = () => !!bluetooth() || !!serialApi();
+export const directPrintSupported = () => !!bluetooth() || !!serialApi() || rawbtAvailable();
+
+/**
+ * Android + printer Bluetooth KLASIK (SPP): Chrome Android tidak bisa bicara ke printer jenis ini (Web Bluetooth hanya BLE, Web Serial tidak ada).
+ * Jalan keluar: aplikasi RawBT (Play Store, gratis) yang memegang sambungan Bluetooth ke printer; kasir mengirim byte ESC/POS ke RawBT lewat intent Android.
+ */
+export const rawbtAvailable = () => /Android/i.test((globalThis as unknown as { navigator?: { userAgent?: string } }).navigator?.userAgent ?? '');
+const toBase64 = (bytes: Uint8Array) => { let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+export const rawbtUrl = (bytes: Uint8Array) => `intent:base64,${toBase64(bytes)}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
 
 export type PrinterStatus = 'unsupported' | 'idle' | 'connecting' | 'connected' | 'error';
 export interface PrinterState { status: PrinterStatus; name: string; error: string; openDrawer: boolean }
@@ -50,7 +58,9 @@ const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify({ openD
 
 let device: BleDevice | null = null;
 let channel: BleChar | null = null;
-let state: PrinterState = { status: directPrintSupported() ? 'idle' : 'unsupported', name: readPrefs().name, error: '', openDrawer: readPrefs().openDrawer };
+let viaRawbt = false;
+try { viaRawbt = localStorage.getItem('cgpos.printer.rawbt') === '1' && rawbtAvailable(); } catch { /* boleh gagal */ }
+let state: PrinterState = { status: viaRawbt ? 'connected' : directPrintSupported() ? 'idle' : 'unsupported', name: viaRawbt ? 'RawBT (Android)' : readPrefs().name, error: '', openDrawer: readPrefs().openDrawer };
 const listeners = new Set<() => void>();
 const set = (patch: Partial<PrinterState>) => { state = { ...state, ...patch }; for (const l of listeners) l(); };
 
@@ -126,7 +136,14 @@ export async function connectSerialPrinter(baudRate = 9600): Promise<void> {
   }
 }
 
+/** Pakai aplikasi RawBT di Android sebagai jalur cetak (printer Bluetooth klasik). Tidak ada dialog; RawBT sendiri yang menyimpan printer pilihan. */
+export function connectRawbtPrinter() {
+  viaRawbt = true; try { localStorage.setItem('cgpos.printer.rawbt', '1'); } catch { /* boleh gagal */ }
+  set({ status: 'connected', name: 'RawBT (Android)', error: '' });
+}
+
 export function disconnectPrinter() {
+  if (viaRawbt) { viaRawbt = false; try { localStorage.removeItem('cgpos.printer.rawbt'); } catch { /* boleh gagal */ } }
   try { device?.gatt?.disconnect(); } catch { /* sudah putus */ }
   const p = serialPort; serialPort = null;
   if (p) void p.close().catch(() => undefined);
@@ -152,6 +169,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Kirim byte ke printer; menyambung ulang bila koneksi terputus sejak terakhir dipakai. */
 export async function printBytes(bytes: Uint8Array): Promise<void> {
+  if (viaRawbt) {
+    // membuka RawBT; bila aplikasinya belum dipasang, Android menawarkan Play Store atau tidak melakukan apa-apa
+    window.location.href = rawbtUrl(bytes);
+    return;
+  }
   if (serialPort) {
     const w = serialPort.writable?.getWriter();
     if (!w) { serialPort = null; set({ status: 'error', error: 'Port printer tertutup. Sambungkan ulang.' }); throw new Error('Port printer tertutup. Sambungkan ulang.'); }

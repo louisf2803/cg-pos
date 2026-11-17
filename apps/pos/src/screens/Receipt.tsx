@@ -14,7 +14,7 @@ import {
   type Order,
   type OutletContext,
 } from '@cgpos/shared';
-import { bluetoothSupported, connectPrinter, connectSerialPrinter, directPrintSupported, disconnectPrinter, printBytes, reconnectPrinter, serialSupported, setOpenDrawer, usePrinter } from '../lib/printer';
+import { bluetoothSupported, connectPrinter, connectRawbtPrinter, connectSerialPrinter, directPrintSupported, rawbtAvailable, disconnectPrinter, printBytes, reconnectPrinter, serialSupported, setOpenDrawer, usePrinter } from '../lib/printer';
 import { useData } from '../lib/app-data';
 import { useAsync } from '../lib/use-async';
 import { Modal } from '../ui';
@@ -322,6 +322,7 @@ export function ReceiptDialog({ order, ctx, kind, onClose }: { order: Order; ctx
                 ? <button className="cg-btn cg-btn--ghost cg-btn--sm" onClick={disconnectPrinter}>Putuskan</button>
                 : <>
                     {bluetoothSupported() && <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => void connectPrinter()} disabled={pr.status === 'connecting'}><Bluetooth className="cg-icon cg-icon--sm" aria-hidden /> Hubungkan printer</button>}
+                    {rawbtAvailable() && <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={connectRawbtPrinter} title="Untuk printer Bluetooth klasik di Android: pasang aplikasi RawBT, pasangkan printer di Bluetooth Android, lalu pilih printer di RawBT">Pakai RawBT (Android)</button>}
                     {serialSupported() && <button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={() => void connectSerialPrinter()} disabled={pr.status === 'connecting'} title="Untuk printer Bluetooth klasik yang sudah dipasangkan di Windows/Mac, atau printer USB">Hubungkan via port (COM/USB)</button>}
                   </>}
               <button className="cg-btn cg-btn--ghost cg-btn--sm" disabled={pr.status !== 'connected' || sending} onClick={() => void send(() => testPageBytes(paper, ctx.outletName, false))}>Tes cetak</button>
