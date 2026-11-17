@@ -90,7 +90,7 @@ export default function PayrollPage() {
     const utcRange = localMonthUtcRange(period.year, period.month, tz);
     const dateRangeLocal = monthBounds(period.year, period.month);
 
-    const [rules, employees, schedules, incidents, attendance, cashAdvances, payrollYear, collectiveLeaves] =
+    const [rules, employees, schedules, incidents, attendance, cashAdvances, payrollYear, collectiveLeaves, scheduleOverrides] =
       await Promise.all([
         data.getPayrollRules(),
         data.listCompensation(),
@@ -100,6 +100,7 @@ export default function PayrollPage() {
         data.listCashAdvances(),
         data.listPayrollYear(period.year),
         data.listCollectiveLeaves().catch(() => []),
+        data.listScheduleOverrides({ from: dateRangeLocal.from, to: dateRangeLocal.to }).catch(() => ({})),
       ]);
 
     const savedRecords = payrollYear.filter(
@@ -114,6 +115,7 @@ export default function PayrollPage() {
       rules,
       employees,
       schedules,
+      scheduleOverrides,
       incidents,
       attendance,
       balances,
@@ -170,6 +172,7 @@ export default function PayrollPage() {
       today: payload.today,
       employees: payload.employees,
       schedules: payload.schedules,
+      scheduleOverrides: payload.scheduleOverrides,
       attendance: payload.attendance,
       incidents: payload.incidents,
       pastAbsences: payload.pastAbsences,

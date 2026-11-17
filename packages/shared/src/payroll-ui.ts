@@ -58,7 +58,7 @@ export const INCIDENT_KIND_LABEL: Record<IncidentKind, string> = {
   LATENESS: 'Telat (manual)',
   ABSENCE: 'Absen (manual)',
   OPERATIONAL_MISTAKE: 'Salah operasional',
-  EXCUSED: 'Diizinkan (cuti/izin/libur)',
+  EXCUSED: 'Diizinkan (cuti, izin, libur, atau lupa absen yang disetujui manajer)',
 };
 
 export const CASH_ADVANCE_KIND_LABEL: Record<CashAdvanceType, string> = {

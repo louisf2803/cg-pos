@@ -133,3 +133,21 @@ describe('telat dan absen otomatis dari absensi dan jadwal', () => {
     expect(dateRange('2026-11-28', '2026-12-02')).toEqual(['2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02']);
   });
 });
+
+describe('pengecualian jadwal (tukar shift)', () => {
+  const sched = [{ weekday: 1, start: '08:00' }, { weekday: 2, start: '08:00' }];
+  const R = { latenessGraceMinutes: 0 };
+  it('hari yang diserahkan tidak dihitung absen dan hari yang diambil wajib masuk', () => {
+    // 9 Nov 2026 = Senin, 10 Nov = Selasa, 11 Nov = Rabu. Senin diserahkan (libur), Rabu diambil jam 10.00.
+    const o = { '2026-11-09': null, '2026-11-11': '10:00' };
+    const d = deriveAttendance([], sched, '2026-11-09', '2026-11-11', 'Asia/Jakarta', R, [], '2026-11-12', o);
+    expect(d.absentDates).toEqual(['2026-11-10', '2026-11-11']);
+  });
+  it('telat dihitung dari jam mulai pengganti', () => {
+    const o = { '2026-11-11': '10:00' };
+    const on = deriveAttendance([{ clockInAt: '2026-11-11T02:30:00.000Z' }], sched, '2026-11-11', '2026-11-11', 'Asia/Jakarta', R, [], '2026-11-12', o); // 09.30 WIB
+    expect(on.lateDates).toEqual([]);
+    const late = deriveAttendance([{ clockInAt: '2026-11-11T03:30:00.000Z' }], sched, '2026-11-11', '2026-11-11', 'Asia/Jakarta', R, [], '2026-11-12', o); // 10.30 WIB
+    expect(late.lateDates).toEqual(['2026-11-11']);
+  });
+});

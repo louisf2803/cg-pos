@@ -280,6 +280,8 @@ export interface DataLayer {
   saveCompensation(input: Omit<EmployeeCompensation, 'employeeName'>): Promise<EmployeeCompensation>;
   /** Jadwal kerja mingguan per karyawan (hari + jam mulai shift, jam lokal outlet). Karyawan tanpa jadwal tidak muncul. */
   listSchedules(): Promise<Record<string, WeeklySchedule>>;
+  /** Pengecualian jadwal hasil tukar shift (migrasi 0154) dalam rentang tanggal: karyawan -> tanggal -> jam mulai atau null (libur). Hanya pengelola. */
+  listScheduleOverrides(range: { from: string; to: string }): Promise<Record<string, Record<string, string | null>>>;
   saveSchedule(employeeId: string, schedule: WeeklySchedule): Promise<void>;
   /** Aturan payroll org; kunci yang belum diatur memakai nilai bawaan Coffee Ground. */
   getPayrollRules(): Promise<PayrollRules>;

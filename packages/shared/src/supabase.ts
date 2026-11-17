@@ -2411,6 +2411,12 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       for (const k of Object.keys(out)) out[k]!.sort((a, b) => a.weekday - b.weekday);
       return out;
     },
+    async listScheduleOverrides(range) {
+      const rows = (must(await db().from('schedule_overrides').select('employee_id,work_date,start_time').gte('work_date', range.from).lte('work_date', range.to)) as Row[] | null) ?? [];
+      const out: Record<string, Record<string, string | null>> = {};
+      for (const x of rows) (out[x.employee_id as string] ??= {})[x.work_date as string] = x.start_time ? String(x.start_time).slice(0, 5) : null;
+      return out;
+    },
     async saveSchedule(employeeId, schedule) {
       const problem = scheduleProblem(schedule);
       if (problem) throw new DataError('invalid', problem);

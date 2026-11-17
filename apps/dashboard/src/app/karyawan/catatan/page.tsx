@@ -109,7 +109,7 @@ export default function CatatanHarianKaryawanPage() {
       <div className="cg-banner cg-banner--info" role="note">
         <Info className="cg-icon cg-icon--sm shrink-0 mt-4" aria-hidden />
         <p className="text-xs leading-relaxed m-0 min-w-0">
-          <span className="font-semibold">Telat &amp; absen otomatis</span> dihitung langsung dari absensi masuk terhadap jadwal kerja karyawan. Catatan <em>Telat (manual)</em> atau <em>Absen (manual)</em> di halaman ini bersifat menambah hitungan otomatis tersebut, sedangkan jenis <span className="font-semibold">Diizinkan (cuti/izin/libur)</span> mencegah tanggal terjadwal tersebut dihitung absen otomatis saat periode gaji diproses.
+          <span className="font-semibold">Telat &amp; absen otomatis</span> dihitung langsung dari absensi masuk terhadap jadwal kerja karyawan. Catatan <em>Telat (manual)</em> atau <em>Absen (manual)</em> di halaman ini bersifat menambah hitungan otomatis tersebut, sedangkan jenis <span className="font-semibold">Diizinkan (cuti, izin, libur, atau lupa absen yang disetujui manajer)</span> mencegah tanggal terjadwal tersebut dihitung absen otomatis saat periode gaji diproses.
         </p>
       </div>
 

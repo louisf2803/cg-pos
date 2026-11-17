@@ -2102,6 +2102,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       return { ...input, employeeName: e.name };
     },
     async listSchedules() { return clone(Object.fromEntries(schedules)); },
+    async listScheduleOverrides() { return {}; },
     async saveSchedule(employeeId, schedule) {
       if (!employees.some((x) => x.id === employeeId)) throw new DataError('not_found', 'Karyawan tidak ditemukan');
       const problem = scheduleProblem(schedule);

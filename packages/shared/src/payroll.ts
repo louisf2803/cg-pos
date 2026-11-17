@@ -189,6 +189,8 @@ export interface AttendanceDerived { lateDates: string[]; absentDates: string[];
 export function deriveAttendance(
   records: Pick<AttendanceRecord, 'clockInAt'>[], schedule: WeeklySchedule, from: string, to: string, tz: string,
   rules: Pick<PayrollRules, 'latenessGraceMinutes'>, excusedDates: string[] = [], asOfDate?: string,
+  /** pengecualian jadwal per tanggal (tukar shift, migrasi 0154): jam mulai, atau null = libur pada tanggal itu */
+  overrides: Record<string, string | null> = {},
 ): AttendanceDerived {
   const startOf = new Map(schedule.map((d) => [d.weekday, d.start]));
   const firstIn = new Map<string, Date>();
@@ -202,7 +204,7 @@ export function deriveAttendance(
   const excused = new Set(excusedDates);
   const lateDates: string[] = [], absentDates: string[] = [], workedDates: string[] = [];
   for (const day of dateRange(from, to)) {
-    const start = startOf.get(weekdayOf(day));
+    const start = Object.prototype.hasOwnProperty.call(overrides, day) ? overrides[day] : startOf.get(weekdayOf(day));
     if (!start) continue;
     const t = firstIn.get(day);
     if (t) {
@@ -298,6 +300,8 @@ export interface WorksheetInput {
   stockOpnameTotal?: number;
   /** semua tanggal cuti bersama ('yyyy-mm-dd', boleh lintas tahun): hari itu tidak dihitung absen, tetapi memakai jatah absen tahunan semua karyawan */
   collectiveLeaveDates?: string[];
+  /** pengecualian jadwal hasil tukar shift: karyawan -> tanggal -> jam mulai atau null (libur) */
+  scheduleOverrides?: Record<string, Record<string, string | null>>;
 }
 export interface WorksheetRow {
   employeeId: string; employeeName: string; status: EmploymentStatus;
@@ -317,7 +321,7 @@ export function buildWorksheet(i: WorksheetInput): WorksheetRow[] {
     const collectiveBefore = new Set((i.collectiveLeaveDates ?? []).filter((d) => d.startsWith(`${i.year}-`) && d < from)).size;
     const excusedDates = [...new Set([...mine.filter((x) => x.kind === 'EXCUSED').map((x) => x.date), ...collectiveInMonth])];
     const sum = (k: IncidentKind) => mine.filter((x) => x.kind === k).reduce((n, x) => n + x.count, 0);
-    const d = deriveAttendance(i.attendance.filter((a) => a.employeeId === e.employeeId), i.schedules[e.employeeId] ?? [], from, to, i.tz, i.rules, excusedDates, i.today);
+    const d = deriveAttendance(i.attendance.filter((a) => a.employeeId === e.employeeId), i.schedules[e.employeeId] ?? [], from, to, i.tz, i.rules, excusedDates, i.today, i.scheduleOverrides?.[e.employeeId] ?? {});
     const f = i.flags?.[e.employeeId] ?? {};
     const period: PayrollPeriodInput = {
       latenessCount: d.lateDates.length + sum('LATENESS'),
