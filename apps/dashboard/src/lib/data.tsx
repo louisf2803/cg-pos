@@ -14,11 +14,21 @@ let fake: DataLayer | null = null;
  * dijaga RLS sesuai peran akun). Tanpa env: data palsu di memori.
  */
 export function DataProvider({ children }: { children: ReactNode }) {
-  if (!supabase) {
-    const data = (fake ??= createFakeData({ kitchenDemo: true }));
-    return <Ctx.Provider value={data}>{children}</Ctx.Provider>;
-  }
+  if (!supabase) return <DemoGate>{children}</DemoGate>;
   return <SupabaseGate>{children}</SupabaseGate>;
+}
+
+const DEMO_KEY = 'cgpos_dash_demo_in';
+
+/** Tanpa Supabase (mode demo): tetap tampil halaman masuk sendiri dulu, baru dashboard dengan data contoh. Keluar kembali ke halaman masuk. */
+function DemoGate({ children }: { children: ReactNode }) {
+  const [entered, setEntered] = useState<boolean | undefined>(undefined);
+  useEffect(() => { try { setEntered(sessionStorage.getItem(DEMO_KEY) === '1'); } catch { setEntered(false); } }, []);
+  const auth = useMemo<AuthInfo>(() => ({ email: 'pemilik@demo.cgpos', signOut: async () => { try { sessionStorage.removeItem(DEMO_KEY); } catch { /* boleh gagal */ } setEntered(false); } }), []);
+  if (entered === undefined) return <div className="min-h-screen grid place-items-center" aria-busy="true"><div className="cg-skeleton" style={{ width: 220, height: 24 }} /></div>;
+  if (!entered) return <SignIn onDemo={() => { try { sessionStorage.setItem(DEMO_KEY, '1'); } catch { /* boleh gagal */ } setEntered(true); }} />;
+  const data = (fake ??= createFakeData({ kitchenDemo: true }));
+  return <AuthCtx.Provider value={auth}><Ctx.Provider value={data}>{children}</Ctx.Provider></AuthCtx.Provider>;
 }
 
 function SupabaseGate({ children }: { children: ReactNode }) {
