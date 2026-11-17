@@ -296,6 +296,8 @@ export interface WorksheetInput {
   /** komisi default untuk karyawan tanpa angka sendiri, dan denda stock opname total yang dibagi rata */
   defaultCommission?: number;
   stockOpnameTotal?: number;
+  /** semua tanggal cuti bersama ('yyyy-mm-dd', boleh lintas tahun): hari itu tidak dihitung absen, tetapi memakai jatah absen tahunan semua karyawan */
+  collectiveLeaveDates?: string[];
 }
 export interface WorksheetRow {
   employeeId: string; employeeName: string; status: EmploymentStatus;
@@ -311,14 +313,16 @@ export function buildWorksheet(i: WorksheetInput): WorksheetRow[] {
   const share = splitStockOpnamePenalty(i.stockOpnameTotal ?? 0, i.employees.map((e) => e.status));
   return i.employees.map((e): WorksheetRow => {
     const mine = i.incidents.filter((x) => x.employeeId === e.employeeId);
-    const excusedDates = mine.filter((x) => x.kind === 'EXCUSED').map((x) => x.date);
+    const collectiveInMonth = (i.collectiveLeaveDates ?? []).filter((d) => d >= from && d <= to);
+    const collectiveBefore = new Set((i.collectiveLeaveDates ?? []).filter((d) => d.startsWith(`${i.year}-`) && d < from)).size;
+    const excusedDates = [...new Set([...mine.filter((x) => x.kind === 'EXCUSED').map((x) => x.date), ...collectiveInMonth])];
     const sum = (k: IncidentKind) => mine.filter((x) => x.kind === k).reduce((n, x) => n + x.count, 0);
     const d = deriveAttendance(i.attendance.filter((a) => a.employeeId === e.employeeId), i.schedules[e.employeeId] ?? [], from, to, i.tz, i.rules, excusedDates, i.today);
     const f = i.flags?.[e.employeeId] ?? {};
     const period: PayrollPeriodInput = {
       latenessCount: d.lateDates.length + sum('LATENESS'),
-      absenceCount: d.absentDates.length + sum('ABSENCE'),
-      pastAbsencesInYear: i.pastAbsences[e.employeeId] ?? 0,
+      absenceCount: d.absentDates.length + sum('ABSENCE') + new Set(collectiveInMonth).size,
+      pastAbsencesInYear: (i.pastAbsences[e.employeeId] ?? 0) + collectiveBefore,
       operationalMistakes: sum('OPERATIONAL_MISTAKE'),
       hasStockan: !!f.hasStockan, hasDeepCleaning: !!f.hasDeepCleaning,
       cashAdvanceDeduction: suggestedInstallment(i.cashAdvanceBalance[e.employeeId] ?? 0, e.cashAdvanceInstallment),

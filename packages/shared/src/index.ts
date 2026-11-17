@@ -114,3 +114,4 @@ export * from './hash';
 export * from './table-status-color';
 
 export * from './feature-search';
+export * from './hr-profile';

@@ -244,6 +244,7 @@ export const MODUL: NavModule[] = [
         icon: Users,
         items: [
           { href: '/pengaturan/karyawan', label: 'Daftar karyawan', screen: 'S43', tier: 1, built: true },
+          { href: '/karyawan/profil', label: 'Profil kepegawaian', screen: 'S43', tier: 2, built: true },
           { href: '/pengaturan/log', label: 'Log aktivitas', screen: 'S43', tier: 2, built: true },
           { href: '/pengaturan/kode-otorisasi', label: 'Kode otorisasi', screen: 'S43', tier: 2, built: true },
         ],
@@ -272,6 +273,7 @@ export const MODUL: NavModule[] = [
           { href: '/karyawan/absensi', label: 'Absensi karyawan', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/jadwal', label: 'Jadwal kerja', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/catatan', label: 'Catatan harian', screen: 'S43', tier: 3, built: true },
+          { href: '/karyawan/cuti-bersama', label: 'Cuti bersama', screen: 'S43', tier: 3, built: true },
           { href: '/karyawan/radius-absensi', label: 'Radius absensi & lokasi', screen: 'S43', tier: 2, built: true },
         ],
       },

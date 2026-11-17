@@ -44,6 +44,7 @@ import { stockRequestProblem, type StockRequest } from './stock-requests';
 import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalRequest, type RecurringBill, type RecurringBillRun } from './bills';
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
+import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
@@ -295,6 +296,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   /** denah meja kustom (mode demo): satu dokumen di memori */
   let tableLayoutDoc: Record<string, unknown> | null = null;
   const orgDocs = new Map<string, Record<string, unknown>>();
+  const collectiveLeaves: CollectiveLeave[] = [];
+  const employeeProfiles = new Map<string, EmployeeProfile>();
   /** jadwal perubahan resep (mode demo): diterapkan saat daftar dibaca bila waktunya sudah tiba */
   const recipeSchedules: RecipeSchedule[] = [];
   function applyDueRecipeSchedules() {
@@ -2311,6 +2314,33 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (i < 0) throw new DataError('not_found', 'Tipe karyawan tidak ditemukan');
       employeeTypes.splice(i, 1);
       for (const h of employeeHr) if (h.employeeTypeId === id) delete h.employeeTypeId;
+    },
+    async listCollectiveLeaves() { return clone([...collectiveLeaves].sort((a, b) => (a.date < b.date ? -1 : 1))); },
+    async saveCollectiveLeave(input) {
+      const problem = collectiveLeaveProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      if (collectiveLeaves.some((l) => l.date === input.date)) throw new DataError('invalid', 'Tanggal itu sudah tercatat sebagai cuti bersama.');
+      const row: CollectiveLeave = { id: newId(), date: input.date, description: input.description.trim() };
+      collectiveLeaves.push(row);
+      return clone(row);
+    },
+    async deleteCollectiveLeave(id) {
+      const i = collectiveLeaves.findIndex((l) => l.id === id);
+      if (i >= 0) collectiveLeaves.splice(i, 1);
+    },
+    async listEmployeeProfiles() { return clone([...employeeProfiles.values()]); },
+    async saveEmployeeProfile(input) {
+      const n = normalizeProfileInput(input);
+      const problem = employeeProfileProblem(n);
+      if (problem) throw new DataError('invalid', problem);
+      const row: EmployeeProfile = {
+        employeeId: n.employeeId,
+        ...(n.nik ? { nik: n.nik } : {}), ...(n.phone ? { phone: n.phone } : {}), ...(n.email ? { email: n.email } : {}), ...(n.address ? { address: n.address } : {}),
+        ...(n.joinDate ? { joinDate: n.joinDate } : {}), ...(n.employmentType ? { employmentType: n.employmentType } : {}),
+        ...(n.bankName ? { bankName: n.bankName } : {}), ...(n.bankAccountNumber ? { bankAccountNumber: n.bankAccountNumber } : {}), ...(n.bankAccountHolder ? { bankAccountHolder: n.bankAccountHolder } : {}),
+      };
+      employeeProfiles.set(n.employeeId, row);
+      return clone(row);
     },
     async listEmployeeHr() { return clone(employeeHr); },
     async saveEmployeeHr(input) {

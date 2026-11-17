@@ -25,6 +25,7 @@ import { channelPriceProblem, priceRuleError, timePriceProblem, type Channel, ty
 import { productionError, productionRunProblem, productionTemplateProblem, type ProductionRun, type ProductionTemplate, type ProductionTemplateInput } from './production';
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
+import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import { customerProblem, normalizePhone, searchTerm } from './customer';
@@ -2695,6 +2696,52 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     async deleteEmployeeType(id) {
       const { error } = await db().from('employee_types').delete().eq('id', id);
       if (error) throw mapHrError(error);
+    },
+    async listCollectiveLeaves() {
+      const rows = await pageAll((from, to) => db().from('collective_leaves').select('id,leave_date,description').order('leave_date').range(from, to));
+      return rows.map((x): CollectiveLeave => ({ id: x.id as string, date: x.leave_date as string, description: x.description as string }));
+    },
+    async saveCollectiveLeave(input) {
+      const problem = collectiveLeaveProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const id = newId();
+      const { error } = await db().from('collective_leaves').insert({ id, org_id: r.orgId, leave_date: input.date, description: input.description.trim() });
+      if (error) {
+        if (error.code === '23505') throw new DataError('invalid', 'Tanggal itu sudah tercatat sebagai cuti bersama.');
+        throw mapHrError(error);
+      }
+      return { id, date: input.date, description: input.description.trim() };
+    },
+    async deleteCollectiveLeave(id) {
+      const { error } = await db().from('collective_leaves').delete().eq('id', id);
+      if (error) throw mapHrError(error);
+    },
+    async listEmployeeProfiles() {
+      const rows = await pageAll((from, to) => db().from('employee_profiles').select('employee_id,nik,phone,email,address,join_date,employment_type,bank_name,bank_account_number,bank_account_holder').range(from, to));
+      return rows.map((x): EmployeeProfile => ({
+        employeeId: x.employee_id as string,
+        ...(x.nik ? { nik: x.nik as string } : {}), ...(x.phone ? { phone: x.phone as string } : {}), ...(x.email ? { email: x.email as string } : {}), ...(x.address ? { address: x.address as string } : {}),
+        ...(x.join_date ? { joinDate: x.join_date as string } : {}), ...(x.employment_type ? { employmentType: x.employment_type as EmploymentType } : {}),
+        ...(x.bank_name ? { bankName: x.bank_name as string } : {}), ...(x.bank_account_number ? { bankAccountNumber: x.bank_account_number as string } : {}), ...(x.bank_account_holder ? { bankAccountHolder: x.bank_account_holder as string } : {}),
+      }));
+    },
+    async saveEmployeeProfile(input) {
+      const n = normalizeProfileInput(input);
+      const problem = employeeProfileProblem(n);
+      if (problem) throw new DataError('invalid', problem);
+      const r = await resolve();
+      const { error } = await db().from('employee_profiles').upsert({
+        employee_id: n.employeeId, org_id: r.orgId, nik: n.nik, phone: n.phone, email: n.email, address: n.address, join_date: n.joinDate, employment_type: n.employmentType,
+        bank_name: n.bankName, bank_account_number: n.bankAccountNumber, bank_account_holder: n.bankAccountHolder,
+      }, { onConflict: 'employee_id' });
+      if (error) throw mapHrError(error);
+      return {
+        employeeId: n.employeeId,
+        ...(n.nik ? { nik: n.nik } : {}), ...(n.phone ? { phone: n.phone } : {}), ...(n.email ? { email: n.email } : {}), ...(n.address ? { address: n.address } : {}),
+        ...(n.joinDate ? { joinDate: n.joinDate } : {}), ...(n.employmentType ? { employmentType: n.employmentType } : {}),
+        ...(n.bankName ? { bankName: n.bankName } : {}), ...(n.bankAccountNumber ? { bankAccountNumber: n.bankAccountNumber } : {}), ...(n.bankAccountHolder ? { bankAccountHolder: n.bankAccountHolder } : {}),
+      };
     },
     async listEmployeeHr() {
       const rows = await pageAll((from, to) => db().from('employee_hr').select('employee_id,job_level_id,org_unit_id,employee_type_id').range(from, to));
