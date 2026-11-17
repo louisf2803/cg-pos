@@ -209,3 +209,59 @@ button,input,select,textarea{font:inherit;color:inherit}
 .kds-served{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 @media (max-width:899px){.kds-board{grid-template-columns:minmax(0,1fr)}.kds-col{display:none}.kds-col--on{display:block}}
 @media (min-width:900px){.kds-lanes{display:none}}
+
+/* ---- Halaman masuk (dashboard dan kasir): kiri hero hijau bergerak, kanan formulir ---- */
+.cg-auth{display:grid;min-height:100dvh;grid-template-columns:minmax(0,1fr);background:var(--color-surface-raised)}
+@media (min-width:900px){.cg-auth{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}}
+.cg-auth__hero{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:var(--space-32);color:var(--color-on-accent);background:linear-gradient(-45deg,var(--color-accent),color-mix(in srgb,var(--color-accent) 68%,black),color-mix(in srgb,var(--color-accent) 42%,black),var(--color-accent),color-mix(in srgb,var(--color-accent) 70%,white));background-size:400% 400%;animation:cg-auth-flow 16s ease infinite}
+.cg-auth__hero::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(color-mix(in srgb,var(--color-on-accent) 6%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--color-on-accent) 6%,transparent) 1px,transparent 1px);background-size:40px 40px}
+.cg-auth__hero>*{position:relative}
+.cg-auth__hero--dash{display:none}
+@media (min-width:900px){.cg-auth__hero--dash{display:flex}.cg-auth__hero{padding:var(--space-48)}}
+.cg-auth__title{margin:0;font-size:clamp(40px,7vw,88px);line-height:.95;font-weight:700;letter-spacing:-.04em;text-align:center}
+.cg-auth__rule{height:4px;width:96px;margin:var(--space-24) auto 0;background:var(--color-on-accent);opacity:.85}
+.cg-auth__panel{display:flex;flex-direction:column;justify-content:center;padding:var(--space-24);min-width:0;overflow-y:auto}
+@media (min-width:900px){.cg-auth__panel{padding:var(--space-48) 72px}}
+.cg-auth__box{width:min(440px,100%);margin:0 auto;display:grid;gap:var(--space-24)}
+.cg-auth__brand{display:flex;justify-content:center;font-weight:700;font-size:var(--text-lg);color:var(--color-accent-strong)}
+@media (min-width:900px){.cg-auth__brand{display:none}}
+.cg-auth__head h1{margin:0 0 var(--space-8);font-size:var(--text-xl);line-height:var(--text-xl-line);font-weight:700}
+.cg-auth__head p{margin:0;color:var(--color-text-muted)}
+.cg-auth-field{position:relative;display:grid;gap:var(--space-8)}
+.cg-auth-field label{font-size:var(--text-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted)}
+.cg-auth-field__wrap{position:relative}
+.cg-auth-field__icon{position:absolute;left:0;top:50%;transform:translateY(-50%);color:var(--color-text-muted);display:grid;place-items:center;pointer-events:none}
+.cg-auth-field__wrap:focus-within .cg-auth-field__icon{color:var(--color-accent)}
+.cg-auth-field input{width:100%;padding:12px 40px 12px 32px;border:0;border-bottom:2px solid var(--color-border);border-radius:0;background:transparent;font-size:var(--text-base);color:var(--color-text);outline:none;transition:border-color .15s}
+.cg-auth-field input:focus{border-bottom-color:var(--color-accent)}
+.cg-auth-field__toggle{position:absolute;right:0;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--color-text-muted);padding:var(--space-8);cursor:pointer;display:grid;place-items:center}
+.cg-auth-field__toggle:hover{color:var(--color-accent)}
+.cg-auth-btn{display:flex;align-items:center;justify-content:center;gap:var(--space-12);width:100%;padding:18px var(--space-24);border:0;border-radius:0;background:var(--color-accent);color:var(--color-on-accent);font-weight:700;font-size:var(--text-sm);letter-spacing:.12em;text-transform:uppercase;cursor:pointer;box-shadow:0 10px 24px color-mix(in srgb,var(--color-accent) 18%,transparent);transition:background .15s,transform .1s}
+.cg-auth-btn:hover:not(:disabled){background:var(--color-accent-strong)}
+.cg-auth-btn:active:not(:disabled){transform:scale(.99)}
+.cg-auth-btn:disabled{opacity:.55;cursor:not-allowed}
+.cg-auth-error{display:flex;align-items:center;gap:var(--space-8);padding:var(--space-12);border-radius:var(--radius-md);background:var(--color-danger-soft);color:var(--color-danger-strong);font-size:var(--text-sm);font-weight:500}
+.cg-auth-spin{animation:cg-auth-rot 1s linear infinite}
+@keyframes cg-auth-flow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes cg-auth-rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.cg-auth__hero,.cg-auth-spin{animation:none}}
+
+/* kasir: hero berisi jam dan outlet; pita ringkas di layar sempit */
+.cg-auth__hero--pos{flex-direction:column;gap:var(--space-8);text-align:center;padding:var(--space-24)}
+@media (min-width:900px){.cg-auth__hero--pos{gap:var(--space-16);padding:var(--space-48)}}
+.cg-auth__outlet{font-size:var(--text-lg);font-weight:600;opacity:.92;margin:0}
+.cg-auth__clock{margin:0;font-size:clamp(44px,9vw,120px);line-height:1;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.cg-auth__date{margin:0;font-size:var(--text-base);opacity:.9}
+.cg-auth__meta{margin:var(--space-16) 0 0;font-size:var(--text-xs);letter-spacing:.14em;text-transform:uppercase;opacity:.75;display:none}
+@media (min-width:900px){.cg-auth__meta{display:block}}
+.cg-staff{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:var(--space-12);margin:0;padding:0;list-style:none}
+.cg-staff button{width:100%;display:grid;justify-items:center;gap:var(--space-8);padding:var(--space-16) var(--space-12);border:1px solid var(--color-border);border-radius:var(--radius-card);background:var(--color-surface-raised);cursor:pointer;text-align:center;transition:border-color .15s,box-shadow .15s,transform .1s;touch-action:manipulation}
+.cg-staff button:hover{border-color:var(--color-accent);box-shadow:0 6px 18px color-mix(in srgb,var(--color-accent) 14%,transparent)}
+.cg-staff button:active{transform:scale(.98)}
+.cg-staff__avatar{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--color-accent-soft);color:var(--color-accent-strong);font-size:var(--text-lg);font-weight:700}
+.cg-staff__name{font-weight:600;overflow-wrap:anywhere}
+.cg-staff__role{font-size:var(--text-xs);color:var(--color-text-muted)}
+.cg-who{display:flex;align-items:center;gap:var(--space-12)}
+.cg-auth .cg-keypad{grid-template-columns:repeat(3,minmax(0,84px))}
+.cg-auth .cg-keypad button{height:68px;border-radius:var(--radius-card)}
+.cg-auth .cg-pin i{width:18px;height:18px}

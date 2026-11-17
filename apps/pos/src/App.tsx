@@ -108,6 +108,9 @@ function Shell() {
         <Login
           onSuccess={(e, requestedMode) => void login(e, requestedMode)}
           onOpenAttendance={() => setAttendanceOpen(true)}
+          outletName={ctx.data.outletName}
+          outletCode={ctx.data.outletCode}
+          timezone={ctx.data.timezone}
         />
         {attendanceOpen && <Attendance ctx={ctx.data} onClose={() => setAttendanceOpen(false)} />}
       </>
