@@ -91,6 +91,10 @@ export interface DataLayer {
   }): Promise<ManagedOutlet>;
   /** Daftar nama grup outlet yang tersedia. */
   listOutletGroups(): Promise<string[]>;
+  /** Peta karyawan -> id outlet tempat mereka bekerja (migrasi 0157). Hanya pengelola. */
+  listEmployeeOutlets(): Promise<Record<string, string[]>>;
+  /** Ganti daftar outlet seorang karyawan. Kasir wajib punya minimal satu outlet; pemilik/manajer boleh kosong (= semua outlet). Hanya pengelola. */
+  setEmployeeOutlets(employeeId: string, outletIds: string[]): Promise<void>;
   /** Biaya layanan, pembulatan, aturan kasir, catatan kaki struk. Pemilik dan manajer. */
   saveOutletOptions(input: OutletOptions): Promise<void>;
   /** Pajak PB1: nyala/mati, nama, tarif, harga termasuk pajak atau tidak. */

@@ -248,9 +248,10 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     bankAccountNumber?: string;
     bankAccountName?: string;
   } = { address: '', phone: '', receiptFooter: '' };
+  const employeeOutlets = new Map<string, string[]>();
   let outletsList: ManagedOutlet[] = [
     {
-      id: 'out-1',
+      id: 'outlet-1',
       code: 'OUT1',
       name: 'Outlet Contoh',
       address: 'Jl. Sudirman No. 12, Jakarta',
@@ -989,6 +990,13 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       };
       outletsList.push(o);
       return clone(o);
+    },
+    async listEmployeeOutlets() { return clone(Object.fromEntries(employeeOutlets)); },
+    async setEmployeeOutlets(employeeId, outletIds) {
+      if (outletIds.length === 0 && !['owner', 'manager'].includes(employees.find((e) => e.id === employeeId)?.role ?? 'cashier')) throw new DataError('invalid', 'Pilih minimal satu outlet untuk karyawan ini.');
+      const known = new Set(outletsList.map((o) => o.id));
+      if (outletIds.some((id) => !known.has(id))) throw new DataError('invalid', 'Ada outlet yang tidak ditemukan.');
+      employeeOutlets.set(employeeId, [...new Set(outletIds)]);
     },
     async listOutletGroups() {
       const groups = new Set<string>();

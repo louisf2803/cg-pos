@@ -10,7 +10,7 @@ import {
   type OutletInfo,
   type OutletOptions,
 } from '@cgpos/shared';
-import { useData } from '@/lib/data';
+import { useActiveOutlet, useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { ErrorBox, PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
@@ -465,12 +465,22 @@ function OutletListTab({
   onReload: () => void;
 }) {
   const [editingOutlet, setEditingOutlet] = useState<ManagedOutlet | 'new' | null>(null);
+  const data = useData();
+  const { setOutletId } = useActiveOutlet();
+  const activeCtx = useAsync(() => data.getContext(), [data]);
+  const activeId = activeCtx.status === 'ready' ? activeCtx.data.outletId : '';
+  const counts = useAsync(async () => {
+    const m = await data.listEmployeeOutlets().catch(() => ({} as Record<string, string[]>));
+    const c: Record<string, number> = {};
+    for (const ids of Object.values(m)) for (const id of ids) c[id] = (c[id] ?? 0) + 1;
+    return c;
+  }, [data]);
 
   return (
     <div className="grid gap-16">
       <div className="flex flex-wrap items-center justify-between gap-12">
         <p className="text-sm text-text-muted">
-          Kelola cabang dan grup operasional bisnis Anda.
+          Tiap outlet punya karyawan, stok, dan pembukuan sendiri seperti cabang terpisah. Pilih "Kelola" untuk berpindah ke outlet itu; seluruh dashboard lalu menampilkan data outlet tersebut.
         </p>
         <button
           type="button"
@@ -489,6 +499,7 @@ function OutletListTab({
               <th>Nama Outlet</th>
               <th>Grup Wilayah</th>
               <th>Telepon</th>
+              <th>Karyawan</th>
               <th>Rekening Bank</th>
               <th>Status</th>
               <th><span className="cg-sr">Aksi</span></th>
@@ -510,6 +521,7 @@ function OutletListTab({
                   )}
                 </td>
                 <td className="text-xs whitespace-nowrap">{o.phone ?? '—'}</td>
+                <td className="text-xs whitespace-nowrap cg-num">{counts.status === 'ready' ? (counts.data[o.id] ?? 0) : '…'}</td>
                 <td className="text-xs whitespace-nowrap">
                   {o.bankName && o.bankAccountNumber ? (
                     `${o.bankName} ${o.bankAccountNumber}`
@@ -525,6 +537,9 @@ function OutletListTab({
                   )}
                 </td>
                 <td className="whitespace-nowrap text-right">
+                  {o.id === activeId
+                    ? <span className="cg-badge cg-badge--info mr-8">Sedang dikelola</span>
+                    : o.isActive && <button type="button" className="cg-btn cg-btn--secondary cg-btn--sm mr-8" onClick={() => setOutletId(o.id)} aria-label={`Kelola outlet ${o.name}`}>Kelola</button>}
                   <button
                     type="button"
                     className="cg-btn cg-btn--ghost cg-btn--sm"

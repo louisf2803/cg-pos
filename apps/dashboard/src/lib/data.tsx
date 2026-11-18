@@ -1,12 +1,17 @@
 'use client';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { createFakeData, createSupabaseData, type DataLayer } from '@cgpos/shared';
 import { supabase } from './backend';
 import { AuthCtx, type AuthInfo } from './auth';
 import { SignIn } from '@/components/sign-in';
+import { readActiveOutlet, writeActiveOutlet } from './active-outlet';
 
 const Ctx = createContext<DataLayer | null>(null);
+interface ActiveOutletInfo { outletId: string | undefined; setOutletId: (id: string) => void }
+const OutletCtx = createContext<ActiveOutletInfo>({ outletId: undefined, setOutletId: () => {} });
+/** Outlet yang sedang dikelola dan cara menggantinya; seluruh data dashboard dimuat ulang untuk outlet baru. */
+export function useActiveOutlet(): ActiveOutletInfo { return useContext(OutletCtx); }
 let fake: DataLayer | null = null;
 
 /**
@@ -43,7 +48,12 @@ function SupabaseGate({ children }: { children: ReactNode }) {
   }, [client]);
 
   const userId = session?.user.id;
-  const data = useMemo(() => (userId ? createSupabaseData(client) : null), [client, userId]);
+  const [outletId, setOutletIdState] = useState<string | undefined>(undefined);
+  const [outletReady, setOutletReady] = useState(false);
+  useEffect(() => { setOutletIdState(readActiveOutlet()); setOutletReady(true); }, []);
+  const setOutletId = useCallback((id: string) => { writeActiveOutlet(id); setOutletIdState(id); }, []);
+  const outletInfo = useMemo<ActiveOutletInfo>(() => ({ outletId, setOutletId }), [outletId, setOutletId]);
+  const data = useMemo(() => (userId && outletReady ? createSupabaseData(client, outletId ? { outletId } : {}) : null), [client, userId, outletId, outletReady]);
   const email = session?.user.email ?? '';
   const auth = useMemo<AuthInfo | null>(
     () => (userId ? { email, signOut: async () => { await client.auth.signOut(); } } : null),
@@ -54,7 +64,7 @@ function SupabaseGate({ children }: { children: ReactNode }) {
     return <div className="min-h-screen grid place-items-center" aria-busy="true"><div className="cg-skeleton" style={{ width: 220, height: 24 }} /></div>;
   }
   if (!data || !auth) return <SignIn client={client} />;
-  return <AuthCtx.Provider value={auth}><Ctx.Provider value={data}>{children}</Ctx.Provider></AuthCtx.Provider>;
+  return <AuthCtx.Provider value={auth}><OutletCtx.Provider value={outletInfo}><Ctx.Provider value={data}>{children}</Ctx.Provider></OutletCtx.Provider></AuthCtx.Provider>;
 }
 
 export function useData(): DataLayer {

@@ -485,7 +485,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     let oq: any = db().from('outlets').select('id,org_id,code,name,address,phone,timezone').is('deleted_at', null).eq('is_active', true);
     if (device) oq = oq.eq('id', device.outlet_id);
     else if (opts.outletId) oq = oq.eq('id', opts.outletId);
-    const outlet = ((must(await oq.order('created_at').limit(1)) as Row[] | null) ?? [])[0];
+    let outlet = ((must(await oq.order('created_at').limit(1)) as Row[] | null) ?? [])[0];
+    if (!outlet && !device && opts.outletId) {
+      // outlet pilihan tersimpan sudah tidak ada atau nonaktif: pakai outlet aktif pertama
+      outlet = ((must(await db().from('outlets').select('id,org_id,code,name,address,phone,timezone').is('deleted_at', null).eq('is_active', true).order('created_at').limit(1)) as Row[] | null) ?? [])[0];
+    }
     if (!outlet) throw new DataError('not_found', 'Akunmu belum terhubung ke outlet mana pun');
 
     const [org, st, taxes] = await Promise.all([
@@ -741,6 +745,23 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       }));
       const list = await this.listOutlets();
       return list.find((o) => o.id === id)!;
+    },
+    async listEmployeeOutlets() {
+      const { data, error } = await db().rpc('employee_outlets_list');
+      if (error) throw mapDbError(error);
+      const out: Record<string, string[]> = {};
+      for (const r of ((data as Row[] | null) ?? [])) (out[r.employee_id as string] ??= []).push(r.outlet_id as string);
+      return out;
+    },
+    async setEmployeeOutlets(employeeId, outletIds) {
+      const { error } = await db().rpc('employee_outlets_set', { p_employee: employeeId, p_outlets: outletIds });
+      if (error) {
+        const m = error.message ?? '';
+        if (/outlet required/i.test(m)) throw new DataError('invalid', 'Pilih minimal satu outlet untuk karyawan ini.');
+        if (/outlet not found/i.test(m)) throw new DataError('invalid', 'Ada outlet yang tidak ditemukan.');
+        if (/not allowed/i.test(m)) throw new DataError('forbidden', 'Hanya manajer dan pemilik yang boleh mengatur outlet karyawan.');
+        throw mapDbError(error);
+      }
     },
     async listOutletGroups(): Promise<string[]> {
       const { orgId } = await resolve();

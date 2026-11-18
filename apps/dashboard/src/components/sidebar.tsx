@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { MODUL, ALL_ITEMS, getModuleForPath, type NavItem } from '@/lib/nav';
 import { getFavorites } from '@/lib/favorites';
-import { useData } from '@/lib/data';
+import { useActiveOutlet, useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { useShell } from './shell-context';
 
@@ -24,8 +24,6 @@ export function Sidebar() {
   const path = usePathname();
   const data = useData();
   const {
-    selectedOutlet,
-    setSelectedOutlet,
     mobileNavOpen,
     setMobileNavOpen,
     sidebarCollapsed,
@@ -38,6 +36,7 @@ export function Sidebar() {
     currentRole,
   } = useShell();
 
+  const { setOutletId } = useActiveOutlet();
   // Outlet state
   const [outletMenuOpen, setOutletMenuOpen] = useState(false);
 
@@ -49,10 +48,7 @@ export function Sidebar() {
     const ctx = await data.getContext();
     let locations: { id: string; name: string }[] = [];
     try {
-      if (typeof (data as unknown as { listStockLocations?: () => Promise<{ id: string; name: string }[]> }).listStockLocations === 'function') {
-        const locs = await (data as unknown as { listStockLocations: () => Promise<{ id: string; name: string }[]> }).listStockLocations();
-        locations = locs.map((l) => ({ id: l.id, name: l.name }));
-      }
+      locations = (await data.listOutlets()).filter((o) => o.isActive).map((o) => ({ id: o.id, name: o.name }));
     } catch {
       locations = [];
     }
@@ -131,8 +127,8 @@ export function Sidebar() {
     .filter((item): item is NavItem => !!item && canAccess(item.href));
 
   // Outlets list
+  const selectedOutlet = contextAsync.status === 'ready' ? contextAsync.data.ctx.outletId : '';
   const outletOptions = [
-    { id: 'semua', name: 'Semua Outlet' },
     ...(contextAsync.status === 'ready' && contextAsync.data.locations.length > 0
       ? contextAsync.data.locations
       : contextAsync.status === 'ready'
@@ -141,7 +137,7 @@ export function Sidebar() {
   ];
 
   const currentOutletName =
-    outletOptions.find((o) => o.id === selectedOutlet)?.name || 'Semua Outlet';
+    outletOptions.find((o) => o.id === selectedOutlet)?.name || (contextAsync.status === 'ready' ? contextAsync.data.ctx.outletName : 'Outlet');
 
   return (
     <>
@@ -248,7 +244,7 @@ export function Sidebar() {
                         aria-selected={selectedOutlet === opt.id}
                         className="w-full flex items-center justify-between px-12 py-8 hover:bg-surface text-left transition-colors"
                         onClick={() => {
-                          setSelectedOutlet(opt.id);
+                          setOutletId(opt.id);
                           setOutletMenuOpen(false);
                         }}
                       >
@@ -318,7 +314,7 @@ export function Sidebar() {
                         aria-selected={selectedOutlet === opt.id}
                         className="w-full flex items-center justify-between px-12 py-8 hover:bg-surface text-left transition-colors"
                         onClick={() => {
-                          setSelectedOutlet(opt.id);
+                          setOutletId(opt.id);
                           setOutletMenuOpen(false);
                         }}
                       >

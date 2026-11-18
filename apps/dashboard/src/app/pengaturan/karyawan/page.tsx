@@ -31,6 +31,7 @@ import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { useShell } from '@/components/shell-context';
 import { ErrorBox, PageHeader } from '@/components/page';
+import { useDialog } from '@/components/fin-common';
 
 const ROLE = ROLE_LABEL;
 const ACCESS_TEXT: Record<Access, string> = {
@@ -45,7 +46,7 @@ export default function KaryawanDanAkses() {
 
   // Load context outlet, karyawan, peran kustom, & struktur SDM
   const contextAsync = useAsync(async () => {
-    const [ctx, employees, roles, jobLevels, orgUnits, employeeTypes, employeeHr] = await Promise.all([
+    const [ctx, employees, roles, jobLevels, orgUnits, employeeTypes, employeeHr, allOutlets, empOutlets] = await Promise.all([
       data.getContext(),
       data.listManagedEmployees(),
       data.listRoles(),
@@ -53,11 +54,14 @@ export default function KaryawanDanAkses() {
       data.listOrgUnits(),
       data.listEmployeeTypes(),
       data.listEmployeeHr(),
+      data.listOutlets().catch(() => []),
+      data.listEmployeeOutlets().catch(() => ({} as Record<string, string[]>)),
     ]);
-    return { ctx, employees, roles, jobLevels, orgUnits, employeeTypes, employeeHr };
+    return { ctx, employees, roles, jobLevels, orgUnits, employeeTypes, employeeHr, allOutlets, empOutlets };
   }, [data]);
 
   const [targetPin, setTargetPin] = useState<Employee | null>(null);
+  const [outletTarget, setOutletTarget] = useState<ManagedEmployee | null>(null);
   const [editEmployee, setEditEmployee] = useState<ManagedEmployee | 'new' | null>(null);
   const [showOutletSummary, setShowOutletSummary] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -486,6 +490,17 @@ export default function KaryawanDanAkses() {
                                   </button>
                                 )}
 
+                                {e.role !== 'owner' && (contextAsync.status === 'ready' ? contextAsync.data.allOutlets.length > 1 : false) && (
+                                  <button
+                                    type="button"
+                                    className="cg-btn cg-btn--ghost cg-btn--sm"
+                                    onClick={() => setOutletTarget(e)}
+                                    aria-label={`Atur outlet ${e.name}`}
+                                  >
+                                    Outlet
+                                  </button>
+                                )}
+
                                 {e.role !== 'owner' ? (
                                   <button
                                     type="button"
@@ -810,6 +825,16 @@ export default function KaryawanDanAkses() {
       </section>
 
       {/* MODAL 1: Tambah / Ubah Karyawan */}
+      {outletTarget && contextAsync.status === 'ready' && (
+        <EmployeeOutletsDialog
+          employee={outletTarget}
+          outlets={contextAsync.data.allOutlets.filter((o) => o.isActive)}
+          current={contextAsync.data.empOutlets[outletTarget.id] ?? []}
+          onClose={() => setOutletTarget(null)}
+          onSaved={() => { setOutletTarget(null); contextAsync.reload(); }}
+        />
+      )}
+
       {editEmployee && (
         <EmployeeDialog
           employee={editEmployee === 'new' ? undefined : editEmployee}
@@ -1267,6 +1292,46 @@ function EmployeeDialog({
           >
             {busy ? 'Menyimpan…' : 'Simpan Karyawan'}
           </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+/** Atur outlet tempat seorang karyawan bekerja. Kasir wajib minimal satu outlet; karyawan yang pindah dari outlet ini hilang dari daftar di sini. */
+function EmployeeOutletsDialog({ employee, outlets, current, onClose, onSaved }: {
+  employee: ManagedEmployee; outlets: { id: string; name: string; code: string }[]; current: string[]; onClose: () => void; onSaved: () => void;
+}) {
+  const data = useData();
+  const dlg = useDialog(onClose);
+  const [picked, setPicked] = useState<string[]>(current);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toggle = (id: string) => { setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])); setErr(''); };
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true); setErr('');
+    try { await data.setEmployeeOutlets(employee.id, picked); onSaved(); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Gagal menyimpan outlet.'); setBusy(false); }
+  }
+  return (
+    <dialog {...dlg.props} aria-labelledby="eo-title" className="cg-modal w-full">
+      <form onSubmit={(e) => void submit(e)} className="space-y-16">
+        <h2 id="eo-title" className="cg-modal__title">Outlet {employee.name}</h2>
+        {err && <div role="alert" className="cg-banner cg-banner--danger"><span>{err}</span></div>}
+        <fieldset className="space-y-8 border-0 p-0 m-0">
+          <legend className="text-sm text-text-muted mb-8">Karyawan hanya muncul, absen, dan bisa tukar shift di outlet yang dipilih.</legend>
+          {outlets.map((o) => (
+            <label key={o.id} className="flex items-center gap-8 text-sm cursor-pointer">
+              <input type="checkbox" checked={picked.includes(o.id)} onChange={() => toggle(o.id)} />
+              <span>{o.name} <span className="text-text-muted">({o.code})</span></span>
+            </label>
+          ))}
+        </fieldset>
+        <div className="cg-modal__actions flex items-center justify-end gap-8 pt-8 border-t border-border">
+          <button type="button" className="cg-btn cg-btn--secondary" onClick={onClose} disabled={busy}>Batal</button>
+          <button type="submit" className="cg-btn cg-btn--primary" disabled={busy || (employee.role === 'cashier' && picked.length === 0)}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
         </div>
       </form>
     </dialog>
