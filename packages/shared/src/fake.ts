@@ -2081,7 +2081,11 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (input.id) {
         const e = employees.find((x) => x.id === input.id);
         if (!e) throw new DataError('not_found', 'Karyawan tidak ditemukan');
-        if (e.role === 'owner') throw new DataError('forbidden', 'Data pemilik hanya bisa diubah oleh pemilik');
+        if (e.role === 'owner') {
+          e.name = name; // pemilik: hanya nama yang bisa diganti
+          const { pin: _o, ...own } = e;
+          return { ...own, roleName: 'Pemilik', hasPin: !!e.pin || !!e.hasPin, isLocked: !!e.isLocked, lockedUntil: e.lockedUntil ?? null, qrId: e.qrId ?? null };
+        }
         e.name = name;
         e.role = input.role;
         if (input.isActive !== undefined) e.isActive = input.isActive;

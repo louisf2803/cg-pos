@@ -1105,15 +1105,15 @@ function EmployeeDialog({
     setBusy(true);
     setError(null);
     try {
-      // data dasar pemilik tidak diubah dari sini (hanya jabatan, unit, dan tipe)
-      const saved = isOwner ? null : await data.saveEmployee({
+      // pemilik: hanya nama (peran, peran kustom, dan QR tidak diubah di server), lalu jabatan, unit, dan tipe
+      const saved = await data.saveEmployee({
         id: employee?.id,
         name,
         role,
         roleId: roleId ? roleId : null,
         qrId: qrId.trim() || null,
       });
-      const targetId = employee?.id ?? saved!.id;
+      const targetId = employee?.id ?? saved.id;
       const initialRoleId = employee?.roleId ?? '';
       if (!isOwner && initialRoleId !== roleId) {
         await data.setEmployeeRoleId(targetId, roleId ? roleId : null);
@@ -1153,7 +1153,6 @@ function EmployeeDialog({
             className="cg-input text-xs"
             autoFocus
             maxLength={80}
-            disabled={isOwner}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Masukkan nama staf kasir / manajer"

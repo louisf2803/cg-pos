@@ -2413,6 +2413,13 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         if (error) throw mapDbError(error);
       };
       if (input.id) {
+        // baris pemilik: hanya nama yang boleh diganti (peran, peran kustom, dan QR tetap); server menjaga agar hanya pemilik yang bisa
+        const cur = must(await db().from('employees').select('role').eq('id', input.id).is('deleted_at', null).maybeSingle()) as Row | null;
+        if (cur?.role === 'owner') {
+          const o = must(await db().from('employees').update({ name }).eq('id', input.id).eq('role', 'owner').is('deleted_at', null).select('id,name,role,is_active,role_id').maybeSingle()) as Row | null;
+          if (!o) throw new DataError('forbidden', 'Data pemilik hanya bisa diubah oleh pemilik');
+          return out(o);
+        }
         const patch: Record<string, unknown> = { name, role: input.role };
         if (input.isActive !== undefined) patch.is_active = input.isActive;
         if (input.roleId !== undefined) patch.role_id = input.roleId;

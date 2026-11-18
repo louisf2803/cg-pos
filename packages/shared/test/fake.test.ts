@@ -43,7 +43,9 @@ describe('lapisan data palsu', () => {
     expect((await d.listEmployees()).some((x) => x.id === e.id)).toBe(false);
     expect((await d.listManagedEmployees()).find((x) => x.id === e.id)!.isActive).toBe(false);
     expect(await d.verifyPin(e.id, '482916')).toBe(false);
-    await rejects(d.saveEmployee({ id: 'e-owner', name: 'X', role: 'cashier' }), 'forbidden');
+    const renamed = await d.saveEmployee({ id: 'e-owner', name: 'Louis', role: 'cashier' });
+    expect(renamed.name).toBe('Louis');
+    expect(renamed.role).toBe('owner');
   });
 
   it('PIN', async () => {
