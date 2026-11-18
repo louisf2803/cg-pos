@@ -108,7 +108,6 @@ export default function KaryawanDanAkses() {
     }
   }
 
-  // Hitung Kuota Karyawan & Admin
   const employeesList = contextAsync.status === 'ready' ? contextAsync.data.employees : [];
   const ctx = contextAsync.status === 'ready' ? contextAsync.data.ctx : null;
   const customRoles: RoleDefinition[] =
@@ -119,23 +118,6 @@ export default function KaryawanDanAkses() {
     contextAsync.status === 'ready' ? contextAsync.data.employeeTypes : [];
   const employeeHrList: EmployeeHr[] =
     contextAsync.status === 'ready' ? contextAsync.data.employeeHr : [];
-
-  const quota = useMemo(() => {
-    const activeStaff = employeesList.filter((e) => e.role === 'cashier' && e.isActive);
-    const activeAdmins = employeesList.filter((e) => (e.role === 'manager' || e.role === 'owner') && e.isActive);
-
-    const maxStaffQuota = Math.max(10, Math.ceil((activeStaff.length + 2) / 5) * 5);
-    const maxAdminQuota = Math.max(5, Math.ceil((activeAdmins.length + 1) / 5) * 5);
-
-    return {
-      staffTotal: maxStaffQuota,
-      staffUsed: activeStaff.length,
-      staffRemaining: Math.max(0, maxStaffQuota - activeStaff.length),
-      adminTotal: maxAdminQuota,
-      adminUsed: activeAdmins.length,
-      adminRemaining: Math.max(0, maxAdminQuota - activeAdmins.length),
-    };
-  }, [employeesList]);
 
   // Filter list karyawan
   const filteredEmployees = useMemo(() => {
@@ -205,75 +187,6 @@ export default function KaryawanDanAkses() {
           </p>
         </div>
       )}
-
-      {/* 2. Kartu Kuota di Atas: Total, Terpakai, Tersisa */}
-      <div className="grid grid-cols-1 tablet:grid-cols-2 gap-16">
-        {/* Kuota Staf / Kasir */}
-        <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
-          <div className="flex items-start justify-between mb-12">
-            <div className="flex items-center gap-8">
-              <div className="p-8 rounded-lg bg-accent/10 text-accent">
-                <Users className="cg-icon cg-icon--sm" aria-hidden />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-text uppercase tracking-wider block">
-                  Kuota Staf Kasir
-                </span>
-                <span className="text-xs text-text-muted">Akses kasir untuk transaksi outlet</span>
-              </div>
-            </div>
-            <span className="text-xs font-bold px-8 py-2 rounded-full bg-accent/10 text-accent">
-              {quota.staffUsed} / {quota.staffTotal}
-            </span>
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex justify-between text-xs text-text-muted">
-              <span>Terpakai: <strong className="text-text">{quota.staffUsed} orang</strong></span>
-              <span>Tersisa: <strong className="text-accent">{quota.staffRemaining} slot</strong></span>
-            </div>
-            <div className="w-full h-8 rounded-full bg-surface overflow-hidden">
-              <div
-                className="h-full bg-accent rounded-full transition-all"
-                style={{ width: `${Math.min(100, (quota.staffUsed / quota.staffTotal) * 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Kuota Admin / Manajer */}
-        <div className="p-16 rounded-xl bg-surface-raised border border-border cg-card flex flex-col justify-between">
-          <div className="flex items-start justify-between mb-12">
-            <div className="flex items-center gap-8">
-              <div className="p-8 rounded-lg bg-warning/10 text-warning">
-                <ShieldCheck className="cg-icon cg-icon--sm" aria-hidden />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-text uppercase tracking-wider block">
-                  Kuota Admin & Manajer
-                </span>
-                <span className="text-xs text-text-muted">Akses manajerial dan otorisasi</span>
-              </div>
-            </div>
-            <span className="text-xs font-bold px-8 py-2 rounded-full bg-warning/10 text-warning">
-              {quota.adminUsed} / {quota.adminTotal}
-            </span>
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex justify-between text-xs text-text-muted">
-              <span>Terpakai: <strong className="text-text">{quota.adminUsed} orang</strong></span>
-              <span>Tersisa: <strong className="text-warning">{quota.adminRemaining} slot</strong></span>
-            </div>
-            <div className="w-full h-8 rounded-full bg-surface overflow-hidden">
-              <div
-                className="h-full bg-warning rounded-full transition-all"
-                style={{ width: `${Math.min(100, (quota.adminUsed / quota.adminTotal) * 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Keamanan PIN & Kunci Akses */}
       <div className="cg-banner bg-surface-raised border border-border text-xs text-text-muted flex flex-col tablet:flex-row tablet:items-center justify-between gap-8">
