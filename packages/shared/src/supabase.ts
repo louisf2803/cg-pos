@@ -26,7 +26,7 @@ import { productionError, productionRunProblem, productionTemplateProblem, type 
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
-import { taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
+import { staffAccountProblem, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRowToRpc, payrollRulesProblem, scheduleProblem, type EmploymentStatus, type IncidentKind, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2727,6 +2727,19 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         if (/not allowed/i.test(m)) throw new DataError('forbidden', 'Hanya manajer dan pemilik yang boleh menautkan akun.');
         throw mapDbError(error);
       }
+    },
+    async createStaffAccount(employeeId, username, password) {
+      const { data: me } = await db().rpc('staff_account_check', { p_employee: employeeId });
+      const bad = staffAccountProblem({ username, password, reset: !!me });
+      if (bad) throw new DataError('invalid', bad);
+      const { data, error } = await client.functions.invoke('staff-create-account', { body: { employeeId, username, password } });
+      if (error) {
+        let msg = 'Gagal membuat akun.';
+        try { const j = await (error as { context?: { json(): Promise<{ error?: string }> } }).context?.json(); if (j?.error) msg = String(j.error); } catch { /* pakai pesan bawaan */ }
+        throw new DataError('invalid', msg);
+      }
+      const r = data as { mode: 'created' | 'reset'; email: string };
+      return { mode: r.mode, email: r.email };
     },
     async unlinkStaffAccount(employeeId) {
       const { error } = await db().rpc('staff_account_unlink', { p_employee: employeeId });

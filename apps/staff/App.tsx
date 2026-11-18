@@ -72,9 +72,9 @@ function Login({ onDone }: { onDone: () => Promise<void> }) {
       <StatusBar style="dark" />
       <View style={[s.body, { justifyContent: 'center', gap: 12 }]}>
         <Text style={s.h1}>CG POS Karyawan</Text>
-        <Text style={s.muted}>Masuk dengan email dan kata sandi yang diberikan manajer.</Text>
+        <Text style={s.muted}>Masuk dengan username dan kata sandi yang diberikan manajer.</Text>
         {!configured && <Text style={{ color: c.bad }}>Aplikasi belum dikonfigurasi (EXPO_PUBLIC_SUPABASE_URL dan EXPO_PUBLIC_SUPABASE_ANON_KEY).</Text>}
-        <TextInput style={s.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address" autoComplete="email" value={email} onChangeText={setEmail} />
+        <TextInput style={s.input} placeholder="Username" autoCapitalize="none" autoCorrect={false} autoComplete="username" value={email} onChangeText={setEmail} />
         <TextInput style={s.input} placeholder="Kata sandi" secureTextEntry autoComplete="password" value={pw} onChangeText={setPw} onSubmitEditing={() => void go()} />
         {err ? <Text style={{ color: c.bad }} accessibilityRole="alert">{err}</Text> : null}
         <Btn label={busy ? 'Masuk…' : 'Masuk'} onPress={() => void go()} disabled={busy || !email.trim() || !pw || !configured} />

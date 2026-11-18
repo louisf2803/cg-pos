@@ -51,6 +51,22 @@ export interface StaffMe { employeeId: string; orgId: string; name: string; role
 /** Peran di aplikasi HP: pemilik dan manajer melihat persetujuan; selain itu karyawan biasa. */
 export const staffAppRole = (r: StaffMe['role']): 'owner' | 'manager' | 'employee' => (r === 'owner' ? 'owner' : r === 'manager' ? 'manager' : 'employee');
 
+/** Domain email bayangan untuk login karyawan berbasis username (akun tetap Supabase Auth; email_confirm diisi saat dibuat). */
+export const STAFF_EMAIL_DOMAIN = 'karyawan.cgpos.app';
+/** Username atau email yang diketik di aplikasi HP menjadi email login Supabase. */
+export function staffLoginEmail(input: string): string {
+  const v = input.trim().toLowerCase();
+  return v.includes('@') ? v : `${v}@${STAFF_EMAIL_DOMAIN}`;
+}
+/** Tampilan username untuk email login (domain bayangan dibuang). */
+export function staffUsername(email: string): string { return email.toLowerCase().endsWith(`@${STAFF_EMAIL_DOMAIN}`) ? email.slice(0, -(STAFF_EMAIL_DOMAIN.length + 1)) : email; }
+export function staffAccountProblem(i: { username: string; password: string; reset?: boolean }): string | null {
+  if (!i.reset && !/^[a-z0-9._-]{3,40}$/.test(i.username.trim().toLowerCase().split('@')[0] ?? '')) return 'Username 3 sampai 40 karakter: huruf kecil, angka, titik, garis bawah, atau strip.';
+  if (i.password.length < 8) return 'Kata sandi minimal 8 karakter.';
+  if (i.password.length > 72) return 'Kata sandi maksimal 72 karakter.';
+  return null;
+}
+
 /** Jalur foto di penyimpanan: <org>/<outlet>/<tanggal>/<tugas>.jpg (folder pertama harus id organisasi). */
 export function taskPhotoPath(orgId: string, outletId: string, date: string, itemId: string, ext = 'jpg'): string {
   return `${orgId}/${outletId}/${date}/${itemId}.${ext.replace(/^\./, '')}`;

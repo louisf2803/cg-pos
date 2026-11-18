@@ -1,7 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
-import { requestErrorMessage, taskPhotoPath, type AdvanceRequestRow, type LeaveKind, type LeaveRequestRow, type StaffScheduleDay, type StaffMe, type StaffRequests, type SwapRequestRow, type TaskRun } from '@cgpos/shared';
+import { requestErrorMessage, staffLoginEmail, taskPhotoPath, type AdvanceRequestRow, type LeaveKind, type LeaveRequestRow, type StaffScheduleDay, type StaffMe, type StaffRequests, type SwapRequestRow, type TaskRun } from '@cgpos/shared';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -16,8 +16,8 @@ export const supabase = createClient(url || 'http://localhost', anon || 'missing
 type Row = Record<string, unknown>;
 
 export async function signIn(email: string, password: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-  if (error) throw new Error(/invalid/i.test(error.message) ? 'Email atau kata sandi salah.' : error.message);
+  const { error } = await supabase.auth.signInWithPassword({ email: staffLoginEmail(email), password });
+  if (error) throw new Error(/invalid/i.test(error.message) ? 'Username atau kata sandi salah.' : error.message);
 }
 
 export const signOut = () => supabase.auth.signOut();

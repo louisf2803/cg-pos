@@ -23,3 +23,20 @@ describe('pengajuan karyawan', () => {
     expect(requestErrorMessage('lain')).toBe('lain');
   });
 });
+
+import { staffAccountProblem, staffLoginEmail, staffUsername } from '../src';
+describe('akun login karyawan', () => {
+  it('username menjadi email bayangan dan sebaliknya', () => {
+    expect(staffLoginEmail(' Sari.Barista ')).toBe('sari.barista@karyawan.cgpos.app');
+    expect(staffLoginEmail('a@b.com')).toBe('a@b.com');
+    expect(staffUsername('sari.barista@karyawan.cgpos.app')).toBe('sari.barista');
+    expect(staffUsername('a@b.com')).toBe('a@b.com');
+  });
+  it('memvalidasi username dan kata sandi', () => {
+    expect(staffAccountProblem({ username: 'sari', password: '12345678' })).toBeNull();
+    expect(staffAccountProblem({ username: 'ab', password: '12345678' })).toMatch(/Username/);
+    expect(staffAccountProblem({ username: 'Sari Barista', password: '12345678' })).toMatch(/Username/);
+    expect(staffAccountProblem({ username: 'sari', password: '1234567' })).toMatch(/minimal 8/);
+    expect(staffAccountProblem({ username: '', password: '12345678', reset: true })).toBeNull();
+  });
+});

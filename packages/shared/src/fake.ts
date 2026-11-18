@@ -45,7 +45,7 @@ import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalReque
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
-import { taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
+import { staffAccountProblem, staffLoginEmail, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
@@ -2348,6 +2348,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       staffAccounts.set(employeeId, e);
     },
     async unlinkStaffAccount(employeeId) { staffAccounts.delete(employeeId); },
+    async createStaffAccount(employeeId, username, password) {
+      const bad = staffAccountProblem({ username, password, reset: staffAccounts.has(employeeId) });
+      if (bad) throw new DataError('invalid', bad);
+      if (staffAccounts.has(employeeId)) return { mode: 'reset', email: staffAccounts.get(employeeId)! };
+      const email = staffLoginEmail(username);
+      if ([...staffAccounts.values()].includes(email)) throw new DataError('invalid', 'Username itu sudah dipakai.');
+      staffAccounts.set(employeeId, email);
+      return { mode: 'created', email };
+    },
     async listTaskTemplates(outletId) { return clone(taskTemplates.filter((t) => !outletId || t.outletId === outletId).sort((a, b) => a.outletId.localeCompare(b.outletId) || a.phase.localeCompare(b.phase) || a.sort - b.sort)); },
     async saveTaskTemplate(input) {
       const problem = taskTemplateProblem(input);

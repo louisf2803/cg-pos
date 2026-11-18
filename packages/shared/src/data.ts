@@ -310,6 +310,8 @@ export interface DataLayer {
   listStaffAccounts(): Promise<StaffAccount[]>;
   linkStaffAccount(employeeId: string, email: string): Promise<void>;
   unlinkStaffAccount(employeeId: string): Promise<void>;
+  /** Buat akun login karyawan (username + kata sandi) di Supabase Auth lewat Edge Function staff-create-account, lalu tautkan; bila sudah tertaut, ganti kata sandinya. Hanya pengelola. */
+  createStaffAccount(employeeId: string, username: string, password: string): Promise<{ mode: 'created' | 'reset'; email: string }>;
   /** Tugas harian Opening/Closing (migrasi 0152). Templat per outlet: pengelola menulis, semua anggota membaca. */
   listTaskTemplates(outletId?: string): Promise<TaskTemplate[]>;
   saveTaskTemplate(input: TaskTemplateInput): Promise<TaskTemplate>;
