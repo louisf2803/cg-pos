@@ -119,3 +119,4 @@ export * from './availability';
 export * from './tasks';
 export * from './staff-requests';
 export * from './ps';
+export * from './ps-schedule';

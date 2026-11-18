@@ -20,6 +20,7 @@ import type { StockRequest, StockRequestInput, StockRequestStatus } from './stoc
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { StaffAccount } from './tasks';
+import type { PsBoard, PsBookingRow, PsSessionRow } from './ps-schedule';
 import type { PsPackage, PsPackageInput, PsSettings, PsStation, PsStationInput } from './ps';
 import type { TaskGateItem, TaskPhase, TaskRun, TaskTemplate, TaskTemplateInput } from './tasks';
 import type { IngredientUnavailable, IngredientUnavailableInput, UnavailableProduct } from './availability';
@@ -110,6 +111,12 @@ export interface DataLayer {
   listPsStations(): Promise<PsStation[]>;
   /** Simpan tarif, pita jam, game, dan status perawatan satu station. Pengelola. */
   savePsStation(input: PsStationInput): Promise<void>;
+  /** Sesi sewa dan booking PS dalam rentang waktu (ISO UTC) untuk outlet ini; booking belum lunas yang lewat batas dihanguskan server. Dibaca semua anggota. */
+  psBoard(range: { from: string; to: string }): Promise<PsBoard>;
+  /** Kirim satu sesi (idempoten menurut id; server hanya menerima rev lebih besar). Galat: station sedang dipakai. */
+  psSaveSession(row: PsSessionRow): Promise<{ accepted: boolean }>;
+  /** Kirim satu booking. Galat: bentrok dengan booking atau sesi lain; karyawan berperan kasir lewat aplikasi HP ditolak. */
+  psSaveBooking(row: PsBookingRow): Promise<{ accepted: boolean }>;
   listPsPackages(): Promise<PsPackage[]>;
   savePsPackage(input: PsPackageInput): Promise<PsPackage>;
   deletePsPackage(id: string): Promise<void>;

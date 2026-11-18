@@ -45,6 +45,7 @@ import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalReque
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { psScheduleError, type PsBoard, type PsBookingRow, type PsSessionRow } from './ps-schedule';
 import { PS_DEFAULT_BOOKING_EXPIRY_MINUTES, PS_DEFAULT_GRACE_MINUTES, psPackageProblem, psSettingsProblem, psStationProblem, type PsPackage, type PsPackageInput, type PsSettings, type PsStation, type PsStationInput } from './ps';
 import { staffAccountProblem, staffLoginEmail, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
@@ -176,6 +177,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let floors: Floor[] = [];
   const psStationCfg = new Map<string, Omit<PsStationInput, 'tableId'>>();
   let psPackages: PsPackage[] = [];
+  const psSessionsDb = new Map<string, PsSessionRow>();
+  const psBookingsDb = new Map<string, PsBookingRow>();
   let psSettings: PsSettings = { graceMinutes: PS_DEFAULT_GRACE_MINUTES, bookingExpiryMinutes: PS_DEFAULT_BOOKING_EXPIRY_MINUTES };
   let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
@@ -1087,6 +1090,35 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (!t || !floors.some((f) => f.id === t.floorId && f.kind === 'ps')) throw new DataError('invalid', 'Meja ini tidak berada di lantai berjenis PS. Ubah jenis lantainya di Denah.');
       const { tableId: _t, ...rest } = input;
       psStationCfg.set(input.tableId, clone(rest));
+    },
+    async psBoard(range) {
+      const from = new Date(range.from).getTime(), to = new Date(range.to).getTime(), n = now().getTime();
+      for (const [id, b] of psBookingsDb) if (b.status === 'active' && !b.paid && new Date(b.expiresAt).getTime() < n) psBookingsDb.set(id, { ...b, status: 'expired', rev: b.rev + 1 });
+      const sessions = [...psSessionsDb.values()].filter((s) => s.status === 'running' || (new Date(s.billableStart).getTime() < to && new Date(s.finishedAt ?? s.endsAt).getTime() > from));
+      const bookings = [...psBookingsDb.values()].filter((b) => (b.status === 'active' || b.status === 'started') && new Date(b.startAt).getTime() < to && new Date(b.startAt).getTime() + b.durationMinutes * 60000 > from);
+      return clone<PsBoard>({ sessions, bookings, serverNow: now().toISOString() });
+    },
+    async psSaveSession(row) {
+      if (!psStationCfg.has(row.tableId)) throw new DataError('invalid', psScheduleError('station not found'));
+      const cur = psSessionsDb.get(row.id);
+      if (cur && cur.rev >= row.rev) return { accepted: false };
+      if (row.status === 'running' && [...psSessionsDb.values()].some((s) => s.id !== row.id && s.tableId === row.tableId && s.status === 'running')) throw new DataError('invalid', psScheduleError('station busy'));
+      psSessionsDb.set(row.id, clone(row));
+      if (row.status === 'running') for (const [id, b] of psBookingsDb) if (b.tableId === row.tableId && b.status === 'active' && new Date(b.startAt).getTime() <= new Date(row.billableStart).getTime() + 15 * 60000 && new Date(b.startAt).getTime() + b.durationMinutes * 60000 > new Date(row.billableStart).getTime()) psBookingsDb.set(id, { ...b, status: 'started', rev: b.rev + 1 });
+      return { accepted: true };
+    },
+    async psSaveBooking(row) {
+      const cfg = psStationCfg.get(row.tableId);
+      if (!cfg || cfg.isMaintenance) throw new DataError('invalid', psScheduleError('station not found'));
+      const cur = psBookingsDb.get(row.id);
+      if (cur && cur.rev >= row.rev) return { accepted: false };
+      if (row.status === 'active') {
+        const s = new Date(row.startAt).getTime(), e = s + row.durationMinutes * 60000;
+        if ([...psBookingsDb.values()].some((b) => b.id !== row.id && b.tableId === row.tableId && b.status === 'active' && new Date(b.startAt).getTime() < e && s < new Date(b.startAt).getTime() + b.durationMinutes * 60000)) throw new DataError('invalid', psScheduleError('booking clash'));
+        if ([...psSessionsDb.values()].some((x) => x.tableId === row.tableId && x.status === 'running' && new Date(x.endsAt).getTime() > s && new Date(x.billableStart).getTime() < e)) throw new DataError('invalid', psScheduleError('station busy'));
+      }
+      psBookingsDb.set(row.id, clone(row));
+      return { accepted: true };
     },
     async listPsPackages() { return clone([...psPackages].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))); },
     async savePsPackage(input: PsPackageInput) {

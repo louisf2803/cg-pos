@@ -26,6 +26,7 @@ import { productionError, productionRunProblem, productionTemplateProblem, type 
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { parsePsBoard, psBookingRpcRow, psScheduleError, psSessionRpcRow, type PsBookingRow, type PsSessionRow } from './ps-schedule';
 import { PS_DEFAULT_BOOKING_EXPIRY_MINUTES, PS_DEFAULT_GRACE_MINUTES, psPackageProblem, psSettingsProblem, psStationProblem, type PsPackage, type PsPackageInput, type PsRateBand, type PsSettings, type PsStation, type PsStationInput } from './ps';
 import { staffAccountProblem, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
@@ -940,6 +941,24 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         if (/not allowed/i.test(m)) throw new DataError('forbidden', 'Hanya manajer dan pemilik yang boleh mengatur station PS.');
         throw mapDbError(error);
       }
+    },
+    async psBoard(range) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('ps_board', { p_outlet: ctx.outletId, p_from: range.from, p_to: range.to });
+      if (error) throw mapDbError(error);
+      return parsePsBoard(data);
+    },
+    async psSaveSession(row: PsSessionRow) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('ps_session_upsert', { p_outlet: ctx.outletId, p_row: psSessionRpcRow(row) });
+      if (error) throw new DataError('invalid', psScheduleError(error.message ?? ''));
+      return { accepted: !!(data as { accepted?: boolean } | null)?.accepted };
+    },
+    async psSaveBooking(row: PsBookingRow) {
+      const { ctx } = await resolve();
+      const { data, error } = await db().rpc('ps_booking_upsert', { p_outlet: ctx.outletId, p_row: psBookingRpcRow(row) });
+      if (error) throw new DataError('invalid', psScheduleError(error.message ?? ''));
+      return { accepted: !!(data as { accepted?: boolean } | null)?.accepted };
     },
     async listPsPackages() {
       const { ctx } = await resolve();
