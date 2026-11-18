@@ -5,6 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { TASK_PHASE_LABEL, staffAppRole, taskProgress, type StaffMe, type TaskItem, type TaskRun } from '@cgpos/shared';
 import { Btn, c, s } from './src/ui';
 import { Jadwal, Pantau, Pengajuan, Pesan, Slip } from './src/screens';
+import { JadwalPs } from './src/ps-screen';
+import { loadPsStations } from './src/ps-api';
 import { completeItem, configured, loadMe, loadToday, signIn, signOut, skipItem, supabase, todayJakarta, uploadTaskPhoto } from './src/api';
 
 const ROLE_NAME = { owner: 'Pemilik', manager: 'Manajer', employee: 'Karyawan' } as const;
@@ -42,7 +44,7 @@ export default function App() {
         {tab === 'tugas' && <Tugas me={me} />}
         {tab === 'pantau' && <Pantau goDecide={() => setTab('pengajuan')} />}
         {tab === 'pengajuan' && <Pengajuan me={me} />}
-        {tab === 'jadwal' && <Jadwal />}
+        {tab === 'jadwal' && <JadwalTab me={me} />}
         {tab === 'saya' && <Saya me={me} role={role} onOut={async () => { await signOut(); await refresh(); }} />}
       </View>
       <View style={s.tabs}>
@@ -191,6 +193,22 @@ function Tugas({ me }: { me: StaffMe }) {
       }}
     />
     </>
+  );
+}
+
+/** Tab Jadwal: jadwal kerja pribadi, dan Jadwal PS (blok waktu konsol) bila outlet punya rental PS. */
+function JadwalTab({ me }: { me: StaffMe }) {
+  const [hasPs, setHasPs] = useState(false);
+  const [sub, setSub] = useState<'kerja' | 'ps'>('kerja');
+  useEffect(() => { const o = me.outlets[0]?.id; if (o) loadPsStations(o).then((x) => setHasPs(x.length > 0)).catch(() => setHasPs(false)); }, [me]);
+  if (!hasPs) return <Jadwal />;
+  return (
+    <View style={{ flex: 1, gap: 8 }}>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {([['kerja', 'Jadwal kerja'], ['ps', 'Jadwal PS']] as const).map(([k, l]) => <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: sub === k }} onPress={() => setSub(k)} style={[s.chip, sub === k && { backgroundColor: c.accent }]}><Text style={{ color: sub === k ? '#fff' : c.ink, fontWeight: '600' }}>{l}</Text></Pressable>)}
+      </View>
+      {sub === 'ps' ? <JadwalPs me={me} /> : <Jadwal />}
+    </View>
   );
 }
 
