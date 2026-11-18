@@ -26,6 +26,8 @@ import {
   hrEntityDeleteWarning,
 } from '@cgpos/shared/src/hr-ui';
 
+const BASE_JOB_LEVELS = [{ name: 'Owner', rank: 90 }, { name: 'Finance', rank: 60 }] as const;
+
 export default function JabatanPage() {
   const data = useData();
 
@@ -47,6 +49,17 @@ export default function JabatanPage() {
 
   const rawJobs = contextAsync.status === 'ready' ? contextAsync.data.jobLevels : [];
   const rawEmployeeHr = contextAsync.status === 'ready' ? contextAsync.data.employeeHr : [];
+
+  const missingBase = BASE_JOB_LEVELS.filter((b) => !rawJobs.some((j: JobLevel) => j.name.trim().toLowerCase() === b.name.toLowerCase()));
+  async function addBase() {
+    try {
+      for (const b of missingBase) await data.saveJobLevel({ name: b.name, rank: b.rank });
+      setToastMsg(`Jabatan ${missingBase.map((b) => b.name).join(' dan ')} ditambahkan.`);
+      contextAsync.reload();
+    } catch (err) {
+      setToastMsg(err instanceof Error ? err.message : 'Gagal menambah jabatan.');
+    }
+  }
 
   // Filtered jobs
   const filteredJobs = useMemo(() => {
@@ -75,6 +88,13 @@ export default function JabatanPage() {
           </button>
         }
       />
+
+      {contextAsync.status === 'ready' && missingBase.length > 0 && (
+        <div className="cg-banner cg-banner--info flex flex-wrap items-center justify-between gap-12">
+          <p className="text-sm m-0 min-w-0 flex-1">Belum ada jabatan {missingBase.map((b) => b.name).join(' dan ')}.</p>
+          <button type="button" className="cg-btn cg-btn--primary cg-btn--sm" onClick={() => void addBase()}>Tambah {missingBase.map((b) => b.name).join(' dan ')}</button>
+        </div>
+      )}
 
       {toastMsg && (
         <div role="status" className="cg-banner cg-banner--success flex items-center justify-between">

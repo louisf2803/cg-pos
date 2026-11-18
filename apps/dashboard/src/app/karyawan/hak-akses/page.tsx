@@ -27,6 +27,8 @@ import {
   upsertCustomRole,
   type ManagedEmployee,
   type RoleDefinition,
+  FINANCE_ROLE_NAME,
+  createFinanceRoleTemplate,
 } from '@cgpos/shared';
 import { MODUL } from '@/lib/nav';
 import { useData } from '@/lib/data';
@@ -243,6 +245,21 @@ export default function HakAksesPage() {
     }
   };
 
+  const handleAddFinance = async () => {
+    setSavingRole(true);
+    setActionError(null);
+    try {
+      const tpl = { ...createFinanceRoleTemplate(DASHBOARD_MODULE_IDS), id: crypto.randomUUID() };
+      const saved = await data.saveRolePermissions(tpl);
+      setCustomRoles((prev) => upsertCustomRole(prev, tpl.id, saved, DASHBOARD_MODULE_IDS));
+      setToastMsg('Peran "Finance" dibuat. Tautkan ke karyawan lewat Pengaturan, Karyawan dan akses.');
+    } catch (err) {
+      setActionError(roleActionErrorMessage(err, 'Gagal membuat peran Finance.'));
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
   const handleSaveRole = async (draft: RoleDefinition) => {
     setSavingRole(true);
     setWizardError(null);
@@ -347,6 +364,13 @@ export default function HakAksesPage() {
           </p>
         </div>
       </div>
+
+      {rolesAsync.status === 'ready' && !customRoles.some((r) => r.name.trim().toLowerCase() === FINANCE_ROLE_NAME.toLowerCase()) && (
+        <div className="cg-banner cg-banner--info mb-16 flex flex-wrap items-center justify-between gap-12">
+          <p className="text-sm m-0 min-w-0 flex-1">Belum ada peran <strong>Finance</strong>. Peran ini bisa mengurus keuangan (kas, jurnal, laporan) dan melihat payroll tanpa akses kasir; hak aksesnya bisa diubah lagi setelah dibuat.</p>
+          <button type="button" className="cg-btn cg-btn--primary cg-btn--sm" disabled={savingRole} onClick={() => void handleAddFinance()}>Tambah peran Finance</button>
+        </div>
+      )}
 
       {showMigrationBanner && (
         <div

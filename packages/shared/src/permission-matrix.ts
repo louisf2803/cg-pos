@@ -1063,6 +1063,52 @@ export function createDefaultRoleDefinitions(dashboardModuleIds: string[]): Role
   ];
 }
 
+/** Nama peran Finance (dicocokkan tanpa memandang huruf besar). */
+export const FINANCE_ROLE_NAME = 'Finance';
+
+/**
+ * Templat peran kustom Finance: mengurus uang, tanpa kasir. Modul Keuangan penuh (kas, jurnal, laporan), Penjualan dan Karyawan hanya lihat
+ * (laporan, payroll dan kasbon), modul lain dan aplikasi kasir mati. Dasarnya manajer supaya server mengizinkan baca data keuangan dan gaji;
+ * pembatasan tampilan lewat hak akses ini. Peran ini dibuat sebagai peran kustom biasa (bisa diubah di wizard) lewat tombol di halaman Hak akses.
+ */
+export function createFinanceRoleTemplate(dashboardModuleIds: string[]): RoleDefinition {
+  const full = new Set(['keuangan']);
+  const viewOnly = new Set(['penjualan', 'karyawan']);
+  const dashboardModuleEnabled: Record<string, boolean> = {};
+  const dashboardFeatureEnabled: Record<string, boolean> = {};
+  const dashboardSubFeaturePerms: Record<string, ActionPermissionSet> = {};
+  for (const mod of DASHBOARD_ACCESS_MODULES) {
+    const on = full.has(mod.id) || viewOnly.has(mod.id);
+    dashboardModuleEnabled[mod.id] = on;
+    for (const feat of mod.features) {
+      dashboardFeatureEnabled[feat.id] = on;
+      for (const sub of feat.subFeatures) {
+        dashboardSubFeaturePerms[subFeatureKey(feat.id, sub.id)] = buildSubFeatureActionSet(sub, (a) => on && (a === 'lihat' || full.has(mod.id)));
+      }
+    }
+  }
+  const pos = buildDefaultWizardPosState('cashier');
+  const posModuleEnabled = Object.fromEntries(Object.keys(pos.posModuleEnabled).map((k) => [k, false]));
+  const posFeatureEnabled = Object.fromEntries(Object.keys(pos.posFeatureEnabled).map((k) => [k, false]));
+  const posSubFeaturePerms = Object.fromEntries(Object.entries(pos.posSubFeaturePerms).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([a, x]) => [a, x === null ? null : false])) as unknown as ActionPermissionSet]));
+  const dashboardPerms: Record<string, DashboardAccessLevel> = {};
+  for (const id of dashboardModuleIds) dashboardPerms[id] = full.has(id) ? 'write' : viewOnly.has(id) ? 'read' : 'none';
+  return {
+    id: 'finance-template',
+    name: FINANCE_ROLE_NAME,
+    description: 'Mengurus keuangan: kas, jurnal, laporan, serta melihat payroll dan kasbon. Tanpa akses kasir.',
+    isBuiltIn: false,
+    baseRole: 'manager',
+    ownerAppAccess: false,
+    dashboardPerms,
+    posPerms: Object.fromEntries(Object.keys(buildDefaultPosPerms('cashier')).map((k) => [k, 'deny' as PosAccessLevel])),
+    dashboardModuleEnabled, dashboardFeatureEnabled, dashboardSubFeaturePerms,
+    posAppEnabled: false, posModuleEnabled, posFeatureEnabled, posSubFeaturePerms,
+    canAuthorizeRefund: false, canAuthorizeVoid: false, canAuthorizeComplimentary: false,
+    defaultDashboardPage: '/keuangan',
+  };
+}
+
 /** Gabungkan peran bawaan dengan peran dan override tersimpan di penyimpanan lokal (aman untuk struktur lama & baru). */
 export function mergeRoleOverrides(
   savedRoles: RoleDefinition[] | null | undefined,
