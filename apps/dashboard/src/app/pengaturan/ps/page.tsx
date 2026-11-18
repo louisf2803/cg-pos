@@ -1,18 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Clock, Gamepad2, Plus, Trash2 } from 'lucide-react';
 import {
   PS_DEFAULT_BOOKING_MESSAGE, PS_WEEKDAY_LABEL, formatClock, formatRp, parseClock, psPackageProblem, psSettingsProblem, psStationProblem,
-  type PsPackage, type PsRateBand, type PsSettings, type PsStation,
+  type CustomerGroup, type PsGroupPrices, type PsPackage, type PsRateBand, type PsSettings, type PsStation,
 } from '@cgpos/shared';
 import { useData } from '@/lib/data';
 import { useAsync } from '@/lib/use-async';
 import { PageHeader } from '@/components/page';
 import { useDialog } from '@/components/fin-common';
 
-type Tab = 'station' | 'paket' | 'umum';
+type Tab = 'station' | 'paket' | 'harga' | 'umum';
 type DayKey = 'all' | 'weekday' | 'weekend';
 const DAY_SETS: Record<DayKey, { label: string; days?: number[] }> = {
   all: { label: 'Setiap hari' },
@@ -30,13 +30,14 @@ const durText = (m: number) => (m % 60 === 0 ? `${m / 60} jam` : m > 60 ? `${Mat
 export default function PsPage() {
   const data = useData();
   const [tab, setTab] = useState<Tab>('station');
+  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('tab') === 'harga') setTab('harga'); } catch { /* abaikan */ } }, []);
   const [notice, setNotice] = useState('');
   const [editStation, setEditStation] = useState<PsStation | null>(null);
   const [editPackage, setEditPackage] = useState<PsPackage | 'new' | null>(null);
 
   const state = useAsync(async () => {
-    const [stations, packages, settings, floors] = await Promise.all([data.listPsStations(), data.listPsPackages(), data.getPsSettings(), data.listFloors()]);
-    return { stations, packages, settings, hasPsFloor: floors.some((f) => f.kind === 'ps') };
+    const [stations, packages, settings, floors, groups, groupPrices] = await Promise.all([data.listPsStations(), data.listPsPackages(), data.getPsSettings(), data.listFloors(), data.listCustomerGroups(), data.listPsGroupPrices().catch((): PsGroupPrices => ({ rates: [], packages: [] }))]);
+    return { stations, packages, settings, groups, groupPrices, hasPsFloor: floors.some((f) => f.kind === 'ps') };
   }, [data]);
 
   return (
@@ -48,7 +49,7 @@ export default function PsPage() {
       />
       {notice && <div role="status" className="cg-banner cg-banner--success flex items-center justify-between"><span>{notice}</span><button type="button" className="text-xs font-semibold underline ml-12" onClick={() => setNotice('')}>Tutup</button></div>}
       <div className="cg-tabs" role="tablist" aria-label="Pengaturan PS">
-        {([['station', 'Station'], ['paket', 'Paket'], ['umum', 'Aturan umum']] as [Tab, string][]).map(([k, l]) => (
+        {([['station', 'Station'], ['paket', 'Paket'], ['harga', 'Harga per tipe pelanggan'], ['umum', 'Aturan umum']] as [Tab, string][]).map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className="cg-tab" onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -98,6 +99,8 @@ export default function PsPage() {
           </table></div></div>
         )
       )}
+
+      {state.status === 'ready' && tab === 'harga' && <GroupPricesTab stations={state.data.stations} packages={state.data.packages} groups={state.data.groups} prices={state.data.groupPrices} onSaved={(m) => { setNotice(m); state.reload(); }} />}
 
       {state.status === 'ready' && tab === 'umum' && <SettingsForm initial={state.data.settings} onSaved={() => { setNotice('Aturan umum PS disimpan.'); state.reload(); }} />}
 
@@ -280,5 +283,77 @@ function SettingsForm({ initial, onSaved }: { initial: PsSettings; onSaved: () =
       </div>
       <div className="flex justify-end"><button type="submit" className="cg-btn cg-btn--primary" disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan'}</button></div>
     </form>
+  );
+}
+
+/** Harga PS khusus per tipe pelanggan (grup harga spesial): kosong = ikut harga Normal. Tarif khusus menggantikan tarif dasar dan pita jam. */
+function GroupPricesTab({ stations, packages, groups, prices, onSaved }: { stations: PsStation[]; packages: PsPackage[]; groups: CustomerGroup[]; prices: PsGroupPrices; onSaved: (m: string) => void }) {
+  const data = useData();
+  const extra = groups.filter((g) => !g.isDefault);
+  const [groupId, setGroupId] = useState(extra[0]?.id ?? '');
+  const mine = (gid: string) => ({
+    rates: Object.fromEntries(prices.rates.filter((r) => r.groupId === gid).map((r) => [r.tableId, String(r.ratePerHour)])),
+    pkgs: Object.fromEntries(prices.packages.filter((p) => p.groupId === gid).map((p) => [p.packageId, String(p.price)])),
+  });
+  const [draft, setDraft] = useState(() => mine(extra[0]?.id ?? ''));
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  function pick(id: string) { setGroupId(id); setDraft(mine(id)); setErr(''); }
+  const num = (v: string | undefined): number | null => { const d = (v ?? '').replace(/\D/g, ''); return d === '' ? null : Number(d); };
+
+  async function save() {
+    if (busy || !groupId) return;
+    setBusy(true); setErr('');
+    try {
+      await data.savePsGroupPrices(groupId, {
+        rates: stations.map((s) => ({ tableId: s.tableId, ratePerHour: num(draft.rates[s.tableId]) })),
+        packages: packages.map((p) => ({ packageId: p.id, price: num(draft.pkgs[p.id]) })),
+      });
+      onSaved(`Harga PS untuk ${extra.find((g) => g.id === groupId)?.name ?? 'grup'} disimpan.`);
+    } catch (x) { setErr(x instanceof Error ? x.message : 'Gagal menyimpan.'); }
+    setBusy(false);
+  }
+
+  if (extra.length === 0) {
+    return (
+      <div className="cg-empty py-48 text-center bg-surface-raised rounded-xl border border-border">
+        <p className="font-bold m-0">Belum ada tipe pelanggan tambahan</p>
+        <p className="text-sm text-text-muted mx-auto max-w-[480px]">Normal selalu ada dan memakai harga biasa. Tambah tipe lain (misalnya Ojek Online, Shopee, Grab) di Grup pelanggan, lalu atur harga khususnya di sini.</p>
+        <Link href="/pelanggan/grup" className="cg-btn cg-btn--secondary mt-12 inline-flex">Buka Grup pelanggan</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-16">
+      <p className="text-sm text-text-muted m-0 max-w-[720px]">Normal memakai tarif dan paket yang diatur di tab Station dan Paket. Pilih tipe pelanggan lain lalu isi harga khususnya; kolom kosong berarti ikut harga Normal. Tarif per jam khusus berlaku rata sepanjang hari (menggantikan pita jam).</p>
+      <div className="flex flex-wrap gap-8" role="tablist" aria-label="Tipe pelanggan">
+        {extra.map((g) => (
+          <button key={g.id} type="button" role="tab" aria-selected={g.id === groupId} className={`cg-btn cg-btn--sm ${g.id === groupId ? 'cg-btn--primary' : 'cg-btn--secondary'}`} onClick={() => pick(g.id)}>
+            {g.name}{g.showInPos === false ? ' (disembunyikan di POS)' : ''}
+          </button>
+        ))}
+      </div>
+      {err && <div role="alert" className="cg-banner cg-banner--danger"><span>{err}</span></div>}
+      <div className="cg-card overflow-hidden"><div className="overflow-x-auto min-w-0"><table className="cg-data w-full">
+        <thead><tr className="border-b border-border bg-surface text-xs font-semibold text-text-muted"><th className="py-12 px-16 text-left">Item</th><th className="py-12 px-16 text-right">Harga Normal</th><th className="py-12 px-16 text-left">Harga khusus</th></tr></thead>
+        <tbody>
+          {stations.map((s) => (
+            <tr key={s.tableId} className="border-b border-border">
+              <td className="py-12 px-16 font-medium">{s.name} <span className="text-text-muted text-xs">tarif per jam</span></td>
+              <td className="py-12 px-16 text-right cg-num">{formatRp(s.ratePerHour)}</td>
+              <td className="py-12 px-16"><input aria-label={`Tarif per jam ${s.name} untuk grup ini`} className="cg-input max-w-[160px]" inputMode="numeric" placeholder="ikut Normal" value={draft.rates[s.tableId] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, rates: { ...d.rates, [s.tableId]: e.target.value } }))} /></td>
+            </tr>
+          ))}
+          {packages.map((p) => (
+            <tr key={p.id} className="border-b border-border last:border-0">
+              <td className="py-12 px-16 font-medium">{p.name} <span className="text-text-muted text-xs">paket</span></td>
+              <td className="py-12 px-16 text-right cg-num">{formatRp(p.price)}</td>
+              <td className="py-12 px-16"><input aria-label={`Harga paket ${p.name} untuk grup ini`} className="cg-input max-w-[160px]" inputMode="numeric" placeholder="ikut Normal" value={draft.pkgs[p.id] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, pkgs: { ...d.pkgs, [p.id]: e.target.value } }))} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div></div>
+      <div className="flex justify-end"><button type="button" className="cg-btn cg-btn--primary" onClick={() => void save()} disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan harga'}</button></div>
+    </div>
   );
 }

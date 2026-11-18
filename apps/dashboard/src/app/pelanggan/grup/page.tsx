@@ -32,6 +32,7 @@ function GroupEditorDialog({
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [error, setError] = useState('');
+  const locked = !!initial?.isDefault;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +61,7 @@ function GroupEditorDialog({
               {initial ? 'Ubah grup pelanggan' : 'Tambah grup pelanggan'}
             </h2>
             <p className="text-sm text-text-muted mt-4">
-              Gunakan grup untuk membedakan segmen seperti Member, Reseller, atau Karyawan.
+              Gunakan grup untuk membedakan tipe pelanggan seperti Member, Reseller, Ojek Online, atau Karyawan. Grup Normal wajib ada dan namanya tidak bisa diubah.
             </p>
           </div>
           <button type="button" className="cg-btn cg-btn--ghost cg-btn--sm" onClick={onClose} disabled={isBusy}>
@@ -84,7 +85,7 @@ function GroupEditorDialog({
             maxLength={80}
             placeholder="Contoh: Reseller Grosir Utama"
             value={name}
-            disabled={isBusy}
+            disabled={isBusy || locked}
             onChange={(e) => {
               setName(e.target.value);
               if (error) setError('');
@@ -344,6 +345,20 @@ export default function CustomerGroupsPage() {
     [groupsRes],
   );
 
+  async function togglePos(g: CustomerGroup) {
+    setIsBusy(true);
+    setErrorNotice('');
+    try {
+      await data.setCustomerGroupPosVisibility(g.id, g.showInPos === false);
+      setNotice(g.showInPos === false ? `Grup "${g.name}" tayang di POS.` : `Grup "${g.name}" disembunyikan dari POS.`);
+      groupsRes.reload();
+    } catch (err: unknown) {
+      setErrorNotice(err instanceof Error ? err.message : 'Gagal mengubah status tayang.');
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   const members = useMemo(
     () => (membersRes.status === 'ready' ? membersRes.data : []),
     [membersRes],
@@ -583,6 +598,7 @@ export default function CustomerGroupsPage() {
                 <tr>
                   <th>Nama grup</th>
                   <th>Anggota</th>
+                  <th>Tayang di POS</th>
                   <th>Dibuat</th>
                   <th className="text-right">Aksi</th>
                 </tr>
@@ -600,7 +616,7 @@ export default function CustomerGroupsPage() {
                   return (
                     <tr key={g.id}>
                       <td className="max-w-[280px]">
-                        <div className="font-semibold break-words">{g.name}</div>
+                        <div className="font-semibold break-words">{g.name} {g.isDefault && <span className="cg-badge cg-badge--accent ml-4">Wajib</span>}</div>
                         {g.description && (
                           <div className="text-xs text-text-muted break-words mt-4">
                             {g.description}
@@ -612,6 +628,16 @@ export default function CustomerGroupsPage() {
                           <span className="cg-badge cg-badge--accent">{count} anggota</span>
                         </div>
                         <div className="text-xs text-text-muted truncate mt-4">{preview}</div>
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {g.isDefault ? (
+                          <span className="text-sm text-text-muted">Selalu tayang</span>
+                        ) : (
+                          <label className="inline-flex items-center gap-8 text-sm cursor-pointer">
+                            <input type="checkbox" role="switch" checked={g.showInPos !== false} disabled={isBusy} onChange={() => void togglePos(g)} aria-label={`Tayang di POS: ${g.name}`} />
+                            <span>{g.showInPos !== false ? 'Tayang' : 'Disembunyikan'}</span>
+                          </label>
+                        )}
                       </td>
                       <td className="whitespace-nowrap text-sm text-text-muted">
                         {formatJakartaDateTime(g.createdAt)}
@@ -635,15 +661,20 @@ export default function CustomerGroupsPage() {
                             <Pencil className="cg-icon cg-icon--sm" aria-hidden />
                             Ubah
                           </button>
-                          <button
-                            type="button"
-                            className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
-                            aria-label={`Hapus grup ${g.name}`}
-                            onClick={() => setDeletingGroup(g)}
-                          >
-                            <Trash2 className="cg-icon cg-icon--sm" aria-hidden />
-                            Hapus
-                          </button>
+                          {!g.isDefault && (
+                            <Link href="/pengaturan/ps?tab=harga" className="cg-btn cg-btn--ghost cg-btn--sm">Harga PS</Link>
+                          )}
+                          {!g.isDefault && (
+                            <button
+                              type="button"
+                              className="cg-btn cg-btn--ghost cg-btn--sm text-danger"
+                              aria-label={`Hapus grup ${g.name}`}
+                              onClick={() => setDeletingGroup(g)}
+                            >
+                              <Trash2 className="cg-icon cg-icon--sm" aria-hidden />
+                              Hapus
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

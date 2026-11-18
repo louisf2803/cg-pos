@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  PS_WEEKDAY_LABEL, blockHours, bookingWhatsAppLink, dayRangeUtc, fillBookingMessage, formatPsDuration, formatRp, freeUntil, localClock, overlapsBlocks, packageApplies, priceForChoice,
+  PS_WEEKDAY_LABEL, blockHours, bookingWhatsAppLink, dayRangeUtc, fillBookingMessage, formatPsDuration, formatRp, freeUntil, localClock, overlapsBlocks, packageApplies, priceForChoice, psGroupPricing, stationForGroup, NO_PS_GROUP_PRICING, type PsGroupPricing,
   priceForDuration, psBlocks, sessionSchedule, timelineHours, zonedTime, type OutletContext, type PsBlock, type PsChoice, type PsPackage, type PsSettings, type PsStation,
 } from '@cgpos/shared';
 import { useData } from '../lib/app-data';
@@ -64,14 +64,14 @@ function StationCard({ station, info, tz, selected, inOrder, onOpen, nightRate }
 }
 
 /** Tampilan PS di kasir: konsol (kartu neon) dan jadwal (blok waktu). Pesanan tetap di panel kanan; sewa masuk ke pesanan sebagai satu baris. */
-export function PsView({ ctx, customerName, orderConsoles, onAddToOrder }: {
-  ctx: OutletContext; customerName?: string; orderConsoles: string[]; onAddToOrder: (line: { name: string; price: number; note: string }) => void;
+export function PsView({ ctx, customerName, groupId, orderConsoles, onAddToOrder }: {
+  ctx: OutletContext; customerName?: string; groupId?: string | null; orderConsoles: string[]; onAddToOrder: (line: { name: string; price: number; note: string }) => void;
 }) {
   const data = useData();
   const tz = ctx.timezone;
   const base = useAsync(async () => {
-    const [stations, packages, settings, floors] = await Promise.all([data.listPsStations(), data.listPsPackages(), data.getPsSettings(), data.listFloors()]);
-    return { stations, packages, settings, floors: floors.filter((f) => f.kind === 'ps') };
+    const [stations, packages, settings, floors, groupPrices] = await Promise.all([data.listPsStations(), data.listPsPackages(), data.getPsSettings(), data.listFloors(), data.listPsGroupPrices().catch(() => ({ rates: [], packages: [] }))]);
+    return { stations, packages, settings, groupPrices, floors: floors.filter((f) => f.kind === 'ps') };
   }, [data]);
   const [ps, update] = usePsState(ctx.outletId);
   const now = useNow(1000);
@@ -93,6 +93,7 @@ export function PsView({ ctx, customerName, orderConsoles, onAddToOrder }: {
   if (base.status === 'error') return <div className="reg__ps p-16"><div role="alert" className="cg-banner cg-banner--danger"><span>Data PS belum bisa dimuat. {base.message}</span><button className="cg-btn cg-btn--secondary cg-btn--sm" onClick={base.reload}>Coba lagi</button></div></div>;
 
   const { stations, packages, settings, floors } = base.data;
+  const groupPricing = psGroupPricing(base.data.groupPrices, groupId);
   if (stations.length === 0) {
     return <div className="reg__ps p-16"><div className="cg-empty"><p><strong>Belum ada station PS.</strong></p><p className="text-text-muted">Buat lantai berjenis PS dan tambahkan mejanya di dashboard (Denah dan meja), lalu atur tarifnya di Station PS.</p></div></div>;
   }
@@ -162,11 +163,11 @@ export function PsView({ ctx, customerName, orderConsoles, onAddToOrder }: {
           onCancel={(b) => { update((s) => cancelBooking(s, b.id)); setNote(`Booking ${b.name} dibatalkan.`); closeDlg(); }}
           bookingLink={(b) => bookingLinkFor(b, station)} />
       )}
-      {dlg?.kind === 'start' && station && <ChoiceDialog title={`Sewa ${station.name}`} action="Mulai dan tambah ke pesanan" station={station} packages={packages} settings={settings} tz={tz} defaultName={customerName} withName onClose={closeDlg}
+      {dlg?.kind === 'start' && station && <ChoiceDialog title={`Sewa ${station.name}`} action="Mulai dan tambah ke pesanan" station={station} packages={packages} settings={settings} tz={tz} group={groupPricing} defaultName={customerName} withName onClose={closeDlg}
         onConfirm={({ choice, label, price, name, endsAt, billableStart }) => { try { update((s) => startSession(s, { tableId: station.tableId, customerName: name, choice, label, price, graceMinutes: settings.graceMinutes, tz, now: new Date() })); addLine(`Sewa ${station.name} · ${label}`, price, `${station.name} ${hm(billableStart, tz)}–${hm(endsAt, tz)}`); setNote(`Sewa ${station.name} dimulai dan masuk ke pesanan.`); } catch (e) { setNote(e instanceof Error ? e.message : 'Gagal memulai.'); } closeDlg(); }} />}
-      {dlg?.kind === 'extend' && station && info?.session && <ChoiceDialog title={`Tambah waktu ${station.name}`} action="Tambah waktu ke pesanan" station={station} packages={packages} settings={settings} tz={tz} extendFrom={new Date(Math.max(new Date(info.session.endsAt).getTime(), now.getTime()))} onClose={closeDlg}
+      {dlg?.kind === 'extend' && station && info?.session && <ChoiceDialog title={`Tambah waktu ${station.name}`} action="Tambah waktu ke pesanan" station={station} packages={packages} settings={settings} tz={tz} group={groupPricing} extendFrom={new Date(Math.max(new Date(info.session.endsAt).getTime(), now.getTime()))} onClose={closeDlg}
         onConfirm={({ choice, label, price }) => { const mins = choice.kind === 'duration' ? choice.minutes : (choice.pkg.durationMinutes ?? 0); update((s) => extendSession(s, info.session!.id, { minutes: mins, label, price, now: new Date() })); addLine(`Tambah waktu ${station.name} · ${label}`, price, station.name); setNote(`Waktu ${station.name} ditambah ${durText(mins)} dan masuk ke pesanan.`); closeDlg(); }} />}
-      {dlg?.kind === 'book' && station && <BookingDialog station={station} packages={packages} settings={settings} tz={tz} blocks={blocks} startAt={dlg.startAt} onClose={closeDlg}
+      {dlg?.kind === 'book' && station && <BookingDialog station={station} packages={packages} settings={settings} tz={tz} group={groupPricing} blocks={blocks} startAt={dlg.startAt} onClose={closeDlg}
         onSave={(i) => update((s) => addBooking(s, { ...i, now: new Date(), expiryMinutes: settings.bookingExpiryMinutes }))} />}
       {dlg?.kind === 'booking' && (() => {
         const b = ps.bookings.find((x) => x.id === dlg.id) ?? (otherDay.status === 'ready' ? otherDay.data?.bookings.find((x) => x.id === dlg.id) : undefined);
@@ -328,8 +329,8 @@ interface ChoiceResult { choice: PsChoice; label: string; price: number; name?: 
 interface Option { id: string; choice: PsChoice; label: string; sub: string; price: number; endsAt: Date; billableStart: Date }
 
 /** Pilih paket atau durasi (harga dari tarif per jam dan pita jam) untuk mulai sewa atau tambah waktu. */
-function ChoiceDialog({ title, action, station, packages, settings, tz, withName, defaultName, extendFrom, onClose, onConfirm }: {
-  title: string; action: string; station: PsStation; packages: PsPackage[]; settings: PsSettings; tz: string; withName?: boolean; defaultName?: string; extendFrom?: Date;
+function ChoiceDialog({ title, action, station, packages, settings, tz, group = NO_PS_GROUP_PRICING, withName, defaultName, extendFrom, onClose, onConfirm }: {
+  title: string; action: string; station: PsStation; packages: PsPackage[]; settings: PsSettings; tz: string; group?: PsGroupPricing; withName?: boolean; defaultName?: string; extendFrom?: Date;
   onClose: () => void; onConfirm: (r: ChoiceResult) => void;
 }) {
   const [now] = useState(() => new Date());
@@ -343,15 +344,15 @@ function ChoiceDialog({ title, action, station, packages, settings, tz, withName
       if (extendFrom && p.windowStartMin !== undefined) continue;
       const choice: PsChoice = { kind: 'package', pkg: p };
       const sch = sessionSchedule(at, grace, choice, tz);
-      list.push({ id: `p-${p.id}`, choice, label: p.name, sub: p.windowStartMin !== undefined ? `selesai tepat ${hm(sch.endsAt, tz)}` : `${durText(p.durationMinutes ?? 0)} · selesai ${hm(sch.endsAt, tz)}`, price: priceForChoice(station, choice, sch, tz), endsAt: sch.endsAt, billableStart: sch.billableStart });
+      list.push({ id: `p-${p.id}`, choice, label: p.name, sub: p.windowStartMin !== undefined ? `selesai tepat ${hm(sch.endsAt, tz)}` : `${durText(p.durationMinutes ?? 0)} · selesai ${hm(sch.endsAt, tz)}`, price: priceForChoice(station, choice, sch, tz, group), endsAt: sch.endsAt, billableStart: sch.billableStart });
     }
     for (const m of QUICK_MINUTES) {
       const choice: PsChoice = { kind: 'duration', minutes: m };
       const sch = sessionSchedule(at, grace, choice, tz);
-      list.push({ id: `d-${m}`, choice, label: durText(m), sub: `${hm(sch.billableStart, tz)} sampai ${hm(sch.endsAt, tz)}`, price: priceForDuration(station, sch.billableStart, m, tz), endsAt: sch.endsAt, billableStart: sch.billableStart });
+      list.push({ id: `d-${m}`, choice, label: durText(m), sub: `${hm(sch.billableStart, tz)} sampai ${hm(sch.endsAt, tz)}`, price: priceForDuration(stationForGroup(station, group), sch.billableStart, m, tz), endsAt: sch.endsAt, billableStart: sch.billableStart });
     }
     return list;
-  }, [packages, station, tz, settings.graceMinutes, extendFrom, now]);
+  }, [packages, station, tz, settings.graceMinutes, extendFrom, now, group]);
   const [pick, setPick] = useState(options[0]?.id ?? '');
   const opt = options.find((o) => o.id === pick);
   return (
@@ -380,8 +381,8 @@ function ChoiceDialog({ title, action, station, packages, settings, tz, withName
 }
 
 /** Booking dibayar penuh lewat transfer: simpan, lalu kirim pesan lewat tautan wa.me yang tinggal diklik. */
-function BookingDialog({ station, packages, settings, tz, blocks, startAt: presetStart, onClose, onSave }: {
-  station: PsStation; packages: PsPackage[]; settings: PsSettings; tz: string; blocks: PsBlock[]; startAt?: string; onClose: () => void;
+function BookingDialog({ station, packages, settings, tz, group = NO_PS_GROUP_PRICING, blocks, startAt: presetStart, onClose, onSave }: {
+  station: PsStation; packages: PsPackage[]; settings: PsSettings; tz: string; group?: PsGroupPricing; blocks: PsBlock[]; startAt?: string; onClose: () => void;
   onSave: (b: { tableId: string; name: string; phone: string; startAt: string; durationMinutes: number; label: string; price: number }) => void;
 }) {
   const data = useData();
@@ -403,7 +404,7 @@ function BookingDialog({ station, packages, settings, tz, blocks, startAt: prese
   const choice: PsChoice = pkg ? { kind: 'package', pkg } : { kind: 'duration', minutes };
   const sch = startOk ? sessionSchedule(startAt, 0, choice, tz) : null;
   const applies = !pkg || (startOk && packageApplies(pkg, station.tableId, startAt, tz));
-  const price = sch ? priceForChoice(station, choice, sch, tz) : 0;
+  const price = sch ? priceForChoice(station, choice, sch, tz, group) : 0;
   const dur = sch?.durationMinutes ?? 0;
   const clash = sch ? overlapsBlocks(station.tableId, startAt, sch.endsAt, blocks) : null;
 

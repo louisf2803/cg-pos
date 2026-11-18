@@ -4,6 +4,10 @@ export interface CustomerGroup {
   id: string;
   name: string;
   description?: string;
+  /** grup Normal (migrasi 0160): wajib ada, tidak bisa dihapus, diganti nama, atau disembunyikan */
+  isDefault?: boolean;
+  /** tayang sebagai pilihan tipe pelanggan di POS (Normal selalu tayang) */
+  showInPos?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

@@ -21,7 +21,7 @@ import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, Rec
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { StaffAccount } from './tasks';
 import type { PsBoard, PsBookingRow, PsSessionRow } from './ps-schedule';
-import type { PsPackage, PsPackageInput, PsSettings, PsStation, PsStationInput } from './ps';
+import type { PsGroupPrices, PsPackage, PsPackageInput, PsSettings, PsStation, PsStationInput } from './ps';
 import type { TaskGateItem, TaskPhase, TaskRun, TaskTemplate, TaskTemplateInput } from './tasks';
 import type { IngredientUnavailable, IngredientUnavailableInput, UnavailableProduct } from './availability';
 import type { CollectiveLeave, CollectiveLeaveInput, EmployeeProfile, EmployeeProfileInput } from './hr-profile';
@@ -549,6 +549,12 @@ export interface DataLayer {
 
   // ---------- grup pelanggan, harga grosir & jadwal harga ----------
   listCustomerGroups(): Promise<CustomerGroup[]>;
+  /** Tayang atau tidak sebagai pilihan tipe pelanggan di POS (grup Normal tidak bisa disembunyikan). Pengelola. */
+  setCustomerGroupPosVisibility(id: string, show: boolean): Promise<void>;
+  /** Harga PS khusus per tipe pelanggan (tarif per jam konsol dan harga paket); yang tidak ada = ikut harga Normal. */
+  listPsGroupPrices(): Promise<PsGroupPrices>;
+  /** Ganti semua harga PS satu grup (bukan Normal). Nilai null dilewati. Pengelola. */
+  savePsGroupPrices(groupId: string, input: { rates: { tableId: string; ratePerHour: number | null }[]; packages: { packageId: string; price: number | null }[] }): Promise<void>;
   saveCustomerGroup(group: { id?: string; name: string; description?: string }): Promise<CustomerGroup>;
   deleteCustomerGroup(id: string): Promise<void>;
   listCustomerGroupMembers(groupId?: string): Promise<CustomerGroupMember[]>;

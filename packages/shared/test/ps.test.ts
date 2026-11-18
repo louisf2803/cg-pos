@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bandsProblem, bookingWhatsAppLink, fillBookingMessage, formatPsDuration, formatClock, localClock, packageApplies, parseClock, priceForChoice,
-  priceForDuration, psPackageProblem, psSettingsProblem, psStationProblem, rateAtMinute, runState, sessionSchedule, whatsappNumber,
+  priceForDuration, psGroupPricing, psPackageProblem, psSettingsProblem, psStationProblem, rateAtMinute, runState, sessionSchedule, whatsappNumber,
   type PsPackage, type PsStation,
 } from '../src';
 
@@ -154,5 +154,28 @@ describe('zonedTime', () => {
     expect(zonedTime('2026-11-17', '19:00', 'Asia/Makassar')!.toISOString()).toBe('2026-11-17T11:00:00.000Z');
     expect(zonedTime('2026-11-17', '00:30', 'Asia/Jakarta')!.toISOString()).toBe('2026-11-16T17:30:00.000Z');
     expect(zonedTime('bukan', '19:00', 'Asia/Jakarta')).toBeNull();
+  });
+});
+
+describe('harga PS per tipe pelanggan', () => {
+  const st = { tableId: 't1', ratePerHour: 10000, bands: [{ startMin: 960, endMin: 1440, ratePerHour: 15000, weekdays: [0, 1, 2, 3, 4, 5, 6] }] } as unknown as PsStation;
+  const prices = {
+    rates: [{ groupId: 'ojol', tableId: 't1', ratePerHour: 8000 }],
+    packages: [{ groupId: 'ojol', packageId: 'pk1', price: 20000 }],
+  };
+  const pkg = { id: 'pk1', price: 25000, durationMinutes: 180 } as unknown as PsPackage;
+  it('Normal dan grup tanpa penggantian ikut harga biasa', () => {
+    const sch = sessionSchedule(at('19:00'), 0, { kind: 'duration', minutes: 60 }, TZ);
+    expect(priceForChoice(st, { kind: 'duration', minutes: 60 }, sch, TZ, psGroupPricing(prices, null))).toBe(15000);
+    expect(priceForChoice(st, { kind: 'duration', minutes: 60 }, sch, TZ, psGroupPricing(prices, 'lain'))).toBe(15000);
+  });
+  it('tarif grup menggantikan tarif dasar dan pita jam', () => {
+    const sch = sessionSchedule(at('19:00'), 0, { kind: 'duration', minutes: 60 }, TZ);
+    expect(priceForChoice(st, { kind: 'duration', minutes: 60 }, sch, TZ, psGroupPricing(prices, 'ojol'))).toBe(8000);
+  });
+  it('harga paket grup menggantikan harga paket', () => {
+    const sch = sessionSchedule(at('19:00'), 0, { kind: 'package', pkg }, TZ);
+    expect(priceForChoice(st, { kind: 'package', pkg }, sch, TZ, psGroupPricing(prices, 'ojol'))).toBe(20000);
+    expect(priceForChoice(st, { kind: 'package', pkg }, sch, TZ)).toBe(25000);
   });
 });

@@ -97,6 +97,11 @@ export function Register({
   const [area, setArea] = useState<'cafe' | 'ps'>('cafe');
   const psStations = useAsync(() => data.listPsStations().catch(() => []), [data]);
   const hasPs = psStations.status === 'ready' && psStations.data.length > 0;
+  const priceGroups = useAsync(() => data.listCustomerGroups().catch(() => []), [data]);
+  const posGroups = priceGroups.status === 'ready' ? priceGroups.data.filter((g) => g.isDefault || g.showInPos !== false) : [];
+  const normalGroupId = posGroups.find((g) => g.isDefault)?.id ?? null;
+  const [psGroupId, setPsGroupId] = useState<string | null>(null);
+  const activePsGroup = posGroups.some((g) => g.id === psGroupId) ? psGroupId : normalGroupId;
   const [ordersTab, setOrdersTab] = useState<'waiting' | 'pending'>('waiting');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
@@ -139,6 +144,7 @@ export function Register({
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [priceForId, setPriceForId] = useState<string | null>(null);
   const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS, pricingRules);
+  useEffect(() => { if (cart.state.lines.length === 0) setPsGroupId(null); }, [cart.state.lines.length]);
 
   const activePricing = useMemo<CartPricingRules>(() => ({
     schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
@@ -536,7 +542,7 @@ export function Register({
       </header>
 
       {area === 'ps' && hasPs ? (
-        <PsView ctx={ctx} customerName={cart.state.customerName}
+        <PsView ctx={ctx} customerName={cart.state.customerName} groupId={activePsGroup}
           orderConsoles={cart.state.lines.map((l) => /^(?:Sewa|Tambah waktu) (\S+) ·/.exec(l.name)?.[1]).filter((x): x is string => !!x)}
           onAddToOrder={async ({ name, price, note }) => { const productId = await data.getCustomItemProductId(); cart.dispatch({ t: 'custom', productId, name, unitPrice: price, qty: 1, note }); }} />
       ) : <>
@@ -737,6 +743,18 @@ export function Register({
           <div className="grid grid-cols-2 gap-8 items-stretch">
             {/* Kolom 1: Jenis Pesanan */}
             <div className="relative">
+              {area === 'ps' && hasPs ? (
+                <select
+                  className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface"
+                  value={activePsGroup ?? ''}
+                  onChange={(e) => setPsGroupId(e.target.value)}
+                  aria-label="Tipe pelanggan"
+                  data-testid="ps-customer-type"
+                >
+                  {posGroups.length === 0 && <option value="">Normal</option>}
+                  {posGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              ) : (<>
               <select
                 className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface"
                 value={cart.state.type}
@@ -761,6 +779,7 @@ export function Register({
                   {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
                 </select>
               )}
+              </>)}
             </div>
 
             {/* Kolom 2: Tombol Pelanggan */}

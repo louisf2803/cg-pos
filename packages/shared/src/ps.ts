@@ -118,9 +118,35 @@ export function sessionSchedule(pressedAt: Date, graceMinutes: number, choice: P
   return { pressedAt, billableStart, endsAt: new Date(billableStart.getTime() + minutes * 60000), durationMinutes: minutes };
 }
 
-/** Harga pilihan sewa: paket = harga tetap; durasi = hitungan per menit menurut pita mulai dihitung. */
-export function priceForChoice(station: Pick<PsStation, 'ratePerHour' | 'bands'>, choice: PsChoice, schedule: PsSchedule, tz: string): number {
-  return choice.kind === 'package' ? choice.pkg.price : priceForDuration(station, schedule.billableStart, schedule.durationMinutes, tz);
+/**
+ * Harga PS untuk satu tipe pelanggan (grup harga spesial, migrasi 0160). Kosong = ikut harga Normal.
+ * rates: tarif per jam konsol (menggantikan tarif dasar dan pita jam); packages: harga paket.
+ */
+export interface PsGroupPricing { rates: Record<string, number>; packages: Record<string, number> }
+export interface PsGroupPrices {
+  rates: { groupId: string; tableId: string; ratePerHour: number }[];
+  packages: { groupId: string; packageId: string; price: number }[];
+}
+export const NO_PS_GROUP_PRICING: PsGroupPricing = { rates: {}, packages: {} };
+/** Harga PS satu grup dari daftar penggantian; grup Normal (atau tanpa penggantian) = kosong. */
+export function psGroupPricing(prices: PsGroupPrices, groupId: string | null | undefined): PsGroupPricing {
+  if (!groupId) return NO_PS_GROUP_PRICING;
+  return {
+    rates: Object.fromEntries(prices.rates.filter((r) => r.groupId === groupId).map((r) => [r.tableId, r.ratePerHour])),
+    packages: Object.fromEntries(prices.packages.filter((p) => p.groupId === groupId).map((p) => [p.packageId, p.price])),
+  };
+}
+/** Station dengan tarif grup: tarif per jam khusus menggantikan tarif dasar DAN pita jam. */
+export function stationForGroup<T extends Pick<PsStation, 'tableId' | 'ratePerHour' | 'bands'>>(station: T, group: PsGroupPricing): T {
+  const rate = group.rates[station.tableId];
+  return rate === undefined ? station : { ...station, ratePerHour: rate, bands: [] };
+}
+export const packagePriceForGroup = (pkg: Pick<PsPackage, 'id' | 'price'>, group: PsGroupPricing): number => group.packages[pkg.id] ?? pkg.price;
+
+/** Harga pilihan sewa: paket = harga tetap (atau harga paket grup); durasi = hitungan per menit menurut pita (atau tarif grup) mulai dihitung. */
+export function priceForChoice(station: Pick<PsStation, 'tableId' | 'ratePerHour' | 'bands'>, choice: PsChoice, schedule: PsSchedule, tz: string, group: PsGroupPricing = NO_PS_GROUP_PRICING): number {
+  if (choice.kind === 'package') return packagePriceForGroup(choice.pkg, group);
+  return priceForDuration(stationForGroup(station, group), schedule.billableStart, schedule.durationMinutes, tz);
 }
 
 export type PsRunState = 'waiting' | 'active' | 'overtime';

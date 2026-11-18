@@ -26,6 +26,7 @@ import { productionError, productionRunProblem, productionTemplateProblem, type 
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { type PsGroupPrices } from './ps';
 import { parsePsBoard, psBookingRpcRow, psScheduleError, psSessionRpcRow, type PsBookingRow, type PsSessionRow } from './ps-schedule';
 import { PS_DEFAULT_BOOKING_EXPIRY_MINUTES, PS_DEFAULT_GRACE_MINUTES, psPackageProblem, psSettingsProblem, psStationProblem, type PsPackage, type PsPackageInput, type PsRateBand, type PsSettings, type PsStation, type PsStationInput } from './ps';
 import { staffAccountProblem, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
@@ -3669,12 +3670,31 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
           id: r.id as string,
           name: r.name as string,
           description: (r.description as string) ?? '',
+          isDefault: !!r.is_default,
+          showInPos: r.show_in_pos !== false,
           createdAt: (r.created_at as string) ?? now().toISOString(),
           updatedAt: (r.updated_at as string) ?? now().toISOString(),
-        }));
+        })).sort((a, b) => Number(!!b.isDefault) - Number(!!a.isDefault) || a.name.localeCompare(b.name));
       } catch (e) {
         return [];
       }
+    },
+    async setCustomerGroupPosVisibility(id, show) {
+      const { orgId } = await resolve();
+      const { error } = await db().rpc('customer_group_pos_visibility', { p_org: orgId, p_id: id, p_show: show });
+      if (error) throw new DataError('invalid', /locked|default/i.test(error.message ?? '') ? 'Grup Normal selalu tayang di POS.' : mapDbError(error).message);
+    },
+    async listPsGroupPrices() {
+      const [r, p] = await Promise.all([db().from('ps_group_rates').select('group_id,table_id,rate_per_hour'), db().from('ps_group_package_prices').select('group_id,package_id,price')]);
+      return {
+        rates: ((must(r) as Row[] | null) ?? []).map((x) => ({ groupId: x.group_id as string, tableId: x.table_id as string, ratePerHour: Number(x.rate_per_hour) })),
+        packages: ((must(p) as Row[] | null) ?? []).map((x) => ({ groupId: x.group_id as string, packageId: x.package_id as string, price: Number(x.price) })),
+      };
+    },
+    async savePsGroupPrices(groupId, input) {
+      for (const v of [...input.rates.map((x) => x.ratePerHour), ...input.packages.map((x) => x.price)]) if (v !== null && (!Number.isInteger(v) || v < 0 || v > 100_000_000)) throw new DataError('invalid', 'Harga harus rupiah bulat.');
+      const { error } = await db().rpc('ps_group_prices_save', { p_group: groupId, p_rates: input.rates.map((x) => ({ table_id: x.tableId, rate_per_hour: x.ratePerHour })), p_packages: input.packages.map((x) => ({ package_id: x.packageId, price: x.price })) });
+      if (error) throw new DataError('invalid', /default group/i.test(error.message ?? '') ? 'Grup Normal memakai harga biasa dan tidak punya harga khusus.' : mapDbError(error).message);
     },
     async saveCustomerGroup(group) {
       const { orgId } = await resolve();
@@ -3688,6 +3708,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
         id: res.id as string,
         name: res.name as string,
         description: (res.description as string) ?? '',
+        isDefault: !!res.is_default,
+        showInPos: res.show_in_pos !== false,
         createdAt: (res.created_at as string) ?? now().toISOString(),
         updatedAt: (res.updated_at as string) ?? now().toISOString(),
       };

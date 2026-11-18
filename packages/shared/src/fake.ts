@@ -46,6 +46,7 @@ import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProb
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
 import { psScheduleError, type PsBoard, type PsBookingRow, type PsSessionRow } from './ps-schedule';
+import type { PsGroupPrices } from './ps';
 import { PS_DEFAULT_BOOKING_EXPIRY_MINUTES, PS_DEFAULT_GRACE_MINUTES, psPackageProblem, psSettingsProblem, psStationProblem, type PsPackage, type PsPackageInput, type PsSettings, type PsStation, type PsStationInput } from './ps';
 import { staffAccountProblem, staffLoginEmail, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
@@ -208,6 +209,8 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let stations: PrintStation[] = [];
   let notePresets: NotePreset[] = [];
   let customerGroups: CustomerGroup[] = [];
+  let psGroupRatesDb: PsGroupPrices['rates'] = [];
+  let psGroupPkgDb: PsGroupPrices['packages'] = [];
   let customerGroupMembers: CustomerGroupMember[] = [];
   let tieredPrices: GroupProductTieredPricing[] = [];
   let priceSchedules: PriceSchedule[] = [];
@@ -577,11 +580,15 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     attendance = [];
     customRoles = [];
     compensation = new Map(); schedules = new Map(); payrollRules = {}; incidents = []; cashAdvances = []; payrollRecords = [];
-    customerGroups = opts.seed === false ? [] : [
+    customerGroups = [
+      { id: 'grp-normal', name: 'Normal', description: 'Harga biasa untuk pelanggan umum', isDefault: true, showInPos: true, createdAt: '2026-11-01T01:55:00Z', updatedAt: '2026-11-01T01:55:00Z' },
+      ...(opts.seed === false ? [] : [
       { id: 'grp-member', name: 'Member', description: 'Pelanggan terdaftar yang mengumpulkan poin dan promo anggota.', createdAt: '2026-11-01T02:00:00Z', updatedAt: '2026-11-01T02:00:00Z' },
       { id: 'grp-reseller', name: 'Reseller', description: 'Mitra pembelian grosir dengan harga bertingkat sesuai jumlah.', createdAt: '2026-11-01T02:05:00Z', updatedAt: '2026-11-01T02:05:00Z' },
       { id: 'grp-karyawan', name: 'Karyawan', description: 'Tarif khusus staf internal outlet saat bertransaksi.', createdAt: '2026-11-01T02:10:00Z', updatedAt: '2026-11-01T02:10:00Z' },
+      ]),
     ];
+    psGroupRatesDb = []; psGroupPkgDb = [];
     customerGroupMembers = [];
     tieredPrices = [];
     priceSchedules = [];
@@ -3145,7 +3152,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const id = group.id || newId();
       const existing = customerGroups.find((g) => g.id === id);
       const at = now().toISOString();
+      if (customerGroups.some((g) => g.id !== id && g.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Grup "${name}" sudah ada`);
       if (existing) {
+        if (existing.isDefault && name.toLowerCase() !== existing.name.toLowerCase()) throw new DataError('invalid', 'Grup Normal tidak bisa diganti namanya.');
         existing.name = name;
         existing.description = group.description?.trim() ?? '';
         existing.updatedAt = at;
@@ -3155,13 +3164,30 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
         id,
         name,
         description: group.description?.trim() ?? '',
+        isDefault: false,
+        showInPos: true,
         createdAt: at,
         updatedAt: at,
       };
       customerGroups.push(newGroup);
       return clone(newGroup);
     },
+    async setCustomerGroupPosVisibility(id, show) {
+      const g = customerGroups.find((x) => x.id === id);
+      if (!g) throw new DataError('not_found', 'Grup tidak ditemukan');
+      if (g.isDefault && !show) throw new DataError('invalid', 'Grup Normal selalu tayang di POS.');
+      g.showInPos = show;
+    },
+    async listPsGroupPrices() { return clone({ rates: psGroupRatesDb, packages: psGroupPkgDb }); },
+    async savePsGroupPrices(groupId, input) {
+      const g = customerGroups.find((x) => x.id === groupId);
+      if (!g) throw new DataError('not_found', 'Grup tidak ditemukan');
+      if (g.isDefault) throw new DataError('invalid', 'Grup Normal memakai harga biasa dan tidak punya harga khusus.');
+      psGroupRatesDb = [...psGroupRatesDb.filter((r) => r.groupId !== groupId), ...input.rates.filter((r) => r.ratePerHour !== null).map((r) => ({ groupId, tableId: r.tableId, ratePerHour: r.ratePerHour as number }))];
+      psGroupPkgDb = [...psGroupPkgDb.filter((p) => p.groupId !== groupId), ...input.packages.filter((p) => p.price !== null).map((p) => ({ groupId, packageId: p.packageId, price: p.price as number }))];
+    },
     async deleteCustomerGroup(id) {
+      if (customerGroups.find((g) => g.id === id)?.isDefault) throw new DataError('invalid', 'Grup Normal tidak bisa dihapus.');
       customerGroups = customerGroups.filter((g) => g.id !== id);
       customerGroupMembers = customerGroupMembers.filter((m) => m.groupId !== id);
       tieredPrices = tieredPrices.filter((t) => t.groupId !== id);
