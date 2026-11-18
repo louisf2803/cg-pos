@@ -1208,3 +1208,9 @@ Mode offline lanjut kasir: login PIN offline via salted hash SHA-256 (`packages/
 - Dashboard: `/pelanggan/grup` (lencana Wajib, sakelar "Tayang di POS", tautan "Harga PS"); `/pengaturan/ps` tab baru **Harga per tipe pelanggan** (tarif per jam dan harga paket khusus per grup; kosong = ikut Normal; tarif khusus menggantikan tarif dasar dan pita jam).
 - POS: di mode PS, select Tipe pelanggan (hanya grup yang tayang) menggantikan Jenis pesanan; harga sewa, tambah waktu, dan booking memakai harga grup terpilih; kembali ke Normal saat pesanan kosong. Mode Kafe tidak berubah.
 - Belum: aplikasi karyawan (booking) belum memakai harga grup; tipe pelanggan belum otomatis ikut pelanggan terdaftar.
+
+## Pemilik di daftar karyawan, jabatan Owner dan Finance otomatis — 18 Nov 2026
+- Temuan: di produksi pemilik hanya ada di anggota org, tanpa baris karyawan, sehingga tidak muncul di Karyawan dan akses; jabatan Owner/Finance baru ada kalau tombolnya ditekan di halaman Jabatan.
+- Migrasi 0161 (sudah diterapkan ke produksi, tes lulus): jabatan Owner (90) dan Finance (60) ditanam untuk semua org dan org baru; tiap pemilik otomatis punya baris karyawan (role owner, tertaut akun, semua outlet) dengan jabatan Owner; pemilik baru juga otomatis.
+- Dashboard: daftar memuat pemilik; dialog pemilik hanya mengubah jabatan, unit, dan tipe (nama, peran, QR terkunci).
+- Tes SQL lama `19_hr_structure` disesuaikan (hitungan tidak lagi mengira tanpa jabatan dasar).

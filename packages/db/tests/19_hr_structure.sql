@@ -26,10 +26,10 @@ begin
   insert into pos.org_units(id, org_id, name) values (ou, o1, 'Dapur');
   insert into pos.org_units(org_id, name, parent_id) values (o1, 'Bar', ou);
   insert into pos.employee_types(id, org_id, name) values (et, o1, 'Paruh waktu');
-  insert into pos.employee_hr(employee_id, org_id, job_level_id, org_unit_id, employee_type_id) values (emp, o1, jl, ou, et);
+  insert into pos.employee_hr(employee_id, org_id, job_level_id, org_unit_id, employee_type_id) values (emp, o1, jl, ou, et) on conflict (employee_id) do update set job_level_id = excluded.job_level_id, org_unit_id = excluded.org_unit_id, employee_type_id = excluded.employee_type_id;
   insert into pos.attendance_settings(outlet_id, org_id, latitude, longitude, radius_m, mode) values (out1, o1, -6.2, 106.8, 100, 'block');
   insert into pos.employee_notifications(org_id, employee_id, title, body) values (o1, null, 'Rapat', 'Rapat Senin pukul 09.00'), (o1, emp, 'Jadwal', 'Shift berubah');
-  perform pg_temp.ok38((select count(*) from pos.job_levels) = 1 and (select count(*) from pos.org_units) = 2 and (select count(*) from pos.employee_notifications) = 2, 'manajer membaca struktur SDM');
+  perform pg_temp.ok38((select count(*) from pos.job_levels where id = jl) = 1 and (select count(*) from pos.org_units) = 2 and (select count(*) from pos.employee_notifications) = 2, 'manajer membaca struktur SDM');
   -- bentuk data
   perform pg_temp.ok38(pg_temp.fails38(format('insert into pos.job_levels(org_id, name) values (%L, ''  supervisor '')', o1)), 'nama jabatan ganda ditolak (tanpa beda huruf/spasi)');
   perform pg_temp.ok38(pg_temp.fails38(format('insert into pos.job_levels(org_id, name) values (%L, '''')', o1)), 'nama kosong ditolak');
@@ -62,7 +62,7 @@ begin
   if o2 is not null then
     perform set_config('request.jwt.claim.sub', stranger::text, true);
     set local role authenticated;
-    perform pg_temp.ok38((select count(*) from pos.org_units) = 0 and (select count(*) from pos.employee_notifications) = 0 and (select count(*) from pos.employee_hr) = 0, 'org lain tidak melihat SDM');
+    perform pg_temp.ok38((select count(*) from pos.org_units) = 0 and (select count(*) from pos.employee_notifications) = 0 and (select count(*) from pos.employee_hr where org_id = o1) = 0, 'org lain tidak melihat SDM');
     perform pg_temp.ok38(pg_temp.fails38(format('insert into pos.employee_notifications(org_id, title, body) values (%L, ''x'', ''y'')', o1)), 'org lain tidak boleh menulis');
     reset role;
   end if;

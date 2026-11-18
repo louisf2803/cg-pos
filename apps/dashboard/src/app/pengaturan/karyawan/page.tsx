@@ -1082,6 +1082,7 @@ function EmployeeDialog({
   const data = useData();
   const ref = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(employee?.name ?? '');
+  const isOwner = employee?.role === 'owner';
   const [role, setRole] = useState<'manager' | 'cashier'>(
     employee?.role === 'manager' ? 'manager' : 'cashier',
   );
@@ -1104,16 +1105,17 @@ function EmployeeDialog({
     setBusy(true);
     setError(null);
     try {
-      const saved = await data.saveEmployee({
+      // data dasar pemilik tidak diubah dari sini (hanya jabatan, unit, dan tipe)
+      const saved = isOwner ? null : await data.saveEmployee({
         id: employee?.id,
         name,
         role,
         roleId: roleId ? roleId : null,
         qrId: qrId.trim() || null,
       });
-      const targetId = employee?.id ?? saved.id;
+      const targetId = employee?.id ?? saved!.id;
       const initialRoleId = employee?.roleId ?? '';
-      if (initialRoleId !== roleId) {
+      if (!isOwner && initialRoleId !== roleId) {
         await data.setEmployeeRoleId(targetId, roleId ? roleId : null);
       }
       await data.saveEmployeeHr({
@@ -1151,6 +1153,7 @@ function EmployeeDialog({
             className="cg-input text-xs"
             autoFocus
             maxLength={80}
+            disabled={isOwner}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Masukkan nama staf kasir / manajer"
@@ -1164,9 +1167,11 @@ function EmployeeDialog({
           <select
             id="peran-karyawan"
             className="cg-input text-xs"
-            value={role}
+            value={isOwner ? 'owner' : role}
+            disabled={isOwner}
             onChange={(e) => setRole(e.target.value as 'manager' | 'cashier')}
           >
+            {isOwner && <option value="owner">Pemilik — Akses penuh ke semua outlet</option>}
             <option value="cashier">Kasir — Transaksi penjualan dan cetak struk</option>
             <option value="manager">Manajer — Otorisasi void, diskon, dan manajemen data</option>
           </select>
@@ -1180,6 +1185,7 @@ function EmployeeDialog({
             id="peran-kustom-dialog"
             className="cg-input text-xs"
             value={roleId}
+            disabled={isOwner}
             onChange={(e) => setRoleId(e.target.value)}
             data-testid="dialog-role-id"
           >
@@ -1204,6 +1210,7 @@ function EmployeeDialog({
             className="cg-input text-xs font-mono"
             maxLength={40}
             value={qrId}
+            disabled={isOwner}
             onChange={(e) => setQrId(e.target.value)}
             placeholder="Misal: QR-CSH-01 untuk login cepat via scanner"
           />

@@ -2342,6 +2342,11 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const rows = must(await db().from('employees').select('id,name,role,is_active,role_id,roles(name),employee_outlets!inner(outlet_id)')
         .eq('employee_outlets.outlet_id', ctx.outletId).is('deleted_at', null)
         .in('role', ['owner', 'manager', 'cashier']).order('name')) as Row[] | null;
+      // pemilik tidak terikat outlet (berarti semua outlet), jadi ikut ditambahkan terpisah
+      const ownerRows = must(await db().from('employees').select('id,name,role,is_active,role_id,roles(name)')
+        .eq('org_id', orgId).eq('role', 'owner').is('deleted_at', null).order('name')) as Row[] | null;
+      const seen = new Set((rows ?? []).map((r) => r.id as string));
+      const allRows = [...(rows ?? []), ...(ownerRows ?? []).filter((r) => !seen.has(r.id as string))];
       const statusMap = new Map<string, { has_pin: boolean; is_locked: boolean; locked_until: string | null; qr_id: string | null }>();
       try {
         const { data: st } = await db().rpc('list_managed_employees_status', { p_org: orgId });
@@ -2358,7 +2363,7 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       } catch {
         // Fallback bila RPC status belum terpasang
       }
-      return (rows ?? []).map((e): ManagedEmployee => {
+      return allRows.map((e): ManagedEmployee => {
         const st = statusMap.get(e.id);
         const roleObj = e.roles as { name?: string } | null;
         return {
