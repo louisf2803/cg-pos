@@ -7,6 +7,11 @@ const sess = (over: Partial<PsSessionRow>): PsSessionRow => ({ id: 's', tableId:
 const book = (over: Partial<PsBookingRow>): PsBookingRow => ({ id: 'b', tableId: 't1', name: 'Budi', startAt: at('19:00').toISOString(), durationMinutes: 120, label: '2 jam', price: 24000, paid: false, status: 'active', expiresAt: at('17:00').toISOString(), rev: 1, ...over });
 
 describe('blok waktu jadwal PS', () => {
+  it('konsol terpakai sejak tombol Mulai ditekan (termasuk tenggang)', () => {
+    const blocks = psBlocks([sess({})], [], at('14:23'));
+    expect(blocks[0]!.occupiedFrom.toISOString()).toBe(at('14:21').toISOString());
+    expect(freeUntil('t1', blocks, at('14:23')).free).toBe(false);
+  });
   it('sesi berjalan, hampir habis, dan lewat waktu', () => {
     expect(psBlocks([sess({})], [], at('15:00'))[0]!.kind).toBe('running');
     expect(psBlocks([sess({})], [], at('16:20'))[0]!.kind).toBe('warning');

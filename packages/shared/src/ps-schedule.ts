@@ -28,6 +28,8 @@ export interface PsBlock {
   id: string; tableId: string; kind: PsBlockKind; title: string; start: Date; end: Date;
   /** bagian lewat waktu (hanya sesi berjalan yang melewati akhir) */
   overtimeEnd?: Date; paid: boolean; source: 'session' | 'booking';
+  /** konsol terpakai sejak saat ini (sesi: saat tombol Mulai ditekan, termasuk tenggang; booking: jam mulai) */
+  occupiedFrom: Date;
 }
 
 const WARN_MS = 10 * 60000;
@@ -39,17 +41,17 @@ export function psBlocks(sessions: readonly PsSessionRow[], bookings: readonly P
     const start = new Date(s.billableStart), end = new Date(s.endsAt);
     if (s.status === 'finished') {
       const fin = s.finishedAt ? new Date(s.finishedAt) : end;
-      out.push({ id: s.id, tableId: s.tableId, kind: 'finished', title: s.customerName ?? 'Sewa', start, end: new Date(Math.min(Math.max(fin.getTime(), start.getTime() + 60000), Math.max(end.getTime(), fin.getTime()))), paid: s.paid, source: 'session' });
+      out.push({ id: s.id, tableId: s.tableId, kind: 'finished', occupiedFrom: new Date(s.pressedAt), title: s.customerName ?? 'Sewa', start, end: new Date(Math.min(Math.max(fin.getTime(), start.getTime() + 60000), Math.max(end.getTime(), fin.getTime()))), paid: s.paid, source: 'session' });
       continue;
     }
     const left = end.getTime() - now.getTime();
     const kind: PsBlockKind = left < 0 ? 'overtime' : left <= WARN_MS ? 'warning' : 'running';
-    out.push({ id: s.id, tableId: s.tableId, kind, title: s.customerName ?? 'Sewa', start, end, ...(left < 0 ? { overtimeEnd: now } : {}), paid: s.paid, source: 'session' });
+    out.push({ id: s.id, tableId: s.tableId, kind, occupiedFrom: new Date(s.pressedAt), title: s.customerName ?? 'Sewa', start, end, ...(left < 0 ? { overtimeEnd: now } : {}), paid: s.paid, source: 'session' });
   }
   for (const b of bookings) {
     if (b.status !== 'active' && b.status !== 'started') continue;
     const start = new Date(b.startAt);
-    out.push({ id: b.id, tableId: b.tableId, kind: b.paid ? 'booking-paid' : 'booking-unpaid', title: b.name, start, end: new Date(start.getTime() + b.durationMinutes * 60000), paid: b.paid, source: 'booking' });
+    out.push({ id: b.id, tableId: b.tableId, kind: b.paid ? 'booking-paid' : 'booking-unpaid', occupiedFrom: start, title: b.name, start, end: new Date(start.getTime() + b.durationMinutes * 60000), paid: b.paid, source: 'booking' });
   }
   return out.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
@@ -80,14 +82,14 @@ export function blockHours(b: Pick<PsBlock, 'start' | 'end'>, dayFrom: Date): { 
 /** Station yang kosong sekarang dan sampai jam berapa (booking berikutnya); station perawatan tidak dihitung. */
 export function freeUntil(tableId: string, blocks: readonly PsBlock[], now: Date): { free: boolean; until?: Date } {
   const mine = blocks.filter((b) => b.tableId === tableId && b.kind !== 'finished');
-  if (mine.some((b) => b.start.getTime() <= now.getTime() && (b.end.getTime() > now.getTime() || b.kind === 'overtime'))) return { free: false };
-  const next = mine.filter((b) => b.start.getTime() > now.getTime()).sort((a, b) => a.start.getTime() - b.start.getTime())[0];
-  return next ? { free: true, until: next.start } : { free: true };
+  if (mine.some((b) => b.occupiedFrom.getTime() <= now.getTime() && (b.end.getTime() > now.getTime() || b.kind === 'overtime'))) return { free: false };
+  const next = mine.filter((b) => b.occupiedFrom.getTime() > now.getTime()).sort((a, b) => a.occupiedFrom.getTime() - b.occupiedFrom.getTime())[0];
+  return next ? { free: true, until: next.occupiedFrom } : { free: true };
 }
 
 /** Ada tumpang tindih dengan blok lain di station yang sama? (dipakai memeriksa booking baru sebelum dikirim) */
 export function overlapsBlocks(tableId: string, start: Date, end: Date, blocks: readonly PsBlock[]): PsBlock | null {
-  return blocks.find((b) => b.tableId === tableId && b.kind !== 'finished' && b.start.getTime() < end.getTime() && start.getTime() < b.end.getTime()) ?? null;
+  return blocks.find((b) => b.tableId === tableId && b.kind !== 'finished' && b.occupiedFrom.getTime() < end.getTime() && start.getTime() < b.end.getTime()) ?? null;
 }
 
 /** Terjemahkan galat server menjadi kalimat Bahasa Indonesia. */

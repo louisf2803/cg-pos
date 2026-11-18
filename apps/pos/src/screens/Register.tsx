@@ -394,7 +394,7 @@ export function Register({
   }
 
   return (
-    <div className={`cg-shell reg ${panelOpen ? 'reg--panel' : ''} ${area === 'ps' && hasPs ? 'reg--ps' : ''}`}>
+    <div className={`cg-shell reg ${panelOpen ? 'reg--panel' : ''} ${area === 'ps' && hasPs ? 'reg--ps cg-theme-neon' : ''}`}>
       <header className="cg-shell__header flex items-center justify-between text-white">
         {/* Kiri: Tombol Menu + Nama Outlet + Kasir + Online */}
         <div className="flex items-center gap-8 min-w-0">
@@ -420,10 +420,9 @@ export function Register({
             <span className="hidden desktop:inline">{online ? 'Online' : 'Offline'}</span>
           </span>
           {hasPs && (
-            <div role="tablist" aria-label="Tampilan kasir" className="inline-flex rounded-md overflow-hidden border border-white/30 shrink-0">
+            <div className="cg-modeswitch shrink-0" role="tablist" aria-label="Tampilan kasir">
               {(['cafe', 'ps'] as const).map((k) => (
-                <button key={k} type="button" role="tab" aria-selected={area === k} onClick={() => setArea(k)}
-                  className={`px-10 py-4 text-xs font-semibold cursor-pointer ${area === k ? 'bg-white text-accent' : 'bg-transparent text-white hover:bg-white/15'}`}>{k === 'cafe' ? 'Kafe' : 'PS'}</button>
+                <button key={k} type="button" role="tab" aria-selected={area === k} onClick={() => setArea(k)}>{k === 'cafe' ? 'Kafe' : 'PS'}</button>
               ))}
             </div>
           )}
@@ -536,7 +535,11 @@ export function Register({
         </div>
       </header>
 
-      {area === 'ps' && hasPs ? <PsView ctx={ctx} /> : <>
+      {area === 'ps' && hasPs ? (
+        <PsView ctx={ctx} customerName={cart.state.customerName}
+          orderConsoles={cart.state.lines.map((l) => /^(?:Sewa|Tambah waktu) (\S+) ·/.exec(l.name)?.[1]).filter((x): x is string => !!x)}
+          onAddToOrder={async ({ name, price, note }) => { const productId = await data.getCustomItemProductId(); cart.dispatch({ t: 'custom', productId, name, unitPrice: price, qty: 1, note }); }} />
+      ) : <>
       <nav className="cg-shell__rail" aria-label="Kategori">
         <button className="cg-rail-item" aria-current={cat === 'all'} onClick={() => setCat('all')}><LayoutGrid className="cg-icon cg-icon--xs" aria-hidden /> Semua</button>
         {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}><Star className="cg-icon cg-icon--xs" aria-hidden /> Favorit</button>}
@@ -708,6 +711,8 @@ export function Register({
           </div>
         )}
       </section>
+
+      </>}
 
       <aside className="cg-shell__panel reg__panel" aria-label="Pesanan">
         <div className="p-12 border-b border-border grid gap-8">
@@ -1129,7 +1134,6 @@ export function Register({
           </button>
         </div>
       </aside>
-      </>}
 
       <footer className="cg-shell__bar cg-shell__bar--idle">
         <button type="button" className="cg-btn cg-btn--secondary reg__show flex-1" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>

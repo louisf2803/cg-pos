@@ -265,3 +265,78 @@ button,input,select,textarea{font:inherit;color:inherit}
 .cg-auth .cg-keypad{grid-template-columns:repeat(3,minmax(0,84px))}
 .cg-auth .cg-keypad button{height:68px;border-radius:var(--radius-card)}
 .cg-auth .cg-pin i{width:18px;height:18px}
+
+/* ===== Mode PS di kasir: tema neon (token warna ditimpa; seluruh isi layar ikut berubah) ===== */
+.cg-theme-neon {
+  --neon-magenta: #FF3DCB; --neon-cyan: #28D8FF; --neon-green: #3DFFA0; --neon-amber: #FFC53D; --neon-red: #FF4D6D; --neon-violet: #8B7CFF;
+  --color-bg: #0B0820; --color-surface: #100C2B; --color-surface-raised: #151033; --color-border: #3A3566; --color-border-input: #6A66A8;
+  --color-text: #EDE9FF; --color-text-muted: #B9B2E6;
+  --color-accent: #28D8FF; --color-accent-hover: #5BE3FF; --color-accent-active: #8BEBFF; --color-on-accent: #06122B; --color-accent-soft: #0F2F46; --color-accent-strong: #8BEBFF;
+  --color-danger: #FF4D6D; --color-danger-soft: #3A1020; --color-danger-strong: #FF8FA3; --color-on-danger: #2B0510;
+  --color-success: #3DFFA0; --color-success-soft: #0F2F25; --color-success-strong: #7BFFC0;
+  --color-warning-soft: #3A2E10; --color-warning-strong: #FFD98A; --color-info-soft: #0F2640; --color-info-strong: #8BEBFF;
+  --color-overlay: #05030F; --shell-bg: #150F3D; --shell-bg-active: #1E1650; --shell-bg-hover: #1A1448; --shell-stripe: #FF3DCB; --shell-text: #EDE9FF; --shell-text-muted: #B9B2E6;
+  color-scheme: dark; background: var(--color-bg); color: var(--color-text);
+}
+.reg.cg-theme-neon .cg-shell__header { border-bottom: 2px solid var(--neon-magenta) !important; box-shadow: 0 2px 18px color-mix(in srgb, var(--neon-magenta) 55%, transparent); }
+.cg-modeswitch { display: inline-flex; border-radius: 12px; padding: 3px; background: rgba(255, 255, 255, .16); }
+.cg-modeswitch button { padding: 6px 18px; font-size: 12px; font-weight: 500; border-radius: 9px; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.cg-modeswitch button[aria-selected="true"] { background: #fff; color: var(--shell-bg); font-weight: 700; }
+.cg-theme-neon .cg-modeswitch { background: rgba(255, 255, 255, .08); }
+.cg-theme-neon .cg-modeswitch button[aria-selected="true"] { background: var(--neon-magenta); color: #1A0620; letter-spacing: .04em; box-shadow: 0 0 16px var(--neon-magenta); }
+
+.ps-time { font-family: 'Chakra Petch', Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.ps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; align-content: start; }
+.ps-card { --c: var(--neon-cyan); text-align: left; border: 2px solid var(--c); background: #121A33; border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; color: var(--color-text); cursor: pointer; min-height: 190px;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--c) 45%, transparent), inset 0 0 22px color-mix(in srgb, var(--c) 8%, transparent); }
+.ps-card:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.ps-card[data-state="aktif"] { --c: var(--neon-green); }
+.ps-card[data-state="menit-terakhir"] { --c: var(--neon-amber); background: #1F1A26; }
+.ps-card[data-state="lewat"] { --c: var(--neon-red); background: #26101F; }
+.ps-card[data-state="booking"] { --c: var(--neon-cyan); background: #0F1A33; }
+.ps-card[data-state="kosong"] { --c: #4A4585; background: #100C2B; border-width: 1.5px; box-shadow: none; }
+.ps-card[data-state="perawatan"] { --c: #5A5690; background: #0F0C26; border-width: 1.5px; border-style: dashed; box-shadow: none; }
+.ps-card[aria-pressed="true"] { outline: 3px solid var(--neon-magenta); outline-offset: 2px; }
+.ps-card__name { font-family: 'Chakra Petch', Inter, sans-serif; font-weight: 700; font-size: 19px; letter-spacing: .03em; }
+.ps-card__chip { font-size: 11px; font-weight: 700; color: #06122B; background: var(--c); border-radius: 6px; padding: 3px 8px; }
+.ps-card__time { font-family: 'Chakra Petch', Inter, sans-serif; font-weight: 700; font-size: 40px; line-height: 1; color: var(--c); text-shadow: 0 0 16px color-mix(in srgb, var(--c) 70%, transparent); font-variant-numeric: tabular-nums; }
+.ps-card[data-state="kosong"] .ps-card__time, .ps-card[data-state="perawatan"] .ps-card__time { font-size: 30px; text-shadow: none; }
+.ps-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ps-tile { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .14); border-radius: 10px; padding: 6px 8px; min-width: 0; }
+.ps-tile--empty { background: rgba(255, 255, 255, .04); border-style: dashed; border-color: rgba(255, 255, 255, .2); }
+.ps-tile small { display: block; font-size: 9.5px; letter-spacing: .09em; color: var(--color-text-muted); text-transform: uppercase; }
+.ps-tile b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-bar { height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--c) 18%, transparent); overflow: hidden; margin-top: auto; }
+.ps-bar > i { display: block; height: 100%; background: var(--c); box-shadow: 0 0 10px var(--c); }
+.ps-box { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .14); border-radius: 12px; padding: 9px 12px; }
+.ps-box small { display: block; font-size: 10.5px; letter-spacing: .09em; color: var(--color-text-muted); text-transform: uppercase; }
+.ps-box b { font-size: 15px; }
+.ps-chip { background: rgba(139, 124, 255, .22); border: 1px solid rgba(139, 124, 255, .5); border-radius: 8px; padding: 5px 10px; font-size: 13px; color: #E6E1FF; }
+.ps-pill { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 6px 14px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .06); color: var(--color-text); cursor: pointer; }
+.ps-pill[aria-selected="true"] { background: var(--neon-cyan); color: #06122B; border-color: var(--neon-cyan); box-shadow: 0 0 14px color-mix(in srgb, var(--neon-cyan) 55%, transparent); font-weight: 700; }
+.ps-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--color-text-muted); }
+.ps-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+
+/* Jadwal PS: blok waktu per station */
+.ps-tl { background: #100C2B; border: 1px solid color-mix(in srgb, var(--neon-violet) 35%, transparent); border-radius: 16px; padding: 12px 14px; overflow-x: auto; }
+.ps-tl__inner { position: relative; min-width: 560px; }
+.ps-tl__row { position: relative; height: 66px; border-top: 1px solid rgba(255, 255, 255, .1); }
+.ps-tl__name { position: absolute; left: 0; top: 0; width: 76px; height: 66px; display: flex; flex-direction: column; justify-content: center; font-family: 'Chakra Petch', Inter, sans-serif; font-weight: 700; font-size: 15px; }
+.ps-tl__name small { font-size: 11px; font-weight: 500; color: var(--color-text-muted); font-family: Inter, sans-serif; }
+.ps-tl__track { position: absolute; left: 84px; right: 0; top: 0; bottom: 0; background-image: linear-gradient(to right, rgba(255, 255, 255, .07) 1px, transparent 1px); background-size: var(--hour-w) 100%; }
+.ps-tl__head { position: relative; height: 26px; margin-left: 84px; font-size: 11px; color: var(--color-text-muted); }
+.ps-tl__head span { position: absolute; font-variant-numeric: tabular-nums; }
+.ps-block { position: absolute; top: 7px; height: 52px; box-sizing: border-box; border-radius: 9px; padding: 6px 8px; overflow: hidden; border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--color-text); text-align: left; font: inherit; cursor: pointer; }
+.ps-block b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-block span { display: block; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: color-mix(in srgb, var(--c) 70%, #fff); }
+.ps-block[data-kind="running"] { --c: var(--neon-green); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 40%, transparent); }
+.ps-block[data-kind="warning"] { --c: var(--neon-amber); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 40%, transparent); }
+.ps-block[data-kind="overtime"] { --c: var(--neon-red); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 40%, transparent); }
+.ps-block[data-kind="booking-paid"] { --c: var(--neon-cyan); }
+.ps-block[data-kind="booking-unpaid"] { --c: var(--neon-cyan); border-style: dashed; background: color-mix(in srgb, var(--c) 7%, transparent); }
+.ps-block[data-kind="booking-unpaid"] span { color: #FFD98A; }
+.ps-block[data-kind="finished"] { --c: #8D87CF; border-width: 1px; background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .22); }
+.ps-block--ghost { --c: #fff; border-style: dashed; border-color: rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .03); color: var(--color-text-muted); font-size: 12px; font-weight: 600; text-align: center; }
+.ps-tl__now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--neon-magenta); box-shadow: 0 0 10px var(--neon-magenta); z-index: 3; pointer-events: none; }
+.ps-tl__now small { position: absolute; top: -2px; left: -17px; font-size: 11px; font-weight: 700; color: #1A0620; background: var(--neon-magenta); border-radius: 6px; padding: 1px 6px; }
+@media (max-width: 599px) { .ps-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); } .ps-card { min-height: 170px; } }
