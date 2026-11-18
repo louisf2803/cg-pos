@@ -80,10 +80,11 @@ function TablePickerInner({
 }) {
   const data = useData();
   const st = useAsync(
-    async () => ({
-      floors: await data.listFloors(),
-      tables: await data.listTableStatus(),
-    }),
+    async () => {
+      const [allFloors, allTables] = await Promise.all([data.listFloors(), data.listTableStatus()]);
+      const psIds = new Set(allFloors.filter((f) => f.kind === 'ps').map((f) => f.id));
+      return { floors: allFloors.filter((f) => !psIds.has(f.id)), tables: allTables.filter((t) => !t.floorId || !psIds.has(t.floorId)) };
+    },
     [data],
   );
   const [floor, setFloor] = useState<string | null>(null);

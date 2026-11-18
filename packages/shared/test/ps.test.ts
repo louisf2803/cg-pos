@@ -146,3 +146,13 @@ describe('tautan WhatsApp booking', () => {
     expect(fillBookingMessage('Transfer {total} ya {nama}', { total: 'Rp 5', nama: 'Ani' })).toBe('Transfer Rp 5 ya Ani');
   });
 });
+
+import { zonedTime } from '../src';
+describe('zonedTime', () => {
+  it('mengubah tanggal dan jam lokal outlet menjadi saat yang tepat', () => {
+    expect(zonedTime('2026-11-17', '19:00', 'Asia/Jakarta')!.toISOString()).toBe('2026-11-17T12:00:00.000Z');
+    expect(zonedTime('2026-11-17', '19:00', 'Asia/Makassar')!.toISOString()).toBe('2026-11-17T11:00:00.000Z');
+    expect(zonedTime('2026-11-17', '00:30', 'Asia/Jakarta')!.toISOString()).toBe('2026-11-16T17:30:00.000Z');
+    expect(zonedTime('bukan', '19:00', 'Asia/Jakarta')).toBeNull();
+  });
+});

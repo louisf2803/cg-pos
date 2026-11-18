@@ -166,7 +166,7 @@ const FAKE_COA: [string, string, 'header' | 'detail', Account['category'], strin
 const coaId = (code: string, key?: string) => (key === 'cash_main' ? 'acc-kas' : key === 'bank_main' ? 'acc-bank' : `acc-${code}`);
 interface FakeEntry { id: string; number: string; date: string; description: string; sourceType: string; sourceId?: string; status: 'posted' | 'voided'; reversesId?: string; lines: { accountId: string; debit: number; credit: number; memo?: string }[] }
 
-export interface FakeOptions { now?: () => Date; seed?: boolean; /** dua pesanan terbuka yang sudah ada di layar dapur, untuk pengembangan layar dapur */ kitchenDemo?: boolean }
+export interface FakeOptions { now?: () => Date; seed?: boolean; /** dua pesanan terbuka yang sudah ada di layar dapur, untuk pengembangan layar dapur */ kitchenDemo?: boolean; /** lantai PS dengan tiga station, paket, dan game contoh (pengembangan tampilan PS di kasir) */ psDemo?: boolean }
 
 /** Data palsu di memori. PIN disimpan polos HANYA di sini; versi asli memakai bcrypt di server. */
 export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): void } {
@@ -719,6 +719,23 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
     seedStock();
     if (opts.seed !== false) seedHistory();
     if (opts.seed !== false && opts.kitchenDemo) seedKitchenDemo();
+    if (opts.seed !== false && opts.psDemo) seedPsDemo();
+  }
+
+  function seedPsDemo() {
+    floors.push({ id: 'f-ps', name: 'Lantai PS', sort: floors.length + 1, kind: 'ps' });
+    const mk = (id: string, name: string, label: string, rate: number, games: string[], bands: PsStationInput['bands'] = []) => {
+      tables.push({ id, floorId: 'f-ps', name, sort: tables.length + 1 });
+      psStationCfg.set(id, { consoleLabel: label, ratePerHour: rate, isMaintenance: false, games, bands });
+    };
+    const evening = [{ startMin: 1020, endMin: 1440, ratePerHour: 12000 }];
+    mk('t-PS5-1', 'PS5-1', 'PS5', 10000, ['EA FC 25', 'Tekken 8', 'Spider-Man 2', 'It Takes Two'], evening);
+    mk('t-PS5-2', 'PS5-2', 'PS5', 10000, ['EA FC 25', 'Gran Turismo 7'], evening);
+    mk('t-PS4-1', 'PS4-1', 'PS4', 7000, ['FIFA 23', 'GTA V', 'Mortal Kombat 11']);
+    psPackages = [
+      { id: 'pk-3', name: 'Paket 3 jam', price: 25000, durationMinutes: 180, tableIds: [], isActive: true, sort: 1 },
+      { id: 'pk-night', name: 'Malam 18.00-21.00', price: 30000, windowStartMin: 1080, windowEndMin: 1260, tableIds: [], isActive: true, sort: 2 },
+    ];
   }
 
   /** riwayat hari ini untuk dashboard: pesanan lunas tersebar sepanjang jam kerja */

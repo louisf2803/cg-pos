@@ -51,6 +51,19 @@ export function localClock(at: Date, tz: string): { minuteOfDay: number; weekday
 
 const dayMatches = (days: number[] | undefined, weekday: number) => !days || days.length === 0 || days.includes(weekday);
 
+/** Tanggal "yyyy-mm-dd" dan jam "HH:MM" menurut zona outlet menjadi saat yang tepat (tanpa DST). null bila tidak valid. */
+export function zonedTime(dateKey: string, hhmm: string, tz: string): Date | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  const t = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
+  if (!d || !t) return null;
+  const asUtc = Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]));
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(asUtc));
+  const g = (k: string) => Number(p.find((x) => x.type === k)?.value ?? 0);
+  const shown = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'));
+  const result = new Date(asUtc - (shown - asUtc));
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
 /** Tarif per jam yang berlaku pada hari dan menit tertentu: pita yang cocok, bila tidak ada pakai tarif dasar station. */
 export function rateAtMinute(station: Pick<PsStation, 'ratePerHour' | 'bands'>, weekday: number, minuteOfDay: number): number {
   const band = station.bands.find((b) => dayMatches(b.weekdays, weekday) && minuteOfDay >= b.startMin && minuteOfDay < b.endMin);

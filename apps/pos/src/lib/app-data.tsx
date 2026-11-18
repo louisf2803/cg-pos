@@ -22,7 +22,7 @@ function storageFor(scope: string): KV {
  */
 export function DataProvider({ children }: { children: ReactNode }) {
   if (!supabase) {
-    const data = (fake ??= createOfflineData(createFakeData(), { storage: storageFor('fake') }));
+    const data = (fake ??= createOfflineData(createFakeData({ psDemo: true }), { storage: storageFor('fake') }));
     useAutoFlush(data);
     return <Ctx.Provider value={data}>{children}</Ctx.Provider>;
   }

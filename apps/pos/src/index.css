@@ -19,6 +19,8 @@ body { overscroll-behavior: none; }
   .reg .cg-shell__bar--idle { display: none; }
   .reg .cg-shell__bar { min-height: 40px; }
 }
+.reg__ps { grid-column: 1 / -1; grid-row: 2 / 3; min-height: 0; min-width: 0; }
+.reg--ps .cg-shell__bar--idle { display: none; }
 .reg__catalog { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .reg__catalog > * { flex: none; }
 .reg__catalog > .cg-shell__grid { flex: 1 1 0; min-height: 0; }

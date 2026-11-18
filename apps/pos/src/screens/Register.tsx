@@ -22,6 +22,7 @@ import { Payment } from './Payment';
 import { CustomerPicker } from './CustomerPicker';
 import { DiscountDialog } from './DiscountDialog';
 import { SideDrawer } from './SideDrawer';
+import { PsView } from './PsView';
 import { NotificationsDialog } from './NotificationsDialog';
 import { notificationsFor, readSeenAt, unreadCount, writeSeenAt } from '../lib/notifications';
 import { Sales } from './Sales';
@@ -93,6 +94,9 @@ export function Register({
   const [placing, setPlacing] = useState(false);
   const [saveErr, setSaveErr] = useState('');
   const [showOrders, setShowOrders] = useState(false);
+  const [area, setArea] = useState<'cafe' | 'ps'>('cafe');
+  const psStations = useAsync(() => data.listPsStations().catch(() => []), [data]);
+  const hasPs = psStations.status === 'ready' && psStations.data.length > 0;
   const [ordersTab, setOrdersTab] = useState<'waiting' | 'pending'>('waiting');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
@@ -390,7 +394,7 @@ export function Register({
   }
 
   return (
-    <div className={`cg-shell reg ${panelOpen ? 'reg--panel' : ''}`}>
+    <div className={`cg-shell reg ${panelOpen ? 'reg--panel' : ''} ${area === 'ps' && hasPs ? 'reg--ps' : ''}`}>
       <header className="cg-shell__header flex items-center justify-between text-white">
         {/* Kiri: Tombol Menu + Nama Outlet + Kasir + Online */}
         <div className="flex items-center gap-8 min-w-0">
@@ -415,6 +419,14 @@ export function Register({
             {online ? <Wifi className="cg-icon cg-icon--xs" aria-hidden /> : <WifiOff className="cg-icon cg-icon--xs" aria-hidden />}
             <span className="hidden desktop:inline">{online ? 'Online' : 'Offline'}</span>
           </span>
+          {hasPs && (
+            <div role="tablist" aria-label="Tampilan kasir" className="inline-flex rounded-md overflow-hidden border border-white/30 shrink-0">
+              {(['cafe', 'ps'] as const).map((k) => (
+                <button key={k} type="button" role="tab" aria-selected={area === k} onClick={() => setArea(k)}
+                  className={`px-10 py-4 text-xs font-semibold cursor-pointer ${area === k ? 'bg-white text-accent' : 'bg-transparent text-white hover:bg-white/15'}`}>{k === 'cafe' ? 'Kafe' : 'PS'}</button>
+              ))}
+            </div>
+          )}
           {viewMode === 'table' && (
             <span className="inline-flex items-center gap-4 text-xs font-medium px-8 py-2 rounded-full shrink-0 bg-white/20 text-white">
               Mode Meja
@@ -524,6 +536,7 @@ export function Register({
         </div>
       </header>
 
+      {area === 'ps' && hasPs ? <PsView ctx={ctx} /> : <>
       <nav className="cg-shell__rail" aria-label="Kategori">
         <button className="cg-rail-item" aria-current={cat === 'all'} onClick={() => setCat('all')}><LayoutGrid className="cg-icon cg-icon--xs" aria-hidden /> Semua</button>
         {hasFav && <button className="cg-rail-item" aria-current={cat === FAV} onClick={() => setCat(FAV)}><Star className="cg-icon cg-icon--xs" aria-hidden /> Favorit</button>}
@@ -1116,6 +1129,7 @@ export function Register({
           </button>
         </div>
       </aside>
+      </>}
 
       <footer className="cg-shell__bar cg-shell__bar--idle">
         <button type="button" className="cg-btn cg-btn--secondary reg__show flex-1" onClick={() => setPanelOpen(true)}>Pesanan ({cart.count})</button>
