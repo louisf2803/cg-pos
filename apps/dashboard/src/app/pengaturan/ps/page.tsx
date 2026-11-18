@@ -236,7 +236,7 @@ function PackageDialog({ pkg, stations, onClose, onSaved }: { pkg?: PsPackage; s
           <legend className="text-sm font-semibold mb-4">Station yang boleh memakai</legend>
           <p className="text-xs text-text-muted m-0">Tanpa centang = semua station.</p>
           <div className="flex flex-wrap gap-x-16 gap-y-4">{stations.map((s) => (
-            <label key={s.tableId} className="flex items-center gap-6 text-sm cursor-pointer"><input type="checkbox" checked={tableIds.includes(s.tableId)} onChange={() => setTableIds((p) => (p.includes(s.tableId) ? p.filter((x) => x !== s.tableId) : [...p, s.tableId]))} /> {s.name}</label>
+            <label key={s.tableId} className="flex items-center gap-8 text-sm cursor-pointer"><input type="checkbox" checked={tableIds.includes(s.tableId)} onChange={() => setTableIds((p) => (p.includes(s.tableId) ? p.filter((x) => x !== s.tableId) : [...p, s.tableId]))} /> {s.name}</label>
           ))}</div>
         </fieldset>
         <label className="flex items-center gap-8 text-sm cursor-pointer"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Paket aktif (muncul di kasir)</label>
