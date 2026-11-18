@@ -20,6 +20,7 @@ import type { StockRequest, StockRequestInput, StockRequestStatus } from './stoc
 import type { ApprovalInput, ApprovalRequest, ApprovalStatus, RecurringBill, RecurringBillInput, RecurringBillRun } from './bills';
 import type { AssetDepreciationEntry, DepreciationRunResult, FixedAsset, FixedAssetDisposalInput, FixedAssetInput } from './fixed-assets';
 import type { StaffAccount } from './tasks';
+import type { PsPackage, PsPackageInput, PsSettings, PsStation, PsStationInput } from './ps';
 import type { TaskGateItem, TaskPhase, TaskRun, TaskTemplate, TaskTemplateInput } from './tasks';
 import type { IngredientUnavailable, IngredientUnavailableInput, UnavailableProduct } from './availability';
 import type { CollectiveLeave, CollectiveLeaveInput, EmployeeProfile, EmployeeProfileInput } from './hr-profile';
@@ -102,9 +103,19 @@ export interface DataLayer {
   /** Pemilik dan manajer. Berlaku untuk pesanan baru; kasir memuat ulang saat dibuka. */
   saveTaxSettings(input: TaxSettings): Promise<void>;
   listFloors(): Promise<Floor[]>;
-  saveFloor(input: { id?: string; name: string }): Promise<Floor>;
+  saveFloor(input: { id?: string; name: string; kind?: 'cafe' | 'ps' }): Promise<Floor>;
   /** Hapus lantai beserta mejanya. Ditolak bila ada meja yang sedang dipakai pesanan. */
   deleteFloor(id: string): Promise<void>;
+  /** Station rental PS di outlet ini: meja pada lantai berjenis PS beserta tarif, pita jam, game (migrasi 0158). Dibaca semua anggota. */
+  listPsStations(): Promise<PsStation[]>;
+  /** Simpan tarif, pita jam, game, dan status perawatan satu station. Pengelola. */
+  savePsStation(input: PsStationInput): Promise<void>;
+  listPsPackages(): Promise<PsPackage[]>;
+  savePsPackage(input: PsPackageInput): Promise<PsPackage>;
+  deletePsPackage(id: string): Promise<void>;
+  /** Tenggang awal, batas hangus booking, dan teks pesan booking untuk outlet ini. */
+  getPsSettings(): Promise<PsSettings>;
+  savePsSettings(input: PsSettings): Promise<void>;
   listTables(): Promise<DiningTable[]>;
   saveTable(input: { id?: string; floorId: string | null; name: string }): Promise<DiningTable>;
   /** Hapus meja. Ditolak bila sedang dipakai pesanan. */

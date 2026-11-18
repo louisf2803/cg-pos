@@ -26,6 +26,7 @@ import { productionError, productionRunProblem, productionTemplateProblem, type 
 import { labelPaperError, labelPaperProblem, mergeLabelContent, type LabelPaper, type LabelPaperInput } from './label-paper';
 import { disposalProblem, fixedAssetProblem, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { PS_DEFAULT_BOOKING_EXPIRY_MINUTES, PS_DEFAULT_GRACE_MINUTES, psPackageProblem, psSettingsProblem, psStationProblem, type PsPackage, type PsPackageInput, type PsRateBand, type PsSettings, type PsStation, type PsStationInput } from './ps';
 import { staffAccountProblem, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile, type EmploymentType } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
@@ -870,8 +871,8 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async listFloors() {
       const { ctx } = await resolve();
-      const rows = must(await db().from('floors').select('id,name,sort').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort').order('name')) as Row[] | null;
-      return (rows ?? []).map((r): Floor => ({ id: r.id, name: r.name, sort: Number(r.sort ?? 0) }));
+      const rows = must(await db().from('floors').select('id,name,sort,kind').eq('outlet_id', ctx.outletId).is('deleted_at', null).order('sort').order('name')) as Row[] | null;
+      return (rows ?? []).map((r): Floor => ({ id: r.id, name: r.name, sort: Number(r.sort ?? 0), kind: r.kind === 'ps' ? 'ps' : 'cafe' }));
     },
     async saveFloor(input) {
       const name = input.name.trim();
@@ -880,12 +881,12 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const floors = await self.listFloors();
       if (floors.some((f) => f.id !== input.id && f.name.toLowerCase() === name.toLowerCase())) throw new DataError('invalid', `Lantai "${name}" sudah ada`);
       if (input.id) {
-        const row = must(await db().from('floors').update({ name }).eq('id', input.id).is('deleted_at', null).select('id,name,sort').maybeSingle()) as Row | null;
+        const row = must(await db().from('floors').update({ name, ...(input.kind ? { kind: input.kind } : {}) }).eq('id', input.id).is('deleted_at', null).select('id,name,sort,kind').maybeSingle()) as Row | null;
         if (!row) throw new DataError('not_found', 'Lantai tidak ditemukan');
-        return { id: row.id, name: row.name, sort: Number(row.sort ?? 0) };
+        return { id: row.id, name: row.name, sort: Number(row.sort ?? 0), kind: row.kind === 'ps' ? 'ps' : 'cafe' };
       }
-      const row = must(await db().from('floors').insert({ id: newId(), org_id: orgId, outlet_id: ctx.outletId, name, sort: floors.length + 1 }).select('id,name,sort').single()) as Row;
-      return { id: row.id, name: row.name, sort: Number(row.sort ?? 0) };
+      const row = must(await db().from('floors').insert({ id: newId(), org_id: orgId, outlet_id: ctx.outletId, name, sort: floors.length + 1, kind: input.kind ?? 'cafe' }).select('id,name,sort,kind').single()) as Row;
+      return { id: row.id, name: row.name, sort: Number(row.sort ?? 0), kind: row.kind === 'ps' ? 'ps' : 'cafe' };
     },
     async deleteFloor(id) {
       const status = await self.listTableStatus();
@@ -896,6 +897,96 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const at = new Date().toISOString();
       for (const t of status.filter((x) => x.floorId === id)) must(await db().from('tables').update({ deleted_at: at }).eq('id', t.id));
       must(await db().from('floors').update({ deleted_at: at }).eq('id', id));
+    },
+    async listPsStations() {
+      const { ctx } = await resolve();
+      const floors = (must(await db().from('floors').select('id').eq('outlet_id', ctx.outletId).eq('kind', 'ps').is('deleted_at', null)) as Row[] | null) ?? [];
+      if (floors.length === 0) return [];
+      const tbls = (must(await db().from('tables').select('id,floor_id,name,sort').in('floor_id', floors.map((f) => f.id as string)).is('deleted_at', null).order('sort').order('name')) as Row[] | null) ?? [];
+      if (tbls.length === 0) return [];
+      const ids = tbls.map((t) => t.id as string);
+      const [st, bd] = await Promise.all([
+        db().from('ps_stations').select('table_id,console_label,rate_per_hour,is_maintenance,games').in('table_id', ids),
+        db().from('ps_rate_bands').select('table_id,start_min,end_min,rate_per_hour,weekdays').in('table_id', ids).order('start_min'),
+      ]);
+      const stations = new Map(((must(st) as Row[] | null) ?? []).map((r) => [r.table_id as string, r]));
+      const bands = new Map<string, PsRateBand[]>();
+      for (const b of ((must(bd) as Row[] | null) ?? [])) {
+        const list = bands.get(b.table_id as string) ?? [];
+        list.push({ startMin: Number(b.start_min), endMin: Number(b.end_min), ratePerHour: Number(b.rate_per_hour), ...(Array.isArray(b.weekdays) ? { weekdays: (b.weekdays as number[]).map(Number) } : {}) });
+        bands.set(b.table_id as string, list);
+      }
+      return tbls.map((t): PsStation => {
+        const s = stations.get(t.id as string);
+        return {
+          tableId: t.id as string, floorId: (t.floor_id as string | null) ?? null, name: t.name as string, configured: !!s,
+          consoleLabel: (s?.console_label as string | undefined) ?? 'PS', ratePerHour: Number(s?.rate_per_hour ?? 0), isMaintenance: !!s?.is_maintenance,
+          games: ((s?.games as string[] | undefined) ?? []), bands: bands.get(t.id as string) ?? [],
+        };
+      });
+    },
+    async savePsStation(input: PsStationInput) {
+      const problem = psStationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { error } = await db().rpc('ps_station_save', {
+        p_table: input.tableId, p_label: input.consoleLabel.trim(), p_rate: input.ratePerHour, p_maintenance: input.isMaintenance,
+        p_games: input.games.map((g) => g.trim()),
+        p_bands: input.bands.map((b) => ({ start_min: b.startMin, end_min: b.endMin, rate_per_hour: b.ratePerHour, weekdays: b.weekdays && b.weekdays.length ? b.weekdays : null })),
+      });
+      if (error) {
+        const m = error.message ?? '';
+        if (/not a ps floor/i.test(m)) throw new DataError('invalid', 'Meja ini tidak berada di lantai berjenis PS. Ubah jenis lantainya di Denah.');
+        if (/bands overlap/i.test(m)) throw new DataError('invalid', 'Ada dua pita tarif yang jamnya bertumpuk pada hari yang sama.');
+        if (/not allowed/i.test(m)) throw new DataError('forbidden', 'Hanya manajer dan pemilik yang boleh mengatur station PS.');
+        throw mapDbError(error);
+      }
+    },
+    async listPsPackages() {
+      const { ctx } = await resolve();
+      const rows = (must(await db().from('ps_packages').select('id,name,duration_minutes,price,window_start_min,window_end_min,table_ids,weekdays,is_active,sort').eq('outlet_id', ctx.outletId).order('sort').order('name')) as Row[] | null) ?? [];
+      return rows.map((r): PsPackage => ({
+        id: r.id as string, name: r.name as string, price: Number(r.price), tableIds: (r.table_ids as string[] | null) ?? [], isActive: !!r.is_active, sort: Number(r.sort ?? 0),
+        ...(r.duration_minutes != null ? { durationMinutes: Number(r.duration_minutes) } : {}),
+        ...(r.window_start_min != null ? { windowStartMin: Number(r.window_start_min), windowEndMin: Number(r.window_end_min) } : {}),
+        ...(Array.isArray(r.weekdays) ? { weekdays: (r.weekdays as number[]).map(Number) } : {}),
+      }));
+    },
+    async savePsPackage(input: PsPackageInput) {
+      const problem = psPackageProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { orgId, ctx } = await resolve();
+      const row = {
+        id: input.id ?? newId(), org_id: orgId, outlet_id: ctx.outletId, name: input.name.trim(), price: input.price,
+        duration_minutes: input.durationMinutes ?? null, window_start_min: input.windowStartMin ?? null, window_end_min: input.windowEndMin ?? null,
+        table_ids: input.tableIds, weekdays: input.weekdays && input.weekdays.length ? input.weekdays : null, is_active: input.isActive ?? true, sort: input.sort ?? 0,
+      };
+      const { error } = await db().from('ps_packages').upsert(row, { onConflict: 'id' });
+      if (error) throw mapDbError(error);
+      return {
+        id: row.id, name: row.name, price: row.price, tableIds: row.table_ids, isActive: row.is_active, sort: row.sort,
+        ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
+        ...(input.windowStartMin !== undefined ? { windowStartMin: input.windowStartMin, windowEndMin: input.windowEndMin } : {}),
+        ...(row.weekdays ? { weekdays: row.weekdays } : {}),
+      };
+    },
+    async deletePsPackage(id) {
+      const { error } = await db().from('ps_packages').delete().eq('id', id);
+      if (error) throw mapDbError(error);
+    },
+    async getPsSettings() {
+      const { ctx } = await resolve();
+      const r = must(await db().from('outlet_settings').select('ps_grace_minutes,ps_booking_expiry_minutes,ps_booking_message').eq('outlet_id', ctx.outletId).single()) as Row;
+      return {
+        graceMinutes: Number(r.ps_grace_minutes ?? PS_DEFAULT_GRACE_MINUTES), bookingExpiryMinutes: Number(r.ps_booking_expiry_minutes ?? PS_DEFAULT_BOOKING_EXPIRY_MINUTES),
+        ...(r.ps_booking_message ? { bookingMessage: r.ps_booking_message as string } : {}),
+      };
+    },
+    async savePsSettings(input: PsSettings) {
+      const problem = psSettingsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const { ctx } = await resolve();
+      const { error } = await db().rpc('ps_settings_save', { p_outlet: ctx.outletId, p_grace: input.graceMinutes, p_expiry: input.bookingExpiryMinutes, p_message: input.bookingMessage ?? null });
+      if (error) throw mapDbError(error);
     },
     async listTables() {
       const { ctx } = await resolve();

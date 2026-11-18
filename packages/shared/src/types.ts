@@ -153,7 +153,8 @@ export interface OrderDraft {
   items: { id: string; productId: string; /** id product_units satuan yang dijual; kosong = satuan dasar */ unitId?: string; name: string; qty: number; unitPrice: number; /** harga daftar sebelum diubah kasir; hanya diisi bila harga baris diubah */ basePrice?: number; note?: string; extras?: ItemExtra[] }[];
   orderDiscount?: number;
 }
-export interface Floor { id: string; name: string; sort: number }
+/** kind: 'cafe' (bawaan) atau 'ps' (lantai berisi station rental PS; migrasi 0158) */
+export interface Floor { id: string; name: string; sort: number; kind?: 'cafe' | 'ps' }
 export interface DiningTable { id: string; floorId: string | null; name: string; sort: number }
 /** Meja beserta pesanan yang sedang memakainya (belum lunas dan belum dibatalkan). */
 export interface TableStatus extends DiningTable {

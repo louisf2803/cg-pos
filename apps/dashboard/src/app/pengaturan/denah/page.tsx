@@ -1942,6 +1942,7 @@ function NameDialog({
   const [name, setName] = useState(dlg.item?.name ?? '');
   const [floorId, setFloorId] = useState(dlg.kind === 'table' ? dlg.floorId : '');
   const [shape, setShape] = useState<CustomTableShape>(initialShape);
+  const [floorKind, setFloorKind] = useState<'cafe' | 'ps'>(dlg.kind === 'floor' ? (dlg.item?.kind ?? 'cafe') : 'cafe');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const noun = isTable ? 'meja' : 'lantai';
@@ -1957,7 +1958,7 @@ function NameDialog({
         const saved = await data.saveTable({ id: dlg.item?.id, floorId, name });
         onSaved(saved.id, shape);
       } else {
-        await data.saveFloor({ id: dlg.item?.id, name });
+        await data.saveFloor({ id: dlg.item?.id, name, kind: floorKind });
         onSaved();
       }
     } catch (err) {
@@ -1991,6 +1992,16 @@ function NameDialog({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
+        {!isTable && (
+          <div className="cg-field">
+            <label className="cg-label" htmlFor="jenis-lantai-denah">Jenis lantai</label>
+            <select id="jenis-lantai-denah" className="cg-input" value={floorKind} onChange={(e) => setFloorKind(e.target.value as 'cafe' | 'ps')}>
+              <option value="cafe">Kafe (meja makan)</option>
+              <option value="ps">PS (station rental)</option>
+            </select>
+            <p className="text-xs text-text-muted m-0">Lantai PS tampil di tampilan PS kasir; tiap meja di lantai itu menjadi satu station. Tarif dan game diatur di Station PS.</p>
+          </div>
+        )}
         {isTable && (
           <>
             <div className="cg-field">

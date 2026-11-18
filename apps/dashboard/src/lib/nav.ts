@@ -368,6 +368,7 @@ export const MODUL: NavModule[] = [
         items: [
           { href: '/pengaturan/outlet', label: 'Bisnis dan outlet', screen: 'S31', tier: 1, built: true },
           { href: '/pengaturan/denah', label: 'Denah dan meja', screen: 'S32', tier: 1, built: true },
+          { href: '/pengaturan/ps', label: 'Station PS', screen: 'S32', tier: 2, built: true },
           { href: '/pengaturan/rekening', label: 'Rekening outlet', screen: 'S31', tier: 2 },
         ],
       },

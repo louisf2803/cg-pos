@@ -45,6 +45,7 @@ import { approvalProblem, nextDueAfter, recurringBillProblem, type ApprovalReque
 import { depreciationSchedule, disposalGainLoss, disposalProblem, fixedAssetProblem, firstDepreciationPeriod, type AssetDepreciationEntry, type FixedAsset } from './fixed-assets';
 import { appointmentProblem, type Appointment, type AppointmentInput } from './appointment';
 import type { IngredientUnavailable, UnavailableProduct } from './availability';
+import { PS_DEFAULT_BOOKING_EXPIRY_MINUTES, PS_DEFAULT_GRACE_MINUTES, psPackageProblem, psSettingsProblem, psStationProblem, type PsPackage, type PsPackageInput, type PsSettings, type PsStation, type PsStationInput } from './ps';
 import { staffAccountProblem, staffLoginEmail, taskTemplateProblem, type StaffAccount, type TaskGateItem, type TaskItem, type TaskRun, type TaskTemplate } from './tasks';
 import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, type CollectiveLeave, type EmployeeProfile } from './hr-profile';
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
@@ -173,6 +174,9 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let categories: Category[] = [];
   let departments: Department[] = [];
   let floors: Floor[] = [];
+  const psStationCfg = new Map<string, Omit<PsStationInput, 'tableId'>>();
+  let psPackages: PsPackage[] = [];
+  let psSettings: PsSettings = { graceMinutes: PS_DEFAULT_GRACE_MINUTES, bookingExpiryMinutes: PS_DEFAULT_BOOKING_EXPIRY_MINUTES };
   let refunds: (Refund & { shiftId?: string; methodKind: PaymentMethod['kind'] })[] = [];
   let tables: DiningTable[] = [];
   let customers: (Customer & { deleted?: boolean })[] = [];
@@ -1047,10 +1051,45 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       if (input.id) {
         const f = floors.find((x) => x.id === input.id);
         if (!f) throw new DataError('not_found', 'Lantai tidak ditemukan');
-        f.name = name; return clone(f);
+        f.name = name; if (input.kind) f.kind = input.kind; return clone(f);
       }
-      const f: Floor = { id: newId(), name, sort: floors.length + 1 };
+      const f: Floor = { id: newId(), name, sort: floors.length + 1, kind: input.kind ?? 'cafe' };
       floors.push(f); return clone(f);
+    },
+    async listPsStations() {
+      const psFloors = new Set(floors.filter((f) => f.kind === 'ps').map((f) => f.id));
+      return clone(tables.filter((t) => t.floorId && psFloors.has(t.floorId)).map((t): PsStation => {
+        const c = psStationCfg.get(t.id);
+        return { tableId: t.id, floorId: t.floorId, name: t.name, configured: !!c, consoleLabel: c?.consoleLabel ?? 'PS', ratePerHour: c?.ratePerHour ?? 0, isMaintenance: c?.isMaintenance ?? false, games: c?.games ?? [], bands: c?.bands ?? [] };
+      }));
+    },
+    async savePsStation(input) {
+      const problem = psStationProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const t = tables.find((x) => x.id === input.tableId);
+      if (!t || !floors.some((f) => f.id === t.floorId && f.kind === 'ps')) throw new DataError('invalid', 'Meja ini tidak berada di lantai berjenis PS. Ubah jenis lantainya di Denah.');
+      const { tableId: _t, ...rest } = input;
+      psStationCfg.set(input.tableId, clone(rest));
+    },
+    async listPsPackages() { return clone([...psPackages].sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))); },
+    async savePsPackage(input: PsPackageInput) {
+      const problem = psPackageProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      const pkg: PsPackage = {
+        id: input.id ?? newId(), name: input.name.trim(), price: input.price, tableIds: [...input.tableIds], isActive: input.isActive ?? true, sort: input.sort ?? 0,
+        ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
+        ...(input.windowStartMin !== undefined ? { windowStartMin: input.windowStartMin, windowEndMin: input.windowEndMin } : {}),
+        ...(input.weekdays && input.weekdays.length ? { weekdays: [...input.weekdays] } : {}),
+      };
+      psPackages = [...psPackages.filter((p) => p.id !== pkg.id), pkg];
+      return clone(pkg);
+    },
+    async deletePsPackage(id) { psPackages = psPackages.filter((p) => p.id !== id); },
+    async getPsSettings() { return clone(psSettings); },
+    async savePsSettings(input: PsSettings) {
+      const problem = psSettingsProblem(input);
+      if (problem) throw new DataError('invalid', problem);
+      psSettings = clone(input);
     },
     async deleteFloor(id) {
       if (!floors.some((f) => f.id === id)) throw new DataError('not_found', 'Lantai tidak ditemukan');
