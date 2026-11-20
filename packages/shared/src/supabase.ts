@@ -77,7 +77,7 @@ import type { DataLayer } from './data';
 import { DataError } from './types';
 import { couponInputProblem, normalizeCode, promotionProblem } from './promo';
 import type {
-  Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
+  Bundle, CatalogInput, CatalogProduct, Category, Department, ExtraGroup, ProductGroupSetup, VariantStockLine, Refund, RefundInput, DiningTable, Floor, ManagedEmployee, TableStatus, Employee, Order, OrderDraft, OutletContext, PaymentMethod, Product, ProductInput, SalesRange, SalesSummary,
   Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord, PriceChange,
 } from './types';
 import type { OrderType, TaxMode } from './order-calc';
@@ -88,6 +88,7 @@ import { newId } from './id';
 import { DEFAULT_TAX, outletInfoProblem, outletOptionsProblem, taxSettingsProblem, type ManagedOutlet, type TaxSettings } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
+import { setupFromGroups, variantSetupProblem } from './variant-setup';
 import { bundleProblem } from './bundle';
 import { assembleCatalog, variantProductName, variantsProblem } from './variants';
 import {
@@ -1194,13 +1195,27 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
     },
     async listExtraGroups() {
       const rows = must(await db().from('extra_groups')
-        .select('id,name,is_required,select_mode,max_select,extra_options(id,name,price,sort,deleted_at),product_extra_groups(product_id)')
+        .select('id,name,is_required,select_mode,max_select,kind,material_ingredient_id,material_unit_id,extra_options(id,name,price,sort,deleted_at,product_extra_options(product_id,price_delta)),product_extra_groups(product_id,sort,is_parent)')
         .is('deleted_at', null).order('name')) as Row[] | null;
-      return (rows ?? []).map((g): ExtraGroup => ({
-        id: g.id, name: g.name, required: !!g.is_required, mode: g.select_mode, maxSelect: g.max_select ?? null,
-        options: ((g.extra_options ?? []) as Row[]).filter((o) => !o.deleted_at).map((o) => ({ id: o.id, name: o.name, price: Number(o.price), sort: Number(o.sort) })).sort((a, b) => a.sort - b.sort),
-        productIds: ((g.product_extra_groups ?? []) as Row[]).map((x) => x.product_id),
-      }));
+      return (rows ?? []).map((g): ExtraGroup => {
+        const liveOpts = ((g.extra_options ?? []) as Row[]).filter((o) => !o.deleted_at);
+        const links = (g.product_extra_groups ?? []) as Row[];
+        const productSetups: Record<string, ProductGroupSetup> = {};
+        for (const l of links) {
+          const pid = l.product_id as string;
+          const allowed: Record<string, number> = {};
+          let any = false;
+          for (const o of liveOpts) for (const po of (o.product_extra_options ?? []) as Row[]) if (po.product_id === pid) { allowed[o.id] = Number(po.price_delta); any = true; }
+          productSetups[pid] = { sort: Number(l.sort ?? 0), isParent: !!l.is_parent, options: any ? allowed : null };
+        }
+        return {
+          id: g.id, name: g.name, required: !!g.is_required, mode: g.select_mode, maxSelect: g.max_select ?? null,
+          kind: (g.kind ?? 'plain') as 'plain' | 'material' | 'cup', materialIngredientId: g.material_ingredient_id ?? null, materialUnitId: g.material_unit_id ?? null,
+          options: liveOpts.map((o) => ({ id: o.id, name: o.name, price: Number(o.price), sort: Number(o.sort) })).sort((a, b) => a.sort - b.sort),
+          productIds: links.map((x) => x.product_id),
+          productSetups,
+        };
+      });
     },
     async saveExtraGroup(input) {
       const problem = extraGroupProblem(input);
@@ -1212,7 +1227,10 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const old = input.id ? existing.find((g) => g.id === input.id) : undefined;
       if (input.id && !old) throw new DataError('not_found', 'Grup tidak ditemukan');
       const id = old?.id ?? newId();
-      const row = { name, is_required: input.required, select_mode: input.mode, max_select: input.mode === 'single' ? null : input.maxSelect ?? null };
+      const row = {
+        name, is_required: input.required, select_mode: input.mode, max_select: input.mode === 'single' ? null : input.maxSelect ?? null,
+        ...(input.kind ? { kind: input.kind, material_ingredient_id: input.kind === 'plain' ? null : input.materialIngredientId ?? null, material_unit_id: input.kind === 'plain' ? null : input.materialUnitId ?? null } : {}),
+      };
       if (old) must(await db().from('extra_groups').update(row).eq('id', id));
       else must(await db().from('extra_groups').insert({ id, org_id: orgId, ...row }));
       // pilihan: yang dihapus dari daftar dinonaktifkan (soft delete) agar pesanan lama tetap merujuk baris yang ada
@@ -1224,8 +1242,30 @@ export function createSupabaseData(client: SupabaseClient, opts: SupabaseDataOpt
       const ids = [...new Set(input.productIds)];
       const drop = (old?.productIds ?? []).filter((p) => !ids.includes(p));
       if (drop.length) must(await db().from('product_extra_groups').delete().eq('group_id', id).in('product_id', drop));
-      if (ids.length) must(await db().from('product_extra_groups').upsert(ids.map((p, k) => ({ product_id: p, group_id: id, org_id: orgId, sort: k })), { onConflict: 'product_id,group_id' }));
+      // produk yang sudah terpasang tidak disentuh (urutan dan induknya diatur di Pasang di produk); hanya yang baru ditambah
+      const fresh = ids.filter((p) => !(old?.productIds ?? []).includes(p));
+      if (fresh.length) must(await db().from('product_extra_groups').upsert(fresh.map((p, k) => ({ product_id: p, group_id: id, org_id: orgId, sort: 100 + k })), { onConflict: 'product_id,group_id' }));
       return (await self.listExtraGroups()).find((g) => g.id === id)!;
+    },
+    async getProductVariants(productId) {
+      const groups = await self.listExtraGroups();
+      const lines = must(await db().from('variant_stock_lines').select('option_id,combo_key,ingredient_id,qty,unit_id').eq('product_id', productId)) as Row[] | null;
+      return {
+        groups: setupFromGroups(groups, productId),
+        lines: (lines ?? []).map((l): VariantStockLine => ({ optionId: l.option_id ?? null, comboKey: l.combo_key, ingredientId: l.ingredient_id, qty: Number(l.qty), unitId: l.unit_id })),
+      };
+    },
+    async saveProductVariants(productId, setup) {
+      const problem = variantSetupProblem(setup);
+      if (problem) throw new DataError('invalid', problem);
+      const { error } = await db().rpc('product_variants_save', {
+        p_product: productId,
+        p_setup: {
+          groups: setup.groups.map((g) => ({ group_id: g.groupId, is_parent: g.isParent, options: g.options ? g.options.map((o) => ({ option_id: o.optionId, price_delta: o.priceDelta })) : null })),
+          lines: setup.lines.map((l) => ({ option_id: l.optionId, combo_key: l.comboKey, ingredient_id: l.ingredientId, qty: l.qty, unit_id: l.unitId })),
+        },
+      });
+      if (error) throw new DataError('invalid', /two parent/i.test(error.message ?? '') ? 'Paling banyak dua varian induk.' : mapDbError(error).message);
     },
     async deleteExtraGroup(id) {
       const cur = must(await db().from('extra_groups').select('id').eq('id', id).is('deleted_at', null).maybeSingle()) as Row | null;

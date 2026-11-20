@@ -10,7 +10,7 @@ import { useSession } from '../lib/session';
 import { ApproverFields, useApprover } from '../lib/approver';
 import { forwardNotice, forwardOrder, useTickets } from '../lib/stations';
 import { TicketStrip } from './TicketHost';
-import { ExtraPicker } from './ExtraPicker';
+import { VariantPanel } from './VariantPanel';
 import { ProductDetailDialog } from './ProductDetailDialog';
 import { useOnline } from '../lib/online';
 import { DiscountLines, Modal, ProductPhoto } from '../ui';
@@ -31,9 +31,6 @@ import { Inventory } from './inventory/Inventory';
 import { playChime } from '../lib/sound';
 import { SplitBillDialog } from './SplitBillDialog';
 
-const TYPES: { v: OrderType; label: string }[] = [
-  { v: 'takeaway', label: 'Bawa pulang' }, { v: 'dine_in', label: 'Makan di tempat' }, { v: 'delivery', label: 'Antar' }, { v: 'service', label: 'Jasa' },
-];
 const FAV = '__favorit';
 const BUNDLE = '__paket';
 const PROMO = '__promo';
@@ -100,8 +97,6 @@ export function Register({
   const priceGroups = useAsync(() => data.listCustomerGroups().catch(() => []), [data]);
   const posGroups = priceGroups.status === 'ready' ? priceGroups.data.filter((g) => g.isDefault || g.showInPos !== false) : [];
   const normalGroupId = posGroups.find((g) => g.isDefault)?.id ?? null;
-  const [psGroupId, setPsGroupId] = useState<string | null>(null);
-  const activePsGroup = posGroups.some((g) => g.id === psGroupId) ? psGroupId : normalGroupId;
   const [ordersTab, setOrdersTab] = useState<'waiting' | 'pending'>('waiting');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
@@ -144,7 +139,8 @@ export function Register({
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [priceForId, setPriceForId] = useState<string | null>(null);
   const cart = useCart(ctx, 0, promos.status === 'ready' ? promos.data : NO_PROMOS, pricingRules);
-  useEffect(() => { if (cart.state.lines.length === 0) setPsGroupId(null); }, [cart.state.lines.length]);
+  // tipe pelanggan aktif = grup harga yang dipilih kasir (atau grup pelanggan terdaftar); kosong = Normal
+  const activePsGroup = posGroups.some((g) => g.id === cart.state.customerGroupId) ? cart.state.customerGroupId ?? null : normalGroupId;
 
   const activePricing = useMemo<CartPricingRules>(() => ({
     schedules: schedulesRes.status === 'ready' ? schedulesRes.data : undefined,
@@ -152,8 +148,8 @@ export function Register({
     channelPrices: channelPricesRes.status === 'ready' ? channelPricesRes.data : undefined,
     timePrices: timePricesRes.status === 'ready' ? timePricesRes.data : undefined,
     timezone: ctx.timezone,
-    customerGroupId: cart.state.customerId ? groupMemberMap.get(cart.state.customerId) : undefined,
-  }), [schedulesRes, tieredPricesRes, channelPricesRes, timePricesRes, ctx.timezone, cart.state.customerId, groupMemberMap]);
+    customerGroupId: cart.state.customerGroupId ?? (cart.state.customerId ? groupMemberMap.get(cart.state.customerId) : undefined),
+  }), [schedulesRes, tieredPricesRes, channelPricesRes, timePricesRes, ctx.timezone, cart.state.customerId, cart.state.customerGroupId, groupMemberMap]);
   const [discOpen, setDiscOpen] = useState(false);
   const [msgOpen, setMsgOpen] = useState(false);
   const [seenAt, setSeenAt] = useState<string | null>(() => readSeenAt(session.employee.id));
@@ -289,7 +285,13 @@ export function Register({
     const gs = extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, p) : [];
     if (gs.length) setExtraFor(p); else cart.dispatch({ t: 'add', product: p, pricing: activePricing });
   };
-  const openDetail = (p: Product) => { if (!stockOk(p)) return; setDetailFor(p); };
+  // produk bervarian: pilihan langsung di panel pesanan (kanan); produk tanpa varian membuka dialog detail (jumlah, satuan, catatan)
+  const openDetail = (p: Product) => {
+    const gs = extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, p) : [];
+    if (gs.length) { choose(p); return; }
+    if (!stockOk(p)) return;
+    setDetailFor(p);
+  };
   const qtyOfTile = (t: CatalogTile) => (t.kind === 'single' ? qtyOf(t.product) : t.options.reduce((n, o) => n + qtyOf(o.product), 0));
 
   /** Simpan pesanan ke server. Id dipertahankan di keranjang, jadi simpan ulang memperbarui pesanan yang sama. */
@@ -743,43 +745,19 @@ export function Register({
           <div className="grid grid-cols-2 gap-8 items-stretch">
             {/* Kolom 1: Jenis Pesanan */}
             <div className="relative">
-              {area === 'ps' && hasPs ? (
-                <select
-                  className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface"
-                  value={activePsGroup ?? ''}
-                  onChange={(e) => setPsGroupId(e.target.value)}
-                  aria-label="Tipe pelanggan"
-                  data-testid="ps-customer-type"
-                >
-                  {posGroups.length === 0 && <option value="">Normal</option>}
-                  {posGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
-              ) : (<>
               <select
                 className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface"
-                value={cart.state.type}
-                onChange={(e) => cart.dispatch({ t: 'type', type: e.target.value as OrderType, pricing: activePricing })}
-                aria-label="Jenis pesanan"
+                value={activePsGroup ?? ''}
+                onChange={(e) => {
+                  const gid = e.target.value && e.target.value !== normalGroupId ? e.target.value : undefined;
+                  cart.dispatch({ t: 'customer', customerId: cart.state.customerId, customerName: cart.state.customerName, customerGroupId: gid, pricing: { ...pricingRules, customerGroupId: gid } });
+                }}
+                aria-label="Tipe pelanggan"
+                data-testid="ps-customer-type"
               >
-                {TYPES.map((t) => (
-                  <option key={t.v} value={t.v}>
-                    {t.label}
-                  </option>
-                ))}
+                {posGroups.length === 0 && <option value="">Normal</option>}
+                {posGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
-              {cart.state.type === 'delivery' && (
-                <select
-                  className="cg-input h-[38px] text-xs font-semibold w-full cursor-pointer bg-surface mt-4"
-                  value={cart.state.channel ?? ''}
-                  onChange={(e) => cart.dispatch({ t: 'channel', channel: (e.target.value || undefined) as Channel | undefined, pricing: activePricing })}
-                  aria-label="Kanal pesanan"
-                  data-testid="order-channel"
-                >
-                  <option value="">Antar langsung</option>
-                  {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
-                </select>
-              )}
-              </>)}
             </div>
 
             {/* Kolom 2: Tombol Pelanggan */}
@@ -866,6 +844,12 @@ export function Register({
 
         {/* 2. Baris pesanan: jumlah di kiri, nama, harga di kanan, ekstra/catatan kecil di bawah nama, tombol hapus merah bulat di ujung kanan */}
         <div className="cg-shell__lines p-8 overflow-y-auto">
+          {extraFor && extraGroups.status === 'ready' && (
+            <VariantPanel key={extraFor.id} product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)}
+              price={resolveEffectivePrice(extraFor.id, extraFor.price, 1, { ...activePricing, channel: cart.state.type === 'delivery' ? cart.state.channel ?? null : null })}
+              onClose={() => setExtraFor(null)}
+              onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras, pricing: activePricing }); setExtraFor(null); }} />
+          )}
           {cart.state.lines.length === 0 ? (
             <div className="cg-empty py-24">
               <h3>Pesanan masih kosong</h3>
@@ -1216,10 +1200,6 @@ export function Register({
             const o = await data.getOrder(t.order!.id);
             if (o) { cart.dispatch({ t: 'load', order: o, tableName: t.name, products: prods.status === 'ready' ? prods.data : undefined }); setPanelOpen(true); setNotice(''); }
           }} />
-      )}
-      {extraFor && extraGroups.status === 'ready' && (
-        <ExtraPicker product={extraFor} groups={groupsForProduct(extraGroups.data, extraFor)} onClose={() => setExtraFor(null)}
-          onAdd={(extras) => { if (!stockOk(extraFor)) { setExtraFor(null); return; } cart.dispatch({ t: 'add', product: extraFor, extras, pricing: activePricing }); setExtraFor(null); }} />
       )}
       {detailFor && (
         <ProductDetailDialog product={detailFor} basePrice={resolveEffectivePrice(detailFor.id, detailFor.price, 1, { ...activePricing, channel: cart.state.type === 'delivery' ? cart.state.channel ?? null : null })} groups={extraGroups.status === 'ready' ? groupsForProduct(extraGroups.data, detailFor) : []} onClose={() => setDetailFor(null)}

@@ -45,7 +45,7 @@ import type { CustomerGroup, CustomerGroupMember, GroupProductTieredPricing, Tie
 import type { PriceSchedule } from './price-schedule';
 import type { PaymentMethodConfig, PaymentChannelKind } from './payment-methods';
 import type {
-  Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, Category, Coupon, CouponInput, Customer, Promotion, PromotionInput, CustomerInput, CatalogInput, ExtraGroup, ExtraGroupInput, ProductVariantsSetup, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, CatalogProduct, Employee, EmployeeInput, ManagedEmployee, OrderDraft, Order, OutletContext, PaymentInput, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceOpen, AttendanceRecord, PriceChange,
 } from './types';
 import type { ShiftReportRow } from './shift-report';
@@ -160,6 +160,10 @@ export interface DataLayer {
   saveExtraGroup(input: ExtraGroupInput): Promise<ExtraGroup>;
   /** Hapus grup. Pesanan lama tetap menyimpan salinan nama dan harga pilihannya. */
   deleteExtraGroup(id: string): Promise<void>;
+  /** Varian satu produk: varian yang menempel (urutan, induk, isi yang boleh + tambahan harga) dan takaran stok per kolom induk. */
+  getProductVariants(productId: string): Promise<ProductVariantsSetup>;
+  /** Simpan seluruh pengaturan varian satu produk sekaligus (menggantikan yang lama). Paling banyak dua induk. */
+  saveProductVariants(productId: string, setup: ProductVariantsSetup): Promise<void>;
   listProducts(q?: { categoryId?: string | null; search?: string; includeInactive?: boolean }): Promise<Product[]>;
   getProduct(id: string): Promise<Product | null>;
   /** Id produk sistem "Item bebas" (jual barang tak terdaftar). Nama dan harga tiap baris diisi kasir. Dibuat otomatis bila belum ada. */

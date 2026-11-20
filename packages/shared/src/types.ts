@@ -112,10 +112,28 @@ export interface PriceChange {
 }
 export interface ExtraOption { id: string; name: string; price: number; sort: number }
 /** Grup Ekstra (modifier): satu atau banyak pilihan, wajib atau tidak, dengan harga tambahan per pilihan. */
-export interface ExtraGroup { id: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect: number | null; options: ExtraOption[]; productIds: string[] }
+export interface ExtraGroup {
+  id: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect: number | null; options: ExtraOption[]; productIds: string[];
+  /** jenis varian: biasa, bahan (mis. gula/es batu, ikut takaran per kolom), atau gelas/wadah (penyajian) */
+  kind?: 'plain' | 'material' | 'cup';
+  /** bahan dan satuan bawaan untuk jenis 'material' (isian awal di layar resep) */
+  materialIngredientId?: string | null; materialUnitId?: string | null;
+  /** pengaturan per produk: urutan tampil, induk resep, dan isi yang boleh beserta tambahan harga (null = semua isi, harga dari isi) */
+  productSetups?: Record<string, ProductGroupSetup>;
+  /** hanya pada hasil groupsForProduct: grup ini induk resep untuk produk itu */
+  isParent?: boolean;
+}
+export interface ProductGroupSetup { sort: number; isParent: boolean; options: Record<string, number> | null }
 export interface ExtraGroupInput {
   id?: string; name: string; required: boolean; mode: 'single' | 'multiple'; maxSelect?: number | null;
   options: { id?: string; name: string; price: number }[]; productIds: string[];
+  kind?: 'plain' | 'material' | 'cup'; materialIngredientId?: string | null; materialUnitId?: string | null;
+}
+/** Satu takaran stok varian: optionId kosong = bahan resep dasar; terisi = bahan yang ikut pilihan itu. comboKey = id isi induk digabung '|' ('*' bila tanpa induk). */
+export interface VariantStockLine { optionId: string | null; comboKey: string; ingredientId: string; qty: number; unitId: string }
+export interface ProductVariantsSetup {
+  groups: { groupId: string; isParent: boolean; options: { optionId: string; priceDelta: number }[] | null }[];
+  lines: VariantStockLine[];
 }
 export interface Payment { id: string; methodId: string; methodName: string; kind: PaymentMethod['kind']; amount: number; tendered?: number; change: number; paidAt: string; reference?: string }
 /** Pelanggan. pointsBalance = saldo poin loyalti (diisi server). */

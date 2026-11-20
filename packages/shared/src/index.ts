@@ -13,6 +13,7 @@ export * from './report';
 export * from './outlet';
 export * from './refund';
 export * from './extras';
+export * from './variant-setup';
 export * from './bundle';
 export * from './offline';
 export * from './escpos';

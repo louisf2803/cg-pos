@@ -53,13 +53,14 @@ import { collectiveLeaveProblem, employeeProfileProblem, normalizeProfileInput, 
 import { attendanceSettingsProblem, hrNameProblem, hrNameTaken, jobLevelProblem, notificationProblem, orgUnitProblem, type AttendanceSettings, type EmployeeHr, type EmployeeNotification, type EmployeeType, type JobLevel, type OrgUnit } from './hr';
 import { cashAdvanceBalances, cashAdvanceProblem, compensationProblem, incidentProblem, mergePayrollRules, payrollRulesProblem, scheduleProblem, type CashAdvance, type CashAdvanceInput, type EmployeeCompensation, type EmployeeIncident, type EmployeeIncidentInput, type PayrollRecord, type PayrollRecordInput, type PayrollRules, type WeeklySchedule } from './payroll';
 import type {
-  Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
+  Bundle, BundleInput, Coupon, CouponInput, Customer, DiscountEntry, Promotion, PromotionInput, CatalogInput, CatalogProduct, Category, ExtraGroup, ExtraGroupInput, ProductVariantsSetup, VariantStockLine, Department, Refund, RefundInput, DiningTable, Floor, TableStatus, Employee, EmployeeInput, ManagedEmployee, Order, OrderDraft, OrderItem, OutletContext, Payment, PaymentMethod, Product, ProductInput,
   SalesRange, SalesSummary, Shift, ShiftReport, CashMovement, AttendanceInput, AttendanceRecord, PriceChange,
 } from './types';
 import { computeOrder, type OrderType } from './order-calc';
 import { outletInfoProblem, outletOptionsProblem, taxSettingsProblem, type ManagedOutlet } from './outlet';
 import { refundAmounts, refundProblem } from './refund';
 import { extraGroupProblem, extrasLineTotal } from './extras';
+import { setupFromGroups, variantSetupProblem } from './variant-setup';
 import { bundleProblem } from './bundle';
 import { formatOrderNumber, localDateKey, localParts } from './order-number';
 import { newId } from './id';
@@ -244,6 +245,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
   let stored: FakeEntry[] = [];
   const seqOf = new Map<string, number>();
   let extraGroups: ExtraGroup[] = [];
+  let variantLines: Record<string, VariantStockLine[]> = {};
   let bundleItems = new Map<string, { productId: string; qty: number }[]>();
   let outlet: {
     address: string;
@@ -646,6 +648,7 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       ['Level pedas', 'Tidak pedas'], ['Level pedas', 'Sedang'], ['Level pedas', 'Pedas'], ['Gula', 'Kurang manis'], ['Gula', 'Tanpa gula'], ['Es', 'Es sedikit'], ['Es', 'Tanpa es'], ['Permintaan', 'Bungkus terpisah'], ['Permintaan', 'Jangan pakai sedotan'],
     ].map(([category, text], i) => ({ id: `np-${i + 1}`, category: category!, text: text!, sort: i + 1, isActive: true }));
     extraGroups = opts.seed === false ? [] : clone(EXTRA_GROUPS);
+    variantLines = {};
     bundleItems = new Map();
     orders = []; shifts = []; cashMoves = []; refunds = []; seqByDay.clear();
     customers = opts.seed === false ? [] : SEED_CUSTOMERS.map((c) => ({ ...c }));
@@ -1270,11 +1273,35 @@ export function createFakeData(opts: FakeOptions = {}): DataLayer & { reset(): v
       const old = extraGroups.find((g) => g.id === input.id);
       if (input.id && !old) throw new DataError('not_found', 'Grup tidak ditemukan');
       const options = input.options.filter((o) => o.name.trim()).map((o, k) => ({ id: o.id && old?.options.some((x) => x.id === o.id) ? o.id : newId(), name: o.name.trim(), price: o.price, sort: k + 1 }));
-      const g: ExtraGroup = { id: old?.id ?? newId(), name, required: input.required, mode: input.mode, maxSelect: input.mode === 'single' ? null : input.maxSelect ?? null, options, productIds: [...new Set(input.productIds)] };
+      const kind = input.kind ?? old?.kind ?? 'plain';
+      const g: ExtraGroup = {
+        id: old?.id ?? newId(), name, required: input.required, mode: input.mode, maxSelect: input.mode === 'single' ? null : input.maxSelect ?? null, options, productIds: [...new Set(input.productIds)],
+        kind, materialIngredientId: kind === 'plain' ? null : input.materialIngredientId ?? old?.materialIngredientId ?? null, materialUnitId: kind === 'plain' ? null : input.materialUnitId ?? old?.materialUnitId ?? null,
+        productSetups: Object.fromEntries(Object.entries(old?.productSetups ?? {}).filter(([pid]) => input.productIds.includes(pid))),
+      };
       extraGroups = old ? extraGroups.map((x) => (x.id === old.id ? g : x)) : [...extraGroups, g];
       return clone(g);
     },
     async deleteExtraGroup(id: string) { extraGroups = extraGroups.filter((g) => g.id !== id); },
+    async getProductVariants(productId: string) {
+      return clone({ groups: setupFromGroups(extraGroups, productId), lines: variantLines[productId] ?? [] });
+    },
+    async saveProductVariants(productId: string, setup: ProductVariantsSetup) {
+      const problem = variantSetupProblem(setup);
+      if (problem) throw new DataError('invalid', problem);
+      for (const sg of setup.groups) if (!extraGroups.some((g) => g.id === sg.groupId)) throw new DataError('not_found', 'Varian tidak ditemukan');
+      extraGroups = extraGroups.map((g) => {
+        const k = setup.groups.findIndex((x) => x.groupId === g.id);
+        const productSetups = { ...(g.productSetups ?? {}) };
+        delete productSetups[productId];
+        const productIds = g.productIds.filter((p) => p !== productId);
+        if (k < 0) return { ...g, productIds, productSetups };
+        const sg = setup.groups[k]!;
+        productSetups[productId] = { sort: k, isParent: sg.isParent, options: sg.options ? Object.fromEntries(sg.options.map((o) => [o.optionId, o.priceDelta])) : null };
+        return { ...g, productIds: [...productIds, productId], productSetups };
+      });
+      variantLines = { ...variantLines, [productId]: clone(setup.lines.filter((l) => l.qty > 0)) };
+    },
 
     async listProducts(q = {}) {
       const s = q.search?.trim().toLowerCase();

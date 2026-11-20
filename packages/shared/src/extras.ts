@@ -10,7 +10,18 @@ export const extrasKey = (extras?: ItemExtra[]): string => (extras ?? []).map((e
 /** Grup Ekstra yang berlaku untuk sebuah produk. Varian (S/M/L) memakai grup milik produk induknya. */
 export function groupsForProduct(groups: ExtraGroup[], product: Pick<Product, 'id' | 'parentId'>): ExtraGroup[] {
   const key = product.parentId ?? product.id;
-  return groups.filter((g) => g.options.length > 0 && (g.productIds.includes(key) || g.productIds.includes(product.id)));
+  const out: { g: ExtraGroup; sort: number }[] = [];
+  for (const g of groups) {
+    if (!(g.productIds.includes(key) || g.productIds.includes(product.id))) continue;
+    const setup = g.productSetups?.[key] ?? g.productSetups?.[product.id];
+    if (!setup) { if (g.options.length > 0) out.push({ g, sort: 0 }); continue; }
+    // pengaturan produk: hanya isi yang diizinkan, harga = tambahan harga produk itu
+    const allowed = setup.options;
+    const options = allowed ? g.options.filter((o) => o.id in allowed).map((o) => ({ ...o, price: allowed[o.id] ?? 0 })) : g.options;
+    if (options.length === 0) continue;
+    out.push({ g: { ...g, options, ...(setup.isParent ? { isParent: true } : {}) }, sort: setup.sort });
+  }
+  return out.map((x, i) => ({ ...x, i })).sort((a, b) => a.sort - b.sort || a.i - b.i).map((x) => x.g);
 }
 
 /** Galat pertama untuk pilihan pelanggan pada satu grup, atau null. */

@@ -120,7 +120,7 @@ export const MODUL: NavModule[] = [
           { section: 'Katalog', href: '/produk/barcode', label: 'Cetak barcode', screen: 'S33', tier: 2, built: true },
           { section: 'Katalog', href: '/layanan', label: 'Produk layanan', screen: 'S36', tier: 2 },
           { section: 'Katalog', href: '/fasilitas', label: 'Produk fasilitas', screen: 'S36', tier: 3, built: true },
-          { section: 'Katalog', href: '/ekstra', label: 'Produk ekstra', screen: 'S35', tier: 1, built: true },
+          { section: 'Katalog', href: '/varian', label: 'Varian', screen: 'S35', tier: 1, built: true },
           { section: 'Katalog', href: '/paket', label: 'Produk paket', screen: 'S36', tier: 1, built: true },
           { section: 'Katalog', href: '/deposit', label: 'Paket deposit', screen: 'S37', tier: 3, built: true },
           { section: 'Resep & Harga', href: '/inventori/resep', label: 'Perubahan resep', screen: 'S33', tier: 2, built: true },
